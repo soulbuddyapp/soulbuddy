@@ -6,6 +6,7 @@ import '../features/circles/presentation/circles_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
+import '../features/scripture/presentation/scripture_passage_screen.dart';
 import '../features/today/presentation/today_screen.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -45,6 +46,15 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/remember',
               builder: (context, state) => const RememberScreen(),
+              routes: [
+                GoRoute(
+                  path: 'scripture/:book/:chapter',
+                  builder: (context, state) => ScripturePassageScreen(
+                    book: state.pathParameters['book']!,
+                    chapter: int.parse(state.pathParameters['chapter']!),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

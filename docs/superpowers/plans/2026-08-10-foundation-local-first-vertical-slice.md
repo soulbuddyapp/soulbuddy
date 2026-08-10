@@ -511,7 +511,7 @@ git commit -m "feat: add guided encounter recording and remembering"
 - Create: `apps/soulbuddy/lib/features/scripture/presentation/scripture_passage_screen.dart`
 - Test: `apps/soulbuddy/test/features/scripture/sqlite_scripture_repository_test.dart`
 
-- [ ] **Step 1: Write failing Scripture repository tests**
+- [x] **Step 1: Write failing Scripture repository tests**
 
 Test against a tiny temporary SQLite fixture with the same source schema:
 
@@ -533,13 +533,13 @@ test('returns a typed not-found result for an unknown reference', () async {
 });
 ```
 
-- [ ] **Step 2: Run Scripture tests and verify RED**
+- [x] **Step 2: Run Scripture tests and verify RED**
 
 Run: `flutter test test/features/scripture/sqlite_scripture_repository_test.dart`
 
 Expected: FAIL because the repository is absent.
 
-- [ ] **Step 3: Add the local preparation script**
+- [x] **Step 3: Add the local preparation script**
 
 `tool/prepare_rsvce.ps1` must:
 
@@ -552,7 +552,7 @@ Expected: FAIL because the repository is absent.
 
 The generated DB remains gitignored.
 
-- [ ] **Step 4: Run the preparation script and verify the pack**
+- [x] **Step 4: Run the preparation script and verify the pack**
 
 Run:
 
@@ -562,7 +562,7 @@ powershell -ExecutionPolicy Bypass -File tool/prepare_rsvce.ps1
 
 Expected output includes `quick_check: ok`, `books: 73`, and `verses: 36083`.
 
-- [ ] **Step 5: Implement the read-only repository**
+- [x] **Step 5: Implement the read-only repository**
 
 `ScriptureRepository` exposes:
 
@@ -580,17 +580,17 @@ abstract interface class ScriptureRepository {
 
 Resolve a book by `books.shortname`, then query `verses` with `book_id`, `chapter_id`, and verse bounds. The presentation labels quoted text as `RSVCE · Scripture`; it does not mix personal or generated wording into the quotation container.
 
-- [ ] **Step 6: Run Scripture tests and query-plan verification**
+- [x] **Step 6: Run Scripture tests and query-plan verification**
 
 Run focused tests, then use `EXPLAIN QUERY PLAN` in a repository test to assert the prepared database contains `verses_lookup` and avoids `SCAN v` for chapter lookup.
 
 Expected: all Scripture tests pass and no verse-table scan is reported.
 
-- [ ] **Step 7: Add a linked passage entry point**
+- [x] **Step 7: Add a linked passage entry point**
 
 Add a small `Open John 3` development fixture to Encounter detail only for this vertical slice. Route to the passage screen, preserve navigation state, and show a focused retry state if the Scripture database is unavailable.
 
-- [ ] **Step 8: Run Flutter verification and commit**
+- [x] **Step 8: Run Flutter verification and commit**
 
 ```powershell
 flutter test

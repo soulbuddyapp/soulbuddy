@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
@@ -57,6 +59,13 @@ class EncounterListTile extends StatelessWidget {
                 encounter.body,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            if (kDebugMode) ...[
+              const SizedBox(height: AppSpacing.sm),
+              TextButton(
+                onPressed: () => context.push('/remember/scripture/John/3'),
+                child: const Text('Open John 3'),
               ),
             ],
           ],
