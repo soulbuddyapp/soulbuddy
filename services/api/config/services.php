@@ -26,6 +26,7 @@ return [
         'issuer' => env('POWERSYNC_JWT_ISSUER', env('APP_URL')),
         'audience' => env('POWERSYNC_JWT_AUDIENCE'),
         'secret' => env('POWERSYNC_JWT_SECRET'),
+        'kid' => env('POWERSYNC_JWT_KID'),
         'ttl_seconds' => (int) env('POWERSYNC_JWT_TTL_SECONDS', 600),
     ],
 

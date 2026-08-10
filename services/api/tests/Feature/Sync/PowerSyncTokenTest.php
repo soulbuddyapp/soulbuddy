@@ -9,10 +9,12 @@ use Illuminate\Support\Str;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    $encodedSecret = rtrim(strtr(base64_encode('test-only-powersync-secret-with-32-bytes'), '+/', '-_'), '=');
     config()->set('services.powersync', [
         'issuer' => 'https://api.soulbuddy.test',
         'audience' => 'https://sync.soulbuddy.test',
-        'secret' => 'test-only-powersync-secret-with-32-bytes',
+        'secret' => $encodedSecret,
+        'kid' => 'soulbuddy-test-hs256',
         'ttl_seconds' => 600,
     ]);
 });
@@ -37,7 +39,10 @@ it('issues a short-lived private-data-free token for an immutable public user id
 
     $claims = (array) JWT::decode(
         $response->json('token'),
-        new Key(config('services.powersync.secret'), 'HS256'),
+        new Key(JWT::urlsafeB64Decode(config('services.powersync.secret')), 'HS256'),
+    );
+    $header = (array) JWT::jsonDecode(
+        JWT::urlsafeB64Decode(explode('.', $response->json('token'))[0]),
     );
 
     expect($claims)
@@ -46,11 +51,20 @@ it('issues a short-lived private-data-free token for an immutable public user id
         ->aud->toBe('https://sync.soulbuddy.test')
         ->not->toHaveKeys(['email', 'name'])
         ->and($claims['exp'] - $claims['iat'])->toBe(600)
-        ->and($claims['exp'])->toBeLessThanOrEqual(now()->addMinutes(10)->timestamp);
+        ->and($claims['exp'])->toBeLessThanOrEqual(now()->addMinutes(10)->timestamp)
+        ->and($header['kid'])->toBe('soulbuddy-test-hs256');
 
     $publicId = $user->public_id;
     $user->name = 'Changed private name';
     $user->public_id = (string) Str::uuid();
     $user->save();
     expect($user->refresh()->public_id)->toBe($publicId);
+});
+
+it('refuses token lifetimes PowerSync will not accept', function () {
+    config()->set('services.powersync.ttl_seconds', 3601);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson('/api/sync/token')
+        ->assertServiceUnavailable();
 });

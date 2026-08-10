@@ -1,7 +1,1 @@
-enum SyncStatus {
-  localOnly,
-  connecting,
-  synced,
-  attention,
-  unavailable,
-}
+enum SyncStatus { localOnly, connecting, synced, attention, unavailable }

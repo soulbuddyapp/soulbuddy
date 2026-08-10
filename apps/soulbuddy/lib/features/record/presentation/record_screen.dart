@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/feature_page.dart';
+import '../../../core/storage/persistent_storage.dart';
 import '../data/encounter_repository.dart';
 import '../domain/encounter_draft.dart';
 import '../providers/encounter_providers.dart';
@@ -89,6 +92,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     EncounterDraft draft,
   ) async {
     await repository.create(draft);
+    unawaited(requestPersistentStorage());
     if (mounted) setState(() => _view = _RecordView.saved);
   }
 }

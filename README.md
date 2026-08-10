@@ -9,7 +9,7 @@ The repository contains:
 - `docs/superpowers`: approved product design and implementation plans.
 - `tool`: local development utilities, including RSVCE preparation.
 
-The implemented slice records an Encounter locally, shows it immediately in Remember, preserves it across database reopen, marks lasting encounters as Altars, and opens indexed RSVCE Scripture on supported native targets. Laravel provides an authenticated, idempotent mutation boundary and short-lived PowerSync credentials.
+The implemented slice records an Encounter locally, shows it immediately in Remember, preserves it across database reopen, marks lasting encounters as Altars, and opens indexed RSVCE Scripture on mobile and web. Laravel provides an authenticated, idempotent mutation boundary and short-lived PowerSync credentials.
 
 ## Prepare the local RSVCE asset
 
@@ -17,7 +17,7 @@ The implemented slice records an Encounter locally, shows it immediately in Reme
 powershell -ExecutionPolicy Bypass -File tool/prepare_rsvce.ps1
 ```
 
-The source defaults to `C:\dev\catholicdaily-flutter\assets\rsvce.db`. Use `-Source <path>` to select another local copy. The generated asset is ignored by Git.
+The source defaults to `C:\dev\catholicdaily-flutter\assets\rsvce.db`. Use `-Source <path>` to select another local copy. The generated asset is ignored by Git. Preparation validates the source, preserves its 73 books and 36,083 verses, and normalizes the derived database to UTF-8 so the same indexed asset works in browser SQLite/WASM.
 
 ## Run Flutter
 
@@ -43,14 +43,15 @@ php artisan serve
 
 SQLite is used by default for local development and tests. Production is designed for PostgreSQL; set the standard `DB_*` environment values before migrating.
 
-Remote sync also requires `POWERSYNC_JWT_AUDIENCE` and a strong `POWERSYNC_JWT_SECRET`. The issuer defaults to `APP_URL`, and credentials expire after 600 seconds unless `POWERSYNC_JWT_TTL_SECONDS` is changed.
+Remote sync also requires `POWERSYNC_JWT_AUDIENCE`, `POWERSYNC_JWT_KID`, and a strong base64url-encoded `POWERSYNC_JWT_SECRET` matching the PowerSync client-auth key. The issuer defaults to `APP_URL`. Credentials expire after 600 seconds; configured lifetimes must remain between 60 and 3,600 seconds.
 
 ## Verify
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
-Set-Location apps/soulbuddy
-flutter build web --debug
+powershell -ExecutionPolicy Bypass -File scripts/run_web_integration.ps1
 ```
+
+The browser script matches the installed Chrome version to the official ChromeDriver release in a temporary directory, then runs the local-only save/relaunch/Scripture acceptance flow at a mobile viewport.
 
 See [the approved product design](docs/superpowers/specs/2026-08-10-soulbuddy-mvp-design.md), [the implementation plan](docs/superpowers/plans/2026-08-10-foundation-local-first-vertical-slice.md), and [local-first invariants](docs/architecture/local-first.md).

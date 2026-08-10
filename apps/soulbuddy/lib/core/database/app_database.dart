@@ -9,12 +9,16 @@ class AppDatabase {
 
   static Future<AppDatabase> open({
     required String path,
+    PowerSyncBackendConnector? connector,
     PowerSyncOpenFactory? openFactory,
   }) async {
     final database = openFactory == null
         ? PowerSyncDatabase(schema: appSchema, path: path)
         : PowerSyncDatabase.withFactory(openFactory, schema: appSchema);
     await database.initialize();
+    if (connector != null) {
+      await database.connect(connector: connector);
+    }
     return AppDatabase._(database);
   }
 

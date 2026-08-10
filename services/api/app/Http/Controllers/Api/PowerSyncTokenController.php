@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Firebase\JWT\JWT;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use RuntimeException;
 
 class PowerSyncTokenController extends Controller
 {
@@ -15,10 +14,17 @@ class PowerSyncTokenController extends Controller
         $secret = (string) config('services.powersync.secret');
         $issuer = (string) config('services.powersync.issuer');
         $audience = (string) config('services.powersync.audience');
+        $keyId = (string) config('services.powersync.kid');
         $ttl = (int) config('services.powersync.ttl_seconds', 600);
+        $signingKey = JWT::urlsafeB64Decode($secret);
 
-        if ($secret === '' || $issuer === '' || $audience === '' || $ttl < 60) {
-            throw new RuntimeException('PowerSync token issuance is not configured.');
+        if (
+            $issuer === '' || $audience === '' || $keyId === ''
+            || strlen($signingKey) < 32 || $ttl < 60 || $ttl > 3600
+        ) {
+            return response()->json([
+                'message' => 'Sync credentials are unavailable.',
+            ], 503);
         }
 
         $issuedAt = now()->timestamp;
@@ -29,7 +35,7 @@ class PowerSyncTokenController extends Controller
             'sub' => $user->public_id,
             'iat' => $issuedAt,
             'exp' => $issuedAt + $ttl,
-        ], $secret, 'HS256');
+        ], $signingKey, 'HS256', $keyId);
 
         return response()->json([
             'token' => $token,

@@ -43,6 +43,7 @@ dependencies:
   path_provider: ^2.1.5
   flutter_secure_storage: ^10.3.1
   http: ^1.6.0
+  web: 1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +57,8 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   alchemist: ^0.14.0
   accessibility_tools: ^2.7.1
+  integration_test:
+    sdk: flutter
 
 # PowerSync Core 1.8 uses a Dart 3.10 annotation despite declaring Dart 3.4.
 # Keep this source-compatible pin until the workspace moves beyond Dart 3.9.

@@ -13,11 +13,15 @@ void main() {
     final connector = LaravelBackendConnector(
       apiBaseUri: Uri.parse('https://api.soulbuddy.test'),
       powerSyncEndpoint: 'https://sync.soulbuddy.test',
+      installationId: 'installation-1',
       accessToken: () async => 'app-session-token',
       client: MockClient((request) async {
         captured = request;
         return http.Response(
-          jsonEncode({'token': 'header.payload.signature', 'user_id': 'user-7'}),
+          jsonEncode({
+            'token': 'header.payload.signature',
+            'user_id': 'user-7',
+          }),
           200,
           headers: {'content-type': 'application/json'},
         );
@@ -38,6 +42,7 @@ void main() {
     final connector = LaravelBackendConnector(
       apiBaseUri: Uri.parse('https://api.soulbuddy.test'),
       powerSyncEndpoint: 'https://sync.soulbuddy.test',
+      installationId: 'installation-1',
       accessToken: () async => 'token',
       client: MockClient((request) async {
         payload = jsonDecode(request.body) as Map<String, dynamic>;
@@ -73,36 +78,105 @@ void main() {
     expect(completed, isTrue);
   });
 
-  test('keeps a failed transaction pending after a transient response', () async {
-    var completed = false;
-    final connector = _connectorReturning(503);
-    final transaction = _transaction(() => completed = true);
+  test(
+    'changed content cannot reuse an operation id after a local rebuild',
+    () async {
+      final operationIds = <String>[];
+      final connector = LaravelBackendConnector(
+        apiBaseUri: Uri.parse('https://api.soulbuddy.test'),
+        powerSyncEndpoint: 'https://sync.soulbuddy.test',
+        installationId: 'installation-1',
+        accessToken: () async => 'token',
+        client: MockClient((request) async {
+          final payload = jsonDecode(request.body) as Map<String, dynamic>;
+          final operations = payload['operations'] as List<dynamic>;
+          operationIds.add(
+            (operations.single as Map<String, dynamic>)['operation_id']
+                as String,
+          );
+          return http.Response(jsonEncode({'accepted': 1, 'rejected': 0}), 200);
+        }),
+      );
 
-    await expectLater(
-      connector.uploadTransaction(transaction),
-      throwsA(isA<LaravelSyncUnavailable>()),
-    );
+      await connector.uploadTransaction(_transactionWithTitle('First title'));
+      await connector.uploadTransaction(_transactionWithTitle('Changed title'));
 
-    expect(completed, isFalse);
-  });
+      expect(operationIds[0], isNot(operationIds[1]));
+    },
+  );
 
-  test('records a rejection and completes so later writes can continue', () async {
-    var completed = false;
-    final issues = <SyncIssue>[];
-    final connector = _connectorReturning(
-      200,
-      body: {'accepted': 0, 'rejected': 1, 'code': 'forbidden'},
-    );
+  test(
+    'keeps a failed transaction pending after a transient response',
+    () async {
+      var completed = false;
+      final connector = _connectorReturning(503);
+      final transaction = _transaction(() => completed = true);
 
-    await connector.uploadTransaction(
-      _transaction(() => completed = true),
-      recordIssue: (issue) async => issues.add(issue),
-    );
+      await expectLater(
+        connector.uploadTransaction(transaction),
+        throwsA(isA<LaravelSyncUnavailable>()),
+      );
 
-    expect(completed, isTrue);
-    expect(issues.single.code, 'forbidden');
-    expect(issues.single.message, isNot(contains('Private')));
-  });
+      expect(completed, isFalse);
+    },
+  );
+
+  test(
+    'records a rejection and completes so later writes can continue',
+    () async {
+      var completed = false;
+      final issues = <SyncIssue>[];
+      final connector = _connectorReturning(
+        200,
+        body: {'accepted': 0, 'rejected': 1, 'code': 'forbidden'},
+      );
+
+      await connector.uploadTransaction(
+        _transaction(() => completed = true),
+        recordIssue: (issue) async => issues.add(issue),
+      );
+
+      expect(completed, isTrue);
+      expect(issues.single.code, 'forbidden');
+      expect(issues.single.message, isNot(contains('Private')));
+    },
+  );
+
+  test(
+    'keeps a transaction pending when a 200 response is malformed',
+    () async {
+      var completed = false;
+      final connector = _connectorReturning(200, body: {'message': 'ok'});
+
+      await expectLater(
+        connector.uploadTransaction(_transaction(() => completed = true)),
+        throwsA(isA<LaravelSyncUnavailable>()),
+      );
+
+      expect(completed, isFalse);
+    },
+  );
+
+  test(
+    'records a permanent request rejection without poisoning the queue',
+    () async {
+      var completed = false;
+      final issues = <SyncIssue>[];
+      final connector = _connectorReturning(
+        422,
+        body: {'message': 'Private title was invalid'},
+      );
+
+      await connector.uploadTransaction(
+        _transaction(() => completed = true),
+        recordIssue: (issue) async => issues.add(issue),
+      );
+
+      expect(completed, isTrue);
+      expect(issues.single.code, 'http_422');
+      expect(issues.single.message, isNot(contains('Private')));
+    },
+  );
 }
 
 LaravelBackendConnector _connectorReturning(
@@ -112,6 +186,7 @@ LaravelBackendConnector _connectorReturning(
   return LaravelBackendConnector(
     apiBaseUri: Uri.parse('https://api.soulbuddy.test'),
     powerSyncEndpoint: 'https://sync.soulbuddy.test',
+    installationId: 'installation-1',
     accessToken: () async => 'token',
     client: MockClient(
       (request) async => http.Response(jsonEncode(body), status),
@@ -120,6 +195,13 @@ LaravelBackendConnector _connectorReturning(
 }
 
 CrudTransaction _transaction(void Function() onComplete) {
+  return _transactionWithTitle('Private title', onComplete: onComplete);
+}
+
+CrudTransaction _transactionWithTitle(
+  String title, {
+  void Function()? onComplete,
+}) {
   return CrudTransaction(
     transactionId: 7,
     crud: [
@@ -129,9 +211,9 @@ CrudTransaction _transaction(void Function() onComplete) {
         'encounters',
         '0198a000-0000-7000-8000-000000000002',
         7,
-        {'title': 'Private title'},
+        {'title': title},
       ),
     ],
-    complete: ({writeCheckpoint}) async => onComplete(),
+    complete: ({writeCheckpoint}) async => onComplete?.call(),
   );
 }

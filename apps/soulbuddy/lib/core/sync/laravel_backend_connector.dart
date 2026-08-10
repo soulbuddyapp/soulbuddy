@@ -19,6 +19,7 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
   LaravelBackendConnector({
     required this.apiBaseUri,
     required this.powerSyncEndpoint,
+    required this.installationId,
     required this.accessToken,
     required this.client,
     Uuid uuid = const Uuid(),
@@ -26,6 +27,7 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
 
   final Uri apiBaseUri;
   final String powerSyncEndpoint;
+  final String installationId;
   final Future<String?> Function() accessToken;
   final http.Client client;
   final Uuid _uuid;
@@ -102,25 +104,28 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
       throw const LaravelSyncUnavailable(401);
     }
 
-    final operations = transaction.crud.map((entry) {
-      final operationKey = [
-        transaction.transactionId,
-        entry.clientId,
-        entry.table,
-        entry.id,
-        entry.op.toJson(),
-      ].join(':');
-      return {
-        'operation_id': _uuid.v5(
-          Namespace.url.value,
-          'soulbuddy:$operationKey',
-        ),
-        'table': entry.table,
-        'type': entry.op.toJson().toLowerCase(),
-        'id': entry.id,
-        'data': entry.opData ?? <String, dynamic>{},
-      };
-    }).toList(growable: false);
+    final operations = transaction.crud
+        .map((entry) {
+          final operationKey = [
+            transaction.transactionId,
+            entry.clientId,
+            entry.table,
+            entry.id,
+            entry.op.toJson(),
+            jsonEncode(_canonicalJson(entry.opData ?? <String, dynamic>{})),
+          ].join(':');
+          return {
+            'operation_id': _uuid.v5(
+              Namespace.url.value,
+              'soulbuddy:$installationId:$operationKey',
+            ),
+            'table': entry.table,
+            'type': entry.op.toJson().toLowerCase(),
+            'id': entry.id,
+            'data': entry.opData ?? <String, dynamic>{},
+          };
+        })
+        .toList(growable: false);
 
     final response = await client.post(
       _apiUri('/api/sync/mutations'),
@@ -131,22 +136,35 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
       },
       body: jsonEncode({'operations': operations}),
     );
+    if (_isPermanentClientFailure(response.statusCode)) {
+      if (recordIssue != null) {
+        await recordIssue(
+          _issueFor(transaction, code: 'http_${response.statusCode}'),
+        );
+      }
+      await transaction.complete();
+      return;
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw LaravelSyncUnavailable(response.statusCode);
     }
 
     final payload = _decodeObject(response.body);
+    final accepted = payload['accepted'];
     final rejected = payload['rejected'];
-    if (rejected is num && rejected > 0 && recordIssue != null) {
+    if (accepted is! int ||
+        accepted < 0 ||
+        rejected is! int ||
+        rejected < 0 ||
+        accepted + rejected != operations.length) {
+      throw const LaravelSyncUnavailable();
+    }
+    if (rejected > 0 && recordIssue != null) {
       final responseCode = payload['code'];
       await recordIssue(
-        SyncIssue(
-          recordType: transaction.crud.firstOrNull?.table ?? 'sync_batch',
-          recordId: transaction.crud.firstOrNull?.id ??
-              'transaction-${transaction.transactionId}',
+        _issueFor(
+          transaction,
           code: responseCode is String ? responseCode : 'rejected',
-          message: 'A saved item needs attention before it can sync.',
-          createdAt: DateTime.now().toUtc(),
         ),
       );
     }
@@ -170,8 +188,37 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
     }
     throw const LaravelSyncUnavailable();
   }
+
+  bool _isPermanentClientFailure(int statusCode) {
+    return const {400, 403, 404, 405, 413, 415, 422}.contains(statusCode);
+  }
+
+  SyncIssue _issueFor(CrudTransaction transaction, {required String code}) {
+    return SyncIssue(
+      recordType: transaction.crud.firstOrNull?.table ?? 'sync_batch',
+      recordId:
+          transaction.crud.firstOrNull?.id ??
+          'transaction-${transaction.transactionId}',
+      code: code,
+      message: 'A saved item needs attention before it can sync.',
+      createdAt: DateTime.now().toUtc(),
+    );
+  }
 }
 
 extension<T> on List<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+Object? _canonicalJson(Object? value) {
+  if (value is Map) {
+    final keys = value.keys.map((key) => key.toString()).toList()..sort();
+    return <String, Object?>{
+      for (final key in keys) key: _canonicalJson(value[key]),
+    };
+  }
+  if (value is List) {
+    return value.map(_canonicalJson).toList(growable: false);
+  }
+  return value;
 }

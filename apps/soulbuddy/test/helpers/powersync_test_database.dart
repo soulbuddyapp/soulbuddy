@@ -5,7 +5,10 @@ import 'package:path/path.dart' as path_helper;
 import 'package:powersync/powersync.dart';
 import 'package:soulbuddy/core/database/app_database.dart';
 
-Future<AppDatabase> openTestDatabase(String databasePath) async {
+Future<AppDatabase> openTestDatabase(
+  String databasePath, {
+  PowerSyncBackendConnector? connector,
+}) async {
   final packageConfig = File(
     path_helper.join('.dart_tool', 'package_config.json'),
   );
@@ -27,6 +30,7 @@ Future<AppDatabase> openTestDatabase(String databasePath) async {
 
   return AppDatabase.open(
     path: databasePath,
+    connector: connector,
     openFactory: _TestPowerSyncOpenFactory(
       path: databasePath,
       libraryPath: libraryPath,

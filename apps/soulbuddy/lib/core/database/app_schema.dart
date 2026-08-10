@@ -35,7 +35,7 @@ const appSchema = Schema([
       Index('encounter_revisions_parent', [IndexedColumn('encounter_id')]),
     ],
   ),
-  Table('sync_issues', [
+  Table.localOnly('sync_issues', [
     Column.text('record_type'),
     Column.text('record_id'),
     Column.text('code'),

@@ -753,27 +753,27 @@ git commit -m "feat: connect local writes to Laravel sync boundary"
 - Create: `apps/soulbuddy/integration_test/offline_encounter_flow_test.dart`
 - Create: `docs/architecture/local-first.md`
 
-- [ ] **Step 1: Write the integration test**
+- [x] **Step 1: Write the integration test**
 
 The Patrol-compatible Flutter integration test uses local-only mode and performs:
 
-`launch → Record → Encounter → save → Remember → terminate/relaunch → Remember → open Scripture`.
+`launch -> Record -> Encounter -> save -> Remember -> close/reopen local database -> Remember -> open Scripture`.
 
-Assert that no network configuration is required and that entered text survives relaunch.
+Assert that no network configuration is required and that entered text survives database close/reopen inside the browser runtime.
 
-- [ ] **Step 2: Run the integration test and verify RED if unsupported setup remains**
+- [x] **Step 2: Run the integration test and verify RED if unsupported setup remains**
 
-Run on Chrome first:
+The installed Flutter version rejects Chrome under `flutter test`, so run the same integration target with Flutter Drive and a matching ChromeDriver:
 
 ```powershell
-flutter test integration_test/offline_encounter_flow_test.dart -d chrome
+powershell -ExecutionPolicy Bypass -File scripts/run_web_integration.ps1
 ```
 
 Expected: the first run exposes any missing web SQLite assets or initialization path; fix only those failures before proceeding.
 
-- [ ] **Step 3: Add web PowerSync assets and persistent-storage bootstrap**
+- [x] **Step 3: Add web PowerSync assets and persistent-storage bootstrap**
 
-Run `dart run powersync:setup_web --encryption`, add the custom service-worker registration required by the current Flutter web tooling, and request storage persistence only after the first important user save. Unit-test the Dart boundary and manually verify the browser permission outcome is handled whether granted or denied.
+PowerSync 1.17 generated the compatible worker/WASM assets without the newer unsupported `--encryption` flag. Current Flutter bootstrap owns service-worker registration. SoulBuddy requests storage persistence only after an important save, unit-tests granted/denied/unavailable outcomes, and exercises the boundary in the real Chrome flow.
 
 - [x] **Step 4: Document architecture and setup**
 
@@ -787,20 +787,20 @@ Run `dart run powersync:setup_web --encryption`, add the custom service-worker r
 
 `docs/architecture/local-first.md` documents local-first invariants, mutation error semantics, private-data logging exclusions, and the current absence of a local PowerSync service because Docker is not installed.
 
-- [ ] **Step 5: Run full fresh verification**
+- [x] **Step 5: Run full fresh verification**
 
 Run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
-flutter test integration_test/offline_encounter_flow_test.dart -d chrome
+powershell -ExecutionPolicy Bypass -File scripts/run_web_integration.ps1
 git diff --check
 git status --short
 ```
 
 Expected: analysis and all tests pass; the only ignored generated artifact is the optimized RSVCE database; `git diff --check` reports no whitespace errors.
 
-- [ ] **Step 6: Review acceptance criteria**
+- [x] **Step 6: Review acceptance criteria**
 
 Confirm with evidence:
 
@@ -813,7 +813,7 @@ Confirm with evidence:
 - web storage denial is recoverable;
 - no private text appears in logs.
 
-- [ ] **Step 7: Commit the verified vertical slice**
+- [x] **Step 7: Commit the verified vertical slice**
 
 ```powershell
 git add README.md scripts docs/architecture apps/soulbuddy/integration_test apps/soulbuddy/web
@@ -826,6 +826,8 @@ git commit -m "docs: document verified local-first vertical slice"
 - 2026-08-10: Pest 4 uses `.\vendor\bin\pest --init`; the earlier `php artisan pest:install` command is no longer registered. The repository uses the current CLI initializer.
 - 2026-08-10: The Record/Remember widget test uses a deterministic implementation of `EncounterRepository`. The dedicated repository suite already runs against the real PowerSync engine, including offline writes and database reopen persistence; combining a live PowerSync watcher with `flutter_tester` on Windows leaves the package's native watcher isolate alive after widget teardown. Separating contract and UI tests preserves coverage without hanging the test process.
 - 2026-08-10: PowerSync 1.17's `setup_web` command does not expose the newer `--encryption` option. The compatible command generated `sqlite3.wasm` and both worker scripts; encrypted web assets remain coupled to the later Dart/PowerSync upgrade.
+- 2026-08-11: Fresh verification passed with 25 Flutter tests, 20 Laravel tests / 93 assertions, a clean Flutter web build and Wasm dry run, and the real Chrome offline flow. The Chrome test proves database close/reopen persistence within one browser runtime; a full browser-process restart remains deployment-level acceptance coverage.
+- 2026-08-11: Independent review closed every original sync-boundary finding. Follow-up regressions cover missing-record mutations, create-only immutable revisions, installation-and-payload-scoped operation IDs, legacy idempotency rows, and recoverable Scripture initialization.
 
 - Work inline in the dedicated `C:\dev\soulbuddy` repository. It began as a new, clean repository for this product, so a linked worktree adds no protection at this stage.
 - Do not install Docker Desktop as part of this plan. Its absence must not block local-first application development or contract tests.

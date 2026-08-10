@@ -29,12 +29,21 @@ $python = @'
 import sqlite3
 import sys
 
-database_path, source_hash = sys.argv[1], sys.argv[2]
+source_path, database_path, source_hash = sys.argv[1], sys.argv[2], sys.argv[3]
+source = sqlite3.connect(f'file:{source_path}?mode=ro', uri=True)
 connection = sqlite3.connect(database_path)
 try:
-    quick_check = connection.execute('PRAGMA quick_check').fetchone()[0]
-    if quick_check != 'ok':
-        raise RuntimeError(f'quick_check failed: {quick_check}')
+    source_check = source.execute('PRAGMA quick_check').fetchone()[0]
+    if source_check != 'ok':
+        raise RuntimeError(f'source quick_check failed: {source_check}')
+
+    connection.execute("PRAGMA encoding = 'UTF-8'")
+    dump = (
+        statement
+        for statement in source.iterdump()
+        if statement != 'DELETE FROM "sqlite_sequence";'
+    )
+    connection.executescript('\n'.join(dump))
 
     connection.execute(
         'CREATE INDEX IF NOT EXISTS verses_lookup '
@@ -49,9 +58,16 @@ try:
     connection.execute(
         'INSERT INTO soulbuddy_manifest(schema_version, source_sha256) '
         'VALUES (?, ?)',
-        (1, source_hash),
+        (2, source_hash),
     )
     connection.commit()
+
+    quick_check = connection.execute('PRAGMA quick_check').fetchone()[0]
+    if quick_check != 'ok':
+        raise RuntimeError(f'quick_check failed: {quick_check}')
+    encoding = connection.execute('PRAGMA encoding').fetchone()[0]
+    if encoding != 'UTF-8':
+        raise RuntimeError(f'unexpected encoding: {encoding}')
 
     query_plan = connection.execute(
         'EXPLAIN QUERY PLAN '
@@ -68,14 +84,15 @@ try:
     print(f'quick_check: {quick_check}')
     print(f'books: {books}')
     print(f'verses: {verses}')
+    print(f'encoding: {encoding}')
     print('index: verses_lookup')
 finally:
     connection.close()
+    source.close()
 '@
 
 try {
-  Copy-Item -LiteralPath $sourcePath -Destination $temporaryPath
-  $python | python - $temporaryPath $sourceHash
+  $python | python - $sourcePath $temporaryPath $sourceHash
   if ($LASTEXITCODE -ne 0) {
     throw "RSVCE validation failed with exit code $LASTEXITCODE"
   }

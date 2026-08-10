@@ -1,6 +1,7 @@
 import '../domain/scripture_passage.dart';
 import 'bundled_scripture_source_stub.dart'
     if (dart.library.io) 'bundled_scripture_source_io.dart'
+    if (dart.library.js_interop) 'bundled_scripture_source_web.dart'
     as platform;
 
 Future<ScripturePassage> loadBundledChapter({

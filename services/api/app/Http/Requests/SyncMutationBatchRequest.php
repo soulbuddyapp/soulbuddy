@@ -15,11 +15,11 @@ class SyncMutationBatchRequest extends FormRequest
     {
         return [
             'operations' => ['required', 'array', 'min:1', 'max:100'],
-            'operations.*.operation_id' => ['required', 'uuid'],
+            'operations.*.operation_id' => ['required', 'uuid', 'distinct'],
             'operations.*.table' => ['required', 'string', 'max:64'],
             'operations.*.type' => ['required', 'string', 'in:put,patch,delete'],
             'operations.*.id' => ['required', 'uuid'],
-            'operations.*.data' => ['required', 'array'],
+            'operations.*.data' => ['present', 'array'],
         ];
     }
 }
