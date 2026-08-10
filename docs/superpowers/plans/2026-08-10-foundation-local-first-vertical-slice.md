@@ -6,7 +6,7 @@
 
 **Architecture:** A Flutter feature-oriented application reads and writes an encrypted PowerSync-managed SQLite database through small repository interfaces. Laravel 13 is the authoritative modular monolith for identity, policy enforcement, idempotent mutation application, and PostgreSQL persistence; the PowerSync service URL remains environment-configured so local UI and repository tests do not depend on a running sync service. RSVCE is a separate read-only SQLite source prepared from the existing local database and accessed only through `ScriptureRepository`.
 
-**Tech Stack:** Flutter 3.35 / Dart 3.9, Riverpod, go_router 17.2.x, PowerSync 2.x, sqlite3, UUIDv7, Laravel 13 / PHP 8.3, Pest, PostgreSQL production, SQLite backend tests, Flutter test, Alchemist, Patrol (integration scaffold).
+**Tech Stack:** Flutter 3.35 / Dart 3.9, Riverpod, go_router 17.2.x, PowerSync 1.18.0 (Dart 3.9 compatible; upgrade to 2.x with Dart 3.10+), sqlite3, UUIDv7, Laravel 13 / PHP 8.3, Pest, PostgreSQL production, SQLite backend tests, Flutter test, Alchemist, Patrol (integration scaffold).
 
 ---
 
@@ -70,7 +70,7 @@ The Flutter app owns interaction and offline state. The API owns authorization a
 - Generate: `services/api/**`
 - Create: `scripts/verify.ps1`
 
-- [ ] **Step 1: Add repository ignore rules**
+- [x] **Step 1: Add repository ignore rules**
 
 Create `.gitignore` with:
 
@@ -92,7 +92,7 @@ apps/soulbuddy/assets/scripture/*.db
 services/api/database/database.sqlite
 ```
 
-- [ ] **Step 2: Generate Flutter application boilerplate**
+- [x] **Step 2: Generate Flutter application boilerplate**
 
 Run:
 
@@ -103,18 +103,18 @@ flutter create --org app.soulbuddy --platforms android,ios,web --project-name so
 
 Expected: Flutter creates the application and `flutter test apps/soulbuddy` passes its generated test.
 
-- [ ] **Step 3: Add Flutter runtime and test dependencies**
+- [x] **Step 3: Add Flutter runtime and test dependencies**
 
 Run from `apps/soulbuddy`:
 
 ```powershell
-flutter pub add flutter_riverpod go_router:^17.2.3 powersync:^2.3.3 uuid:^4.5.2 sqlite3 path path_provider flutter_secure_storage
+flutter pub add flutter_riverpod go_router:^17.2.3 powersync:^1.18.0 uuid:^4.5.2 sqlite3 path path_provider flutter_secure_storage
 flutter pub add --dev alchemist accessibility_tools
 ```
 
-Expected: dependency resolution succeeds on Dart 3.9.2. If `powersync:^2.3.3` requires a newer SDK, pin the newest 2.x release resolved by `flutter pub add powersync` and record it in this plan's execution notes.
+Expected: dependency resolution succeeds on Dart 3.9.2. PowerSync 1.18.0 is the newest compatible line verified against this workspace toolchain; PowerSync 2.x currently pulls `sqlite3_web` releases that require Dart 3.10.
 
-- [ ] **Step 4: Generate Laravel application boilerplate**
+- [x] **Step 4: Generate Laravel application boilerplate**
 
 Run:
 
@@ -124,12 +124,12 @@ composer create-project laravel/laravel:^13.0 services/api
 Set-Location services/api
 composer require laravel/sanctum
 composer require pestphp/pest pestphp/pest-plugin-laravel --dev --with-all-dependencies
-php artisan pest:install
+.\vendor\bin\pest --init
 ```
 
 Expected: Laravel installs on PHP 8.3 and `php artisan test` passes.
 
-- [ ] **Step 5: Add the repository verification entrypoint**
+- [x] **Step 5: Add the repository verification entrypoint**
 
 Create `scripts/verify.ps1`:
 
@@ -152,13 +152,13 @@ try {
 }
 ```
 
-- [ ] **Step 6: Verify generated foundations**
+- [x] **Step 6: Verify generated foundations**
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`
 
 Expected: Flutter analyze, Flutter tests, and Laravel tests exit successfully.
 
-- [ ] **Step 7: Commit the foundation**
+- [x] **Step 7: Commit the foundation**
 
 ```powershell
 git add .gitignore README.md apps services scripts
@@ -821,6 +821,9 @@ git commit -m "docs: document verified local-first vertical slice"
 ```
 
 ## Execution notes
+
+- 2026-08-10: Pinned `powersync` to 1.18.0 after dependency resolution proved the 2.x line requires Dart 3.10 through `sqlite3_web`. This keeps the local-first boundary intact on the installed Flutter 3.35 / Dart 3.9 toolchain and leaves a straightforward upgrade path when Flutter is upgraded.
+- 2026-08-10: Pest 4 uses `.\vendor\bin\pest --init`; the earlier `php artisan pest:install` command is no longer registered. The repository uses the current CLI initializer.
 
 - Work inline in the dedicated `C:\dev\soulbuddy` repository. It began as a new, clean repository for this product, so a linked worktree adds no protection at this stage.
 - Do not install Docker Desktop as part of this plan. Its absence must not block local-first application development or contract tests.

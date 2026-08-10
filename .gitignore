@@ -1,0 +1,15 @@
+.worktrees/
+.dart_tool/
+.idea/
+.vscode/
+build/
+coverage/
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+vendor/
+node_modules/
+apps/soulbuddy/assets/scripture/*.db
+services/api/database/database.sqlite
