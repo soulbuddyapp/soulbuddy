@@ -610,7 +610,7 @@ git commit -m "feat: add optimized local RSVCE Scripture access"
 - Modify: `services/api/routes/api.php`
 - Test: `services/api/tests/Feature/Sync/EncounterMutationTest.php`
 
-- [ ] **Step 1: Write failing API feature tests**
+- [x] **Step 1: Write failing API feature tests**
 
 Cover:
 
@@ -652,21 +652,21 @@ it('applies an encounter and revision atomically', function () {
 
 Also test duplicate `operation_id`, another user's update, unknown tables, invalid data, and a batch rollback when its Encounter/Revision pair is incomplete.
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
 Run: `php artisan test --filter=EncounterMutationTest`
 
 Expected: FAIL because routes and models do not exist.
 
-- [ ] **Step 3: Add migrations and constraints**
+- [x] **Step 3: Add migrations and constraints**
 
 Use UUID primary keys, `user_id` foreign keys, indexed occurrence dates, soft archival timestamps, a unique operation ID, and a unique `(encounter_id, id)` revision relationship. Production migrations target PostgreSQL-compatible column types; tests use SQLite-compatible behavior.
 
-- [ ] **Step 4: Implement the mutation service**
+- [x] **Step 4: Implement the mutation service**
 
 The request permits only `encounters` and `encounter_revisions` in this milestone. The authenticated user ID always comes from the server session, never client data. Wrap each submitted transaction group in `DB::transaction`, use `sync_operations.operation_id` for idempotency, run policies before update/archive, and return per-operation accepted or rejected results with HTTP 200. Reserve 422 for a structurally invalid batch and 5xx for transient infrastructure failures.
 
-- [ ] **Step 5: Run focused and full backend tests**
+- [x] **Step 5: Run focused and full backend tests**
 
 Run:
 
@@ -677,7 +677,7 @@ php artisan test
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit the mutation contract**
+- [x] **Step 6: Commit the mutation contract**
 
 ```powershell
 git add services/api
