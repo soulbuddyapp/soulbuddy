@@ -179,7 +179,7 @@ git commit -m "build: bootstrap Flutter and Laravel workspaces"
 - Test: `apps/soulbuddy/test/core/design/app_theme_test.dart`
 - Test: `apps/soulbuddy/test/app/app_navigation_test.dart`
 
-- [ ] **Step 1: Write failing design-token tests**
+- [x] **Step 1: Write failing design-token tests**
 
 Create `test/core/design/app_theme_test.dart`:
 
@@ -209,13 +209,13 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run the token test and verify RED**
+- [x] **Step 2: Run the token test and verify RED**
 
 Run: `flutter test test/core/design/app_theme_test.dart`
 
 Expected: FAIL because the design classes do not exist.
 
-- [ ] **Step 3: Implement primitive, semantic, and component tokens**
+- [x] **Step 3: Implement primitive, semantic, and component tokens**
 
 Use these primitive/semantic values:
 
@@ -246,13 +246,13 @@ abstract final class AppSpacing {
 
 Build `AppTheme.light()` with Material 3, a minimum 48dp interactive height, 12dp component radius, visible focus borders, restrained zero-or-low elevation, and semantic colors only. Use system typography for this milestone; bundled editorial fonts are a later isolated enhancement after startup measurements.
 
-- [ ] **Step 4: Run the token test and verify GREEN**
+- [x] **Step 4: Run the token test and verify GREEN**
 
 Run: `flutter test test/core/design/app_theme_test.dart`
 
 Expected: PASS.
 
-- [ ] **Step 5: Write a failing navigation test**
+- [x] **Step 5: Write a failing navigation test**
 
 Create `test/app/app_navigation_test.dart`:
 
@@ -275,17 +275,17 @@ void main() {
 }
 ```
 
-- [ ] **Step 6: Run navigation test and verify RED**
+- [x] **Step 6: Run navigation test and verify RED**
 
 Run: `flutter test test/app/app_navigation_test.dart`
 
 Expected: FAIL because `SoulBuddyApp` and routing do not exist.
 
-- [ ] **Step 7: Implement the application shell**
+- [x] **Step 7: Implement the application shell**
 
 Implement `StatefulShellRoute.indexedStack` with exactly five branches. Use `NavigationBar` below 840 logical pixels and `NavigationRail` at or above 840. Keep destination state alive. Each placeholder screen has one semantic page title and concise explanatory copy; Record has the primary action.
 
-- [ ] **Step 8: Run navigation and full Flutter tests**
+- [x] **Step 8: Run navigation and full Flutter tests**
 
 Run:
 
@@ -297,7 +297,7 @@ flutter analyze
 
 Expected: all commands exit successfully.
 
-- [ ] **Step 9: Commit design system and shell**
+- [x] **Step 9: Commit design system and shell**
 
 ```powershell
 git add apps/soulbuddy/lib apps/soulbuddy/test
