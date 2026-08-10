@@ -22,6 +22,13 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'powersync' => [
+        'issuer' => env('POWERSYNC_JWT_ISSUER', env('APP_URL')),
+        'audience' => env('POWERSYNC_JWT_AUDIENCE'),
+        'secret' => env('POWERSYNC_JWT_SECRET'),
+        'ttl_seconds' => (int) env('POWERSYNC_JWT_TTL_SECONDS', 600),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

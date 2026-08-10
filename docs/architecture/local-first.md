@@ -23,4 +23,6 @@ Prayer text, Encounter titles/bodies, Scripture selections, and Circle messages 
 
 ## Current development boundary
 
-Docker is not installed in this workspace, so no local PowerSync service is started. The real local database and Laravel contract are tested independently. Remote credential issuance and the Flutter upload connector are the next implementation checkpoint; their absence does not block offline recording.
+Docker is not installed in this workspace, so no local PowerSync service is started. The real local database and Laravel contract are tested independently. The Flutter upload connector batches each local PowerSync transaction into one authenticated Laravel request, preserves retryable writes after 5xx responses, and records sanitized local issues for domain rejections. Laravel issues ten-minute PowerSync JWTs using the authenticated user's immutable public UUID; no name, email, prayer, or Encounter text is included in the token.
+
+Remote activation still depends on the later application-authentication milestone supplying a Laravel session token. Until then, or whenever either remote URL is empty, SoulBuddy stays fully usable in local-only mode.

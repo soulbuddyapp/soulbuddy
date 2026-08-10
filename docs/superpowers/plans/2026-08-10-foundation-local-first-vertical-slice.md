@@ -695,7 +695,7 @@ git commit -m "feat: apply encounter sync mutations in Laravel"
 - Create: `services/api/app/Http/Controllers/Api/PowerSyncTokenController.php`
 - Create: `services/api/tests/Feature/Sync/PowerSyncTokenTest.php`
 
-- [ ] **Step 1: Write failing connector tests**
+- [x] **Step 1: Write failing connector tests**
 
 Use a local fake HTTP client to assert that:
 
@@ -705,13 +705,13 @@ Use a local fake HTTP client to assert that:
 - a 200 response with a rejected operation completes the PowerSync batch and creates/receives a `sync_issues` row instead of blocking later writes;
 - no prayer or Encounter body is logged.
 
-- [ ] **Step 2: Run connector tests and verify RED**
+- [x] **Step 2: Run connector tests and verify RED**
 
 Run: `flutter test test/core/sync/laravel_backend_connector_test.dart`
 
 Expected: FAIL because the connector does not exist.
 
-- [ ] **Step 3: Implement configuration and connector**
+- [x] **Step 3: Implement configuration and connector**
 
 Read compile-time values:
 
@@ -722,11 +722,11 @@ const powerSyncUrl = String.fromEnvironment('SOULBUDDY_POWERSYNC_URL');
 
 An empty PowerSync URL keeps the database in local-only mode and never prevents startup. The backend connector implements `fetchCredentials` and `uploadData`; it has no presentation imports.
 
-- [ ] **Step 4: Implement Laravel token endpoint**
+- [x] **Step 4: Implement Laravel token endpoint**
 
 Issue a short-lived JWT whose subject is the authenticated user's immutable public UUID and whose audience/issuer are environment-configured. Test authentication requirement, claims, expiration, and absence of private profile data.
 
-- [ ] **Step 5: Verify connector and token behavior**
+- [x] **Step 5: Verify connector and token behavior**
 
 Run:
 
@@ -738,7 +738,7 @@ powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 
 Expected: all commands exit successfully.
 
-- [ ] **Step 6: Commit the sync boundary**
+- [x] **Step 6: Commit the sync boundary**
 
 ```powershell
 git add apps/soulbuddy/lib/core apps/soulbuddy/test/core services/api
