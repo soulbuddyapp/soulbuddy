@@ -434,7 +434,7 @@ git commit -m "feat: persist encounters locally with PowerSync"
 - Create: `apps/soulbuddy/lib/features/record/providers/encounter_providers.dart`
 - Test: `apps/soulbuddy/test/features/record/record_remember_flow_test.dart`
 
-- [ ] **Step 1: Write a failing offline interaction test**
+- [x] **Step 1: Write a failing offline interaction test**
 
 Use a real temporary repository and override the Riverpod provider:
 
@@ -456,13 +456,13 @@ testWidgets('records an encounter and shows it in Remember immediately', (tester
 });
 ```
 
-- [ ] **Step 2: Run the interaction test and verify RED**
+- [x] **Step 2: Run the interaction test and verify RED**
 
 Run: `flutter test test/features/record/record_remember_flow_test.dart`
 
 Expected: FAIL because the guided form is absent.
 
-- [ ] **Step 3: Implement the minimum guided flow**
+- [x] **Step 3: Implement the minimum guided flow**
 
 Record first presents four 48dp choices: Encounter, Lesson, Commitment, Prayer. Only Encounter is active in this slice; the remaining choices display `Coming in the next milestone` without navigating to empty forms.
 
@@ -476,11 +476,11 @@ The Encounter form contains:
 
 Save locally, return to Record's confirmation state, and keep entered text if validation fails. Remember uses the repository stream and displays title, occurrence date, Altar label when applicable, and a helpful empty state.
 
-- [ ] **Step 4: Verify accessibility behavior**
+- [x] **Step 4: Verify accessibility behavior**
 
 Add widget assertions that text fields have labels, every target is at least 48dp high, Altar state is expressed in text rather than color alone, and the screen survives `textScaler: const TextScaler.linear(2)` without exceptions.
 
-- [ ] **Step 5: Run focused and full verification**
+- [x] **Step 5: Run focused and full verification**
 
 Run:
 
@@ -492,7 +492,7 @@ flutter analyze
 
 Expected: all commands exit successfully.
 
-- [ ] **Step 6: Commit Record and Remember**
+- [x] **Step 6: Commit Record and Remember**
 
 ```powershell
 git add apps/soulbuddy/lib/features apps/soulbuddy/test/features
@@ -824,6 +824,7 @@ git commit -m "docs: document verified local-first vertical slice"
 
 - 2026-08-10: Pinned `powersync` to 1.17.0 and `powersync_core` to 1.7.0. Dependency resolution first proved the 2.x line requires Dart 3.10 through `sqlite3_web`; compiling 1.18 then proved Core 1.8 also uses the Dart 3.10-only `Deprecated.subclass` annotation despite its broader declared SDK range. The selected pair compiles on the installed Flutter 3.35 / Dart 3.9 toolchain and preserves the upgrade path.
 - 2026-08-10: Pest 4 uses `.\vendor\bin\pest --init`; the earlier `php artisan pest:install` command is no longer registered. The repository uses the current CLI initializer.
+- 2026-08-10: The Record/Remember widget test uses a deterministic implementation of `EncounterRepository`. The dedicated repository suite already runs against the real PowerSync engine, including offline writes and database reopen persistence; combining a live PowerSync watcher with `flutter_tester` on Windows leaves the package's native watcher isolate alive after widget teardown. Separating contract and UI tests preserves coverage without hanging the test process.
 
 - Work inline in the dedicated `C:\dev\soulbuddy` repository. It began as a new, clean repository for this product, so a linked worktree adds no protection at this stage.
 - Do not install Docker Desktop as part of this plan. Its absence must not block local-first application development or contract tests.

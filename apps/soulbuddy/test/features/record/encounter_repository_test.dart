@@ -1,13 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as path_helper;
-import 'package:powersync/powersync.dart';
-import 'package:soulbuddy/core/database/app_database.dart';
 import 'package:soulbuddy/features/record/data/powersync_encounter_repository.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
+
+import '../../helpers/powersync_test_database.dart';
 
 void main() {
   late Directory temporaryDirectory;
@@ -23,7 +21,7 @@ void main() {
   });
 
   test('saves and watches an encounter without a network connection', () async {
-    final database = await _openTestDatabase(
+    final database = await openTestDatabase(
       '${temporaryDirectory.path}/soulbuddy.db',
     );
     addTearDown(database.close);
@@ -51,7 +49,7 @@ void main() {
 
   test('keeps an encounter after closing and reopening the database', () async {
     final path = '${temporaryDirectory.path}/soulbuddy.db';
-    final firstDatabase = await _openTestDatabase(path);
+    final firstDatabase = await openTestDatabase(path);
     final firstRepository = PowerSyncEncounterRepository(
       database: firstDatabase.powersync,
       ownerId: 'owner-1',
@@ -69,7 +67,7 @@ void main() {
     );
     await firstDatabase.close();
 
-    final reopenedDatabase = await _openTestDatabase(path);
+    final reopenedDatabase = await openTestDatabase(path);
     addTearDown(reopenedDatabase.close);
     final reopenedRepository = PowerSyncEncounterRepository(
       database: reopenedDatabase.powersync,
@@ -83,7 +81,7 @@ void main() {
   });
 
   test('updates altar state and archives without deleting history', () async {
-    final database = await _openTestDatabase(
+    final database = await openTestDatabase(
       '${temporaryDirectory.path}/soulbuddy.db',
     );
     addTearDown(database.close);
@@ -116,41 +114,4 @@ void main() {
     );
     expect(revisions, hasLength(1));
   });
-}
-
-Future<AppDatabase> _openTestDatabase(String databasePath) async {
-  final packageConfig = File(
-    path_helper.join('.dart_tool', 'package_config.json'),
-  );
-  final config = jsonDecode(await packageConfig.readAsString());
-  final packages = (config['packages'] as List<dynamic>)
-      .cast<Map<String, dynamic>>();
-  final powerSyncLibraries = packages.singleWhere(
-    (package) => package['name'] == 'powersync_flutter_libs',
-  );
-  final rootUri = packageConfig.parent.uri.resolve(
-    powerSyncLibraries['rootUri'] as String,
-  );
-  final packageRoot = Directory.fromUri(rootUri).path;
-  final libraryPath = path_helper.join(
-    packageRoot,
-    'windows',
-    'powersync_x64.dll',
-  );
-  return AppDatabase.open(
-    path: databasePath,
-    openFactory: _TestPowerSyncOpenFactory(
-      path: databasePath,
-      libraryPath: libraryPath,
-    ),
-  );
-}
-
-class _TestPowerSyncOpenFactory extends PowerSyncOpenFactory {
-  _TestPowerSyncOpenFactory({required super.path, required this.libraryPath});
-
-  final String libraryPath;
-
-  @override
-  String getLibraryForPlatform({String? path}) => libraryPath;
 }
