@@ -775,7 +775,7 @@ Expected: the first run exposes any missing web SQLite assets or initialization 
 
 Run `dart run powersync:setup_web --encryption`, add the custom service-worker registration required by the current Flutter web tooling, and request storage persistence only after the first important user save. Unit-test the Dart boundary and manually verify the browser permission outcome is handled whether granted or denied.
 
-- [ ] **Step 4: Document architecture and setup**
+- [x] **Step 4: Document architecture and setup**
 
 `README.md` must contain exact Windows commands for:
 
@@ -825,6 +825,7 @@ git commit -m "docs: document verified local-first vertical slice"
 - 2026-08-10: Pinned `powersync` to 1.17.0 and `powersync_core` to 1.7.0. Dependency resolution first proved the 2.x line requires Dart 3.10 through `sqlite3_web`; compiling 1.18 then proved Core 1.8 also uses the Dart 3.10-only `Deprecated.subclass` annotation despite its broader declared SDK range. The selected pair compiles on the installed Flutter 3.35 / Dart 3.9 toolchain and preserves the upgrade path.
 - 2026-08-10: Pest 4 uses `.\vendor\bin\pest --init`; the earlier `php artisan pest:install` command is no longer registered. The repository uses the current CLI initializer.
 - 2026-08-10: The Record/Remember widget test uses a deterministic implementation of `EncounterRepository`. The dedicated repository suite already runs against the real PowerSync engine, including offline writes and database reopen persistence; combining a live PowerSync watcher with `flutter_tester` on Windows leaves the package's native watcher isolate alive after widget teardown. Separating contract and UI tests preserves coverage without hanging the test process.
+- 2026-08-10: PowerSync 1.17's `setup_web` command does not expose the newer `--encryption` option. The compatible command generated `sqlite3.wasm` and both worker scripts; encrypted web assets remain coupled to the later Dart/PowerSync upgrade.
 
 - Work inline in the dedicated `C:\dev\soulbuddy` repository. It began as a new, clean repository for this product, so a linked worktree adds no protection at this stage.
 - Do not install Docker Desktop as part of this plan. Its absence must not block local-first application development or contract tests.
