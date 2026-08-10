@@ -6,7 +6,7 @@
 
 **Architecture:** A Flutter feature-oriented application reads and writes an encrypted PowerSync-managed SQLite database through small repository interfaces. Laravel 13 is the authoritative modular monolith for identity, policy enforcement, idempotent mutation application, and PostgreSQL persistence; the PowerSync service URL remains environment-configured so local UI and repository tests do not depend on a running sync service. RSVCE is a separate read-only SQLite source prepared from the existing local database and accessed only through `ScriptureRepository`.
 
-**Tech Stack:** Flutter 3.35 / Dart 3.9, Riverpod, go_router 17.2.x, PowerSync 1.18.0 (Dart 3.9 compatible; upgrade to 2.x with Dart 3.10+), sqlite3, UUIDv7, Laravel 13 / PHP 8.3, Pest, PostgreSQL production, SQLite backend tests, Flutter test, Alchemist, Patrol (integration scaffold).
+**Tech Stack:** Flutter 3.35 / Dart 3.9, Riverpod, go_router 17.2.x, PowerSync 1.17.0 with Core 1.7.0 (source-compatible with Dart 3.9; upgrade to 2.x with Dart 3.10+), sqlite3, UUIDv7, Laravel 13 / PHP 8.3, Pest, PostgreSQL production, SQLite backend tests, Flutter test, Alchemist, Patrol (integration scaffold).
 
 ---
 
@@ -108,11 +108,11 @@ Expected: Flutter creates the application and `flutter test apps/soulbuddy` pass
 Run from `apps/soulbuddy`:
 
 ```powershell
-flutter pub add flutter_riverpod go_router:^17.2.3 powersync:^1.18.0 uuid:^4.5.2 sqlite3 path path_provider flutter_secure_storage
+flutter pub add flutter_riverpod go_router:^17.2.3 powersync:1.17.0 uuid:^4.5.2 sqlite3 path path_provider flutter_secure_storage
 flutter pub add --dev alchemist accessibility_tools
 ```
 
-Expected: dependency resolution succeeds on Dart 3.9.2. PowerSync 1.18.0 is the newest compatible line verified against this workspace toolchain; PowerSync 2.x currently pulls `sqlite3_web` releases that require Dart 3.10.
+Expected: dependency resolution succeeds on Dart 3.9.2. Add a `powersync_core: 1.7.0` dependency override: PowerSync 1.18/Core 1.8 uses a Dart 3.10-only annotation, while PowerSync 2.x pulls `sqlite3_web` releases that require Dart 3.10.
 
 - [x] **Step 4: Generate Laravel application boilerplate**
 
@@ -315,7 +315,7 @@ git commit -m "feat: add SoulBuddy design system and app shell"
 - Create: `apps/soulbuddy/lib/features/record/data/powersync_encounter_repository.dart`
 - Test: `apps/soulbuddy/test/features/record/encounter_repository_test.dart`
 
-- [ ] **Step 1: Write the failing repository contract test**
+- [x] **Step 1: Write the failing repository contract test**
 
 The test opens a temporary local-only PowerSync database and asserts:
 
@@ -339,13 +339,13 @@ test('saves and watches an encounter without a network connection', () async {
 
 Add a second test that closes and reopens the same database path and confirms the record remains.
 
-- [ ] **Step 2: Run repository tests and verify RED**
+- [x] **Step 2: Run repository tests and verify RED**
 
 Run: `flutter test test/features/record/encounter_repository_test.dart`
 
 Expected: FAIL because the repository and schema do not exist.
 
-- [ ] **Step 3: Define the PowerSync client schema**
+- [x] **Step 3: Define the PowerSync client schema**
 
 Define:
 
@@ -390,7 +390,7 @@ const appSchema = Schema([
 
 Use client-generated UUIDv7 strings. Insert the Encounter and first revision in one local transaction. The repository returns reactive streams from `database.watch` and never performs an HTTP read.
 
-- [ ] **Step 4: Implement repository behavior minimally**
+- [x] **Step 4: Implement repository behavior minimally**
 
 `EncounterRepository` exposes:
 
@@ -405,7 +405,7 @@ abstract interface class EncounterRepository {
 
 Persist ISO-8601 UTC timestamps and an injected owner/device identity. Do not introduce people, family, lessons, or audio in this slice.
 
-- [ ] **Step 5: Run repository tests and verify GREEN**
+- [x] **Step 5: Run repository tests and verify GREEN**
 
 Run:
 
@@ -417,7 +417,7 @@ flutter analyze
 
 Expected: all commands exit successfully.
 
-- [ ] **Step 6: Commit local Encounter persistence**
+- [x] **Step 6: Commit local Encounter persistence**
 
 ```powershell
 git add apps/soulbuddy/lib/core/database apps/soulbuddy/lib/features/record apps/soulbuddy/test/features/record
@@ -822,7 +822,7 @@ git commit -m "docs: document verified local-first vertical slice"
 
 ## Execution notes
 
-- 2026-08-10: Pinned `powersync` to 1.18.0 after dependency resolution proved the 2.x line requires Dart 3.10 through `sqlite3_web`. This keeps the local-first boundary intact on the installed Flutter 3.35 / Dart 3.9 toolchain and leaves a straightforward upgrade path when Flutter is upgraded.
+- 2026-08-10: Pinned `powersync` to 1.17.0 and `powersync_core` to 1.7.0. Dependency resolution first proved the 2.x line requires Dart 3.10 through `sqlite3_web`; compiling 1.18 then proved Core 1.8 also uses the Dart 3.10-only `Deprecated.subclass` annotation despite its broader declared SDK range. The selected pair compiles on the installed Flutter 3.35 / Dart 3.9 toolchain and preserves the upgrade path.
 - 2026-08-10: Pest 4 uses `.\vendor\bin\pest --init`; the earlier `php artisan pest:install` command is no longer registered. The repository uses the current CLI initializer.
 
 - Work inline in the dedicated `C:\dev\soulbuddy` repository. It began as a new, clean repository for this product, so a linked worktree adds no protection at this stage.

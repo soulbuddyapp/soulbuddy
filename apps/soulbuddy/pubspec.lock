@@ -524,18 +524,18 @@ packages:
     dependency: "direct main"
     description:
       name: powersync
-      sha256: "2c952a0d933b23504092f9ee8f8eb4f651cf196e86afa69521de84e301cb0002"
+      sha256: "5023a9a68ea2f01f1fdf7c05c84ea7f966574a84a5ee368cde2570497ae51e0f"
       url: "https://pub.dev"
     source: hosted
-    version: "1.18.0"
+    version: "1.17.0"
   powersync_core:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: powersync_core
-      sha256: "74422b5c66cdd749155380df9bd994591a23a5373ae3163516f47123963da94d"
+      sha256: "20ff37895eff15c8f9791c76b90364c4a1cb18c55dc50d96024e44507d435e2e"
       url: "https://pub.dev"
     source: hosted
-    version: "1.8.0"
+    version: "1.7.0"
   powersync_flutter_libs:
     dependency: transitive
     description:
