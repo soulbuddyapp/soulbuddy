@@ -25,13 +25,20 @@ The spiritual formation framework contributes four guardrails rather than a new 
 - Send only context the user explicitly selects.
 - Preserve accepted personal prayers with immutable revisions.
 - Let an accepted prayer become today's prayer without leaving the flow.
+- Let the user schedule a private reminder for a saved personal prayer.
+- Let a reminder open a compact prayer surface with listening and confirmation actions.
+- Record deliberate prayer-session confirmations without streaks or performance rewards.
+- Generate one private narrated audio asset per prayer revision and voice configuration, then reuse it.
+- Allow a revision with at least 40 recorded prayer sessions to be submitted for moderated publication in the library.
 - Maintain the existing restrained, Gospel-conscious content voice.
 
 ## 3. Out of scope
 
 - Authentication screens or account recovery. This slice consumes the existing application-session boundary.
 - Anonymous or client-direct access to an AI provider.
-- People, family, lessons, commitments, Circles, chat, audio, or notifications.
+- People, family, lessons, commitments, Circles, or chat.
+- A general notification centre, Circle notifications, marketing notifications, or arbitrary habit reminders.
+- Public profiles, visible contributor rankings, comments, or direct messaging around published prayers.
 - Automatic analysis of the user's private history.
 - Automatic provider failover.
 - Spiritual scores, streaks, maturity levels, dashboards, leaderboards, or rewards.
@@ -157,6 +164,63 @@ The result screen presents:
 
 Regenerating after the user has edited the result requires confirmation before replacing the edited wording. Saving or using today creates the personal prayer and its first immutable revision. `Use today` also creates or replaces the current dated Today selection using the existing local-first behaviour.
 
+### Saved prayer and reminder
+
+After saving, the personal-prayer detail offers `Set reminder`, `Listen`, and `I prayed this`. The latter two behave the same way as their compact-reminder counterparts, allowing prayer and confirmation without waiting for a scheduled reminder. A reminder supports:
+
+- once;
+- every day; or
+- selected weekdays;
+
+at one local wall-clock time. The schedule stores its IANA timezone so the same local time survives daylight-saving changes. A device timezone change causes SoulBuddy to reschedule and briefly confirm the new timezone rather than silently shifting the reminder.
+
+Notification permission is requested only when the user enables the first reminder. Lock-screen content is private by default: the system notification says `Prayer reminder` without the prayer title or body. The user may explicitly allow the title later; the body is never placed in a notification payload.
+
+When SoulBuddy is in the foreground, a compact in-app prayer card appears. When it is in the background:
+
+- Android and iOS use an actionable local notification that remains useful offline;
+- supported browsers use authenticated Web Push;
+- a browser without permission or push support shows the compact card on the next active visit.
+
+The compact surface provides:
+
+- `Listen`;
+- `I prayed this`;
+- `Snooze 10 minutes`;
+- `Dismiss`.
+
+It is an in-app route, sheet, or standard notification action, not an Android draw-over-other-apps overlay. SoulBuddy does not request `SYSTEM_ALERT_WINDOW`. Audio never starts without the user's `Listen` action.
+
+`I prayed this` creates one private prayer-session record for the exact revision displayed or narrated. Repeated actions for the same reminder occurrence are idempotent. A brief `Undo` is available for accidental confirmation; there is no celebration, streak, score, or social signal.
+
+### Narrated prayer
+
+Narration is opt-in and has a separate, versioned disclosure because the prayer wording is sent to a voice provider. The initial provider is Deepgram Aura 2 using `aura-2-athena-en` at `0.9` speed, selected for a calm, smooth reading style.
+
+The first `Listen` request for a revision generates one MP3 on the backend. Its cache identity is the SHA-256 digest of the normalized revision text, provider, model, voice, speed, and encoding. A matching asset is reused rather than regenerated. The private object is delivered through a short-lived signed URL and cached on the device after first playback for offline reuse.
+
+Editing the prayer creates a new immutable revision and therefore a new audio identity. Old private audio is removed after it is no longer referenced and its retention window expires. Narration failure never blocks reading, confirming, saving, or rescheduling the prayer.
+
+### Prayer sessions and publication
+
+The personal-prayer detail may quietly state, for example, `14 prayer times recorded`. It may also say that publication becomes available after 40. It does not show a progress ring, streak, milestone celebration, ranking, or claim that repetition makes the prayer more spiritually valuable.
+
+Publication eligibility is calculated by Laravel from at least 40 non-retracted prayer sessions for the exact current revision. Editing the wording creates a new revision whose publication count begins at zero; this prevents unprayed replacement wording from inheriting eligibility.
+
+When eligible, `Publish for others` presents the exact public snapshot:
+
+- title;
+- body;
+- optional action;
+- grounding; and
+- purpose.
+
+The request text, `Before you ask` choices, Encounter and Scripture snapshots, reminders, sessions, identity, and all other private records are excluded. The user confirms ownership or permission to share the wording and understands that an approved snapshot enters the shared prayer library without personal attribution.
+
+Publication creates a moderated submission. It does not become public immediately. States are `pending_review`, `changes_requested`, `rejected`, `published`, and `withdrawn`. Approval creates a normal `library_prayers` row and moves the submission atomically to `published`, after which existing Helpful voting and ordering apply. Editing the private prayer never silently edits the public snapshot; a changed revision requires a new submission and review. The owner may withdraw a published prayer, which archives it from new discovery.
+
+This slice supplies a minimal audited Laravel review command for authorized operators. A richer Filament moderation interface remains in the operational-readiness slice.
+
 ## 6. Content contract
 
 The generated prayer must:
@@ -271,6 +335,69 @@ The existing `today_prayers.prayer_id` is a foreign key to `library_prayers`; it
 
 Flutter represents the selection as a typed source plus ID. The Today query unions library wording with the current immutable revision of a personal prayer. Helpful voting remains library-only. Action completion includes the typed source and expected prayer ID in its optimistic-concurrency predicate so a stale personal or library card cannot complete a replacement selection.
 
+### Reminders and prayer sessions
+
+`prayer_reminders` is synchronized and private:
+
+- `id`, `owner_id`, `personal_prayer_id`
+- `schedule_type`: `once`, `daily`, or `weekdays`
+- `local_time` in `HH:mm`
+- IANA `timezone`
+- nullable UTC `once_at`
+- nullable seven-bit `weekdays_mask`
+- `enabled`, `created_at`, `updated_at`
+
+Validation requires `once_at` only for `once`, a non-zero weekday mask only for `weekdays`, and neither for `daily`. A reminder always follows the personal prayer's current revision at the time an occurrence is displayed.
+
+`prayer_reminder_devices` is local-only:
+
+- deterministic `id` from reminder and device IDs
+- `reminder_id`, `device_id`
+- `enabled_on_device`
+- `next_occurrence_at`
+- `platform_notification_id`
+- `scheduled_timezone`, `updated_at`
+
+This prevents a synced reminder from automatically producing duplicate notifications on every device. The creating device is enabled immediately; another device asks before enabling its local schedule. Web Push subscriptions are server-held per browser installation and follow the same explicit device enablement.
+
+`prayer_sessions` is synchronized and private:
+
+- `id`, `owner_id`, `personal_prayer_id`, `prayer_revision_id`
+- nullable `reminder_id` and deterministic `reminder_occurrence_key`
+- `source`: `reminder` or `manual`
+- `occurred_at`, `local_date`, `timezone`, `device_id`
+- nullable `retracted_at`
+
+The confirmation identity and revision cannot be edited. The owner may set `retracted_at` within five minutes for Undo. A unique reminder occurrence may create at most one active session for a user. Publication counts only non-retracted, server-accepted sessions for the submitted revision.
+
+### Narration cache
+
+`prayer_audio_assets` is private server data:
+
+- `id`, `user_id`, `prayer_revision_id`
+- `content_hash`
+- `provider`, `model`, `voice`, `speed`, `encoding`
+- `status`: `queued`, `generating`, `ready`, or `failed`
+- private object key, byte size, optional duration, failure code
+- `created_at`, `updated_at`, nullable `expires_at`
+
+The unique cache key is `(user_id, prayer_revision_id, content_hash, provider, model, voice, speed, encoding)`. The raw object key never synchronizes to Flutter. Authenticated REST endpoints expose status and a short-lived signed playback URL.
+
+`prayer_audio_cache` is local-only device metadata mapping the server asset ID and content hash to a platform cache path or browser cache key. The cache may be evicted without affecting the prayer.
+
+### Publication submissions
+
+`prayer_publications` is synchronized privately to its owner:
+
+- `id`, `owner_id`, `personal_prayer_id`, `prayer_revision_id`
+- snapshot `title`, `body`, `action`, `grounding`, `purpose`
+- `status`: `pending_review`, `changes_requested`, `rejected`, `published`, or `withdrawn`
+- nullable safe `review_note`
+- nullable `library_prayer_id`
+- `submitted_at`, `reviewed_at`, `published_at`, `withdrawn_at`
+
+The backend separately stores reviewer identity and an immutable audit trail; those fields never enter the owner's sync stream. The public `library_prayers` row contains no user ID or private-source relationship. One revision may have only one active submission. Publication and withdrawal lock the submission and relevant prayer rows in deterministic order.
+
 ### Dispatcher
 
 A single `PrayerGenerationDispatcher` owns network state transitions. It:
@@ -331,7 +458,43 @@ The interface permits a later provider adapter, but this slice implements no sil
 
 ### Accepted prayer synchronization
 
-Laravel adds migrations, models, policies, and sync mutation handling for personal prayers, revisions, and links. Revisions are immutable. Mutations use the established authenticated ownership, replay protection, deterministic lock ordering, alias, and privacy patterns already used by Encounter and prayer-practice synchronization.
+Laravel adds migrations, models, policies, and sync mutation handling for personal prayers, revisions, links, reminders, sessions, and publication status. Revisions and prayer-session identities are immutable. Mutations use the established authenticated ownership, replay protection, deterministic lock ordering, alias, and privacy patterns already used by Encounter and prayer-practice synchronization.
+
+### Reminder delivery
+
+Native mobile schedules local notifications from the synchronized reminder so prayer reminders still fire without network access. It uses the platform's normal notification facilities and actionable categories; exact-alarm or draw-over-other-apps permission is not required. When a platform cannot guarantee exact delivery, SoulBuddy uses the closest permitted scheduled delivery and never claims second-level precision.
+
+Laravel's minute scheduler handles due browser reminders for explicitly enabled Web Push subscriptions. It derives deterministic occurrence keys from reminder ID and scheduled UTC instant, claims each occurrence once, and records delivery metadata without prayer text. Notification payloads contain only an opaque occurrence ID, generic copy, and a deep link. The authenticated app resolves the prayer after opening.
+
+Native and web actions converge on the same local session repository and server uniqueness contract. `Snooze 10 minutes` creates a device-local one-time occurrence; it does not change the recurring schedule.
+
+### Narration provider and media
+
+Laravel adds a `PrayerNarrationProvider` interface and initial `DeepgramPrayerNarrationProvider`. Generation uses the Deepgram Aura 2 REST endpoint with:
+
+- `aura-2-athena-en`;
+- speed `0.9`;
+- MP3 encoding;
+- a 2,000-character input ceiling; and
+- a bounded timeout and one transient retry.
+
+`POST /api/personal-prayers/{prayer}/revisions/{revision}/audio` authorizes the owner, validates the current consent version, and returns the existing asset or queues one new generation. `GET /api/prayer-audio/{asset}` returns status and, when ready, a short-lived signed URL. The API never accepts arbitrary text; it reads the authenticated immutable revision from the database.
+
+The object store is private. Local development uses Laravel's private disk; deployed environments use private S3-compatible storage. Asset creation is atomic: a database row cannot become `ready` until the complete object and checksum are present. A cleanup job removes expired unreferenced objects and stale failed rows.
+
+Server-only configuration is:
+
+- `TTS_PROVIDER=deepgram`
+- `DEEPGRAM_API_KEY`
+- `DEEPGRAM_TTS_MODEL=aura-2-athena-en`
+- `DEEPGRAM_TTS_SPEED=0.9`
+- narration disclosure version, timeout, signed-URL lifetime, and retention period
+
+### Publication and review
+
+`POST /api/personal-prayers/{prayer}/publications` authorizes the owner, locks the selected revision, counts at least 40 server-accepted non-retracted sessions for that revision, validates the privacy-scrubbed snapshot, and creates one pending submission. The server never trusts a client-supplied count.
+
+An audited Artisan command supports `approve`, `request-changes`, `reject`, and `withdraw` transitions for authorized operators. Approval creates a stable UUIDv7 `library_prayers` row from the reviewed snapshot in the same transaction. A second approval attempt is idempotent. Withdrawal archives that library row from new discovery and preserves the audit history. No moderation operation writes private prayer wording to logs.
 
 ## 9. Privacy and security
 
@@ -340,12 +503,17 @@ Laravel adds migrations, models, policies, and sync mutation handling for person
 - No secret value appears in source, fixtures, snapshots, logs, exception messages, or CI output.
 - Existing keys shared outside the secret store must be revoked before live verification; only rotated values may be used.
 - The user explicitly consents before the first provider transmission and after a provider/disclosure change.
+- Narration has separate versioned consent because it sends accepted prayer wording to Deepgram.
 - Only selected Encounter or Scripture snapshots are transmitted.
 - The full encounter history, prayer history, Remember archive, and Today history are never added automatically.
 - Laravel request and exception logs exclude request text, context excerpts, generated wording, provider payloads, tokens, and authorization headers.
 - Metrics use opaque request identifiers, status codes, latency, and token counts only.
 - Input length, output length, rate, timeout, and retry limits cap cost and abuse.
 - The privacy notice links to DeepSeek's current policy and accurately states that DeepSeek may process, retain, and use inputs according to that policy.
+- The narration notice links to Deepgram's current policy. The deployment does not join Deepgram's Model Improvement Partnership Program.
+- Reminder notifications contain generic copy by default and never contain the prayer body.
+- Private audio uses authenticated short-lived URLs; object keys and provider responses are never exposed.
+- A publication preview is the only path from a private prayer to the public library. Private context and identity are excluded by construction and tested.
 - Provider and model identifiers are operational metadata, not presented as spiritual authority.
 
 DeepSeek is selected for this deployment despite its broader data-use and storage policy because the product owner prefers its price and capability. The product must not describe DeepSeek as zero-retention or claim that submitted prayer content cannot be used for model improvement.
@@ -362,6 +530,16 @@ DeepSeek is selected for this deployment despite its broader data-use and storag
 - **Draft edited before regeneration:** require replacement confirmation.
 - **Save interrupted:** the transaction either creates the prayer, revision, and links together or creates none of them.
 - **Sync rejected:** retain the local accepted prayer and surface a private sync issue without implying data loss.
+- **Notification permission denied:** keep the schedule and show in-app reminders without repeated permission prompts.
+- **Native scheduling unavailable:** keep the reminder enabled in SoulBuddy, explain that background delivery is unavailable, and show it when the app becomes active.
+- **Web Push unavailable:** preserve the schedule and use the next-visit in-app reminder.
+- **Narration offline or pending:** keep `Listen` disabled with a concise status while the written prayer and confirmation remain usable.
+- **Narration generation failed:** retain the prayer, permit a bounded retry, and never fall back to a different voice provider silently.
+- **Audio download interrupted:** keep the server asset and resume or redownload without regenerating it.
+- **Duplicate reminder action:** return the existing prayer-session result without incrementing the count.
+- **Publication below 40:** keep the prayer private and return the authoritative eligible count without creating a submission.
+- **Publication needs changes or is rejected:** retain the private prayer and show only the review-safe note.
+- **Withdrawal interrupted:** remain in the last committed state; never hide the private source prayer.
 
 Errors never display raw provider responses or private request content. Retry invalidation must not tear down healthy shared database or cross-feature providers.
 
@@ -376,6 +554,9 @@ Errors never display raw provider responses or private request content. Retry in
 - Focus moves to the new step heading and to generation errors when appropriate.
 - Back navigation never loses saved input.
 - Motion is short, interruptible, and suppressed when reduced motion is requested.
+- Notification actions and the compact reminder surface expose the same clear accessible names.
+- Narration exposes play, pause, elapsed time, and loading state to assistive technology.
+- `I prayed this` is explicit; the app does not use ambiguous wording such as `Heeded` as the primary confirmation label.
 
 ## 12. Testing and evaluation
 
@@ -383,18 +564,24 @@ Errors never display raw provider responses or private request content. Retry in
 
 - Domain parsing and validation tests for every enum and state transition.
 - Real PowerSync repository tests for request/context transactions, queue recovery, accepted prayer revisions, links, and Today selection.
+- Real PowerSync repository tests for reminder schedules, device enablement, deterministic occurrences, prayer-session deduplication/retraction, and per-revision counts.
 - Provider/dispatcher tests for offline, unauthenticated, timeout, retry, resume, duplicate-attempt, and process-reopen paths.
-- Widget tests for both dynamic routes, consent, editing, regeneration confirmation, error recovery, keyboard navigation, semantics, and 200% text scale.
+- Widget tests for both dynamic routes, consent, editing, regeneration confirmation, reminder creation, compact reminder actions, narration states, publication eligibility, error recovery, keyboard navigation, semantics, and 200% text scale.
 - Router tests for deep links and safe back navigation.
-- Real Chrome integration for queue, generation with a fake Laravel provider, editing, acceptance, Today, close, and reopen.
-- Real Android emulator integration for the same lifecycle using the native database path.
+- Platform scheduling adapter tests for permission denial, DST/timezone changes, rescheduling, snooze, cancellation, and generic lock-screen copy.
+- Audio cache tests for content-hash reuse, revision changes, interrupted downloads, eviction, signed-URL expiry, and offline playback.
+- Real Chrome integration for queue, generation with a fake Laravel provider, editing, acceptance, Today, Web Push/in-app reminder delivery, narration playback, session confirmation, close, and reopen.
+- Real Android emulator integration for the same lifecycle using the native database path and an actionable local notification.
 
 ### Laravel
 
 - Feature tests for authentication, authorization, validation precedence, consent version, rate limits, idempotency, and safe error codes.
 - Provider contract tests using Laravel HTTP fakes for success, malformed JSON, forbidden claims, timeout, 429, 5xx, and repair behaviour.
-- Mutation tests for personal prayers, immutable revisions, links, aliases, multi-install replay, foreign ownership, rollback, and lock ordering.
-- Log-capture tests proving that private text, excerpts, outputs, keys, and authorization headers are absent.
+- Deepgram narration contract tests for cache hits, concurrency, immutable source loading, limits, timeout, invalid audio, checksums, signed URLs, and cleanup.
+- Mutation tests for personal prayers, immutable revisions, links, reminders, sessions, retraction window, aliases, multi-install replay, foreign ownership, rollback, and lock ordering.
+- Reminder scheduler and Web Push tests for timezone/DST behaviour, occurrence claiming, generic payloads, disabled subscriptions, retry, and duplicate prevention.
+- Publication tests for the exact-revision 40-session threshold, retractions, foreign records, snapshot scrubbing, moderation transitions, idempotent approval, withdrawal, and anonymous library rows.
+- Log-capture tests proving that private text, excerpts, outputs, notification contents, object keys, provider keys, audio payloads, and authorization headers are absent.
 - Migration up/down tests on SQLite plus PostgreSQL integration where a live service is available.
 
 ### Content evaluation
@@ -427,9 +614,15 @@ On a real Android emulator and in Chrome, a reviewer can:
 8. edit the title, prayer, and optional action;
 9. confirm before replacing an edited draft;
 10. save the prayer and select it for Today;
-11. complete its action;
-12. close and reopen the database/app and see the accepted wording, connection, Today selection, and completion state;
-13. confirm that no private text or credential appears in Flutter, Laravel, or provider-client logs.
+11. set a daily reminder and confirm its private generic notification;
+12. open the compact reminder, choose `Listen`, and receive one cached Deepgram narration;
+13. choose `I prayed this`, repeat the same occurrence action, and confirm it counts only once;
+14. close and reopen the database/app and see the prayer, reminder, local audio cache, Today selection, and session state;
+15. record 40 sessions for the exact revision through deterministic test fixtures and see `Publish for others` become available;
+16. preview and submit a privacy-scrubbed publication;
+17. approve it through the audited review command and see it once in the voted library without contributor identity;
+18. withdraw it and confirm it leaves new discovery while the private prayer remains;
+19. confirm that no private text, notification body, audio object key, or credential appears in Flutter, Laravel, scheduler, or provider-client logs.
 
 The existing prayer library, Helpful voting, Today, Encounter recording, Remember, and Scripture reading must continue to work offline throughout this journey.
 
@@ -438,5 +631,10 @@ The existing prayer library, Helpful voting, Today, Encounter recording, Remembe
 - [DeepSeek current models and pricing](https://api-docs.deepseek.com/quick_start/pricing/)
 - [DeepSeek change log and V4 model names](https://api-docs.deepseek.com/updates)
 - [DeepSeek privacy policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html)
+- [Deepgram Aura text-to-speech](https://developers.deepgram.com/docs/text-to-speech)
+- [Deepgram Aura voices](https://developers.deepgram.com/docs/tts-models)
+- [Deepgram voice controls](https://developers.deepgram.com/docs/tts-voice-controls)
+- [Deepgram model-improvement data policy](https://developers.deepgram.com/docs/the-deepgram-model-improvement-partnership-program)
+- [Deepgram pricing](https://deepgram.com/pricing)
 - [SoulBuddy MVP design](./2026-08-10-soulbuddy-mvp-design.md)
 - `C:\dev\soulbuddy\spiritual_wealth_app_framework.md` — product and formation input; it is not application source content.
