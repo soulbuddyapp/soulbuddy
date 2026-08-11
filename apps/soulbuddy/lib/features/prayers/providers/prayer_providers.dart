@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database_provider.dart';
@@ -19,9 +21,40 @@ final prayerClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
-final todayPrayerDateProvider = Provider<PrayerLocalDate>((ref) {
-  final now = ref.watch(prayerClockProvider)();
-  return (year: now.year, month: now.month, day: now.day);
+final todayPrayerDateProvider = StreamProvider.autoDispose<PrayerLocalDate>((
+  ref,
+) {
+  final clock = ref.watch(prayerClockProvider);
+  Timer? rolloverTimer;
+  var disposed = false;
+  late final StreamController<PrayerLocalDate> controller;
+
+  void emitDateAndScheduleRollover() {
+    if (disposed) return;
+    final now = clock();
+    controller.add((year: now.year, month: now.month, day: now.day));
+    final nextLocalMidnight = DateTime(now.year, now.month, now.day + 1);
+    rolloverTimer?.cancel();
+    rolloverTimer = Timer(
+      nextLocalMidnight.difference(now),
+      emitDateAndScheduleRollover,
+    );
+  }
+
+  controller = StreamController<PrayerLocalDate>(
+    sync: true,
+    onListen: emitDateAndScheduleRollover,
+    onCancel: () {
+      disposed = true;
+      rolloverTimer?.cancel();
+    },
+  );
+  ref.onDispose(() {
+    disposed = true;
+    rolloverTimer?.cancel();
+    unawaited(controller.close());
+  });
+  return controller.stream;
 });
 
 final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
@@ -53,9 +86,17 @@ final prayerProvider = StreamProvider.autoDispose
 final todayPrayerProvider = StreamProvider.autoDispose<TodayPrayer?>((
   ref,
 ) async* {
-  final date = ref.watch(todayPrayerDateProvider);
-  final repository = await ref.watch(prayerRepositoryProvider.future);
-  yield* repository.watchToday(DateTime(date.year, date.month, date.day));
+  switch (ref.watch(todayPrayerDateProvider)) {
+    case AsyncData(:final value):
+      final repository = await ref.watch(prayerRepositoryProvider.future);
+      yield* repository.watchToday(
+        DateTime(value.year, value.month, value.day),
+      );
+    case AsyncError(:final error, :final stackTrace):
+      Error.throwWithStackTrace(error, stackTrace);
+    case AsyncLoading():
+      return;
+  }
 });
 
 void retryPrayerLibraryProviders(WidgetRef ref, PrayerLibraryFilter filter) {

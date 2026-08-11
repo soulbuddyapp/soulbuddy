@@ -14,6 +14,7 @@ import '../../helpers/in_memory_prayer_repository.dart';
 
 void main() {
   test('Today prayer stream releases its watcher when the screen leaves', () {
+    expect(todayPrayerDateProvider.isAutoDispose, isTrue);
     expect(todayPrayerProvider.isAutoDispose, isTrue);
   });
 
@@ -147,6 +148,58 @@ void main() {
     await _pumpToday(tester, repository: repository, now: () => localBoundary);
 
     expect(repository.watchedTodayDate, DateTime(2026, 8, 11));
+  });
+
+  testWidgets('switches to the new local date at midnight while mounted', (
+    tester,
+  ) async {
+    var currentTime = DateTime(2026, 8, 11, 23, 59, 30);
+    final repository = _DatedPrayerRepository({
+      DateTime(2026, 8, 11): TodayPrayer(
+        prayer: _prayer,
+        localDate: DateTime(2026, 8, 11),
+        includeAction: false,
+        actionCompleted: false,
+      ),
+      DateTime(2026, 8, 12): TodayPrayer(
+        prayer: _nextDayPrayer,
+        localDate: DateTime(2026, 8, 12),
+        includeAction: false,
+        actionCompleted: false,
+      ),
+    });
+    addTearDown(repository.close);
+
+    await _pumpToday(tester, repository: repository, now: () => currentTime);
+    final providerScopeElement = tester.element(find.byType(ProviderScope));
+    final todayScreenElement = tester.element(find.byType(TodayScreen));
+
+    expect(find.text(_prayer.title), findsOneWidget);
+    expect(repository.watchedDates, [DateTime(2026, 8, 11)]);
+
+    currentTime = DateTime(2026, 8, 12);
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pumpAndSettle();
+
+    expect(find.text(_nextDayPrayer.title), findsOneWidget);
+    expect(find.text(_prayer.title), findsNothing);
+    expect(
+      identical(
+        tester.element(find.byType(ProviderScope)),
+        providerScopeElement,
+      ),
+      isTrue,
+    );
+    expect(
+      identical(tester.element(find.byType(TodayScreen)), todayScreenElement),
+      isTrue,
+    );
+    expect(repository.watchedDates, [
+      DateTime(2026, 8, 11),
+      DateTime(2026, 8, 12),
+    ]);
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('remains scrollable and readable at 200% text scale', (
@@ -297,6 +350,20 @@ class _FailingCompletionRepository extends InMemoryPrayerRepository {
   }
 }
 
+class _DatedPrayerRepository extends InMemoryPrayerRepository {
+  _DatedPrayerRepository(this.selections)
+    : super(prayers: selections.values.map((today) => today.prayer).toList());
+
+  final Map<DateTime, TodayPrayer> selections;
+  final List<DateTime> watchedDates = [];
+
+  @override
+  Stream<TodayPrayer?> watchToday(DateTime localDate) async* {
+    watchedDates.add(localDate);
+    yield selections[localDate];
+  }
+}
+
 const _prayerAction = 'Ease someone\'s burden today.';
 
 const _prayer = LibraryPrayer(
@@ -312,4 +379,14 @@ const _prayer = LibraryPrayer(
   helpfulCount: 12,
   viewerMarkedHelpful: false,
   action: _prayerAction,
+);
+
+const _nextDayPrayer = LibraryPrayer(
+  id: 'gratitude',
+  title: 'For a new day',
+  body: 'Father, thank you for this new day. Keep me near you. Amen.',
+  grounding: PrayerGrounding.generalChristian,
+  purpose: PrayerPurpose.gratitude,
+  helpfulCount: 4,
+  viewerMarkedHelpful: false,
 );

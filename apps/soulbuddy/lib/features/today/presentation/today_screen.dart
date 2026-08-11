@@ -74,8 +74,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Future<void> _completeAction(bool value) async {
     setState(() => _updatingAction = true);
     try {
-      final date = ref.read(todayPrayerDateProvider);
-      final repository = await ref.read(prayerRepositoryProvider.future);
+      final dateFuture = ref.read(todayPrayerDateProvider.future);
+      final repositoryFuture = ref.read(prayerRepositoryProvider.future);
+      final date = await dateFuture;
+      final repository = await repositoryFuture;
       await repository.completeTodayAction(
         DateTime(date.year, date.month, date.day),
         value: value,
