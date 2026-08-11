@@ -1,0 +1,15 @@
+import 'library_prayer.dart';
+
+class TodayPrayer {
+  const TodayPrayer({
+    required this.prayer,
+    required this.localDate,
+    required this.includeAction,
+    required this.actionCompleted,
+  });
+
+  final LibraryPrayer prayer;
+  final DateTime localDate;
+  final bool includeAction;
+  final bool actionCompleted;
+}
