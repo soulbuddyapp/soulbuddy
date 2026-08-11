@@ -30,6 +30,15 @@ return [
         'ttl_seconds' => (int) env('POWERSYNC_JWT_TTL_SECONDS', 600),
     ],
 
+    'deepseek' => [
+        'provider' => env('AI_PROVIDER', 'deepseek'),
+        'key' => env('DEEPSEEK_API_KEY'),
+        'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
+        'prompt_version' => env('PRAYER_DRAFT_PROMPT_VERSION', '1'),
+        'disclosure_version' => env('PRAYER_DRAFT_DISCLOSURE_VERSION', 'deepseek-1'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
