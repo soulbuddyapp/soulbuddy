@@ -1,20 +1,31 @@
 <?php
 
-namespace App\Domain\Encounters;
+namespace App\Domain\Sync;
 
 use App\Models\Encounter;
 use App\Models\EncounterRevision;
+use App\Models\LibraryPrayer;
+use App\Models\PrayerVote;
 use App\Models\SyncOperation;
+use App\Models\TodayPrayer;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 
-class ApplyEncounterMutation
+class ApplySyncMutation
 {
+    private const SUPPORTED_TABLES = [
+        'encounters',
+        'encounter_revisions',
+        'prayer_votes',
+        'today_prayers',
+    ];
+
     public function apply(User $user, array $operations): array
     {
         $stored = SyncOperation::query()
@@ -55,16 +66,20 @@ class ApplyEncounterMutation
 
         if ($pending->contains(fn (array $operation) => ! in_array(
             $operation['table'],
-            ['encounters', 'encounter_revisions'],
+            self::SUPPORTED_TABLES,
             true,
         ))) {
             return $this->result($duplicates, $pending->count(), $duplicates, 'unsupported_table');
         }
 
-        if ($pending->contains(fn (array $operation) => $operation['table'] === 'encounter_revisions'
-            && $operation['type'] !== 'put'
-        )) {
-            return $this->result($duplicates, $pending->count(), $duplicates, 'immutable_revision');
+        $kindError = $this->validateOperationKinds($pending->all());
+        if ($kindError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $kindError);
+        }
+
+        $validationError = $this->validateData($pending->all());
+        if ($validationError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $validationError);
         }
 
         $targetError = $this->validateTargets($user, $pending->all());
@@ -77,17 +92,15 @@ class ApplyEncounterMutation
             return $this->result($duplicates, $pending->count(), $duplicates, $pairError);
         }
 
-        $validationError = $this->validateData($pending->all());
-        if ($validationError !== null) {
-            return $this->result($duplicates, $pending->count(), $duplicates, $validationError);
-        }
-
         try {
             DB::transaction(function () use ($user, $pending) {
                 foreach ($pending->sortBy(fn (array $operation) => $operation['table'] === 'encounters' ? 0 : 1) as $operation) {
-                    $operation['table'] === 'encounters'
-                        ? $this->applyEncounter($user, $operation)
-                        : $this->applyRevision($user, $operation);
+                    match ($operation['table']) {
+                        'encounters' => $this->applyEncounter($user, $operation),
+                        'encounter_revisions' => $this->applyRevision($user, $operation),
+                        'prayer_votes' => $this->applyPrayerVote($user, $operation),
+                        'today_prayers' => $this->applyTodayPrayer($user, $operation),
+                    };
 
                     SyncOperation::create([
                         'operation_id' => $operation['operation_id'],
@@ -102,9 +115,39 @@ class ApplyEncounterMutation
             });
         } catch (AuthorizationException) {
             return $this->result($duplicates, $pending->count(), $duplicates, 'forbidden');
+        } catch (QueryException $exception) {
+            if ($this->isConstraintViolation($exception)) {
+                $replay = $this->concurrentReplayResult(
+                    $user,
+                    $pending,
+                    $duplicates,
+                    count($operations),
+                );
+                if ($replay !== null) {
+                    return $replay;
+                }
+
+                return $this->result($duplicates, $pending->count(), $duplicates, 'conflict');
+            }
+
+            throw $exception;
         }
 
         return $this->result(count($operations), 0, $duplicates);
+    }
+
+    private function validateOperationKinds(array $operations): ?string
+    {
+        foreach ($operations as $operation) {
+            if ($operation['table'] === 'encounter_revisions' && $operation['type'] !== 'put') {
+                return 'immutable_revision';
+            }
+            if ($operation['table'] === 'prayer_votes' && $operation['type'] === 'patch') {
+                return 'unsupported_operation';
+            }
+        }
+
+        return null;
     }
 
     private function validateTargets(User $user, array $operations): ?string
@@ -123,9 +166,54 @@ class ApplyEncounterMutation
                         : 'forbidden';
                 }
             }
+            if ($operation['table'] === 'prayer_votes') {
+                $error = $this->validatePrayerVoteTarget($user, $operation);
+                if ($error !== null) {
+                    return $error;
+                }
+            }
+            if ($operation['table'] === 'today_prayers') {
+                $error = $this->validateTodayPrayerTarget($user, $operation);
+                if ($error !== null) {
+                    return $error;
+                }
+            }
         }
 
         return null;
+    }
+
+    private function validatePrayerVoteTarget(User $user, array $operation): ?string
+    {
+        $vote = PrayerVote::find($operation['id']);
+        if ($vote !== null && $vote->user_id !== $user->id) {
+            return 'inaccessible_record';
+        }
+        if ($operation['type'] === 'delete') {
+            return null;
+        }
+
+        $prayerId = $operation['data']['prayer_id'];
+
+        return $this->isPublishedPrayer($prayerId) ? null : 'invalid_prayer';
+    }
+
+    private function validateTodayPrayerTarget(User $user, array $operation): ?string
+    {
+        $selection = TodayPrayer::find($operation['id']);
+        if ($selection !== null && $selection->user_id !== $user->id) {
+            return 'inaccessible_record';
+        }
+        if ($operation['type'] === 'delete') {
+            return null;
+        }
+        if ($operation['type'] === 'patch' && $selection === null) {
+            return 'inaccessible_record';
+        }
+
+        $prayerId = $operation['data']['prayer_id'] ?? $selection->prayer_id;
+
+        return $this->isPublishedPrayer($prayerId) ? null : 'invalid_prayer';
     }
 
     private function validatePairs(array $operations): ?string
@@ -137,10 +225,8 @@ class ApplyEncounterMutation
             if ($encounter['type'] === 'delete') {
                 continue;
             }
-            if (
-                $encounter['type'] === 'patch'
-                && ! array_key_exists('current_revision_id', $encounter['data'])
-            ) {
+            if ($encounter['type'] === 'patch'
+                && ! array_key_exists('current_revision_id', $encounter['data'])) {
                 continue;
             }
             $revisionId = $encounter['data']['current_revision_id'] ?? null;
@@ -171,17 +257,26 @@ class ApplyEncounterMutation
     {
         foreach ($operations as $operation) {
             if ($operation['type'] === 'delete') {
+                if (in_array($operation['table'], ['prayer_votes', 'today_prayers'], true)
+                    && $operation['data'] !== []) {
+                    return 'invalid_data';
+                }
+
                 continue;
-            }
-            if ($operation['table'] === 'encounter_revisions' && $operation['type'] !== 'put') {
-                return 'immutable_revision';
             }
 
             $rules = match ([$operation['table'], $operation['type']]) {
                 ['encounters', 'put'] => ['title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'occurred_on' => ['required', 'date_format:Y-m-d'], 'is_altar' => ['required', 'boolean'], 'current_revision_id' => ['required', 'uuid'], 'archived_at' => ['nullable', 'date']],
                 ['encounters', 'patch'] => ['title' => ['sometimes', 'string', 'max:120'], 'body' => ['sometimes', 'nullable', 'string', 'max:4000'], 'occurred_on' => ['sometimes', 'date_format:Y-m-d'], 'is_altar' => ['sometimes', 'boolean'], 'current_revision_id' => ['sometimes', 'uuid'], 'archived_at' => ['sometimes', 'nullable', 'date'], 'updated_at' => ['sometimes', 'date']],
-                default => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120']],
+                ['encounter_revisions', 'put'] => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120']],
+                ['prayer_votes', 'put'] => ['owner_id' => ['sometimes', 'uuid'], 'prayer_id' => ['required', 'uuid'], 'created_at' => ['sometimes', 'date']],
+                ['today_prayers', 'put'] => ['owner_id' => ['sometimes', 'uuid'], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['required', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
+                ['today_prayers', 'patch'] => ['prayer_id' => ['sometimes', 'uuid'], 'include_action' => ['sometimes', 'boolean'], 'action_completed' => ['sometimes', 'boolean']],
             };
+
+            if ($this->hasUnexpectedPrayerFields($operation, array_keys($rules))) {
+                return 'invalid_data';
+            }
             if (Validator::make($operation['data'], $rules)->fails()) {
                 return 'invalid_data';
             }
@@ -191,6 +286,15 @@ class ApplyEncounterMutation
         }
 
         return null;
+    }
+
+    private function hasUnexpectedPrayerFields(array $operation, array $allowed): bool
+    {
+        if (! in_array($operation['table'], ['prayer_votes', 'today_prayers'], true)) {
+            return false;
+        }
+
+        return array_diff(array_keys($operation['data']), $allowed) !== [];
     }
 
     private function applyEncounter(User $user, array $operation): void
@@ -242,6 +346,121 @@ class ApplyEncounterMutation
             'device_id' => $operation['data']['device_id'],
             'created_at' => now(),
         ]);
+    }
+
+    private function applyPrayerVote(User $user, array $operation): void
+    {
+        $vote = PrayerVote::find($operation['id']);
+        $prayerId = $vote?->prayer_id ?? $operation['data']['prayer_id'] ?? null;
+        $prayer = $prayerId === null
+            ? null
+            : LibraryPrayer::query()->lockForUpdate()->findOrFail($prayerId);
+
+        if ($operation['type'] === 'put' && $vote === null) {
+            $vote = PrayerVote::query()
+                ->where('user_id', $user->id)
+                ->where('prayer_id', $operation['data']['prayer_id'])
+                ->lockForUpdate()
+                ->first();
+        }
+
+        if ($operation['type'] === 'delete') {
+            $vote?->delete();
+        } elseif ($vote === null) {
+            PrayerVote::create([
+                'id' => $operation['id'],
+                'user_id' => $user->id,
+                'prayer_id' => $operation['data']['prayer_id'],
+                'created_at' => now(),
+            ]);
+        }
+
+        if ($prayer !== null) {
+            $prayer->forceFill([
+                'helpful_count' => PrayerVote::where('prayer_id', $prayer->id)->count(),
+            ])->save();
+        }
+    }
+
+    private function applyTodayPrayer(User $user, array $operation): void
+    {
+        if ($operation['type'] === 'put') {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $selection = TodayPrayer::query()
+                ->where('user_id', $user->id)
+                ->where(fn ($query) => $query
+                    ->where('id', $operation['id'])
+                    ->orWhereDate('local_date', $operation['data']['local_date']))
+                ->lockForUpdate()
+                ->first();
+        } else {
+            $selection = TodayPrayer::find($operation['id']);
+        }
+
+        if ($operation['type'] === 'delete') {
+            $selection?->delete();
+
+            return;
+        }
+
+        if ($selection === null) {
+            $selection = new TodayPrayer([
+                'id' => $operation['id'],
+                'user_id' => $user->id,
+            ]);
+        }
+
+        $attributes = $operation['type'] === 'put'
+            ? Arr::only($operation['data'], [
+                'local_date',
+                'prayer_id',
+                'include_action',
+                'action_completed',
+            ])
+            : Arr::only($operation['data'], [
+                'prayer_id',
+                'include_action',
+                'action_completed',
+            ]);
+        $selection->forceFill($attributes)->save();
+    }
+
+    private function isPublishedPrayer(string $prayerId): bool
+    {
+        return LibraryPrayer::query()
+            ->whereKey($prayerId)
+            ->whereNotNull('published_at')
+            ->whereNull('archived_at')
+            ->exists();
+    }
+
+    private function isConstraintViolation(QueryException $exception): bool
+    {
+        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+
+        return str_starts_with($sqlState, '23');
+    }
+
+    protected function concurrentReplayResult(
+        User $user,
+        Collection $pending,
+        int $duplicates,
+        int $total,
+    ): ?array {
+        $stored = SyncOperation::query()
+            ->whereIn('operation_id', $pending->pluck('operation_id'))
+            ->get()
+            ->keyBy('operation_id');
+
+        $same = $pending->every(function (array $operation) use ($stored, $user): bool {
+            $existing = $stored->get($operation['operation_id']);
+
+            return $existing !== null && $this->isSameOperation($existing, $user, $operation);
+        });
+
+        return $same
+            ? $this->result($total, 0, $duplicates + $pending->count())
+            : null;
     }
 
     private function result(int $accepted, int $rejected, int $duplicates, ?string $code = null): array
