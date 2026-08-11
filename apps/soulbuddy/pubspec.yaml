@@ -77,6 +77,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/content/prayer_library.json
     - assets/scripture/rsvce.db
 
   # To add assets to your application, add an assets section, like this:
