@@ -39,6 +39,11 @@ class User extends Authenticatable
         });
 
         static::deleting(function (User $user): void {
+            User::query()
+                ->whereKey($user->getKey())
+                ->lockForUpdate()
+                ->first();
+
             $user->prayerIdsPendingVoteDeletion = PrayerVote::query()
                 ->where('user_id', $user->id)
                 ->pluck('prayer_id')

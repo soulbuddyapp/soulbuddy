@@ -140,6 +140,37 @@ it('creates one deterministic vote, treats retries as duplicates, and derives th
         ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(1);
 });
 
+it('locks the authenticated user before the canonical prayer when putting a vote', function () {
+    $user = User::factory()->create();
+    $prayerId = seededPrayerId();
+    $queries = [];
+
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = strtolower($query->sql);
+    });
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [syncPrayerOperation(
+            '0198a200-0000-7000-8000-000000000094',
+            'prayer_votes',
+            'put',
+            '0198a200-0000-7000-8000-000000000095',
+            ['prayer_id' => $prayerId],
+        )],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    $userLockIndex = collect($queries)->search(
+        fn (string $sql): bool => str_starts_with($sql, 'select *') && str_contains($sql, 'from "users"'),
+    );
+    $prayerLockIndex = collect($queries)->search(
+        fn (string $sql): bool => str_starts_with($sql, 'select *') && str_contains($sql, 'from "library_prayers"'),
+    );
+
+    expect($userLockIndex)->not->toBeFalse()
+        ->and($prayerLockIndex)->not->toBeFalse()
+        ->and($userLockIndex)->toBeLessThan($prayerLockIndex);
+});
+
 it('accepts offline installation ids while assigning ownership from authentication', function () {
     $user = User::factory()->create();
     $localOwnerId = 'pre-auth-installation-owner';
@@ -661,6 +692,7 @@ it('deletes voting users and repairs counts inside one transaction', function ()
     $prayerId = seededPrayerId();
     $baselineTransactionLevel = DB::transactionLevel();
     $eventTransactionLevels = [];
+    $deleteQueries = [];
 
     User::deleting(function (User $user) use ($first, &$eventTransactionLevels): void {
         if ($user->is($first)) {
@@ -687,12 +719,26 @@ it('deletes voting users and repairs counts inside one transaction', function ()
 
     expect(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(2);
 
+    DB::listen(function ($query) use (&$deleteQueries): void {
+        $deleteQueries[] = strtolower($query->sql);
+    });
+
     $first->delete();
+
+    $userLockIndex = collect($deleteQueries)->search(
+        fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from "users"'),
+    );
+    $voteSnapshotIndex = collect($deleteQueries)->search(
+        fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from "prayer_votes"'),
+    );
 
     expect(PrayerVote::count())->toBe(1)
         ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(1)
         ->and($eventTransactionLevels['deleting'])->toBeGreaterThan($baselineTransactionLevel)
-        ->and($eventTransactionLevels['deleted'])->toBeGreaterThan($baselineTransactionLevel);
+        ->and($eventTransactionLevels['deleted'])->toBeGreaterThan($baselineTransactionLevel)
+        ->and($userLockIndex)->not->toBeFalse()
+        ->and($voteSnapshotIndex)->not->toBeFalse()
+        ->and($userLockIndex)->toBeLessThan($voteSnapshotIndex);
 });
 
 it('rolls back the user cascade and count repair when a deleted listener fails', function () {

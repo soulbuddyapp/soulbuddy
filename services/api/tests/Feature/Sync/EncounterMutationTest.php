@@ -126,6 +126,32 @@ it('preserves missing encounter precedence over malformed patch data', function 
         ->assertJsonPath('code', 'missing_record');
 });
 
+it('preserves incomplete pair precedence over malformed encounter and revision data', function (array $operation) {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [$operation],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('rejected', 1)
+        ->assertJsonPath('code', 'incomplete_revision_pair');
+})->with([
+    'encounter without revision' => [[
+        'operation_id' => '0198a000-0000-7000-8000-000000000025',
+        'table' => 'encounters',
+        'type' => 'put',
+        'id' => '0198a000-0000-7000-8000-000000000026',
+        'data' => ['title' => ['malformed']],
+    ]],
+    'revision without encounter' => [[
+        'operation_id' => '0198a000-0000-7000-8000-000000000027',
+        'table' => 'encounter_revisions',
+        'type' => 'put',
+        'id' => '0198a000-0000-7000-8000-000000000028',
+        'data' => ['title' => ['malformed']],
+    ]],
+]);
+
 it('never overwrites an existing immutable revision', function () {
     $user = User::factory()->create();
     $this->actingAs($user)->postJson('/api/sync/mutations', encounterBatch())->assertOk();

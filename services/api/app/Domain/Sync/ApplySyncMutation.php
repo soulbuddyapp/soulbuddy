@@ -77,30 +77,33 @@ class ApplySyncMutation
             return $this->result($duplicates, $pending->count(), $duplicates, $kindError);
         }
 
-        $encounterTargetError = $this->validateTargets(
-            $user,
-            $pending->whereIn('table', ['encounters', 'encounter_revisions'])->all(),
-        );
+        $encounterOperations = $pending
+            ->whereIn('table', ['encounters', 'encounter_revisions'])
+            ->all();
+        $prayerOperations = $pending
+            ->whereIn('table', ['prayer_votes', 'today_prayers'])
+            ->all();
+
+        $encounterTargetError = $this->validateTargets($user, $encounterOperations);
         if ($encounterTargetError !== null) {
             return $this->result($duplicates, $pending->count(), $duplicates, $encounterTargetError);
         }
 
-        $validationError = $this->validateData($pending->all());
-        if ($validationError !== null) {
-            return $this->result($duplicates, $pending->count(), $duplicates, $validationError);
-        }
-
-        $prayerTargetError = $this->validateTargets(
-            $user,
-            $pending->whereIn('table', ['prayer_votes', 'today_prayers'])->all(),
-        );
-        if ($prayerTargetError !== null) {
-            return $this->result($duplicates, $pending->count(), $duplicates, $prayerTargetError);
-        }
-
-        $pairError = $this->validatePairs($pending->all());
+        $pairError = $this->validatePairs($encounterOperations);
         if ($pairError !== null) {
             return $this->result($duplicates, $pending->count(), $duplicates, $pairError);
+        }
+
+        foreach ([$encounterOperations, $prayerOperations] as $domainOperations) {
+            $validationError = $this->validateData($domainOperations);
+            if ($validationError !== null) {
+                return $this->result($duplicates, $pending->count(), $duplicates, $validationError);
+            }
+        }
+
+        $prayerTargetError = $this->validateTargets($user, $prayerOperations);
+        if ($prayerTargetError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $prayerTargetError);
         }
 
         try {
@@ -353,6 +356,10 @@ class ApplySyncMutation
 
     private function applyPrayerVote(User $user, array $operation): void
     {
+        if ($operation['type'] === 'put') {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+        }
+
         $vote = PrayerVote::find($operation['id']);
         $prayerId = $vote?->prayer_id ?? $operation['data']['prayer_id'] ?? null;
         $prayer = $prayerId === null
