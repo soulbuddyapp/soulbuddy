@@ -21,6 +21,11 @@ class User extends Authenticatable
     /** @var array<int, string> */
     private array $prayerIdsPendingVoteDeletion = [];
 
+    public function delete()
+    {
+        return $this->getConnection()->transaction(fn () => parent::delete());
+    }
+
     protected static function booted(): void
     {
         static::creating(function (User $user): void {
@@ -40,6 +45,12 @@ class User extends Authenticatable
                 ->unique()
                 ->values()
                 ->all();
+
+            LibraryPrayer::query()
+                ->whereIn('id', $user->prayerIdsPendingVoteDeletion)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id']);
         });
 
         static::deleted(function (User $user): void {

@@ -77,14 +77,25 @@ class ApplySyncMutation
             return $this->result($duplicates, $pending->count(), $duplicates, $kindError);
         }
 
+        $encounterTargetError = $this->validateTargets(
+            $user,
+            $pending->whereIn('table', ['encounters', 'encounter_revisions'])->all(),
+        );
+        if ($encounterTargetError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $encounterTargetError);
+        }
+
         $validationError = $this->validateData($pending->all());
         if ($validationError !== null) {
             return $this->result($duplicates, $pending->count(), $duplicates, $validationError);
         }
 
-        $targetError = $this->validateTargets($user, $pending->all());
-        if ($targetError !== null) {
-            return $this->result($duplicates, $pending->count(), $duplicates, $targetError);
+        $prayerTargetError = $this->validateTargets(
+            $user,
+            $pending->whereIn('table', ['prayer_votes', 'today_prayers'])->all(),
+        );
+        if ($prayerTargetError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $prayerTargetError);
         }
 
         $pairError = $this->validatePairs($pending->all());
@@ -102,15 +113,7 @@ class ApplySyncMutation
                         'today_prayers' => $this->applyTodayPrayer($user, $operation),
                     };
 
-                    SyncOperation::create([
-                        'operation_id' => $operation['operation_id'],
-                        'user_id' => $user->id,
-                        'table_name' => $operation['table'],
-                        'record_id' => $operation['id'],
-                        'operation_type' => $operation['type'],
-                        'payload_hash' => $this->fingerprint($operation),
-                        'created_at' => now(),
-                    ]);
+                    $this->storeSyncOperation($user, $operation);
                 }
             });
         } catch (AuthorizationException) {
@@ -269,8 +272,8 @@ class ApplySyncMutation
                 ['encounters', 'put'] => ['title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'occurred_on' => ['required', 'date_format:Y-m-d'], 'is_altar' => ['required', 'boolean'], 'current_revision_id' => ['required', 'uuid'], 'archived_at' => ['nullable', 'date']],
                 ['encounters', 'patch'] => ['title' => ['sometimes', 'string', 'max:120'], 'body' => ['sometimes', 'nullable', 'string', 'max:4000'], 'occurred_on' => ['sometimes', 'date_format:Y-m-d'], 'is_altar' => ['sometimes', 'boolean'], 'current_revision_id' => ['sometimes', 'uuid'], 'archived_at' => ['sometimes', 'nullable', 'date'], 'updated_at' => ['sometimes', 'date']],
                 ['encounter_revisions', 'put'] => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120']],
-                ['prayer_votes', 'put'] => ['owner_id' => ['sometimes', 'uuid'], 'prayer_id' => ['required', 'uuid'], 'created_at' => ['sometimes', 'date']],
-                ['today_prayers', 'put'] => ['owner_id' => ['sometimes', 'uuid'], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['required', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
+                ['prayer_votes', 'put'] => ['owner_id' => [], 'prayer_id' => ['required', 'uuid'], 'created_at' => ['sometimes', 'date']],
+                ['today_prayers', 'put'] => ['owner_id' => [], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['required', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
                 ['today_prayers', 'patch'] => ['prayer_id' => ['sometimes', 'uuid'], 'include_action' => ['sometimes', 'boolean'], 'action_completed' => ['sometimes', 'boolean']],
             };
 
@@ -439,6 +442,19 @@ class ApplySyncMutation
         $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
 
         return str_starts_with($sqlState, '23');
+    }
+
+    protected function storeSyncOperation(User $user, array $operation): void
+    {
+        SyncOperation::create([
+            'operation_id' => $operation['operation_id'],
+            'user_id' => $user->id,
+            'table_name' => $operation['table'],
+            'record_id' => $operation['id'],
+            'operation_type' => $operation['type'],
+            'payload_hash' => $this->fingerprint($operation),
+            'created_at' => now(),
+        ]);
     }
 
     protected function concurrentReplayResult(
