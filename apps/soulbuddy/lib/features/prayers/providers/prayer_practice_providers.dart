@@ -55,6 +55,16 @@ final prayerReminderCoordinatorProvider =
       return coordinator;
     });
 
+final prayerReminderDeviceEnablerProvider =
+    Provider<Future<bool> Function(String)>((ref) {
+      return (reminderId) async {
+        final coordinator = await ref.read(
+          prayerReminderCoordinatorProvider.future,
+        );
+        return coordinator.enableOnThisDevice(reminderId);
+      };
+    });
+
 final prayerReminderProvider = StreamProvider.autoDispose
     .family<PrayerReminder?, String>((ref, personalPrayerId) async* {
       final repository = await ref.watch(

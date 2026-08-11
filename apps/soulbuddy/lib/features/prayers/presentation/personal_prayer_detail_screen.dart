@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../providers/personal_prayer_providers.dart';
+import 'prayer_reminder_sheet.dart';
+import 'prayer_session_actions.dart';
 
 class PersonalPrayerDetailScreen extends ConsumerWidget {
   const PersonalPrayerDetailScreen({required this.prayerId, super.key});
@@ -60,6 +62,10 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.xs),
                       Text(value.action!),
                     ],
+                    const SizedBox(height: AppSpacing.xl),
+                    PrayerReminderControl(prayer: value),
+                    const SizedBox(height: AppSpacing.sm),
+                    PrayerSessionActions(prayer: value),
                   ],
                 );
               },
