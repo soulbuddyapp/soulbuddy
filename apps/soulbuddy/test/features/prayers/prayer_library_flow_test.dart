@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:powersync/powersync.dart';
+import 'package:soulbuddy/core/database/app_database.dart';
+import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/identity/local_identity.dart';
+import 'package:soulbuddy/core/identity/local_identity_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_detail_screen.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayers_screen.dart';
@@ -162,27 +167,106 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Retry rebuilds a failed prayer repository', (tester) async {
+  testWidgets(
+    'Retry preserves healthy shared providers when prayer startup fails',
+    (tester) async {
+      final repository = _repository();
+      addTearDown(repository.close);
+      final database = _UnusedAppDatabase();
+
+      var databaseCreations = 0;
+      var databaseDisposals = 0;
+      var identityCreations = 0;
+      var identityDisposals = 0;
+      var repositoryAttempts = 0;
+      final router = _prayersOnlyRouter();
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWith((ref) async {
+              databaseCreations += 1;
+              ref.onDispose(() => databaseDisposals += 1);
+              return database;
+            }),
+            localIdentityProvider.overrideWith((ref) async {
+              identityCreations += 1;
+              ref.onDispose(() => identityDisposals += 1);
+              return const LocalIdentity(
+                ownerId: 'test-owner',
+                deviceId: 'test-device',
+              );
+            }),
+            prayerRepositoryProvider.overrideWith((ref) async {
+              await ref.watch(appDatabaseProvider.future);
+              await ref.watch(localIdentityProvider.future);
+              repositoryAttempts += 1;
+              if (repositoryAttempts == 1) {
+                throw StateError('prayer startup failed');
+              }
+              return repository;
+            }),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.light(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _tapLibraryRetry(tester);
+
+      expect(repositoryAttempts, 2);
+      expect(databaseCreations, 1);
+      expect(databaseDisposals, 0);
+      expect(identityCreations, 1);
+      expect(identityDisposals, 0);
+      await tester.scrollUntilVisible(
+        find.text('For my family'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('For my family'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Retry rebuilds a failed shared identity provider', (
+    tester,
+  ) async {
     final repository = _repository();
     addTearDown(repository.close);
-    var attempts = 0;
-    final router = GoRouter(
-      initialLocation: '/prayers',
-      routes: [
-        GoRoute(
-          path: '/prayers',
-          builder: (context, state) => const Scaffold(body: PrayersScreen()),
-        ),
-      ],
-    );
+    final database = _UnusedAppDatabase();
+
+    var databaseCreations = 0;
+    var databaseDisposals = 0;
+    var identityAttempts = 0;
+    var repositoryAttempts = 0;
+    final router = _prayersOnlyRouter();
     addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appDatabaseProvider.overrideWith((ref) async {
+            databaseCreations += 1;
+            ref.onDispose(() => databaseDisposals += 1);
+            return database;
+          }),
+          localIdentityProvider.overrideWith((ref) async {
+            identityAttempts += 1;
+            if (identityAttempts == 1) {
+              throw StateError('identity startup failed');
+            }
+            return const LocalIdentity(
+              ownerId: 'test-owner',
+              deviceId: 'test-device',
+            );
+          }),
           prayerRepositoryProvider.overrideWith((ref) async {
-            attempts += 1;
-            if (attempts == 1) throw StateError('startup failed');
+            repositoryAttempts += 1;
+            await ref.watch(appDatabaseProvider.future);
+            await ref.watch(localIdentityProvider.future);
             return repository;
           }),
         ],
@@ -193,20 +277,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await _tapLibraryRetry(tester);
 
-    await tester.scrollUntilVisible(
-      find.text('The prayer library could not be opened just now.'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(
-      find.text('The prayer library could not be opened just now.'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Try again'));
-    await tester.pumpAndSettle();
-
-    expect(attempts, 2);
+    expect(repositoryAttempts, 2);
+    expect(identityAttempts, 2);
+    expect(databaseCreations, 1);
+    expect(databaseDisposals, 0);
     await tester.scrollUntilVisible(
       find.text('For my family'),
       300,
@@ -214,6 +290,32 @@ void main() {
     );
     expect(find.text('For my family'), findsOneWidget);
   });
+}
+
+GoRouter _prayersOnlyRouter() {
+  return GoRouter(
+    initialLocation: '/prayers',
+    routes: [
+      GoRoute(
+        path: '/prayers',
+        builder: (context, state) => const Scaffold(body: PrayersScreen()),
+      ),
+    ],
+  );
+}
+
+Future<void> _tapLibraryRetry(WidgetTester tester) async {
+  await tester.scrollUntilVisible(
+    find.text('The prayer library could not be opened just now.'),
+    300,
+    scrollable: find.byType(Scrollable).first,
+  );
+  expect(
+    find.text('The prayer library could not be opened just now.'),
+    findsOneWidget,
+  );
+  await tester.tap(find.text('Try again'));
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pumpFlow(
@@ -300,6 +402,16 @@ List<LibraryPrayer> _prayers() {
       viewerMarkedHelpful: false,
     ),
   ];
+}
+
+class _UnusedAppDatabase implements AppDatabase {
+  @override
+  PowerSyncDatabase get powersync => throw UnsupportedError(
+    'The retry integration test does not access the database.',
+  );
+
+  @override
+  Future<void> close() async {}
 }
 
 const _familyPrayerBody =

@@ -49,7 +49,14 @@ void retryPrayerDetailProviders(WidgetRef ref, String prayerId) {
 }
 
 void _invalidatePrayerStartup(WidgetRef ref) {
-  ref.invalidate(appDatabaseProvider);
-  ref.invalidate(localIdentityProvider);
+  final databaseState = ref.read(appDatabaseProvider);
+  final identityState = ref.read(localIdentityProvider);
+
+  if (databaseState.hasError) {
+    ref.invalidate(appDatabaseProvider);
+  }
+  if (identityState.hasError) {
+    ref.invalidate(localIdentityProvider);
+  }
   ref.invalidate(prayerRepositoryProvider);
 }
