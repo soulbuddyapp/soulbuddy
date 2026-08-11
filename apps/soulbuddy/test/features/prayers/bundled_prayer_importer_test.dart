@@ -117,65 +117,102 @@ void main() {
     },
   );
 
-  test('rejects an unsupported content version before writing', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
-    final importer = BundledPrayerImporter(
-      assetBundle: _StringAssetBundle(_payload(version: 2)),
-    );
+  final invalidPayloadCases = <_InvalidPayloadCase>[
+    _InvalidPayloadCase(
+      name: 'unknown grounding',
+      mutate: (payload) => _prayers(payload).first['grounding'] = 'other',
+      diagnostic: 'Unknown prayer grounding: other',
+    ),
+    _InvalidPayloadCase(
+      name: 'unknown purpose',
+      mutate: (payload) => _prayers(payload).first['purpose'] = 'success',
+      diagnostic: 'Unknown prayer purpose: success',
+    ),
+    _InvalidPayloadCase(
+      name: 'empty required field',
+      mutate: (payload) => _prayers(payload).first['title'] = '   ',
+      diagnostic: 'field "title" must be a non-empty string',
+    ),
+    _InvalidPayloadCase(
+      name: 'non-string required field',
+      mutate: (payload) => _prayers(payload).first['title'] = 42,
+      diagnostic: 'field "title" must be a non-empty string',
+    ),
+    _InvalidPayloadCase(
+      name: 'empty optional action',
+      mutate: (payload) => _prayers(payload).first['action'] = '',
+      diagnostic: 'field "action" must be omitted or a non-empty string',
+    ),
+    _InvalidPayloadCase(
+      name: 'body over the word limit',
+      mutate: (payload) {
+        _prayers(payload).first['body'] = List.filled(111, 'word').join(' ');
+      },
+      diagnostic: 'exceeds 110 words',
+    ),
+    _InvalidPayloadCase(
+      name: 'non-integer helpful count',
+      mutate: (payload) => _prayers(payload).first['helpful_count'] = 0.0,
+      diagnostic: 'field "helpful_count" must be an integer',
+    ),
+    _InvalidPayloadCase(
+      name: 'non-zero helpful count',
+      mutate: (payload) => _prayers(payload).first['helpful_count'] = 1,
+      diagnostic: 'field "helpful_count" must be 0',
+    ),
+    _InvalidPayloadCase(
+      name: 'malformed UUID',
+      mutate: (payload) => _prayers(payload).first['id'] = 'not-a-uuid',
+      diagnostic: 'does not have a valid UUID',
+    ),
+    _InvalidPayloadCase(
+      name: 'duplicate UUID',
+      mutate: (payload) {
+        final prayers = _prayers(payload);
+        prayers[1]['id'] = prayers[0]['id'];
+      },
+      diagnostic: 'Bundled prayer IDs must be unique',
+    ),
+    _InvalidPayloadCase(
+      name: 'incorrect prayer count',
+      mutate: (payload) => _prayers(payload).removeLast(),
+      diagnostic: 'must contain exactly 8 prayers',
+    ),
+    _InvalidPayloadCase(
+      name: 'unsupported content version',
+      mutate: (payload) => payload['version'] = 2,
+      diagnostic: 'Unsupported bundled prayer content version: 2',
+    ),
+  ];
 
-    await expectLater(
-      importer.ensureLoaded(database.powersync),
-      throwsA(isA<FormatException>()),
-    );
+  for (final testCase in invalidPayloadCases) {
+    test('rejects ${testCase.name} with a useful diagnostic', () async {
+      final payload = _validPayload();
+      testCase.mutate(payload);
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/invalid.db',
+      );
+      addTearDown(database.close);
+      final importer = BundledPrayerImporter(
+        assetBundle: _StringAssetBundle(jsonEncode(payload)),
+      );
 
-    expect(
-      await database.powersync.getAll('SELECT id FROM bundled_prayers'),
-      isEmpty,
-    );
-  });
-
-  test(
-    'rejects invalid controlled values, empty fields, and long bodies',
-    () async {
-      final invalidPrayers = <Map<String, Object?>>[
-        _prayer(grounding: 'other'),
-        _prayer(purpose: 'success'),
-        _prayer(title: '   '),
-        _prayer(action: ''),
-        _prayer(body: List.filled(111, 'word').join(' ')),
-        _prayer(helpfulCount: 1),
-        _prayer(helpfulCount: 0.0),
-      ];
-
-      for (var index = 0; index < invalidPrayers.length; index++) {
-        final database = await openTestDatabase(
-          '${temporaryDirectory.path}/invalid-$index.db',
-        );
-        addTearDown(database.close);
-        final importer = BundledPrayerImporter(
-          assetBundle: _StringAssetBundle(
-            jsonEncode({
-              'version': 1,
-              'prayers': [invalidPrayers[index]],
-            }),
+      await expectLater(
+        importer.ensureLoaded(database.powersync),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message.toString(),
+            'message',
+            contains(testCase.diagnostic),
           ),
-        );
-
-        await expectLater(
-          importer.ensureLoaded(database.powersync),
-          throwsA(isA<FormatException>()),
-          reason: 'invalid case $index should be rejected',
-        );
-        expect(
-          await database.powersync.getAll('SELECT id FROM bundled_prayers'),
-          isEmpty,
-        );
-      }
-    },
-  );
+        ),
+      );
+      expect(
+        await database.powersync.getAll('SELECT id FROM bundled_prayers'),
+        isEmpty,
+      );
+    });
+  }
 }
 
 int _wordCount(String value) {
@@ -186,31 +223,48 @@ int _wordCount(String value) {
       .length;
 }
 
-String _payload({required int version}) {
-  return jsonEncode({
-    'version': version,
-    'prayers': [_prayer()],
-  });
+Map<String, Object?> _validPayload() {
+  const purposes = [
+    'daily',
+    'gratitude',
+    'guidance',
+    'family',
+    'healing',
+    'work',
+    'forgiveness',
+    'difficult_time',
+  ];
+  return {
+    'version': 1,
+    'prayers': List.generate(purposes.length, (index) {
+      final suffix = (index + 1).toString().padLeft(12, '0');
+      return <String, Object?>{
+        'id': '0198a100-0000-7000-8000-$suffix',
+        'title': 'Prayer ${index + 1}',
+        'body': 'Father, help me love my neighbor today. Amen.',
+        'grounding': index.isEven ? 'general_christian' : 'catholic',
+        'purpose': purposes[index],
+        'action': 'Help one person with a practical need.',
+        'helpful_count': 0,
+      };
+    }),
+  };
 }
 
-Map<String, Object?> _prayer({
-  String id = '0198a100-0000-7000-8000-000000000001',
-  String title = 'For this day',
-  String body = 'Father, help me love my neighbor today. Amen.',
-  String grounding = 'general_christian',
-  String purpose = 'daily',
-  String action = 'Help one person with a practical need.',
-  Object helpfulCount = 0,
-}) {
-  return {
-    'id': id,
-    'title': title,
-    'body': body,
-    'grounding': grounding,
-    'purpose': purpose,
-    'action': action,
-    'helpful_count': helpfulCount,
-  };
+List<Map<String, Object?>> _prayers(Map<String, Object?> payload) {
+  return (payload['prayers'] as List<Object?>).cast<Map<String, Object?>>();
+}
+
+class _InvalidPayloadCase {
+  const _InvalidPayloadCase({
+    required this.name,
+    required this.mutate,
+    required this.diagnostic,
+  });
+
+  final String name;
+  final void Function(Map<String, Object?> payload) mutate;
+  final String diagnostic;
 }
 
 class _StringAssetBundle extends CachingAssetBundle {

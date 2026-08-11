@@ -154,9 +154,14 @@ class _BundledPrayer {
     if (_wordCount(body) > 110) {
       throw FormatException('Bundled prayer "$id" exceeds 110 words.');
     }
-    if (helpfulCount is! int || helpfulCount != 0) {
+    if (helpfulCount is! int) {
+      throw const FormatException(
+        'Bundled prayer field "helpful_count" must be an integer.',
+      );
+    }
+    if (helpfulCount != 0) {
       throw FormatException(
-        'Bundled prayer "$id" must start with helpful_count 0.',
+        'Bundled prayer field "helpful_count" must be 0 for "$id".',
       );
     }
 
@@ -187,7 +192,9 @@ final RegExp _uuidPattern = RegExp(
 String _requiredString(Map<String, dynamic> value, String key) {
   final field = value[key];
   if (field is! String || field.trim().isEmpty) {
-    throw FormatException('Bundled prayer field "$key" must not be empty.');
+    throw FormatException(
+      'Bundled prayer field "$key" must be a non-empty string.',
+    );
   }
   return field.trim();
 }
@@ -199,7 +206,7 @@ String? _optionalString(Map<String, dynamic> value, String key) {
   }
   if (field is! String || field.trim().isEmpty) {
     throw FormatException(
-      'Bundled prayer field "$key" must be omitted or non-empty.',
+      'Bundled prayer field "$key" must be omitted or a non-empty string.',
     );
   }
   return field.trim();
