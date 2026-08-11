@@ -33,6 +33,16 @@ class PersonalPrayer extends Model
         return $this->hasMany(PersonalPrayerLink::class, 'prayer_id');
     }
 
+    public function reminders(): HasMany
+    {
+        return $this->hasMany(PrayerReminder::class, 'personal_prayer_id');
+    }
+
+    public function sessions(): HasMany
+    {
+        return $this->hasMany(PrayerSession::class, 'personal_prayer_id');
+    }
+
     public function currentRevision(): BelongsTo
     {
         return $this->belongsTo(PersonalPrayerRevision::class, 'current_revision_id');

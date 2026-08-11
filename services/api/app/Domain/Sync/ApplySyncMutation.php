@@ -29,6 +29,8 @@ class ApplySyncMutation
         'personal_prayers',
         'personal_prayer_revisions',
         'personal_prayer_links',
+        'prayer_reminders',
+        'prayer_sessions',
     ];
 
     public function apply(User $user, array $operations): array
@@ -90,6 +92,8 @@ class ApplySyncMutation
             ->all();
         $personalPrayerOperations = $pending
             ->filter(fn (array $operation): bool => ApplyPersonalPrayerMutation::supports($operation['table']));
+        $practiceOperations = $pending
+            ->filter(fn (array $operation): bool => ApplyPrayerPracticeMutation::supports($operation['table']));
 
         $encounterTargetError = $this->validateTargets($user, $encounterOperations);
         if ($encounterTargetError !== null) {
@@ -107,6 +111,12 @@ class ApplySyncMutation
             return $this->result($duplicates, $pending->count(), $duplicates, $personalPrayerError);
         }
 
+        $practiceError = app(ApplyPrayerPracticeMutation::class)
+            ->validate($user, $practiceOperations);
+        if ($practiceError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $practiceError);
+        }
+
         foreach ([$encounterOperations, $prayerOperations] as $domainOperations) {
             $validationError = $this->validateData($domainOperations);
             if ($validationError !== null) {
@@ -115,7 +125,7 @@ class ApplySyncMutation
         }
 
         try {
-            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations): ?string {
+            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations, $practiceOperations): ?string {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $prayerContexts = [];
                 if ($prayerOperations !== []) {
@@ -148,8 +158,15 @@ class ApplySyncMutation
                     return $personalPrayerError;
                 }
 
+                $practiceError = app(ApplyPrayerPracticeMutation::class)
+                    ->apply($user, $practiceOperations);
+                if ($practiceError !== null) {
+                    return $practiceError;
+                }
+
                 foreach ($pending->sortBy(fn (array $operation) => $operation['table'] === 'encounters' ? 0 : 1) as $operation) {
-                    if (! ApplyPersonalPrayerMutation::supports($operation['table'])) {
+                    if (! ApplyPersonalPrayerMutation::supports($operation['table'])
+                        && ! ApplyPrayerPracticeMutation::supports($operation['table'])) {
                         match ($operation['table']) {
                             'encounters' => $this->applyEncounter($user, $operation),
                             'encounter_revisions' => $this->applyRevision($user, $operation),
