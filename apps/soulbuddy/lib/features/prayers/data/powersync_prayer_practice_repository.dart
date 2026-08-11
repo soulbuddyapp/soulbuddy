@@ -1,5 +1,7 @@
 import 'package:powersync/powersync.dart';
 import 'package:powersync/sqlite_async.dart';
+import 'package:timezone/data/latest.dart' as timezone_data;
+import 'package:timezone/timezone.dart' as timezone;
 import 'package:uuid/uuid.dart';
 
 import '../domain/prayer_reminder.dart';
@@ -376,9 +378,8 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
         return session;
       }
 
-      final localNow = _now();
-      final occurredAt = localNow.toUtc();
-      final localDate = _dateOnly(localNow);
+      final occurredAt = _now().toUtc();
+      final localDate = _localDateInZone(occurredAt, timezone.trim());
       await transaction.execute(
         '''
         INSERT INTO prayer_sessions(
@@ -574,3 +575,14 @@ String _dateOnly(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-'
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+bool _timezonesInitialized = false;
+
+String _localDateInZone(DateTime occurredAt, String timezoneName) {
+  if (!_timezonesInitialized) {
+    timezone_data.initializeTimeZones();
+    _timezonesInitialized = true;
+  }
+  final location = timezone.getLocation(timezoneName);
+  return _dateOnly(timezone.TZDateTime.from(occurredAt, location));
+}

@@ -281,6 +281,23 @@ void main() {
     await expectLater(repository.retractSession(session.id), throwsStateError);
     expect(await repository.watchSessionCount(revisionId).first, 1);
   });
+
+  test('stores the session date in the selected IANA timezone', () async {
+    final database = await _openSeededDatabase(temporaryDirectory, 'date');
+    addTearDown(database.close);
+    final repository = _repository(
+      database,
+      now: () => DateTime.utc(2026, 8, 11, 23, 30),
+    );
+
+    final session = await repository.recordSession(
+      personalPrayerId: prayerId,
+      revisionId: revisionId,
+      timezone: 'Africa/Lagos',
+    );
+
+    expect(session.localDate, DateTime(2026, 8, 12));
+  });
 }
 
 PowerSyncPrayerPracticeRepository _repository(
