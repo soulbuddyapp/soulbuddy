@@ -6,10 +6,22 @@ import '../data/bundled_prayer_importer.dart';
 import '../data/powersync_prayer_repository.dart';
 import '../data/prayer_repository.dart';
 import '../domain/library_prayer.dart';
+import '../domain/today_prayer.dart';
 
 typedef PrayerLibraryFilter = ({
   PrayerGrounding? grounding,
   PrayerPurpose? purpose,
+});
+
+typedef PrayerLocalDate = ({int year, int month, int day});
+
+final prayerClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+final todayPrayerDateProvider = Provider<PrayerLocalDate>((ref) {
+  final now = ref.watch(prayerClockProvider)();
+  return (year: now.year, month: now.month, day: now.day);
 });
 
 final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
@@ -38,6 +50,14 @@ final prayerProvider = StreamProvider.autoDispose
       yield* repository.watchPrayer(prayerId);
     });
 
+final todayPrayerProvider = StreamProvider.autoDispose<TodayPrayer?>((
+  ref,
+) async* {
+  final date = ref.watch(todayPrayerDateProvider);
+  final repository = await ref.watch(prayerRepositoryProvider.future);
+  yield* repository.watchToday(DateTime(date.year, date.month, date.day));
+});
+
 void retryPrayerLibraryProviders(WidgetRef ref, PrayerLibraryFilter filter) {
   _invalidatePrayerStartup(ref);
   ref.invalidate(prayerLibraryProvider(filter));
@@ -46,6 +66,11 @@ void retryPrayerLibraryProviders(WidgetRef ref, PrayerLibraryFilter filter) {
 void retryPrayerDetailProviders(WidgetRef ref, String prayerId) {
   _invalidatePrayerStartup(ref);
   ref.invalidate(prayerProvider(prayerId));
+}
+
+void retryTodayPrayerProvider(WidgetRef ref) {
+  _invalidatePrayerStartup(ref);
+  ref.invalidate(todayPrayerProvider);
 }
 
 void _invalidatePrayerStartup(WidgetRef ref) {

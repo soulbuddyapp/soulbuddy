@@ -5,14 +5,21 @@ import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 
 class InMemoryPrayerRepository implements PrayerRepository {
-  InMemoryPrayerRepository({required List<LibraryPrayer> prayers})
-    : _prayers = List.of(prayers);
+  InMemoryPrayerRepository({
+    required List<LibraryPrayer> prayers,
+    TodayPrayer? todayPrayer,
+  }) : _prayers = List.of(prayers),
+       _todayPrayer = todayPrayer;
 
   final List<LibraryPrayer> _prayers;
   final _changes = StreamController<void>.broadcast(sync: true);
+  TodayPrayer? _todayPrayer;
 
   String? selectedPrayerId;
   bool? selectedIncludeAction;
+  DateTime? watchedTodayDate;
+  DateTime? completedTodayDate;
+  bool? completedTodayValue;
 
   @override
   Stream<List<LibraryPrayer>> watchLibrary({
@@ -61,13 +68,31 @@ class InMemoryPrayerRepository implements PrayerRepository {
   }
 
   @override
-  Stream<TodayPrayer?> watchToday(DateTime localDate) => const Stream.empty();
+  Stream<TodayPrayer?> watchToday(DateTime localDate) async* {
+    watchedTodayDate = localDate;
+    yield _todayFor(localDate);
+    await for (final _ in _changes.stream) {
+      yield _todayFor(localDate);
+    }
+  }
 
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
     required bool value,
-  }) async {}
+  }) async {
+    completedTodayDate = localDate;
+    completedTodayValue = value;
+    final current = _todayFor(localDate);
+    if (current == null) return;
+    _todayPrayer = TodayPrayer(
+      prayer: current.prayer,
+      localDate: current.localDate,
+      includeAction: current.includeAction,
+      actionCompleted: value,
+    );
+    _changes.add(null);
+  }
 
   Future<void> close() => _changes.close();
 
@@ -89,6 +114,17 @@ class InMemoryPrayerRepository implements PrayerRepository {
       if (prayer.id == id) return prayer;
     }
     return null;
+  }
+
+  TodayPrayer? _todayFor(DateTime localDate) {
+    final today = _todayPrayer;
+    if (today == null ||
+        today.localDate.year != localDate.year ||
+        today.localDate.month != localDate.month ||
+        today.localDate.day != localDate.day) {
+      return null;
+    }
+    return today;
   }
 }
 
