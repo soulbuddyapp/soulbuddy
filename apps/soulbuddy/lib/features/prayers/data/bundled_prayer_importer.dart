@@ -19,6 +19,17 @@ class BundledPrayerImporter {
     final prayers = _decodeAndValidate(source);
 
     await database.writeTransaction((transaction) async {
+      final bundledIds = prayers.map((prayer) => prayer.id).toList();
+      final placeholders = List.filled(bundledIds.length, '?').join(', ');
+      await transaction.execute(
+        '''
+        UPDATE bundled_prayers
+        SET archived_at = ?
+        WHERE archived_at IS NULL AND id NOT IN ($placeholders)
+        ''',
+        [DateTime.now().toUtc().toIso8601String(), ...bundledIds],
+      );
+
       for (final prayer in prayers) {
         final existing = await transaction.getOptional(
           'SELECT id FROM bundled_prayers WHERE id = ?',
@@ -79,6 +90,11 @@ class BundledPrayerImporter {
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Bundled prayer content must be an object.');
     }
+    _validateAllowedKeys(
+      decoded,
+      allowedKeys: _allowedRootKeys,
+      scope: 'root key',
+    );
     if (decoded['version'] != supportedContentVersion) {
       throw FormatException(
         'Unsupported bundled prayer content version: ${decoded['version']}.',
@@ -137,6 +153,11 @@ class _BundledPrayer {
     if (value is! Map<String, dynamic>) {
       throw const FormatException('Each bundled prayer must be an object.');
     }
+    _validateAllowedKeys(
+      value,
+      allowedKeys: _allowedPrayerKeys,
+      scope: 'field',
+    );
 
     final id = _requiredString(value, 'id');
     final title = _requiredString(value, 'title');
@@ -188,6 +209,31 @@ class _BundledPrayer {
 final RegExp _uuidPattern = RegExp(
   r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
 );
+
+const _allowedRootKeys = {'version', 'prayers'};
+const _allowedPrayerKeys = {
+  'id',
+  'title',
+  'body',
+  'grounding',
+  'purpose',
+  'action',
+  'helpful_count',
+};
+
+void _validateAllowedKeys(
+  Map<String, dynamic> value, {
+  required Set<String> allowedKeys,
+  required String scope,
+}) {
+  final unexpectedKeys =
+      value.keys.where((key) => !allowedKeys.contains(key)).toList()..sort();
+  if (unexpectedKeys.isNotEmpty) {
+    throw FormatException(
+      'Unexpected bundled prayer $scope: ${unexpectedKeys.first}.',
+    );
+  }
+}
 
 String _requiredString(Map<String, dynamic> value, String key) {
   final field = value[key];

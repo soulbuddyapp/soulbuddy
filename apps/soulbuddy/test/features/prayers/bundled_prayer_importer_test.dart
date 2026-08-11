@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/bundled_prayer_importer.dart';
+import 'package:soulbuddy/features/prayers/data/powersync_prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 
 import '../../helpers/powersync_test_database.dart';
@@ -117,7 +118,85 @@ void main() {
     },
   );
 
+  test(
+    'archives prayers removed from the bundle and keeps the upgrade idempotent',
+    () async {
+      const staleId = '0198a100-0000-7000-8000-000000000099';
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      await database.powersync.execute(
+        '''
+        INSERT INTO bundled_prayers(
+          id, title, body, grounding, purpose, action, helpful_count,
+          content_version, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        ''',
+        [
+          staleId,
+          'Removed prayer',
+          'Father, help me remain faithful. Amen.',
+          'general_christian',
+          'daily',
+          null,
+          0,
+          0,
+        ],
+      );
+      final importer = BundledPrayerImporter();
+      final repository = PowerSyncPrayerRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+      );
+
+      await importer.ensureLoaded(database.powersync);
+
+      final staleAfterFirstImport = await database.powersync.get(
+        'SELECT archived_at FROM bundled_prayers WHERE id = ?',
+        [staleId],
+      );
+      final firstArchivedAt = staleAfterFirstImport['archived_at'];
+      final activeRows = await database.powersync.getAll(
+        'SELECT id FROM bundled_prayers WHERE archived_at IS NULL',
+      );
+      final surfacedIds = (await repository.watchLibrary().first)
+          .map((prayer) => prayer.id)
+          .toSet();
+
+      expect(firstArchivedAt, isNotNull);
+      expect(activeRows, hasLength(8));
+      expect(surfacedIds, hasLength(8));
+      expect(surfacedIds, isNot(contains(staleId)));
+
+      await importer.ensureLoaded(database.powersync);
+
+      final staleAfterSecondImport = await database.powersync.get(
+        'SELECT archived_at FROM bundled_prayers WHERE id = ?',
+        [staleId],
+      );
+      expect(staleAfterSecondImport['archived_at'], firstArchivedAt);
+      expect(
+        await database.powersync.getAll(
+          'SELECT id FROM bundled_prayers WHERE archived_at IS NULL',
+        ),
+        hasLength(8),
+      );
+      expect(await database.powersync.getNextCrudTransaction(), isNull);
+    },
+  );
+
   final invalidPayloadCases = <_InvalidPayloadCase>[
+    _InvalidPayloadCase(
+      name: 'unknown root key',
+      mutate: (payload) => payload['unexpected'] = true,
+      diagnostic: 'Unexpected bundled prayer root key: unexpected',
+    ),
+    _InvalidPayloadCase(
+      name: 'unknown prayer key',
+      mutate: (payload) => _prayers(payload).first['author'] = 'Unknown',
+      diagnostic: 'Unexpected bundled prayer field: author',
+    ),
     _InvalidPayloadCase(
       name: 'unknown grounding',
       mutate: (payload) => _prayers(payload).first['grounding'] = 'other',
