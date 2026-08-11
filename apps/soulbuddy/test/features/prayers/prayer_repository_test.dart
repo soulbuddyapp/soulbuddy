@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:powersync/powersync.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 
 import '../../helpers/powersync_test_database.dart';
 
@@ -207,7 +208,10 @@ void main() {
         action: 'Call someone who needs encouragement.',
       );
 
-      await repository.selectForToday('prayer-1', includeAction: true);
+      await repository.selectForToday(
+        const PrayerReference.library('prayer-1'),
+        includeAction: true,
+      );
       final selected = await repository.watchToday(DateTime(2026, 8, 11)).first;
       final rows = await database.powersync.getAll(
         'SELECT id, local_date FROM today_prayers',
@@ -222,7 +226,7 @@ void main() {
 
       await repository.completeTodayAction(
         DateTime(2026, 8, 11),
-        expectedPrayerId: 'prayer-1',
+        expectedPrayer: const PrayerReference.library('prayer-1'),
         value: true,
       );
 
@@ -252,10 +256,13 @@ void main() {
         action: 'Pause and give thanks.',
       );
       await firstRepository.setHelpful('prayer-1', value: true);
-      await firstRepository.selectForToday('prayer-1', includeAction: true);
+      await firstRepository.selectForToday(
+        const PrayerReference.library('prayer-1'),
+        includeAction: true,
+      );
       await firstRepository.completeTodayAction(
         DateTime(2026, 8, 11),
-        expectedPrayerId: 'prayer-1',
+        expectedPrayer: const PrayerReference.library('prayer-1'),
         value: true,
       );
       await firstDatabase.close();
@@ -303,13 +310,19 @@ void main() {
       action: 'Action B',
     );
 
-    await repository.selectForToday('prayer-a', includeAction: true);
+    await repository.selectForToday(
+      const PrayerReference.library('prayer-a'),
+      includeAction: true,
+    );
     final displayed = await repository.watchToday(DateTime(2026, 8, 11)).first;
-    await repository.selectForToday('prayer-b', includeAction: true);
+    await repository.selectForToday(
+      const PrayerReference.library('prayer-b'),
+      includeAction: true,
+    );
 
     await repository.completeTodayAction(
       displayed!.localDate,
-      expectedPrayerId: displayed.prayer.id,
+      expectedPrayer: displayed.prayer.reference,
       value: true,
     );
 

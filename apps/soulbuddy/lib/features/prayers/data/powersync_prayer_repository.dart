@@ -2,6 +2,7 @@ import 'package:powersync/powersync.dart';
 import 'package:uuid/uuid.dart';
 
 import '../domain/library_prayer.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/today_prayer.dart';
 import 'prayer_repository.dart';
 
@@ -122,7 +123,7 @@ class PowerSyncPrayerRepository implements PrayerRepository {
 
   @override
   Future<void> selectForToday(
-    String prayerId, {
+    PrayerReference prayer, {
     required bool includeAction,
   }) async {
     final localDate = _dateKey(_now());
@@ -137,15 +138,17 @@ class PowerSyncPrayerRepository implements PrayerRepository {
         await transaction.execute(
           '''
           INSERT INTO today_prayers(
-            id, owner_id, local_date, prayer_id, include_action,
+            id, owner_id, local_date, prayer_id, personal_prayer_id,
+            include_action,
             action_completed, created_at
-          ) VALUES (?, ?, ?, ?, ?, 0, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, 0, ?)
           ''',
           [
             id,
             ownerId,
             localDate,
-            prayerId,
+            prayer.source == PrayerSource.library ? prayer.id : null,
+            prayer.source == PrayerSource.personal ? prayer.id : null,
             includeAction ? 1 : 0,
             _now().toUtc().toIso8601String(),
           ],
@@ -155,10 +158,17 @@ class PowerSyncPrayerRepository implements PrayerRepository {
       await transaction.execute(
         '''
         UPDATE today_prayers
-        SET prayer_id = ?, include_action = ?, action_completed = 0
+        SET prayer_id = ?, personal_prayer_id = ?, include_action = ?,
+            action_completed = 0
         WHERE id = ? AND owner_id = ?
         ''',
-        [prayerId, includeAction ? 1 : 0, id, ownerId],
+        [
+          prayer.source == PrayerSource.library ? prayer.id : null,
+          prayer.source == PrayerSource.personal ? prayer.id : null,
+          includeAction ? 1 : 0,
+          id,
+          ownerId,
+        ],
       );
     });
   }
@@ -169,8 +179,10 @@ class PowerSyncPrayerRepository implements PrayerRepository {
     return database
         .watch(
           '''
-          WITH merged AS ($_mergedPrayers)
-          SELECT merged.*,
+          WITH merged AS ($_mergedPrayers), selected AS (
+          SELECT 'library' AS source, merged.id, merged.title, merged.body,
+                 merged.grounding, merged.purpose, merged.action,
+                 merged.helpful_count,
                  EXISTS(
                    SELECT 1 FROM prayer_votes AS vote
                    WHERE vote.owner_id = ? AND vote.prayer_id = merged.id
@@ -181,9 +193,27 @@ class PowerSyncPrayerRepository implements PrayerRepository {
           FROM today_prayers AS today
           JOIN merged ON merged.id = today.prayer_id
           WHERE today.owner_id = ? AND today.local_date = ?
+          UNION ALL
+          SELECT 'personal' AS source, personal.id, personal.title,
+                 revision.body, personal.grounding, personal.purpose,
+                 revision.action, 0 AS helpful_count,
+                 0 AS viewer_marked_helpful, today.include_action,
+                 today.action_completed, today.local_date
+          FROM today_prayers AS today
+          JOIN personal_prayers AS personal
+            ON personal.id = today.personal_prayer_id
+           AND personal.owner_id = today.owner_id
+           AND personal.archived_at IS NULL
+          JOIN personal_prayer_revisions AS revision
+            ON revision.id = personal.current_revision_id
+           AND revision.prayer_id = personal.id
+           AND revision.owner_id = personal.owner_id
+          WHERE today.owner_id = ? AND today.local_date = ?
+          )
+          SELECT * FROM selected
           LIMIT 1
           ''',
-          parameters: [ownerId, ownerId, dateKey],
+          parameters: [ownerId, ownerId, dateKey, ownerId, dateKey],
         )
         .map((rows) {
           if (rows.isEmpty) {
@@ -191,7 +221,18 @@ class PowerSyncPrayerRepository implements PrayerRepository {
           }
           final row = rows.single;
           return TodayPrayer(
-            prayer: _prayerFromRow(row),
+            prayer: PrayerDisplayValue(
+              reference: row['source'] == 'library'
+                  ? PrayerReference.library(row['id'] as String)
+                  : PrayerReference.personal(row['id'] as String),
+              title: row['title'] as String,
+              body: row['body'] as String,
+              grounding: PrayerGrounding.fromWire(row['grounding'] as String),
+              purpose: PrayerPurpose.fromWire(row['purpose'] as String),
+              action: row['action'] as String?,
+              helpfulCount: row['helpful_count'] as int? ?? 0,
+              viewerMarkedHelpful: row['viewer_marked_helpful'] == 1,
+            ),
             localDate: _dateFromKey(row['local_date'] as String),
             includeAction: row['include_action'] == 1,
             actionCompleted: row['action_completed'] == 1,
@@ -202,7 +243,7 @@ class PowerSyncPrayerRepository implements PrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   }) async {
     final dateKey = _dateKey(localDate);
@@ -211,9 +252,20 @@ class PowerSyncPrayerRepository implements PrayerRepository {
       '''
       UPDATE today_prayers
       SET action_completed = ?
-      WHERE id = ? AND owner_id = ? AND local_date = ? AND prayer_id = ?
+      WHERE id = ? AND owner_id = ? AND local_date = ?
+        AND ((? = 'library' AND prayer_id = ? AND personal_prayer_id IS NULL)
+          OR (? = 'personal' AND personal_prayer_id = ? AND prayer_id IS NULL))
       ''',
-      [value ? 1 : 0, id, ownerId, dateKey, expectedPrayerId],
+      [
+        value ? 1 : 0,
+        id,
+        ownerId,
+        dateKey,
+        expectedPrayer.source.name,
+        expectedPrayer.id,
+        expectedPrayer.source.name,
+        expectedPrayer.id,
+      ],
     );
   }
 

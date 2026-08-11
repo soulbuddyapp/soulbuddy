@@ -30,4 +30,9 @@ class TodayPrayer extends Model
     {
         return $this->belongsTo(LibraryPrayer::class, 'prayer_id');
     }
+
+    public function personalPrayer(): BelongsTo
+    {
+        return $this->belongsTo(PersonalPrayer::class, 'personal_prayer_id');
+    }
 }

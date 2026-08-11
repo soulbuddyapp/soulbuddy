@@ -1,4 +1,5 @@
 import '../domain/library_prayer.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/today_prayer.dart';
 
 abstract interface class PrayerRepository {
@@ -11,13 +12,16 @@ abstract interface class PrayerRepository {
 
   Future<void> setHelpful(String prayerId, {required bool value});
 
-  Future<void> selectForToday(String prayerId, {required bool includeAction});
+  Future<void> selectForToday(
+    PrayerReference prayer, {
+    required bool includeAction,
+  });
 
   Stream<TodayPrayer?> watchToday(DateTime localDate);
 
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   });
 }

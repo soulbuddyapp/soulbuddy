@@ -79,7 +79,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       final repository = await repositoryFuture;
       await repository.completeTodayAction(
         displayedToday.localDate,
-        expectedPrayerId: displayedToday.prayer.id,
+        expectedPrayer: displayedToday.prayer.reference,
         value: value,
       );
     } catch (_) {

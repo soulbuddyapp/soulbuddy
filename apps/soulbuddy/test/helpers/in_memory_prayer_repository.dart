@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:soulbuddy/features/prayers/data/prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 
 class InMemoryPrayerRepository implements PrayerRepository {
@@ -61,10 +62,10 @@ class InMemoryPrayerRepository implements PrayerRepository {
 
   @override
   Future<void> selectForToday(
-    String prayerId, {
+    PrayerReference prayer, {
     required bool includeAction,
   }) async {
-    selectedPrayerId = prayerId;
+    selectedPrayerId = prayer.id;
     selectedIncludeAction = includeAction;
   }
 
@@ -80,14 +81,14 @@ class InMemoryPrayerRepository implements PrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   }) async {
     completedTodayDate = localDate;
-    completedTodayPrayerId = expectedPrayerId;
+    completedTodayPrayerId = expectedPrayer.id;
     completedTodayValue = value;
     final current = _todayFor(localDate);
-    if (current == null || current.prayer.id != expectedPrayerId) return;
+    if (current == null || current.prayer.reference != expectedPrayer) return;
     _todayPrayer = TodayPrayer(
       prayer: current.prayer,
       localDate: current.localDate,
@@ -139,12 +140,12 @@ class DelayedSelectionPrayerRepository extends InMemoryPrayerRepository {
 
   @override
   Future<void> selectForToday(
-    String prayerId, {
+    PrayerReference prayer, {
     required bool includeAction,
   }) async {
     if (!selectionStarted.isCompleted) selectionStarted.complete();
     await _allowSelection.future;
-    await super.selectForToday(prayerId, includeAction: includeAction);
+    await super.selectForToday(prayer, includeAction: includeAction);
   }
 
   void completeSelection() {

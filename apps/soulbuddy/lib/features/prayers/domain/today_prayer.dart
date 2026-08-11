@@ -8,7 +8,7 @@ class TodayPrayer {
     required this.actionCompleted,
   });
 
-  final LibraryPrayer prayer;
+  final PrayerDisplay prayer;
   final DateTime localDate;
   final bool includeAction;
   final bool actionCompleted;

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/today/presentation/today_screen.dart';
@@ -511,14 +512,14 @@ class _DelayedCompletionRepository extends InMemoryPrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   }) async {
     if (!started.isCompleted) started.complete();
     await _release.future;
     await super.completeTodayAction(
       localDate,
-      expectedPrayerId: expectedPrayerId,
+      expectedPrayer: expectedPrayer,
       value: value,
     );
   }
@@ -537,7 +538,7 @@ class _FailingCompletionRepository extends InMemoryPrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   }) async {
     throw StateError('private prayer text must never be logged');
@@ -562,13 +563,13 @@ class _ReplacementDuringCompletionRepository extends InMemoryPrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   }) async {
     if (!started.isCompleted) started.complete();
     await _release.future;
     if (current.localDate == localDate &&
-        current.prayer.id == expectedPrayerId) {
+        current.prayer.reference == expectedPrayer) {
       current = TodayPrayer(
         prayer: current.prayer,
         localDate: current.localDate,
@@ -597,7 +598,12 @@ class _ReplacementDuringCompletionRepository extends InMemoryPrayerRepository {
 
 class _DatedPrayerRepository extends InMemoryPrayerRepository {
   _DatedPrayerRepository(this.selections)
-    : super(prayers: selections.values.map((today) => today.prayer).toList());
+    : super(
+        prayers: selections.values
+            .map((today) => today.prayer)
+            .whereType<LibraryPrayer>()
+            .toList(),
+      );
 
   final Map<DateTime, TodayPrayer> selections;
   final List<DateTime> watchedDates = [];
@@ -618,11 +624,11 @@ class _DatedMutationRepository extends _DatedPrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
-    required String expectedPrayerId,
+    required PrayerReference expectedPrayer,
     required bool value,
   }) async {
     completedDate = localDate;
-    completedPrayerId = expectedPrayerId;
+    completedPrayerId = expectedPrayer.id;
   }
 }
 

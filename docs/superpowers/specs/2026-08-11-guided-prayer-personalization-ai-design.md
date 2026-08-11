@@ -286,6 +286,8 @@ The Flutter feature remains under `features/prayers` with focused domain, data, 
 - nullable `consented_provider` and `consented_disclosure_version`
 - nullable `active_attempt_id`, `attempt_started_at`, and `next_attempt_at`
 - `attempt_count`, `last_attempt_at`, `failure_code`
+- nullable local-only `accepted_prayer_id` so a crash or repeated tap cannot
+  create duplicate accepted prayers
 - `created_at`, `updated_at`
 
 `prayer_generation_contexts` is also local-only:

@@ -5,6 +5,7 @@ namespace App\Domain\Sync;
 use App\Models\Encounter;
 use App\Models\EncounterRevision;
 use App\Models\LibraryPrayer;
+use App\Models\PersonalPrayer;
 use App\Models\PrayerRecordAlias;
 use App\Models\PrayerVote;
 use App\Models\SyncOperation;
@@ -25,6 +26,9 @@ class ApplySyncMutation
         'encounter_revisions',
         'prayer_votes',
         'today_prayers',
+        'personal_prayers',
+        'personal_prayer_revisions',
+        'personal_prayer_links',
     ];
 
     public function apply(User $user, array $operations): array
@@ -84,6 +88,8 @@ class ApplySyncMutation
         $prayerOperations = $pending
             ->whereIn('table', ['prayer_votes', 'today_prayers'])
             ->all();
+        $personalPrayerOperations = $pending
+            ->filter(fn (array $operation): bool => ApplyPersonalPrayerMutation::supports($operation['table']));
 
         $encounterTargetError = $this->validateTargets($user, $encounterOperations);
         if ($encounterTargetError !== null) {
@@ -95,6 +101,12 @@ class ApplySyncMutation
             return $this->result($duplicates, $pending->count(), $duplicates, $pairError);
         }
 
+        $personalPrayerError = app(ApplyPersonalPrayerMutation::class)
+            ->validate($user, $personalPrayerOperations);
+        if ($personalPrayerError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $personalPrayerError);
+        }
+
         foreach ([$encounterOperations, $prayerOperations] as $domainOperations) {
             $validationError = $this->validateData($domainOperations);
             if ($validationError !== null) {
@@ -103,38 +115,56 @@ class ApplySyncMutation
         }
 
         try {
-            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations): ?string {
+            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations): ?string {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $prayerContexts = [];
                 if ($prayerOperations !== []) {
                     $prepared = $this->preparePrayerMutations($user, $prayerOperations);
                     $prayerContexts = $prepared['contexts'];
                     $lockedPrayers = $this->lockPrayers($prepared['prayer_ids']);
+                    $lockedPersonalPrayers = $this->lockPersonalPrayers(
+                        $prepared['personal_prayer_ids'],
+                    );
                     $prayerError = $this->validatePreparedPrayerMutations(
+                        $user,
                         $prayerOperations,
                         $prayerContexts,
                         $lockedPrayers,
+                        $lockedPersonalPrayers,
+                        $personalPrayerOperations
+                            ->where('table', 'personal_prayers')
+                            ->where('type', 'put')
+                            ->pluck('id')
+                            ->all(),
                     );
                     if ($prayerError !== null) {
                         return $prayerError;
                     }
                 }
 
+                $personalPrayerError = app(ApplyPersonalPrayerMutation::class)
+                    ->apply($user, $personalPrayerOperations);
+                if ($personalPrayerError !== null) {
+                    return $personalPrayerError;
+                }
+
                 foreach ($pending->sortBy(fn (array $operation) => $operation['table'] === 'encounters' ? 0 : 1) as $operation) {
-                    match ($operation['table']) {
-                        'encounters' => $this->applyEncounter($user, $operation),
-                        'encounter_revisions' => $this->applyRevision($user, $operation),
-                        'prayer_votes' => $this->applyPrayerVote(
-                            $user,
-                            $operation,
-                            $prayerContexts[$operation['operation_id']],
-                        ),
-                        'today_prayers' => $this->applyTodayPrayer(
-                            $user,
-                            $operation,
-                            $prayerContexts[$operation['operation_id']],
-                        ),
-                    };
+                    if (! ApplyPersonalPrayerMutation::supports($operation['table'])) {
+                        match ($operation['table']) {
+                            'encounters' => $this->applyEncounter($user, $operation),
+                            'encounter_revisions' => $this->applyRevision($user, $operation),
+                            'prayer_votes' => $this->applyPrayerVote(
+                                $user,
+                                $operation,
+                                $prayerContexts[$operation['operation_id']],
+                            ),
+                            'today_prayers' => $this->applyTodayPrayer(
+                                $user,
+                                $operation,
+                                $prayerContexts[$operation['operation_id']],
+                            ),
+                        };
+                    }
 
                     $this->storeSyncOperation($user, $operation);
                 }
@@ -257,8 +287,8 @@ class ApplySyncMutation
                 ['encounters', 'patch'] => ['title' => ['sometimes', 'string', 'max:120'], 'body' => ['sometimes', 'nullable', 'string', 'max:4000'], 'occurred_on' => ['sometimes', 'date_format:Y-m-d'], 'is_altar' => ['sometimes', 'boolean'], 'current_revision_id' => ['sometimes', 'uuid'], 'archived_at' => ['sometimes', 'nullable', 'date'], 'updated_at' => ['sometimes', 'date']],
                 ['encounter_revisions', 'put'] => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120']],
                 ['prayer_votes', 'put'] => ['owner_id' => [], 'prayer_id' => ['required', 'uuid'], 'created_at' => ['sometimes', 'date']],
-                ['today_prayers', 'put'] => ['owner_id' => [], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['required', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
-                ['today_prayers', 'patch'] => ['prayer_id' => ['sometimes', 'uuid'], 'include_action' => ['sometimes', 'boolean'], 'action_completed' => ['sometimes', 'boolean']],
+                ['today_prayers', 'put'] => ['owner_id' => [], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['sometimes', 'nullable', 'uuid'], 'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
+                ['today_prayers', 'patch'] => ['prayer_id' => ['sometimes', 'nullable', 'uuid'], 'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'], 'include_action' => ['sometimes', 'boolean'], 'action_completed' => ['sometimes', 'boolean']],
             };
 
             if ($this->hasUnexpectedPrayerFields($operation, array_keys($rules))) {
@@ -266,6 +296,16 @@ class ApplySyncMutation
             }
             if (Validator::make($operation['data'], $rules)->fails()) {
                 return 'invalid_data';
+            }
+            if ($operation['table'] === 'today_prayers') {
+                $hasLibrary = ($operation['data']['prayer_id'] ?? null) !== null;
+                $hasPersonal = ($operation['data']['personal_prayer_id'] ?? null) !== null;
+                $changesSource = array_key_exists('prayer_id', $operation['data'])
+                    || array_key_exists('personal_prayer_id', $operation['data']);
+                if (($operation['type'] === 'put' || $changesSource)
+                    && $hasLibrary === $hasPersonal) {
+                    return 'invalid_data';
+                }
             }
             if ($operation['type'] === 'patch' && $operation['data'] === []) {
                 return 'invalid_data';
@@ -337,12 +377,13 @@ class ApplySyncMutation
 
     /**
      * @param  array<int, array<string, mixed>>  $operations
-     * @return array{contexts: array<string, array<string, mixed>>, prayer_ids: array<int, string>}
+     * @return array{contexts: array<string, array<string, mixed>>, prayer_ids: array<int, string>, personal_prayer_ids: array<int, string>}
      */
     private function preparePrayerMutations(User $user, array $operations): array
     {
         $contexts = [];
         $prayerIds = [];
+        $personalPrayerIds = [];
         $states = [
             PrayerRecordAlias::TYPE_VOTE => [],
             PrayerRecordAlias::TYPE_TODAY => [],
@@ -373,6 +414,9 @@ class ApplySyncMutation
                 : [
                     'canonical_id' => $record->id,
                     'prayer_id' => $record->prayer_id,
+                    'personal_prayer_id' => $recordType === PrayerRecordAlias::TYPE_TODAY
+                        ? $record->personal_prayer_id
+                        : null,
                     'semantic_key' => $recordType === PrayerRecordAlias::TYPE_VOTE
                         ? $record->prayer_id
                         : $record->local_date->format('Y-m-d'),
@@ -426,6 +470,7 @@ class ApplySyncMutation
                         $states[$recordType][$semanticRecord->id] = [
                             'canonical_id' => $semanticRecord->id,
                             'prayer_id' => $semanticRecord->prayer_id,
+                            'personal_prayer_id' => $semanticRecord->personal_prayer_id,
                             'semantic_key' => $semanticKey,
                         ];
                     }
@@ -445,11 +490,19 @@ class ApplySyncMutation
                     $prayerIds[] = $prayerId;
                 }
             }
+            $currentPersonalPrayerId = $state['personal_prayer_id'] ?? null;
+            $requestedPersonalPrayerId = $operation['data']['personal_prayer_id'] ?? null;
+            foreach ([$currentPersonalPrayerId, $requestedPersonalPrayerId] as $personalPrayerId) {
+                if ($personalPrayerId !== null) {
+                    $personalPrayerIds[] = $personalPrayerId;
+                }
+            }
 
             $contexts[$operation['operation_id']] = [
                 'record_type' => $recordType,
                 'canonical_id' => $canonicalId,
                 'current_prayer_id' => $currentPrayerId,
+                'current_personal_prayer_id' => $currentPersonalPrayerId,
             ];
 
             if ($operation['type'] === 'put') {
@@ -467,7 +520,10 @@ class ApplySyncMutation
                     'canonical_id' => $canonicalId,
                     'prayer_id' => $operation['table'] === 'prayer_votes' && $state !== null
                         ? $state['prayer_id']
-                        : $operation['data']['prayer_id'],
+                        : ($operation['data']['prayer_id'] ?? null),
+                    'personal_prayer_id' => $operation['table'] === 'today_prayers'
+                        ? ($operation['data']['personal_prayer_id'] ?? null)
+                        : null,
                     'semantic_key' => $newSemanticKey,
                 ];
                 $semantics[$recordType][$newSemanticKey] = $canonicalId;
@@ -477,6 +533,9 @@ class ApplySyncMutation
             } elseif ($operation['type'] === 'patch' && $state !== null) {
                 if (array_key_exists('prayer_id', $operation['data'])) {
                     $states[$recordType][$canonicalId]['prayer_id'] = $operation['data']['prayer_id'];
+                }
+                if (array_key_exists('personal_prayer_id', $operation['data'])) {
+                    $states[$recordType][$canonicalId]['personal_prayer_id'] = $operation['data']['personal_prayer_id'];
                 }
             } elseif ($operation['type'] === 'delete' && $state !== null) {
                 $semanticKey = $state['semantic_key'];
@@ -494,8 +553,14 @@ class ApplySyncMutation
 
         $prayerIds = array_values(array_unique($prayerIds));
         sort($prayerIds, SORT_STRING);
+        $personalPrayerIds = array_values(array_unique($personalPrayerIds));
+        sort($personalPrayerIds, SORT_STRING);
 
-        return ['contexts' => $contexts, 'prayer_ids' => $prayerIds];
+        return [
+            'contexts' => $contexts,
+            'prayer_ids' => $prayerIds,
+            'personal_prayer_ids' => $personalPrayerIds,
+        ];
     }
 
     /**
@@ -517,14 +582,37 @@ class ApplySyncMutation
     }
 
     /**
+     * @param  array<int, string>  $prayerIds
+     * @return Collection<string, PersonalPrayer>
+     */
+    private function lockPersonalPrayers(array $prayerIds): Collection
+    {
+        if ($prayerIds === []) {
+            return collect();
+        }
+
+        return PersonalPrayer::query()
+            ->whereIn('id', $prayerIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $operations
      * @param  array<string, array<string, mixed>>  $contexts
      * @param  Collection<string, LibraryPrayer>  $lockedPrayers
+     * @param  Collection<string, PersonalPrayer>  $lockedPersonalPrayers
+     * @param  array<int, string>  $pendingPersonalPrayerIds
      */
     private function validatePreparedPrayerMutations(
+        User $user,
         array $operations,
         array $contexts,
         Collection $lockedPrayers,
+        Collection $lockedPersonalPrayers,
+        array $pendingPersonalPrayerIds,
     ): ?string {
         foreach ($operations as $operation) {
             $context = $contexts[$operation['operation_id']];
@@ -537,7 +625,28 @@ class ApplySyncMutation
                 continue;
             }
 
-            $prayerId = $operation['data']['prayer_id'] ?? $context['current_prayer_id'];
+            $personalPrayerId = array_key_exists('personal_prayer_id', $operation['data'])
+                ? $operation['data']['personal_prayer_id']
+                : $context['current_personal_prayer_id'];
+            if ($operation['table'] === 'today_prayers' && $personalPrayerId !== null) {
+                $personalPrayer = $lockedPersonalPrayers->get($personalPrayerId);
+                $isPendingOwnedPrayer = in_array(
+                    $personalPrayerId,
+                    $pendingPersonalPrayerIds,
+                    true,
+                );
+                if (! $isPendingOwnedPrayer && ($personalPrayer === null
+                    || $personalPrayer->user_id !== $user->id
+                    || $personalPrayer->archived_at !== null)) {
+                    return 'invalid_prayer';
+                }
+
+                continue;
+            }
+
+            $prayerId = array_key_exists('prayer_id', $operation['data'])
+                ? $operation['data']['prayer_id']
+                : $context['current_prayer_id'];
             $prayer = $lockedPrayers->get($prayerId);
             if ($prayer === null
                 || $prayer->published_at === null
@@ -622,14 +731,24 @@ class ApplySyncMutation
             ? Arr::only($operation['data'], [
                 'local_date',
                 'prayer_id',
+                'personal_prayer_id',
                 'include_action',
                 'action_completed',
             ])
             : Arr::only($operation['data'], [
                 'prayer_id',
+                'personal_prayer_id',
                 'include_action',
                 'action_completed',
             ]);
+        if (array_key_exists('prayer_id', $attributes)
+            && $attributes['prayer_id'] !== null) {
+            $attributes['personal_prayer_id'] = null;
+        }
+        if (array_key_exists('personal_prayer_id', $attributes)
+            && $attributes['personal_prayer_id'] !== null) {
+            $attributes['prayer_id'] = null;
+        }
         $selection->forceFill($attributes)->save();
         $this->storePrayerAlias($user, $context['record_type'], $operation['id'], $selection->id);
     }

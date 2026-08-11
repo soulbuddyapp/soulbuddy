@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
 import '../domain/library_prayer.dart';
+import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
 import 'prayer_library_tile.dart';
 import 'use_today_confirmation_sheet.dart';
@@ -180,7 +181,10 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
     required bool includeAction,
   }) async {
     final repository = await ref.read(prayerRepositoryProvider.future);
-    await repository.selectForToday(prayer.id, includeAction: includeAction);
+    await repository.selectForToday(
+      PrayerReference.library(prayer.id),
+      includeAction: includeAction,
+    );
   }
 }
 

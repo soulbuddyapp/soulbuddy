@@ -201,6 +201,7 @@ Table.localOnly('prayer_generation_requests', [
   Column.text('active_attempt_id'), Column.text('attempt_started_at'),
   Column.text('next_attempt_at'), Column.integer('attempt_count'),
   Column.text('last_attempt_at'), Column.text('failure_code'),
+  Column.text('accepted_prayer_id'),
   Column.text('created_at'), Column.text('updated_at'),
 ], indexes: [
   Index('prayer_generation_owner_status', [
