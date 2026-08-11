@@ -216,7 +216,7 @@ class _ScripturePickerState extends ConsumerState<_ScripturePicker> {
         Text('Choose Scripture', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'RSVCE Â· Scripture. Choose up to 20 consecutive verses.',
+          'RSVCE - Scripture. Choose up to 20 consecutive verses.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),

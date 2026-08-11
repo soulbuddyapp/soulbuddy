@@ -11,6 +11,7 @@ import 'package:soulbuddy/core/database/app_database.dart';
 import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/scripture/data/bundled_scripture_source.dart';
 import 'package:soulbuddy/features/scripture/data/scripture_repository.dart';
 
@@ -89,10 +90,7 @@ void main() {
       hasLength(1),
     );
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    firstContainer.dispose();
-    await firstDatabase.close();
+    await _closeApp(tester, firstContainer, firstDatabase);
 
     final reopenedContainer = _newContainer(databasePath);
     final reopenedDatabase = await reopenedContainer.read(
@@ -136,10 +134,7 @@ void main() {
     expect(find.text('John 3'), findsOneWidget);
     expect(find.textContaining('RSVCE'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    reopenedContainer.dispose();
-    await reopenedDatabase.close();
+    await _closeApp(tester, reopenedContainer, reopenedDatabase);
   });
 }
 
@@ -152,6 +147,21 @@ ProviderContainer _newContainer(String databasePath) {
       localIdentityProvider.overrideWith((ref) async => _identity),
     ],
   );
+}
+
+Future<void> _closeApp(
+  WidgetTester tester,
+  ProviderContainer container,
+  AppDatabase database,
+) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
+  final worker = await container.read(prayerGenerationWorkerProvider.future);
+  await worker.dispose();
+  container.dispose();
+  await tester.pump();
+  await database.powersync.get('SELECT 1 AS ready');
+  await database.close();
 }
 
 Future<String> _testDatabasePath() async {

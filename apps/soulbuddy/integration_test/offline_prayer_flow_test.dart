@@ -11,6 +11,7 @@ import 'package:soulbuddy/core/database/app_database.dart';
 import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 
 const _databaseName = 'soulbuddy-prayer-integration.db';
 const _identity = LocalIdentity(
@@ -66,7 +67,13 @@ void main() {
       await tester.tap(find.byKey(const Key('use-today')));
       await _pumpUntil(tester, find.byKey(const Key('confirm-use-today')));
       expect(find.text('Include the suggested action'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('confirm-use-today')));
+      await tester.ensureVisible(find.byKey(const Key('confirm-use-today')));
+      await tester.pump();
+      final confirmation = find
+          .byKey(const Key('confirm-use-today'))
+          .hitTestable();
+      expect(confirmation, findsOneWidget);
+      await tester.tap(confirmation);
       await _pumpUntil(tester, find.byKey(const Key('today-action-done')));
       _expectNoException(tester, 'using the prayer on Today');
       if (find.byKey(const Key('today-action-done')).evaluate().isEmpty) {
@@ -74,14 +81,9 @@ void main() {
           'SELECT owner_id, local_date, prayer_id, include_action, '
           'action_completed FROM today_prayers',
         );
-        final visibleText = tester
-            .widgetList<Text>(find.byType(Text))
-            .map((widget) => widget.data)
-            .whereType<String>()
-            .toList(growable: false);
         fail(
           'Today action did not appear after confirmation. '
-          'Rows: $rows. Visible text: $visibleText',
+          'Today row count: ${rows.length}.',
         );
       }
       final selectedRows = await firstDatabase.powersync.getAll(
@@ -124,10 +126,7 @@ void main() {
         1,
       );
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-      firstContainer.dispose();
-      await firstDatabase.close();
+      await _closeApp(tester, firstContainer, firstDatabase);
 
       final reopenedContainer = _newContainer(databasePath);
       final reopenedDatabase = await reopenedContainer.read(
@@ -159,10 +158,7 @@ void main() {
         1,
       );
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-      reopenedContainer.dispose();
-      await reopenedDatabase.close();
+      await _closeApp(tester, reopenedContainer, reopenedDatabase);
     },
   );
 }
@@ -176,6 +172,21 @@ ProviderContainer _newContainer(String databasePath) {
       localIdentityProvider.overrideWith((ref) async => _identity),
     ],
   );
+}
+
+Future<void> _closeApp(
+  WidgetTester tester,
+  ProviderContainer container,
+  AppDatabase database,
+) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
+  final worker = await container.read(prayerGenerationWorkerProvider.future);
+  await worker.dispose();
+  container.dispose();
+  await tester.pump();
+  await database.powersync.get('SELECT 1 AS ready');
+  await database.close();
 }
 
 Future<String> _testDatabasePath() async {

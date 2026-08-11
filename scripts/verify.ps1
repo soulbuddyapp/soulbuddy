@@ -2,6 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 Push-Location "$PSScriptRoot\..\apps\soulbuddy"
 try {
+  dart format --output=none --set-exit-if-changed lib test integration_test
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   flutter analyze
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

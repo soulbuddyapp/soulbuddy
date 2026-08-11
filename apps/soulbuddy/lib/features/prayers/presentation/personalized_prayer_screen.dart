@@ -405,7 +405,7 @@ class _ContextStep extends StatelessWidget {
               title: Text(context.displayLabel),
               subtitle: Text(
                 context.type == PrayerContextType.scripture
-                    ? 'RSVCE Â· Scripture'
+                    ? 'RSVCE - Scripture'
                     : 'Encounter',
               ),
               trailing: const Icon(Icons.check_circle_outline),

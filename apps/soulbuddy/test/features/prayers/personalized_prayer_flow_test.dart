@@ -122,7 +122,7 @@ void main() {
       await tester.tap(find.text('Add Scripture'));
       await tester.pumpAndSettle();
       expect(
-        find.text('RSVCE Â· Scripture. Choose up to 20 consecutive verses.'),
+        find.text('RSVCE - Scripture. Choose up to 20 consecutive verses.'),
         findsOneWidget,
       );
       await tester.tap(find.text('Add passage'));
@@ -135,6 +135,7 @@ void main() {
       expect(context.chapter, 3);
       expect(context.firstVerse, 1);
       expect(context.lastVerse, 1);
+      expect(find.text('RSVCE - Scripture'), findsOneWidget);
     },
   );
 

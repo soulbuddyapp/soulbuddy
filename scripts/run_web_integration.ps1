@@ -47,7 +47,8 @@ Push-Location "$PSScriptRoot\..\apps\soulbuddy"
 try {
   $targets = @(
     'integration_test/offline_encounter_flow_test.dart',
-    'integration_test/offline_prayer_flow_test.dart'
+    'integration_test/offline_prayer_flow_test.dart',
+    'integration_test/personalized_prayer_flow_test.dart'
   )
 
   foreach ($target in $targets) {
