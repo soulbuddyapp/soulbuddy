@@ -280,6 +280,8 @@ The Flutter feature remains under `features/prayers` with focused domain, data, 
 - `alignment_choice`
 - `status`: `editing`, `queued`, `generating`, `ready`, or `needs_attention`
 - `draft_title`, `draft_body`, `draft_action`
+- local-only `generated_title`, `generated_body`, `generated_action` baseline
+  fields so edit detection still works after closing and reopening the draft
 - `prompt_version`, `provider_disclosure_version`
 - nullable `consented_provider` and `consented_disclosure_version`
 - nullable `active_attempt_id`, `attempt_started_at`, and `next_attempt_at`
