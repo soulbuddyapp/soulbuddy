@@ -254,6 +254,21 @@ it('creates user-scoped alias and prayer lookup indexes', function () {
         ))->toBeTrue();
 });
 
+it('defines Postgres statement triggers with transition tables and sorted prayer updates', function () {
+    // SQL structure is checked locally; real cascade concurrency remains a Postgres deployment test.
+    $migration = file_get_contents(database_path(
+        'migrations/2026_08_11_000000_create_prayer_library_tables.php',
+    ));
+
+    expect(substr_count($migration, 'FOR EACH STATEMENT'))->toBe(3)
+        ->and($migration)->toContain('REFERENCING NEW TABLE AS new_votes')
+        ->toContain('REFERENCING OLD TABLE AS old_votes')
+        ->toContain('ORDER BY id')
+        ->toContain('SET helpful_count = helpful_count + (')
+        ->not->toContain('FROM prayer_votes')
+        ->not->toContain('FOR EACH ROW EXECUTE FUNCTION update_prayer_helpful_count()');
+});
+
 it('accepts offline installation ids while assigning ownership from authentication', function () {
     $user = User::factory()->create();
     $localOwnerId = 'pre-auth-installation-owner';
@@ -371,6 +386,224 @@ it('keeps first canonical rows addressable through second-installation aliases',
     expect(PrayerVote::count())->toBe(0)
         ->and(TodayPrayer::count())->toBe(0)
         ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(0);
+});
+
+it('canonicalizes repeated semantic PUTs within one batch', function () {
+    $user = User::factory()->create();
+    $firstVoteId = '0198a700-0000-7000-8000-000000000021';
+    $secondVoteId = '0198a700-0000-7000-8000-000000000022';
+    $firstTodayId = '0198a700-0000-7000-8000-000000000023';
+    $secondTodayId = '0198a700-0000-7000-8000-000000000024';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000031',
+                'prayer_votes',
+                'put',
+                $firstVoteId,
+                ['prayer_id' => seededPrayerId()],
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000032',
+                'prayer_votes',
+                'put',
+                $secondVoteId,
+                ['prayer_id' => seededPrayerId()],
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000033',
+                'today_prayers',
+                'put',
+                $firstTodayId,
+                [
+                    'local_date' => '2026-08-11',
+                    'prayer_id' => seededPrayerId(),
+                    'include_action' => true,
+                    'action_completed' => false,
+                ],
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000034',
+                'today_prayers',
+                'put',
+                $secondTodayId,
+                [
+                    'local_date' => '2026-08-11',
+                    'prayer_id' => seededPrayerId(2),
+                    'include_action' => false,
+                    'action_completed' => true,
+                ],
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 4)
+        ->assertJsonPath('rejected', 0);
+
+    expect(PrayerVote::count())->toBe(1)
+        ->and(PrayerVote::first()->id)->toBe($firstVoteId)
+        ->and(LibraryPrayer::findOrFail(seededPrayerId())->helpful_count)->toBe(1)
+        ->and(TodayPrayer::count())->toBe(1)
+        ->and(TodayPrayer::first()->id)->toBe($firstTodayId)
+        ->and(TodayPrayer::first()->prayer_id)->toBe(seededPrayerId(2))
+        ->and(TodayPrayer::first()->action_completed)->toBeTrue();
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000035',
+                'prayer_votes',
+                'delete',
+                $secondVoteId,
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000036',
+                'today_prayers',
+                'delete',
+                $secondTodayId,
+            ),
+        ],
+    ])->assertOk()->assertJsonPath('accepted', 2);
+
+    expect(PrayerVote::count())->toBe(0)
+        ->and(TodayPrayer::count())->toBe(0);
+});
+
+it('resolves a vote alias created earlier in the same batch', function () {
+    $user = User::factory()->create();
+    $prayerId = seededPrayerId();
+    $canonicalId = '0198a700-0000-7000-8000-000000000041';
+    $aliasId = '0198a700-0000-7000-8000-000000000042';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [syncPrayerOperation(
+            '0198a700-0000-7000-8000-000000000043',
+            'prayer_votes',
+            'put',
+            $canonicalId,
+            ['prayer_id' => $prayerId],
+        )],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000044',
+                'prayer_votes',
+                'put',
+                $aliasId,
+                ['prayer_id' => $prayerId],
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000045',
+                'prayer_votes',
+                'delete',
+                $aliasId,
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 2)
+        ->assertJsonPath('rejected', 0);
+
+    expect(PrayerVote::count())->toBe(0)
+        ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(0);
+});
+
+it('resolves a Today alias created earlier in the same batch', function () {
+    $user = User::factory()->create();
+    $canonicalId = '0198a700-0000-7000-8000-000000000051';
+    $aliasId = '0198a700-0000-7000-8000-000000000052';
+    $todayData = [
+        'local_date' => '2026-08-11',
+        'prayer_id' => seededPrayerId(),
+        'include_action' => true,
+        'action_completed' => false,
+    ];
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [syncPrayerOperation(
+            '0198a700-0000-7000-8000-000000000053',
+            'today_prayers',
+            'put',
+            $canonicalId,
+            $todayData,
+        )],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000054',
+                'today_prayers',
+                'put',
+                $aliasId,
+                $todayData,
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000055',
+                'today_prayers',
+                'patch',
+                $aliasId,
+                ['action_completed' => true],
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 2)
+        ->assertJsonPath('rejected', 0);
+
+    expect(TodayPrayer::count())->toBe(1)
+        ->and(TodayPrayer::first()->id)->toBe($canonicalId)
+        ->and(TodayPrayer::first()->action_completed)->toBeTrue();
+});
+
+it('releases a Today semantic key moved earlier in the same batch', function () {
+    $user = User::factory()->create();
+    $movedId = '0198a700-0000-7000-8000-000000000061';
+    $replacementId = '0198a700-0000-7000-8000-000000000062';
+
+    TodayPrayer::create([
+        'id' => $movedId,
+        'user_id' => $user->id,
+        'local_date' => '2026-08-11',
+        'prayer_id' => seededPrayerId(),
+        'include_action' => true,
+        'action_completed' => false,
+    ]);
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000063',
+                'today_prayers',
+                'put',
+                $movedId,
+                [
+                    'local_date' => '2026-08-12',
+                    'prayer_id' => seededPrayerId(),
+                    'include_action' => true,
+                    'action_completed' => false,
+                ],
+            ),
+            syncPrayerOperation(
+                '0198a700-0000-7000-8000-000000000064',
+                'today_prayers',
+                'put',
+                $replacementId,
+                [
+                    'local_date' => '2026-08-11',
+                    'prayer_id' => seededPrayerId(2),
+                    'include_action' => false,
+                    'action_completed' => true,
+                ],
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 2)
+        ->assertJsonPath('rejected', 0);
+
+    expect(TodayPrayer::count())->toBe(2)
+        ->and(TodayPrayer::whereKey($movedId)->value('local_date')->format('Y-m-d'))->toBe('2026-08-12')
+        ->and(TodayPrayer::whereKey($replacementId)->value('local_date')->format('Y-m-d'))->toBe('2026-08-11');
 });
 
 it('repairs a stale alias when a later semantic PUT finds a replacement canonical row', function () {

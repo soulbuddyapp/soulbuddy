@@ -5,6 +5,7 @@ use App\Models\EncounterRevision;
 use App\Models\SyncOperation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -50,6 +51,30 @@ it('applies an encounter and revision atomically', function () {
     expect(Encounter::first()->user_id)->toBe($user->id)
         ->and(EncounterRevision::count())->toBe(1)
         ->and(SyncOperation::count())->toBe(2);
+});
+
+it('records user-before-record acquisition order for Encounter transactions in SQLite', function () {
+    // SQLite proves the application acquisition contract; real FOR UPDATE behavior is a Postgres deployment test.
+    $user = User::factory()->create();
+    $queries = [];
+
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = strtolower($query->sql);
+    });
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', encounterBatch())
+        ->assertOk()->assertJsonPath('accepted', 2);
+
+    $userLockIndex = collect($queries)->search(
+        fn (string $sql): bool => str_starts_with($sql, 'select *') && str_contains($sql, 'from "users"'),
+    );
+    $encounterWriteIndex = collect($queries)->search(
+        fn (string $sql): bool => str_starts_with($sql, 'insert into "encounters"'),
+    );
+
+    expect($userLockIndex)->not->toBeFalse()
+        ->and($encounterWriteIndex)->not->toBeFalse()
+        ->and($userLockIndex)->toBeLessThan($encounterWriteIndex);
 });
 
 it('treats repeated operation ids as already accepted', function () {

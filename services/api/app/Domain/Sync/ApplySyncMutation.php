@@ -104,9 +104,9 @@ class ApplySyncMutation
 
         try {
             $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations): ?string {
+                User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $prayerContexts = [];
                 if ($prayerOperations !== []) {
-                    User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                     $prepared = $this->preparePrayerMutations($user, $prayerOperations);
                     $prayerContexts = $prepared['contexts'];
                     $lockedPrayers = $this->lockPrayers($prepared['prayer_ids']);
@@ -343,26 +343,102 @@ class ApplySyncMutation
     {
         $contexts = [];
         $prayerIds = [];
+        $states = [
+            PrayerRecordAlias::TYPE_VOTE => [],
+            PrayerRecordAlias::TYPE_TODAY => [],
+        ];
+        $aliases = [
+            PrayerRecordAlias::TYPE_VOTE => [],
+            PrayerRecordAlias::TYPE_TODAY => [],
+        ];
+        $semantics = [
+            PrayerRecordAlias::TYPE_VOTE => [],
+            PrayerRecordAlias::TYPE_TODAY => [],
+        ];
+
+        $loadCanonical = function (string $recordType, string $canonicalId) use ($user, &$semantics, &$states): ?array {
+            if (array_key_exists($canonicalId, $states[$recordType])) {
+                return $states[$recordType][$canonicalId];
+            }
+
+            $model = $recordType === PrayerRecordAlias::TYPE_VOTE
+                ? PrayerVote::class
+                : TodayPrayer::class;
+            $record = $model::query()
+                ->where('user_id', $user->id)
+                ->whereKey($canonicalId)
+                ->first();
+            $states[$recordType][$canonicalId] = $record === null
+                ? null
+                : [
+                    'canonical_id' => $record->id,
+                    'prayer_id' => $record->prayer_id,
+                    'semantic_key' => $recordType === PrayerRecordAlias::TYPE_VOTE
+                        ? $record->prayer_id
+                        : $record->local_date->format('Y-m-d'),
+                ];
+            $semanticKey = $states[$recordType][$canonicalId]['semantic_key'] ?? null;
+            if ($semanticKey !== null && ! array_key_exists($semanticKey, $semantics[$recordType])) {
+                $semantics[$recordType][$semanticKey] = $canonicalId;
+            }
+
+            return $states[$recordType][$canonicalId];
+        };
 
         foreach ($operations as $operation) {
             $recordType = $operation['table'] === 'prayer_votes'
                 ? PrayerRecordAlias::TYPE_VOTE
                 : PrayerRecordAlias::TYPE_TODAY;
-            $record = $this->resolveOwnedPrayerRecord($user, $operation, $recordType);
+            $incomingId = $operation['id'];
+            $state = $loadCanonical($recordType, $incomingId);
 
-            if ($record === null && $operation['type'] === 'put') {
-                $record = $operation['table'] === 'prayer_votes'
-                    ? PrayerVote::query()
+            if ($state === null) {
+                if (! array_key_exists($incomingId, $aliases[$recordType])) {
+                    $aliases[$recordType][$incomingId] = PrayerRecordAlias::query()
                         ->where('user_id', $user->id)
-                        ->where('prayer_id', $operation['data']['prayer_id'])
-                        ->first()
-                    : TodayPrayer::query()
-                        ->where('user_id', $user->id)
-                        ->whereDate('local_date', $operation['data']['local_date'])
-                        ->first();
+                        ->where('record_type', $recordType)
+                        ->where('alias_id', $incomingId)
+                        ->value('canonical_id');
+                }
+
+                $aliasCanonicalId = $aliases[$recordType][$incomingId];
+                if ($aliasCanonicalId !== null) {
+                    $state = $loadCanonical($recordType, $aliasCanonicalId);
+                }
             }
 
-            $currentPrayerId = $record?->prayer_id;
+            if ($state === null && $operation['type'] === 'put') {
+                $semanticKey = $operation['table'] === 'prayer_votes'
+                    ? $operation['data']['prayer_id']
+                    : $operation['data']['local_date'];
+                if (! array_key_exists($semanticKey, $semantics[$recordType])) {
+                    $semanticRecord = $operation['table'] === 'prayer_votes'
+                        ? PrayerVote::query()
+                            ->where('user_id', $user->id)
+                            ->where('prayer_id', $semanticKey)
+                            ->first()
+                        : TodayPrayer::query()
+                            ->where('user_id', $user->id)
+                            ->whereDate('local_date', $semanticKey)
+                            ->first();
+                    $semantics[$recordType][$semanticKey] = $semanticRecord?->id;
+                    if ($semanticRecord !== null) {
+                        $states[$recordType][$semanticRecord->id] = [
+                            'canonical_id' => $semanticRecord->id,
+                            'prayer_id' => $semanticRecord->prayer_id,
+                            'semantic_key' => $semanticKey,
+                        ];
+                    }
+                }
+
+                $semanticCanonicalId = $semantics[$recordType][$semanticKey];
+                if ($semanticCanonicalId !== null) {
+                    $state = $loadCanonical($recordType, $semanticCanonicalId);
+                }
+            }
+
+            $canonicalId = $state['canonical_id'] ?? null;
+            $currentPrayerId = $state['prayer_id'] ?? null;
             $requestedPrayerId = $operation['data']['prayer_id'] ?? null;
             foreach ([$currentPrayerId, $requestedPrayerId] as $prayerId) {
                 if ($prayerId !== null) {
@@ -372,46 +448,54 @@ class ApplySyncMutation
 
             $contexts[$operation['operation_id']] = [
                 'record_type' => $recordType,
-                'canonical_id' => $record?->id,
+                'canonical_id' => $canonicalId,
                 'current_prayer_id' => $currentPrayerId,
             ];
+
+            if ($operation['type'] === 'put') {
+                $canonicalId ??= $incomingId;
+                $oldSemanticKey = $state['semantic_key'] ?? null;
+                $newSemanticKey = $operation['table'] === 'prayer_votes'
+                    ? ($state['semantic_key'] ?? $operation['data']['prayer_id'])
+                    : $operation['data']['local_date'];
+                if ($oldSemanticKey !== null
+                    && $oldSemanticKey !== $newSemanticKey
+                    && ($semantics[$recordType][$oldSemanticKey] ?? null) === $canonicalId) {
+                    $semantics[$recordType][$oldSemanticKey] = null;
+                }
+                $states[$recordType][$canonicalId] = [
+                    'canonical_id' => $canonicalId,
+                    'prayer_id' => $operation['table'] === 'prayer_votes' && $state !== null
+                        ? $state['prayer_id']
+                        : $operation['data']['prayer_id'],
+                    'semantic_key' => $newSemanticKey,
+                ];
+                $semantics[$recordType][$newSemanticKey] = $canonicalId;
+                if ($incomingId !== $canonicalId) {
+                    $aliases[$recordType][$incomingId] = $canonicalId;
+                }
+            } elseif ($operation['type'] === 'patch' && $state !== null) {
+                if (array_key_exists('prayer_id', $operation['data'])) {
+                    $states[$recordType][$canonicalId]['prayer_id'] = $operation['data']['prayer_id'];
+                }
+            } elseif ($operation['type'] === 'delete' && $state !== null) {
+                $semanticKey = $state['semantic_key'];
+                if (($semantics[$recordType][$semanticKey] ?? $canonicalId) === $canonicalId) {
+                    $semantics[$recordType][$semanticKey] = null;
+                }
+                $states[$recordType][$canonicalId] = null;
+                foreach ($aliases[$recordType] as $aliasId => $aliasCanonicalId) {
+                    if ($aliasCanonicalId === $canonicalId) {
+                        $aliases[$recordType][$aliasId] = null;
+                    }
+                }
+            }
         }
 
         $prayerIds = array_values(array_unique($prayerIds));
         sort($prayerIds, SORT_STRING);
 
         return ['contexts' => $contexts, 'prayer_ids' => $prayerIds];
-    }
-
-    private function resolveOwnedPrayerRecord(
-        User $user,
-        array $operation,
-        string $recordType,
-    ): PrayerVote|TodayPrayer|null {
-        $model = $operation['table'] === 'prayer_votes'
-            ? PrayerVote::class
-            : TodayPrayer::class;
-        $record = $model::query()
-            ->where('user_id', $user->id)
-            ->whereKey($operation['id'])
-            ->first();
-        if ($record !== null) {
-            return $record;
-        }
-
-        $canonicalId = PrayerRecordAlias::query()
-            ->where('user_id', $user->id)
-            ->where('record_type', $recordType)
-            ->where('alias_id', $operation['id'])
-            ->value('canonical_id');
-        if ($canonicalId === null) {
-            return null;
-        }
-
-        return $model::query()
-            ->where('user_id', $user->id)
-            ->whereKey($canonicalId)
-            ->first();
     }
 
     /**

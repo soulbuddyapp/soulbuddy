@@ -113,35 +113,107 @@ return new class extends Migration
     private function createPostgresVoteCountTriggers(): void
     {
         DB::unprepared(<<<'SQL'
-            CREATE FUNCTION update_prayer_helpful_count() RETURNS TRIGGER AS $$
+            CREATE FUNCTION refresh_prayer_helpful_counts_after_vote_insert() RETURNS TRIGGER AS $$
+            DECLARE
+                affected_prayer_id uuid;
             BEGIN
-                IF TG_OP = 'INSERT' THEN
+                FOR affected_prayer_id IN
+                    SELECT DISTINCT prayer_id AS id
+                    FROM new_votes
+                    ORDER BY id
+                LOOP
                     UPDATE library_prayers
-                    SET helpful_count = helpful_count + 1
-                    WHERE id = NEW.prayer_id;
-                    RETURN NEW;
-                ELSIF TG_OP = 'DELETE' THEN
-                    UPDATE library_prayers
-                    SET helpful_count = GREATEST(helpful_count - 1, 0)
-                    WHERE id = OLD.prayer_id;
-                    RETURN OLD;
-                ELSIF NEW.prayer_id IS DISTINCT FROM OLD.prayer_id THEN
-                    UPDATE library_prayers
-                    SET helpful_count = GREATEST(helpful_count - 1, 0)
-                    WHERE id = OLD.prayer_id;
-                    UPDATE library_prayers
-                    SET helpful_count = helpful_count + 1
-                    WHERE id = NEW.prayer_id;
-                END IF;
+                    SET helpful_count = helpful_count + (
+                        SELECT COUNT(*)::integer
+                        FROM new_votes
+                        WHERE prayer_id = affected_prayer_id
+                    )
+                    WHERE id = affected_prayer_id;
+                END LOOP;
 
-                RETURN NEW;
+                RETURN NULL;
             END;
             $$ LANGUAGE plpgsql
         SQL);
         DB::unprepared(<<<'SQL'
-            CREATE TRIGGER prayer_votes_helpful_count_after_change
-            AFTER INSERT OR DELETE OR UPDATE OF prayer_id ON prayer_votes
-            FOR EACH ROW EXECUTE FUNCTION update_prayer_helpful_count()
+            CREATE FUNCTION refresh_prayer_helpful_counts_after_vote_delete() RETURNS TRIGGER AS $$
+            DECLARE
+                affected_prayer_id uuid;
+            BEGIN
+                FOR affected_prayer_id IN
+                    SELECT DISTINCT prayer_id AS id
+                    FROM old_votes
+                    ORDER BY id
+                LOOP
+                    UPDATE library_prayers
+                    SET helpful_count = GREATEST(
+                        helpful_count - (
+                            SELECT COUNT(*)::integer
+                            FROM old_votes
+                            WHERE prayer_id = affected_prayer_id
+                        ),
+                        0
+                    )
+                    WHERE id = affected_prayer_id;
+                END LOOP;
+
+                RETURN NULL;
+            END;
+            $$ LANGUAGE plpgsql
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE FUNCTION refresh_prayer_helpful_counts_after_vote_update() RETURNS TRIGGER AS $$
+            DECLARE
+                affected_prayer_id uuid;
+            BEGIN
+                FOR affected_prayer_id IN
+                    SELECT DISTINCT prayer_id AS id
+                    FROM (
+                        SELECT prayer_id FROM old_votes
+                        UNION ALL
+                        SELECT prayer_id FROM new_votes
+                    ) AS changed_votes
+                    ORDER BY id
+                LOOP
+                    UPDATE library_prayers
+                    SET helpful_count = GREATEST(
+                        helpful_count
+                            - (
+                                SELECT COUNT(*)::integer
+                                FROM old_votes
+                                WHERE prayer_id = affected_prayer_id
+                            )
+                            + (
+                                SELECT COUNT(*)::integer
+                                FROM new_votes
+                                WHERE prayer_id = affected_prayer_id
+                            ),
+                        0
+                    )
+                    WHERE id = affected_prayer_id;
+                END LOOP;
+
+                RETURN NULL;
+            END;
+            $$ LANGUAGE plpgsql
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER prayer_votes_helpful_count_after_insert
+            AFTER INSERT ON prayer_votes
+            REFERENCING NEW TABLE AS new_votes
+            FOR EACH STATEMENT EXECUTE FUNCTION refresh_prayer_helpful_counts_after_vote_insert()
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER prayer_votes_helpful_count_after_delete
+            AFTER DELETE ON prayer_votes
+            REFERENCING OLD TABLE AS old_votes
+            FOR EACH STATEMENT EXECUTE FUNCTION refresh_prayer_helpful_counts_after_vote_delete()
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER prayer_votes_helpful_count_after_update
+            AFTER UPDATE ON prayer_votes
+            REFERENCING OLD TABLE AS old_votes NEW TABLE AS new_votes
+            FOR EACH STATEMENT EXECUTE FUNCTION refresh_prayer_helpful_counts_after_vote_update()
         SQL);
     }
 
@@ -156,8 +228,12 @@ return new class extends Migration
         }
 
         if (DB::getDriverName() === 'pgsql') {
-            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_change ON prayer_votes');
-            DB::unprepared('DROP FUNCTION IF EXISTS update_prayer_helpful_count()');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_insert ON prayer_votes');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_delete ON prayer_votes');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_update ON prayer_votes');
+            DB::unprepared('DROP FUNCTION IF EXISTS refresh_prayer_helpful_counts_after_vote_insert()');
+            DB::unprepared('DROP FUNCTION IF EXISTS refresh_prayer_helpful_counts_after_vote_delete()');
+            DB::unprepared('DROP FUNCTION IF EXISTS refresh_prayer_helpful_counts_after_vote_update()');
         }
     }
 };
