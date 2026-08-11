@@ -58,6 +58,28 @@ void main() {
     expect(upload?.crud.map((entry) => entry.table), ['prayer_reminders']);
   });
 
+  test('surfaces a newly enabled device before its first schedule', () async {
+    final database = await _openSeededDatabase(temporaryDirectory, 'pending');
+    addTearDown(database.close);
+    final repository = _repository(database);
+
+    final reminder = await repository.saveReminder(
+      personalPrayerId: prayerId,
+      schedule: PrayerReminderSchedule.daily(
+        localTime: PrayerLocalTime(hour: 7, minute: 30),
+        timezone: 'Africa/Lagos',
+      ),
+      enableOnThisDevice: true,
+    );
+
+    final scheduled = await repository
+        .watchDue(DateTime.utc(9999, 12, 31))
+        .first;
+    expect(scheduled.single.reminder.id, reminder.id);
+    expect(scheduled.single.device.nextOccurrenceAt, isNull);
+    expect(scheduled.single.occurrenceAt, isNull);
+  });
+
   test('keeps notification enablement isolated to each device', () async {
     final database = await _openSeededDatabase(temporaryDirectory, 'devices');
     addTearDown(database.close);
@@ -82,6 +104,7 @@ void main() {
       (await second.watchDevice(reminder.id).first)?.enabledOnDevice,
       isFalse,
     );
+    expect(await second.watchDue(DateTime.utc(9999, 12, 31)).first, isEmpty);
     expect(
       await database.powersync.getAll('SELECT id FROM prayer_reminders'),
       hasLength(1),

@@ -227,7 +227,7 @@ class DuePrayerOccurrence {
     required this.prayerTitle,
     required this.prayerBody,
     required this.prayerRevisionId,
-    required this.occurrenceAt,
+    this.occurrenceAt,
   });
 
   final PrayerReminder reminder;
@@ -235,10 +235,15 @@ class DuePrayerOccurrence {
   final String prayerTitle;
   final String prayerBody;
   final String prayerRevisionId;
-  final DateTime occurrenceAt;
+  final DateTime? occurrenceAt;
 
-  String get occurrenceKey =>
-      '${reminder.id}@${occurrenceAt.toUtc().toIso8601String()}';
+  String get occurrenceKey {
+    final value = occurrenceAt;
+    if (value == null) {
+      throw StateError('Prayer occurrence has not been scheduled');
+    }
+    return '${reminder.id}@${value.toUtc().toIso8601String()}';
+  }
 }
 
 DateTime? _optionalDate(Object? value) =>

@@ -107,7 +107,10 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
           WHERE reminder.owner_id = ? AND device.device_id = ?
             AND reminder.enabled = 1 AND reminder.archived_at IS NULL
             AND prayer.archived_at IS NULL AND device.enabled_on_device = 1
-            AND COALESCE(device.snoozed_until, device.next_occurrence_at) <= ?
+            AND (
+              COALESCE(device.snoozed_until, device.next_occurrence_at) IS NULL
+              OR COALESCE(device.snoozed_until, device.next_occurrence_at) <= ?
+            )
           ORDER BY COALESCE(device.snoozed_until, device.next_occurrence_at), reminder.id
           ''',
           parameters: [ownerId, deviceId, atUtc.toUtc().toIso8601String()],
@@ -556,17 +559,13 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
       'dismissed_occurrence_key': row['dismissed_occurrence_key'],
       'updated_at': row['device_updated_at'],
     });
-    final occurrenceAt = device.snoozedUntil ?? device.nextOccurrenceAt;
-    if (occurrenceAt == null) {
-      throw StateError('Due prayer occurrence has no time');
-    }
     return DuePrayerOccurrence(
       reminder: reminder,
       device: device,
       prayerTitle: row['prayer_title'] as String,
       prayerBody: row['prayer_body'] as String,
       prayerRevisionId: row['current_revision_id'] as String,
-      occurrenceAt: occurrenceAt,
+      occurrenceAt: device.snoozedUntil ?? device.nextOccurrenceAt,
     );
   }
 }
