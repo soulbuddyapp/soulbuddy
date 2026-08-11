@@ -1,0 +1,302 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:timezone/data/latest.dart' as timezone_data;
+import 'package:timezone/timezone.dart' as timezone;
+
+import 'prayer_reminder_scheduler.dart';
+
+const _prayedActionId = 'PRAYED';
+const _snoozeActionId = 'SNOOZE_10';
+const _dismissActionId = 'DISMISS';
+const _darwinCategoryId = 'PRAYER_REMINDER';
+
+enum NativePrayerScheduleMode { inexactAllowWhileIdle }
+
+class NativeNotificationActionData {
+  const NativeNotificationActionData({
+    required this.id,
+    required this.label,
+    required this.showsUserInterface,
+  });
+
+  final String id;
+  final String label;
+  final bool showsUserInterface;
+}
+
+class NativeNotificationRequest {
+  const NativeNotificationRequest({
+    required this.platformNotificationId,
+    required this.scheduledAtUtc,
+    required this.title,
+    required this.body,
+    required this.payload,
+    required this.scheduleMode,
+    required this.startsAudio,
+    required this.actions,
+  });
+
+  final int platformNotificationId;
+  final DateTime scheduledAtUtc;
+  final String title;
+  final String body;
+  final String payload;
+  final NativePrayerScheduleMode scheduleMode;
+  final bool startsAudio;
+  final List<NativeNotificationActionData> actions;
+}
+
+class NativeNotificationResponseData {
+  const NativeNotificationResponseData({this.actionId, this.payload});
+
+  final String? actionId;
+  final String? payload;
+}
+
+abstract interface class NativePrayerNotificationClient {
+  Stream<NativeNotificationResponseData> get responses;
+
+  Future<void> initialize();
+
+  Future<bool> requestPermission();
+
+  Future<void> schedule(NativeNotificationRequest request);
+
+  Future<void> cancel(int platformNotificationId);
+}
+
+class NativePrayerReminderScheduler implements PrayerReminderScheduler {
+  NativePrayerReminderScheduler({
+    required NativePrayerNotificationClient client,
+  }) : _client = client;
+
+  final NativePrayerNotificationClient _client;
+  Stream<PrayerReminderResponse>? _responses;
+
+  @override
+  Stream<PrayerReminderResponse> get responses =>
+      _responses ??= _client.responses.map(_decodeResponse);
+
+  @override
+  Future<void> initialize() => _client.initialize();
+
+  @override
+  Future<bool> requestPermission() => _client.requestPermission();
+
+  @override
+  Future<void> schedule(PrayerScheduledNotification notification) {
+    return _client.schedule(
+      NativeNotificationRequest(
+        platformNotificationId: notification.platformNotificationId,
+        scheduledAtUtc: notification.scheduledAtUtc,
+        title: 'Prayer reminder',
+        body: 'Time set aside for prayer',
+        payload: jsonEncode({
+          'reminder_id': notification.reminderId,
+          'occurrence_key': notification.occurrenceKey,
+        }),
+        scheduleMode: NativePrayerScheduleMode.inexactAllowWhileIdle,
+        startsAudio: false,
+        actions: const [
+          NativeNotificationActionData(
+            id: _prayedActionId,
+            label: 'I prayed this',
+            showsUserInterface: true,
+          ),
+          NativeNotificationActionData(
+            id: _snoozeActionId,
+            label: 'In 10 minutes',
+            showsUserInterface: true,
+          ),
+          NativeNotificationActionData(
+            id: _dismissActionId,
+            label: 'Dismiss',
+            showsUserInterface: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> cancel(int platformNotificationId) =>
+      _client.cancel(platformNotificationId);
+
+  PrayerReminderResponse _decodeResponse(
+    NativeNotificationResponseData response,
+  ) {
+    final payload = response.payload;
+    if (payload == null) {
+      throw const FormatException('Missing prayer reminder payload.');
+    }
+    final decoded = jsonDecode(payload);
+    if (decoded is! Map<String, dynamic> ||
+        decoded.length != 2 ||
+        !decoded.containsKey('reminder_id') ||
+        !decoded.containsKey('occurrence_key')) {
+      throw const FormatException('Invalid prayer reminder payload.');
+    }
+    final reminderId = decoded['reminder_id'];
+    final occurrenceKey = decoded['occurrence_key'];
+    if (!_isSafeIdentifier(reminderId) || !_isSafeIdentifier(occurrenceKey)) {
+      throw const FormatException('Invalid prayer reminder identifiers.');
+    }
+
+    return PrayerReminderResponse(
+      reminderId: reminderId as String,
+      occurrenceKey: occurrenceKey as String,
+      action: switch (response.actionId) {
+        null || '' => PrayerReminderAction.open,
+        _prayedActionId => PrayerReminderAction.prayed,
+        _snoozeActionId => PrayerReminderAction.snoozeTenMinutes,
+        _dismissActionId => PrayerReminderAction.dismiss,
+        _ => throw const FormatException('Unknown prayer reminder action.'),
+      },
+    );
+  }
+
+  bool _isSafeIdentifier(Object? value) =>
+      value is String && value.isNotEmpty && value.length <= 160;
+}
+
+class FlutterLocalNotificationsPrayerClient
+    implements NativePrayerNotificationClient {
+  FlutterLocalNotificationsPrayerClient({
+    FlutterLocalNotificationsPlugin? plugin,
+  }) : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+
+  final FlutterLocalNotificationsPlugin _plugin;
+  final _responses =
+      StreamController<NativeNotificationResponseData>.broadcast();
+
+  @override
+  Stream<NativeNotificationResponseData> get responses => _responses.stream;
+
+  @override
+  Future<void> initialize() async {
+    timezone_data.initializeTimeZones();
+    final localTimezone = await FlutterTimezone.getLocalTimezone();
+    timezone.setLocalLocation(timezone.getLocation(localTimezone.identifier));
+
+    final initializationSettings = InitializationSettings(
+      android: const AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        notificationCategories: [
+          DarwinNotificationCategory(
+            _darwinCategoryId,
+            actions: [
+              DarwinNotificationAction.plain(
+                _prayedActionId,
+                'I prayed this',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                _snoozeActionId,
+                'In 10 minutes',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                _dismissActionId,
+                'Dismiss',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await _plugin.initialize(
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse: _emitResponse,
+    );
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final response = launchDetails?.notificationResponse;
+      if (response != null) {
+        _emitResponse(response);
+      }
+    }
+  }
+
+  @override
+  Future<bool> requestPermission() async {
+    if (Platform.isAndroid) {
+      return await _plugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >()
+              ?.requestNotificationsPermission() ??
+          true;
+    }
+    if (Platform.isIOS) {
+      return await _plugin
+              .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin
+              >()
+              ?.requestPermissions(alert: true, badge: false, sound: true) ??
+          true;
+    }
+    return true;
+  }
+
+  @override
+  Future<void> schedule(NativeNotificationRequest request) async {
+    final androidActions = request.actions
+        .map(
+          (action) => AndroidNotificationAction(
+            action.id,
+            action.label,
+            showsUserInterface: action.showsUserInterface,
+          ),
+        )
+        .toList(growable: false);
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'prayer_reminders',
+        'Prayer reminders',
+        channelDescription: 'Private reminders to pray',
+        importance: Importance.high,
+        priority: Priority.high,
+        visibility: NotificationVisibility.private,
+        actions: androidActions,
+      ),
+      iOS: const DarwinNotificationDetails(
+        categoryIdentifier: _darwinCategoryId,
+      ),
+    );
+    await _plugin.zonedSchedule(
+      id: request.platformNotificationId,
+      title: request.title,
+      body: request.body,
+      scheduledDate: timezone.TZDateTime.from(
+        request.scheduledAtUtc,
+        timezone.local,
+      ),
+      notificationDetails: details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: request.payload,
+    );
+  }
+
+  @override
+  Future<void> cancel(int platformNotificationId) =>
+      _plugin.cancel(id: platformNotificationId);
+
+  void _emitResponse(NotificationResponse response) {
+    _responses.add(
+      NativeNotificationResponseData(
+        actionId: response.actionId,
+        payload: response.payload,
+      ),
+    );
+  }
+}
+
+PrayerReminderScheduler createPrayerReminderScheduler() =>
+    NativePrayerReminderScheduler(
+      client: FlutterLocalNotificationsPrayerClient(),
+    );
