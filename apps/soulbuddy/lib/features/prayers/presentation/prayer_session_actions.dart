@@ -53,6 +53,7 @@ class _PrayerSessionActionsState extends ConsumerState<PrayerSessionActions> {
           button: true,
           label: 'Record that you prayed ${widget.prayer.title}',
           child: FilledButton.tonalIcon(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
             onPressed: _saving ? null : _record,
             icon: const Icon(Icons.check),
             label: Text(_saving ? 'Recording...' : 'I prayed this'),

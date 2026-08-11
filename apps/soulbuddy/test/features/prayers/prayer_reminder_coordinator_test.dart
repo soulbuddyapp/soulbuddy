@@ -183,6 +183,47 @@ void main() {
     expect(repository.recordAttempts, 2);
     expect(repository.sessionRecords, hasLength(1));
   });
+
+  test(
+    'buffers a cold-start action until its owned occurrence is loaded',
+    () async {
+      final occurrence = _occurrence(nextAt: DateTime.utc(2026, 8, 11, 4, 59));
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler(
+        initializeResponse: _response(occurrence, PrayerReminderAction.prayed),
+      );
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      addTearDown(coordinator.dispose);
+
+      await coordinator.start();
+      expect(repository.sessionRecords, isEmpty);
+      repository.emit([occurrence]);
+      await pumpEventQueue(times: 30);
+
+      expect(repository.sessionRecords, hasLength(1));
+    },
+  );
+
+  test('publishes only currently due private occurrences', () async {
+    final repository = _FakePrayerPracticeRepository();
+    final scheduler = _FakePrayerReminderScheduler();
+    final coordinator = _coordinator(repository, scheduler, now: now);
+    addTearDown(coordinator.dispose);
+    await coordinator.start();
+    final due = coordinator.dueOccurrences.firstWhere(
+      (items) => items.isNotEmpty,
+    );
+
+    repository.emit([
+      _occurrence(nextAt: DateTime.utc(2026, 8, 11, 4, 59)),
+      _occurrence(
+        reminderId: 'reminder-2',
+        nextAt: DateTime.utc(2026, 8, 11, 7),
+      ),
+    ]);
+
+    expect((await due).map((item) => item.reminder.id), ['reminder-1']);
+  });
 }
 
 PrayerReminderCoordinator _coordinator(
@@ -208,6 +249,7 @@ PrayerReminderResponse _response(
 );
 
 DuePrayerOccurrence _occurrence({
+  String reminderId = 'reminder-1',
   required DateTime nextAt,
   bool once = false,
   String scheduledTimezone = 'UTC',
@@ -224,7 +266,7 @@ DuePrayerOccurrence _occurrence({
         );
   return DuePrayerOccurrence(
     reminder: PrayerReminder(
-      id: 'reminder-1',
+      id: reminderId,
       ownerId: 'owner-1',
       personalPrayerId: 'prayer-1',
       schedule: schedule,
@@ -234,7 +276,7 @@ DuePrayerOccurrence _occurrence({
     ),
     device: PrayerReminderDevice(
       id: 'device-row-1',
-      reminderId: 'reminder-1',
+      reminderId: reminderId,
       deviceId: 'device-1',
       enabledOnDevice: true,
       nextOccurrenceAt: nextAt,
@@ -364,8 +406,12 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
 }
 
 class _FakePrayerReminderScheduler implements PrayerReminderScheduler {
-  _FakePrayerReminderScheduler({this.permissionGranted = true});
+  _FakePrayerReminderScheduler({
+    this.permissionGranted = true,
+    this.initializeResponse,
+  });
   final bool permissionGranted;
+  final PrayerReminderResponse? initializeResponse;
   final _responses = StreamController<PrayerReminderResponse>.broadcast();
   final scheduled = <PrayerScheduledNotification>[];
   final cancelled = <int>[];
@@ -376,7 +422,10 @@ class _FakePrayerReminderScheduler implements PrayerReminderScheduler {
   Stream<PrayerReminderResponse> get responses => _responses.stream;
 
   @override
-  Future<void> initialize() async {}
+  Future<void> initialize() async {
+    final response = initializeResponse;
+    if (response != null) _responses.add(response);
+  }
 
   @override
   Future<bool> requestPermission() async {

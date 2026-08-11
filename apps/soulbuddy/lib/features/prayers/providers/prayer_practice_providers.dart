@@ -12,6 +12,7 @@ import '../application/prayer_reminder_scheduler_factory.dart';
 import '../data/powersync_prayer_practice_repository.dart';
 import '../data/prayer_practice_repository.dart';
 import '../domain/prayer_reminder.dart';
+import '../domain/prayer_session.dart';
 
 final prayerPracticeClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
@@ -88,6 +89,42 @@ final prayerSessionCountProvider = StreamProvider.autoDispose
       );
       yield* repository.watchSessionCount(revisionId);
     });
+
+final duePrayerOccurrencesProvider = StreamProvider<List<DuePrayerOccurrence>>((
+  ref,
+) async* {
+  final coordinator = await ref.watch(prayerReminderCoordinatorProvider.future);
+  yield* coordinator.dueOccurrences;
+});
+
+final prayerReminderEventsProvider =
+    StreamProvider<PrayerReminderCoordinatorEvent>((ref) async* {
+      final coordinator = await ref.watch(
+        prayerReminderCoordinatorProvider.future,
+      );
+      yield* coordinator.events;
+    });
+
+final prayerReminderActionProvider =
+    Provider<
+      Future<PrayerSession?> Function(DuePrayerOccurrence, PrayerReminderAction)
+    >((ref) {
+      return (occurrence, action) async {
+        final coordinator = await ref.read(
+          prayerReminderCoordinatorProvider.future,
+        );
+        return coordinator.performAction(occurrence, action);
+      };
+    });
+
+final prayerSessionRetractorProvider = Provider<Future<void> Function(String)>((
+  ref,
+) {
+  return (sessionId) async {
+    final repository = await ref.read(prayerPracticeRepositoryProvider.future);
+    await repository.retractSession(sessionId);
+  };
+});
 
 void retryPrayerPracticeProviders(Ref ref) {
   if (ref.read(appDatabaseProvider).hasError) {

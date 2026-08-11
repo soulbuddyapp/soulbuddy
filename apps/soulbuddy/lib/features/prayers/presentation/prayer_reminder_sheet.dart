@@ -32,6 +32,7 @@ class PrayerReminderControl extends ConsumerWidget {
   }) => SizedBox(
     width: double.infinity,
     child: OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
       onPressed: enabled
           ? () => showPrayerReminderSheet(
               context,
@@ -162,6 +163,9 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                 const SizedBox(height: AppSpacing.md),
                 OutlinedButton.icon(
                   key: const Key('prayer-reminder-time'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                  ),
                   onPressed: _saving ? null : _chooseTime,
                   icon: const Icon(Icons.schedule),
                   label: Text(
@@ -179,6 +183,7 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                 ],
                 const SizedBox(height: AppSpacing.md),
                 FilledButton(
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
                   onPressed: _saving ? null : _save,
                   child: Text(_saving ? 'Saving…' : 'Save reminder'),
                 ),

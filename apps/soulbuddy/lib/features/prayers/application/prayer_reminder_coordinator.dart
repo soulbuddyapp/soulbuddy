@@ -66,8 +66,18 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   final PrayerOccurrenceCalculator _calculator;
   final DateTime Function() _clock;
   final Future<String> Function() _timezoneName;
-  final _events = StreamController<PrayerReminderCoordinatorEvent>.broadcast();
+  late final StreamController<PrayerReminderCoordinatorEvent> _events =
+      StreamController<PrayerReminderCoordinatorEvent>.broadcast(
+        onListen: _flushEventBacklog,
+      );
+  late final StreamController<List<DuePrayerOccurrence>> _dueChanges =
+      StreamController<List<DuePrayerOccurrence>>.broadcast(
+        onListen: _replayCurrentDue,
+      );
+  final _eventBacklog = <PrayerReminderCoordinatorEvent>[];
   final _processedActions = <String>{};
+  final _hiddenOccurrenceKeys = <String>{};
+  final _pendingResponses = <PrayerReminderResponse>[];
 
   StreamSubscription<List<DuePrayerOccurrence>>? _occurrencesSubscription;
   StreamSubscription<PrayerReminderResponse>? _responsesSubscription;
@@ -79,8 +89,11 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   bool _disposed = false;
   bool _permissionAsked = false;
   bool _permissionGranted = false;
+  List<DuePrayerOccurrence> _currentDue = const [];
 
   Stream<PrayerReminderCoordinatorEvent> get events => _events.stream;
+  Stream<List<DuePrayerOccurrence>> get dueOccurrences => _dueChanges.stream;
+  List<DuePrayerOccurrence> get currentDue => _currentDue;
 
   Future<void> start() async {
     if (_disposed) {
@@ -90,18 +103,31 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       return;
     }
     _started = true;
-    await _scheduler.initialize();
     WidgetsBinding.instance.addObserver(this);
     _occurrencesSubscription = _repository
         .watchDue(_allScheduledBoundary)
         .listen((occurrences) {
           _occurrences = List.unmodifiable(occurrences);
-          _enqueueReported(_reconcile);
+          final keys = {
+            for (final occurrence in occurrences)
+              if (occurrence.occurrenceAt != null) occurrence.occurrenceKey,
+          };
+          _hiddenOccurrenceKeys.retainWhere(keys.contains);
+          _processedActions.removeWhere(
+            (actionKey) => !keys.any(actionKey.endsWith),
+          );
+          _enqueueReported(() async {
+            await _drainPendingResponses();
+            await _reconcile();
+          });
         }, onError: _reportError);
     _responsesSubscription = _scheduler.responses.listen(
-      (response) => _enqueueReported(() => _handleResponse(response)),
+      (response) => _enqueueReported(() async {
+        await _handleResponse(response);
+      }),
       onError: _reportError,
     );
+    await _scheduler.initialize();
     await reconcileNow();
   }
 
@@ -118,6 +144,23 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   }
 
   Future<void> reconcileNow() => _enqueue(_reconcile);
+
+  Future<PrayerSession?> performAction(
+    DuePrayerOccurrence occurrence,
+    PrayerReminderAction action,
+  ) async {
+    PrayerSession? session;
+    await _enqueue(() async {
+      session = await _handleResponse(
+        PrayerReminderResponse(
+          reminderId: occurrence.reminder.id,
+          occurrenceKey: occurrence.occurrenceKey,
+          action: action,
+        ),
+      );
+    });
+    return session;
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -137,7 +180,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     final previousTimezone = _lastTimezone;
     _lastTimezone = currentTimezone;
     if (previousTimezone != null && previousTimezone != currentTimezone) {
-      _events.add(
+      _emitEvent(
         PrayerReminderTimezoneChanged(
           previousTimezone: previousTimezone,
           currentTimezone: currentTimezone,
@@ -182,12 +225,15 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
         timezoneName: currentTimezone,
       );
     }
+    _refreshDue(now);
     _armTimer(now, earliestFuture);
   }
 
-  Future<void> _handleResponse(PrayerReminderResponse response) async {
+  Future<PrayerSession?> _handleResponse(
+    PrayerReminderResponse response,
+  ) async {
     if (_disposed) {
-      return;
+      return null;
     }
     final occurrence = _occurrences.cast<DuePrayerOccurrence?>().firstWhere(
       (candidate) =>
@@ -196,18 +242,28 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       orElse: () => null,
     );
     if (occurrence == null) {
-      return;
+      final duplicate = _pendingResponses.any(
+        (pending) =>
+            pending.reminderId == response.reminderId &&
+            pending.occurrenceKey == response.occurrenceKey &&
+            pending.action == response.action,
+      );
+      if (!duplicate && _pendingResponses.length < 16) {
+        _pendingResponses.add(response);
+      }
+      return null;
     }
     final actionKey =
         '${response.action.name}:${response.reminderId}:${response.occurrenceKey}';
     if (!_processedActions.add(actionKey)) {
-      return;
+      return null;
     }
 
     try {
       switch (response.action) {
         case PrayerReminderAction.open:
-          _events.add(PrayerReminderOpened(occurrence));
+          _emitEvent(PrayerReminderOpened(occurrence));
+          return null;
         case PrayerReminderAction.prayed:
           final session = await _repository.recordSession(
             personalPrayerId: occurrence.reminder.personalPrayerId,
@@ -216,19 +272,26 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
             reminderId: occurrence.reminder.id,
             occurrenceKey: occurrence.occurrenceKey,
           );
-          _events.add(PrayerReminderPrayed(occurrence, session));
+          _emitEvent(PrayerReminderPrayed(occurrence, session));
           await _advanceAfterOccurrence(occurrence);
+          return session;
         case PrayerReminderAction.snoozeTenMinutes:
           final until = _clock().toUtc().add(const Duration(minutes: 10));
           await _repository.snooze(occurrence.reminder.id, until);
-          _events.add(PrayerReminderSnoozed(occurrence, until));
+          _hiddenOccurrenceKeys.add(occurrence.occurrenceKey);
+          _refreshDue(_clock().toUtc());
+          _emitEvent(PrayerReminderSnoozed(occurrence, until));
+          return null;
         case PrayerReminderAction.dismiss:
           await _repository.dismiss(
             occurrence.reminder.id,
             occurrence.occurrenceKey,
           );
-          _events.add(PrayerReminderDismissed(occurrence));
+          _hiddenOccurrenceKeys.add(occurrence.occurrenceKey);
+          _refreshDue(_clock().toUtc());
+          _emitEvent(PrayerReminderDismissed(occurrence));
           await _advanceAfterOccurrence(occurrence);
+          return null;
       }
     } catch (_) {
       _processedActions.remove(actionKey);
@@ -237,6 +300,8 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   }
 
   Future<void> _advanceAfterOccurrence(DuePrayerOccurrence occurrence) async {
+    _hiddenOccurrenceKeys.add(occurrence.occurrenceKey);
+    _refreshDue(_clock().toUtc());
     if (occurrence.reminder.schedule.type == PrayerScheduleType.once) {
       await _cancelAndDisable(occurrence);
       return;
@@ -259,6 +324,33 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       expectedAt: next,
       timezoneName: timezoneName,
     );
+  }
+
+  Future<void> _drainPendingResponses() async {
+    if (_pendingResponses.isEmpty) return;
+    final pending = List<PrayerReminderResponse>.of(_pendingResponses);
+    _pendingResponses.clear();
+    for (final response in pending) {
+      await _handleResponse(response);
+    }
+  }
+
+  void _refreshDue(DateTime nowUtc) {
+    final due = <DuePrayerOccurrence>[];
+    for (final occurrence in _occurrences) {
+      final at = occurrence.occurrenceAt;
+      if (at == null || at.toUtc().isAfter(nowUtc)) continue;
+      final key = occurrence.occurrenceKey;
+      if (_hiddenOccurrenceKeys.contains(key) ||
+          occurrence.device.dismissedOccurrenceKey == key) {
+        continue;
+      }
+      due.add(occurrence);
+    }
+    _currentDue = List.unmodifiable(due);
+    if (!_disposed && !_dueChanges.isClosed) {
+      _dueChanges.add(_currentDue);
+    }
   }
 
   Future<void> _replaceNotification(
@@ -341,6 +433,37 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     }
   }
 
+  void _emitEvent(PrayerReminderCoordinatorEvent event) {
+    if (_events.hasListener) {
+      _events.add(event);
+      return;
+    }
+    if (_eventBacklog.length == 16) {
+      _eventBacklog.removeAt(0);
+    }
+    _eventBacklog.add(event);
+  }
+
+  void _flushEventBacklog() {
+    if (_eventBacklog.isEmpty) return;
+    final pending = List<PrayerReminderCoordinatorEvent>.of(_eventBacklog);
+    _eventBacklog.clear();
+    scheduleMicrotask(() {
+      if (_disposed || _events.isClosed) return;
+      for (final event in pending) {
+        _events.add(event);
+      }
+    });
+  }
+
+  void _replayCurrentDue() {
+    scheduleMicrotask(() {
+      if (!_disposed && !_dueChanges.isClosed) {
+        _dueChanges.add(_currentDue);
+      }
+    });
+  }
+
   Future<void> dispose() async {
     if (_disposed) {
       return;
@@ -351,6 +474,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     await _occurrencesSubscription?.cancel();
     await _responsesSubscription?.cancel();
     await _serial;
+    await _dueChanges.close();
     await _events.close();
   }
 }
