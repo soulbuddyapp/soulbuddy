@@ -45,13 +45,20 @@ if (-not $driverAlreadyRunning) {
 
 Push-Location "$PSScriptRoot\..\apps\soulbuddy"
 try {
-  flutter drive `
-    -d chrome `
-    --driver=test_driver/integration_test.dart `
-    --target=integration_test/offline_encounter_flow_test.dart `
-    --headless `
-    --browser-dimension=390x844
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  $targets = @(
+    'integration_test/offline_encounter_flow_test.dart',
+    'integration_test/offline_prayer_flow_test.dart'
+  )
+
+  foreach ($target in $targets) {
+    flutter drive `
+      -d chrome `
+      --driver=test_driver/integration_test.dart `
+      --target=$target `
+      --headless `
+      --browser-dimension=390x844
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  }
 } finally {
   Pop-Location
   if ($driverProcess -ne $null -and -not $driverProcess.HasExited) {

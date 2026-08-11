@@ -19,6 +19,9 @@ try {
   composer validate --strict --no-check-publish
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+  composer audit --locked
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   vendor\bin\pint --test
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

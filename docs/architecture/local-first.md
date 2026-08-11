@@ -8,6 +8,9 @@ SoulBuddy treats the device database as the interaction path and Laravel/Postgre
 - An Encounter and its first immutable revision are written in one local transaction.
 - Remember observes the local database; it never performs an HTTP read.
 - Archiving hides an Encounter without deleting revision history.
+- A versioned bundled prayer manifest is validated and imported idempotently into `bundled_prayers`, a local-only table that never enters the upload queue.
+- Canonical `library_prayers` rows take precedence over bundled rows with the same stable UUID. Their cached Helpful totals are derived and maintained by Laravel/PostgreSQL, never supplied by a client mutation.
+- Helpful votes and dated Today selections are private owner-scoped rows. They are written optimistically to local SQLite and remain usable while sync is unavailable.
 - RSVCE is a separate read-only SQLite source. It is indexed locally and never enters synced tables.
 - An empty remote configuration leaves the application usable in local-only mode.
 - Sync issues are local-only records. Recording one can never create another upload mutation.
@@ -15,7 +18,9 @@ SoulBuddy treats the device database as the interaction path and Laravel/Postgre
 
 ## Server mutation semantics
 
-Laravel derives ownership from the authenticated user. Client-supplied owner identifiers are ignored. A mutation batch accepts only Encounter and Encounter-revision operations in this milestone, stores operation UUIDs with user/payload fingerprints for replay safety, validates paired revisions, supports partial Encounter patches, and applies the batch in a database transaction.
+Laravel derives ownership from the authenticated user. Client-supplied owner identifiers are ignored. A mutation batch accepts Encounter, Encounter-revision, prayer-vote, and Today-selection operations, stores operation UUIDs with user/payload fingerprints for replay safety, validates paired revisions and published prayer references, supports partial updates where defined, and applies the batch in a database transaction.
+
+Prayer vote counts are canonical server data. Database triggers keep totals correct for direct, bulk, and cascading changes; client writes cannot set `helpful_count`. Alias rows reconcile installation-local mutation IDs to one semantic vote per user/prayer and one Today selection per user/local date. Every private lookup and mutation is scoped to the authenticated user, including replay and delete paths.
 
 Structural request failures return 422. Domain rejections such as unsupported tables, incomplete pairs, operation conflicts, and forbidden ownership return HTTP 200 with accepted/rejected counts so one rejected record need not permanently block later uploads. The Flutter connector validates that these counts account for every submitted operation before completing a local transaction. Transient infrastructure failures remain 5xx and leave the client upload queue pending; permanent request failures create a sanitized local issue and release later writes.
 
@@ -28,3 +33,9 @@ Prayer text, Encounter titles/bodies, Scripture selections, and Circle messages 
 Docker is not installed in this workspace, so no local PowerSync service is started. The real local database and Laravel contract are tested independently. When remote URLs are present, the app opens its local database first and starts PowerSync with the Laravel connector. The connector batches each local PowerSync transaction into one authenticated Laravel request, preserves retryable writes, and records sanitized local issues for permanent rejections. Laravel issues ten-minute PowerSync JWTs with a configured key ID using the authenticated user's immutable public UUID; no name, email, prayer, or Encounter text is included in the token.
 
 Remote activation still depends on the later application-authentication milestone supplying a Laravel session token. Until then, or whenever either remote URL is empty, SoulBuddy stays fully usable in local-only mode.
+
+## Formation guardrails
+
+Local-first performance serves the spiritual purpose: the app should be easy to reach when a person needs to pray, act, or remember. Features are evaluated by whether they support a response to grace, form character, encourage outward love and responsible action, or preserve spiritual memory for the person, family, and those who come after them.
+
+These are qualitative product guardrails, never calculated accounts. Helpful ordering describes the usefulness of shared prayer copy; it is not spiritual rank. SoulBuddy has no spiritual-capital score, points, streak rewards, leaderboard, or achievement dashboard, and practice completion produces no public state or celebratory reward.
