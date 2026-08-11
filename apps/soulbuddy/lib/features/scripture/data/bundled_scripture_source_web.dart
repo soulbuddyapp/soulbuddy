@@ -161,7 +161,7 @@ class _WebScriptureRepository {
       (null, null) => '$bookName $chapter',
       (final int first, final int last) when first == last =>
         '$bookName $chapter:$first',
-      (final int first, final int last) => '$bookName $chapter:$firstâ€“$last',
+      (final int first, final int last) => '$bookName $chapter:$first-$last',
       _ => '$bookName $chapter',
     };
     return ScripturePassage(

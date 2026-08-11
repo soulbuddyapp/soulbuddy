@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/design/app_theme.dart';
+import '../features/prayers/providers/personal_prayer_providers.dart';
 import 'router.dart';
 
-class SoulBuddyApp extends StatelessWidget {
+class SoulBuddyApp extends ConsumerWidget {
   const SoulBuddyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(prayerGenerationWorkerProvider);
     return MaterialApp.router(
       title: 'SoulBuddy',
       debugShowCheckedModeBanner: false,

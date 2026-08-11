@@ -283,8 +283,21 @@ class _FlowBody extends StatelessWidget {
       PersonalizedPrayerStep.context => _ContextStep(
         requestId: requestId,
         request: state.request!,
+        onPrepare: () => _prepareDraft(context),
       ),
     };
+  }
+
+  Future<void> _prepareDraft(BuildContext context) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => const _PrayerDraftConsentSheet(),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final id = await controller.prepareDraft();
+    if (!context.mounted) return;
+    GoRouter.maybeOf(context)?.go('/prayers/requests/$id/draft');
   }
 }
 
@@ -366,10 +379,15 @@ class _BeforeYouAsk extends StatelessWidget {
 }
 
 class _ContextStep extends StatelessWidget {
-  const _ContextStep({required this.requestId, required this.request});
+  const _ContextStep({
+    required this.requestId,
+    required this.request,
+    required this.onPrepare,
+  });
 
   final String? requestId;
   final PrayerGenerationRequest request;
+  final Future<void> Function() onPrepare;
 
   @override
   Widget build(BuildContext context) {
@@ -408,6 +426,12 @@ class _ContextStep extends StatelessWidget {
           label: const Text('Add Scripture'),
         ),
         const SizedBox(height: AppSpacing.lg),
+        FilledButton(
+          key: const Key('prepare-prayer-draft'),
+          onPressed: onPrepare,
+          child: const Text('Prepare draft'),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           'Only the choices and records you select will be used for this draft.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -415,6 +439,49 @@ class _ContextStep extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PrayerDraftConsentSheet extends StatelessWidget {
+  const _PrayerDraftConsentSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Prepare your prayer draft',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'To prepare this draft, SoulBuddy sends your choices and only the records you selected to DeepSeek. DeepSeek processes this information under its privacy policy.',
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Prepare draft'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Not now'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -8,6 +8,8 @@ const localOwnerIdStorageKey = 'soulbuddy.local_owner_id';
 const deviceIdStorageKey = 'soulbuddy.device_id';
 const appSessionTokenStorageKey = 'soulbuddy.app_session_token';
 
+typedef AppSessionTokenReader = Future<String?> Function();
+
 final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
   return const FlutterSecureStorage();
 });
@@ -29,4 +31,9 @@ final localIdentityProvider = FutureProvider<LocalIdentity>((ref) async {
   }
 
   return LocalIdentity(ownerId: ownerId, deviceId: deviceId);
+});
+
+final appSessionTokenReaderProvider = Provider<AppSessionTokenReader>((ref) {
+  final storage = ref.watch(secureStorageProvider);
+  return () => storage.read(key: appSessionTokenStorageKey);
 });

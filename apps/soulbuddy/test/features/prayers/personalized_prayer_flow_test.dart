@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_generation_repository.dart';
+import 'package:soulbuddy/features/prayers/application/prayer_generation_dispatcher.dart';
+import 'package:soulbuddy/features/prayers/data/prayer_draft_api.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
 import 'package:soulbuddy/features/prayers/presentation/personalized_prayer_screen.dart';
@@ -208,6 +210,36 @@ void main() {
     expect(find.text('Before you ask'), findsOneWidget);
     expect(find.text('Who should this blessing help?'), findsOneWidget);
   });
+
+  testWidgets('provider disclosure queues only after Prepare draft', (
+    tester,
+  ) async {
+    final repository = _InMemoryGenerationRepository();
+    await tester.pumpWidget(_testApp(repository));
+    await tester.pumpAndSettle();
+    await _reachContext(tester);
+
+    await tester.tap(find.text('Prepare draft'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'To prepare this draft, SoulBuddy sends your choices and only the records you selected to DeepSeek. DeepSeek processes this information under its privacy policy.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Not now'));
+    await tester.pumpAndSettle();
+    expect(repository.queueCalls, 0);
+
+    await tester.tap(find.text('Prepare draft'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Prepare draft').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.queueCalls, 1);
+    expect(repository.current?.consentedProvider, 'deepseek');
+    expect(repository.current?.consentedDisclosureVersion, 'deepseek-1');
+  });
 }
 
 Future<void> _reachRequest(
@@ -257,6 +289,13 @@ Widget _testApp(_InMemoryGenerationRepository repository, {String? requestId}) {
       ),
       encountersProvider.overrideWith((ref) => Stream.value(encounters)),
       scriptureRepositoryProvider.overrideWithValue(_FixtureScripture()),
+      prayerGenerationDispatcherProvider.overrideWith(
+        (ref) async => PrayerGenerationDispatcher(
+          repository: repository,
+          api: const _UnavailableDraftApi(),
+          now: () => now,
+        ),
+      ),
     ],
     child: MaterialApp(home: PersonalizedPrayerScreen(requestId: requestId)),
   );
@@ -282,7 +321,7 @@ class _FixtureScripture implements ScriptureRepository {
     required int firstVerse,
     required int lastVerse,
   }) async => ScripturePassage(
-    reference: 'John 3:$firstVerseâ€“$lastVerse',
+    reference: 'John 3:$firstVerse-$lastVerse',
     verses: const [
       ScriptureVerse(number: 1, text: 'First verse.'),
       ScriptureVerse(number: 2, text: 'Second verse.'),
@@ -295,6 +334,7 @@ class _InMemoryGenerationRepository implements PrayerGenerationRepository {
     sync: true,
   );
   PrayerGenerationRequest? current;
+  int queueCalls = 0;
 
   @override
   Future<PrayerGenerationRequest> create({
@@ -364,7 +404,32 @@ class _InMemoryGenerationRepository implements PrayerGenerationRepository {
     String requestId, {
     required String provider,
     required String disclosureVersion,
-  }) async {}
+  }) async {
+    queueCalls++;
+    final value = current!;
+    current = PrayerGenerationRequest(
+      id: value.id,
+      ownerId: value.ownerId,
+      style: value.style,
+      reach: value.reach,
+      grounding: value.grounding,
+      purpose: value.purpose,
+      requestText: value.requestText,
+      beneficiaryChoice: value.beneficiaryChoice,
+      surrenderChoice: value.surrenderChoice,
+      responsibilityChoice: value.responsibilityChoice,
+      alignmentChoice: value.alignmentChoice,
+      status: PrayerGenerationStatus.queued,
+      providerDisclosureVersion: disclosureVersion,
+      consentedProvider: provider,
+      consentedDisclosureVersion: disclosureVersion,
+      attemptCount: value.attemptCount,
+      contexts: value.contexts,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+    );
+    _changes.add(current);
+  }
 
   @override
   Future<void> requireAttention(
@@ -379,4 +444,18 @@ class _InMemoryGenerationRepository implements PrayerGenerationRepository {
     String attemptId,
     PrayerGeneratedDraft draft,
   ) async {}
+}
+
+class _UnavailableDraftApi implements PrayerDraftApi {
+  const _UnavailableDraftApi();
+
+  @override
+  Future<void> acknowledge(String attemptId) async {}
+
+  @override
+  Future<PrayerGeneratedDraft> generate(
+    PrayerGenerationRequest request,
+    List<PrayerGenerationContext> contexts,
+    String attemptId,
+  ) async => throw const PrayerDraftUnavailable();
 }

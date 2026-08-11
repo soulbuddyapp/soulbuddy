@@ -1,15 +1,26 @@
+import 'dart:async';
+
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../record/domain/encounter.dart';
 import '../../scripture/data/bundled_scripture_source.dart';
 import '../../scripture/data/scripture_repository.dart';
 import '../../scripture/domain/scripture_passage.dart';
+import '../application/prayer_generation_dispatcher.dart';
+import '../application/prayer_generation_worker.dart';
+import '../data/laravel_prayer_draft_api.dart';
+import '../data/personal_prayer_repository.dart';
+import '../data/powersync_personal_prayer_repository.dart';
 import '../data/powersync_prayer_generation_repository.dart';
+import '../data/prayer_draft_api.dart';
 import '../data/prayer_generation_repository.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_generation_request.dart';
+import '../domain/personal_prayer.dart';
 
 final prayerGenerationRepositoryProvider =
     FutureProvider<PrayerGenerationRepository>((ref) async {
@@ -20,6 +31,67 @@ final prayerGenerationRepositoryProvider =
         ownerId: identity.ownerId,
       );
     });
+
+final personalPrayerRepositoryProvider =
+    FutureProvider<PersonalPrayerRepository>((ref) async {
+      final database = await ref.watch(appDatabaseProvider.future);
+      final identity = await ref.watch(localIdentityProvider.future);
+      return PowerSyncPersonalPrayerRepository(
+        database: database.powersync,
+        ownerId: identity.ownerId,
+        deviceId: identity.deviceId,
+      );
+    });
+
+final prayerDraftApiProvider = Provider<PrayerDraftApi>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  final configured = Uri.tryParse(AppConfig.apiBaseUrl);
+  final apiBaseUri = configured != null && configured.hasScheme
+      ? configured
+      : Uri.parse('http://127.0.0.1');
+  return LaravelPrayerDraftApi(
+    apiBaseUri: apiBaseUri,
+    accessToken: ref.watch(appSessionTokenReaderProvider),
+    client: client,
+  );
+});
+
+final prayerGenerationDispatcherProvider =
+    FutureProvider<PrayerGenerationDispatcher>((ref) async {
+      return PrayerGenerationDispatcher(
+        repository: await ref.watch(prayerGenerationRepositoryProvider.future),
+        api: ref.watch(prayerDraftApiProvider),
+      );
+    });
+
+final prayerGenerationRequestProvider = StreamProvider.autoDispose
+    .family<PrayerGenerationRequest?, String>((ref, requestId) async* {
+      final repository = await ref.watch(
+        prayerGenerationRepositoryProvider.future,
+      );
+      yield* repository.watch(requestId);
+    });
+
+final personalPrayerProvider = StreamProvider.autoDispose
+    .family<PersonalPrayer?, String>((ref, prayerId) async* {
+      final repository = await ref.watch(
+        personalPrayerRepositoryProvider.future,
+      );
+      yield* repository.watch(prayerId);
+    });
+
+final prayerGenerationWorkerProvider = FutureProvider<PrayerGenerationWorker>((
+  ref,
+) async {
+  final worker = PrayerGenerationWorker(
+    repository: await ref.watch(prayerGenerationRepositoryProvider.future),
+    dispatcher: await ref.watch(prayerGenerationDispatcherProvider.future),
+  );
+  worker.start();
+  ref.onDispose(() => unawaited(worker.dispose()));
+  return worker;
+});
 
 final scriptureRepositoryProvider = Provider<ScriptureRepository>(
   (ref) => const BundledScriptureRepository(),
@@ -219,6 +291,23 @@ class PersonalizedPrayerController
         lastVerse: lastVerse,
       ),
     );
+  }
+
+  Future<String> prepareDraft() async {
+    final request = _value.request!;
+    final repository = await ref.read(
+      prayerGenerationRepositoryProvider.future,
+    );
+    await repository.queue(
+      request.id,
+      provider: AppConfig.prayerDraftProvider,
+      disclosureVersion: AppConfig.prayerDraftDisclosureVersion,
+    );
+    final dispatcher = await ref.read(
+      prayerGenerationDispatcherProvider.future,
+    );
+    unawaited(dispatcher.dispatch(request.id));
+    return request.id;
   }
 
   void goBack() {
