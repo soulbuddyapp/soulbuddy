@@ -162,6 +162,76 @@ const appSchema = Schema([
       Index('personal_prayer_links_parent', [IndexedColumn('prayer_id')]),
     ],
   ),
+  Table(
+    'prayer_reminders',
+    [
+      Column.text('owner_id'),
+      Column.text('personal_prayer_id'),
+      Column.text('schedule_type'),
+      Column.text('local_time'),
+      Column.text('timezone'),
+      Column.text('once_at'),
+      Column.integer('weekdays_mask'),
+      Column.integer('enabled'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('prayer_reminders_owner_prayer', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('personal_prayer_id'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'prayer_reminder_devices',
+    [
+      Column.text('reminder_id'),
+      Column.text('device_id'),
+      Column.integer('enabled_on_device'),
+      Column.text('next_occurrence_at'),
+      Column.integer('platform_notification_id'),
+      Column.text('scheduled_timezone'),
+      Column.text('snoozed_until'),
+      Column.text('dismissed_occurrence_key'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('prayer_reminder_devices_due', [
+        IndexedColumn('device_id'),
+        IndexedColumn('enabled_on_device'),
+        IndexedColumn('next_occurrence_at'),
+      ]),
+    ],
+  ),
+  Table(
+    'prayer_sessions',
+    [
+      Column.text('owner_id'),
+      Column.text('personal_prayer_id'),
+      Column.text('prayer_revision_id'),
+      Column.text('reminder_id'),
+      Column.text('reminder_occurrence_key'),
+      Column.text('source'),
+      Column.text('occurred_at'),
+      Column.text('local_date'),
+      Column.text('timezone'),
+      Column.text('device_id'),
+      Column.text('retracted_at'),
+    ],
+    indexes: [
+      Index('prayer_sessions_owner_revision', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('prayer_revision_id'),
+        IndexedColumn('retracted_at'),
+      ]),
+      Index('prayer_sessions_occurrence', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('reminder_occurrence_key'),
+      ]),
+    ],
+  ),
   Table.localOnly(
     'prayer_generation_contexts',
     [
