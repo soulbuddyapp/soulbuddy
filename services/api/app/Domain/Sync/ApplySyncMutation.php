@@ -5,6 +5,7 @@ namespace App\Domain\Sync;
 use App\Models\Encounter;
 use App\Models\EncounterRevision;
 use App\Models\LibraryPrayer;
+use App\Models\PrayerRecordAlias;
 use App\Models\PrayerVote;
 use App\Models\SyncOperation;
 use App\Models\TodayPrayer;
@@ -101,23 +102,44 @@ class ApplySyncMutation
             }
         }
 
-        $prayerTargetError = $this->validateTargets($user, $prayerOperations);
-        if ($prayerTargetError !== null) {
-            return $this->result($duplicates, $pending->count(), $duplicates, $prayerTargetError);
-        }
-
         try {
-            DB::transaction(function () use ($user, $pending) {
+            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations): ?string {
+                $prayerContexts = [];
+                if ($prayerOperations !== []) {
+                    User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                    $prepared = $this->preparePrayerMutations($user, $prayerOperations);
+                    $prayerContexts = $prepared['contexts'];
+                    $lockedPrayers = $this->lockPrayers($prepared['prayer_ids']);
+                    $prayerError = $this->validatePreparedPrayerMutations(
+                        $prayerOperations,
+                        $prayerContexts,
+                        $lockedPrayers,
+                    );
+                    if ($prayerError !== null) {
+                        return $prayerError;
+                    }
+                }
+
                 foreach ($pending->sortBy(fn (array $operation) => $operation['table'] === 'encounters' ? 0 : 1) as $operation) {
                     match ($operation['table']) {
                         'encounters' => $this->applyEncounter($user, $operation),
                         'encounter_revisions' => $this->applyRevision($user, $operation),
-                        'prayer_votes' => $this->applyPrayerVote($user, $operation),
-                        'today_prayers' => $this->applyTodayPrayer($user, $operation),
+                        'prayer_votes' => $this->applyPrayerVote(
+                            $user,
+                            $operation,
+                            $prayerContexts[$operation['operation_id']],
+                        ),
+                        'today_prayers' => $this->applyTodayPrayer(
+                            $user,
+                            $operation,
+                            $prayerContexts[$operation['operation_id']],
+                        ),
                     };
 
                     $this->storeSyncOperation($user, $operation);
                 }
+
+                return null;
             });
         } catch (AuthorizationException) {
             return $this->result($duplicates, $pending->count(), $duplicates, 'forbidden');
@@ -137,6 +159,10 @@ class ApplySyncMutation
             }
 
             throw $exception;
+        }
+
+        if ($prayerError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $prayerError);
         }
 
         return $this->result(count($operations), 0, $duplicates);
@@ -172,54 +198,9 @@ class ApplySyncMutation
                         : 'forbidden';
                 }
             }
-            if ($operation['table'] === 'prayer_votes') {
-                $error = $this->validatePrayerVoteTarget($user, $operation);
-                if ($error !== null) {
-                    return $error;
-                }
-            }
-            if ($operation['table'] === 'today_prayers') {
-                $error = $this->validateTodayPrayerTarget($user, $operation);
-                if ($error !== null) {
-                    return $error;
-                }
-            }
         }
 
         return null;
-    }
-
-    private function validatePrayerVoteTarget(User $user, array $operation): ?string
-    {
-        $vote = PrayerVote::find($operation['id']);
-        if ($vote !== null && $vote->user_id !== $user->id) {
-            return 'inaccessible_record';
-        }
-        if ($operation['type'] === 'delete') {
-            return null;
-        }
-
-        $prayerId = $operation['data']['prayer_id'];
-
-        return $this->isPublishedPrayer($prayerId) ? null : 'invalid_prayer';
-    }
-
-    private function validateTodayPrayerTarget(User $user, array $operation): ?string
-    {
-        $selection = TodayPrayer::find($operation['id']);
-        if ($selection !== null && $selection->user_id !== $user->id) {
-            return 'inaccessible_record';
-        }
-        if ($operation['type'] === 'delete') {
-            return null;
-        }
-        if ($operation['type'] === 'patch' && $selection === null) {
-            return 'inaccessible_record';
-        }
-
-        $prayerId = $operation['data']['prayer_id'] ?? $selection->prayer_id;
-
-        return $this->isPublishedPrayer($prayerId) ? null : 'invalid_prayer';
     }
 
     private function validatePairs(array $operations): ?string
@@ -354,30 +335,163 @@ class ApplySyncMutation
         ]);
     }
 
-    private function applyPrayerVote(User $user, array $operation): void
+    /**
+     * @param  array<int, array<string, mixed>>  $operations
+     * @return array{contexts: array<string, array<string, mixed>>, prayer_ids: array<int, string>}
+     */
+    private function preparePrayerMutations(User $user, array $operations): array
     {
-        if ($operation['type'] === 'put') {
-            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+        $contexts = [];
+        $prayerIds = [];
+
+        foreach ($operations as $operation) {
+            $recordType = $operation['table'] === 'prayer_votes'
+                ? PrayerRecordAlias::TYPE_VOTE
+                : PrayerRecordAlias::TYPE_TODAY;
+            $record = $this->resolveOwnedPrayerRecord($user, $operation, $recordType);
+
+            if ($record === null && $operation['type'] === 'put') {
+                $record = $operation['table'] === 'prayer_votes'
+                    ? PrayerVote::query()
+                        ->where('user_id', $user->id)
+                        ->where('prayer_id', $operation['data']['prayer_id'])
+                        ->first()
+                    : TodayPrayer::query()
+                        ->where('user_id', $user->id)
+                        ->whereDate('local_date', $operation['data']['local_date'])
+                        ->first();
+            }
+
+            $currentPrayerId = $record?->prayer_id;
+            $requestedPrayerId = $operation['data']['prayer_id'] ?? null;
+            foreach ([$currentPrayerId, $requestedPrayerId] as $prayerId) {
+                if ($prayerId !== null) {
+                    $prayerIds[] = $prayerId;
+                }
+            }
+
+            $contexts[$operation['operation_id']] = [
+                'record_type' => $recordType,
+                'canonical_id' => $record?->id,
+                'current_prayer_id' => $currentPrayerId,
+            ];
         }
 
-        $vote = PrayerVote::find($operation['id']);
-        $prayerId = $vote?->prayer_id ?? $operation['data']['prayer_id'] ?? null;
-        $prayer = $prayerId === null
-            ? null
-            : LibraryPrayer::query()->lockForUpdate()->findOrFail($prayerId);
+        $prayerIds = array_values(array_unique($prayerIds));
+        sort($prayerIds, SORT_STRING);
 
-        if ($operation['type'] === 'put' && $vote === null) {
-            $vote = PrayerVote::query()
+        return ['contexts' => $contexts, 'prayer_ids' => $prayerIds];
+    }
+
+    private function resolveOwnedPrayerRecord(
+        User $user,
+        array $operation,
+        string $recordType,
+    ): PrayerVote|TodayPrayer|null {
+        $model = $operation['table'] === 'prayer_votes'
+            ? PrayerVote::class
+            : TodayPrayer::class;
+        $record = $model::query()
+            ->where('user_id', $user->id)
+            ->whereKey($operation['id'])
+            ->first();
+        if ($record !== null) {
+            return $record;
+        }
+
+        $canonicalId = PrayerRecordAlias::query()
+            ->where('user_id', $user->id)
+            ->where('record_type', $recordType)
+            ->where('alias_id', $operation['id'])
+            ->value('canonical_id');
+        if ($canonicalId === null) {
+            return null;
+        }
+
+        return $model::query()
+            ->where('user_id', $user->id)
+            ->whereKey($canonicalId)
+            ->first();
+    }
+
+    /**
+     * @param  array<int, string>  $prayerIds
+     * @return Collection<string, LibraryPrayer>
+     */
+    private function lockPrayers(array $prayerIds): Collection
+    {
+        if ($prayerIds === []) {
+            return collect();
+        }
+
+        return LibraryPrayer::query()
+            ->whereIn('id', $prayerIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $operations
+     * @param  array<string, array<string, mixed>>  $contexts
+     * @param  Collection<string, LibraryPrayer>  $lockedPrayers
+     */
+    private function validatePreparedPrayerMutations(
+        array $operations,
+        array $contexts,
+        Collection $lockedPrayers,
+    ): ?string {
+        foreach ($operations as $operation) {
+            $context = $contexts[$operation['operation_id']];
+            if ($operation['table'] === 'today_prayers'
+                && $operation['type'] === 'patch'
+                && $context['canonical_id'] === null) {
+                return 'inaccessible_record';
+            }
+            if ($operation['type'] === 'delete') {
+                continue;
+            }
+
+            $prayerId = $operation['data']['prayer_id'] ?? $context['current_prayer_id'];
+            $prayer = $lockedPrayers->get($prayerId);
+            if ($prayer === null
+                || $prayer->published_at === null
+                || $prayer->archived_at !== null) {
+                return 'invalid_prayer';
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $context */
+    private function applyPrayerVote(User $user, array $operation, array $context): void
+    {
+        $vote = $context['canonical_id'] === null
+            ? null
+            : PrayerVote::query()
                 ->where('user_id', $user->id)
-                ->where('prayer_id', $operation['data']['prayer_id'])
+                ->whereKey($context['canonical_id'])
                 ->lockForUpdate()
                 ->first();
-        }
 
         if ($operation['type'] === 'delete') {
-            $vote?->delete();
-        } elseif ($vote === null) {
-            PrayerVote::create([
+            if ($vote !== null) {
+                $canonicalId = $vote->id;
+                $vote->delete();
+                $this->deletePrayerAliases(
+                    $user,
+                    PrayerRecordAlias::TYPE_VOTE,
+                    $canonicalId,
+                );
+            }
+
+            return;
+        }
+
+        if ($vote === null) {
+            $vote = PrayerVote::create([
                 'id' => $operation['id'],
                 'user_id' => $user->id,
                 'prayer_id' => $operation['data']['prayer_id'],
@@ -385,30 +499,30 @@ class ApplySyncMutation
             ]);
         }
 
-        if ($prayer !== null) {
-            $prayer->forceFill([
-                'helpful_count' => PrayerVote::where('prayer_id', $prayer->id)->count(),
-            ])->save();
-        }
+        $this->storePrayerAlias($user, $context['record_type'], $operation['id'], $vote->id);
     }
 
-    private function applyTodayPrayer(User $user, array $operation): void
+    /** @param array<string, mixed> $context */
+    private function applyTodayPrayer(User $user, array $operation, array $context): void
     {
-        if ($operation['type'] === 'put') {
-            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
-            $selection = TodayPrayer::query()
+        $selection = $context['canonical_id'] === null
+            ? null
+            : TodayPrayer::query()
                 ->where('user_id', $user->id)
-                ->where(fn ($query) => $query
-                    ->where('id', $operation['id'])
-                    ->orWhereDate('local_date', $operation['data']['local_date']))
+                ->whereKey($context['canonical_id'])
                 ->lockForUpdate()
                 ->first();
-        } else {
-            $selection = TodayPrayer::find($operation['id']);
-        }
 
         if ($operation['type'] === 'delete') {
-            $selection?->delete();
+            if ($selection !== null) {
+                $canonicalId = $selection->id;
+                $selection->delete();
+                $this->deletePrayerAliases(
+                    $user,
+                    PrayerRecordAlias::TYPE_TODAY,
+                    $canonicalId,
+                );
+            }
 
             return;
         }
@@ -433,15 +547,35 @@ class ApplySyncMutation
                 'action_completed',
             ]);
         $selection->forceFill($attributes)->save();
+        $this->storePrayerAlias($user, $context['record_type'], $operation['id'], $selection->id);
     }
 
-    private function isPublishedPrayer(string $prayerId): bool
+    private function storePrayerAlias(
+        User $user,
+        string $recordType,
+        string $aliasId,
+        string $canonicalId,
+    ): void {
+        if ($aliasId === $canonicalId) {
+            return;
+        }
+
+        PrayerRecordAlias::query()->updateOrCreate([
+            'user_id' => $user->id,
+            'record_type' => $recordType,
+            'alias_id' => $aliasId,
+        ], [
+            'canonical_id' => $canonicalId,
+        ]);
+    }
+
+    private function deletePrayerAliases(User $user, string $recordType, string $canonicalId): void
     {
-        return LibraryPrayer::query()
-            ->whereKey($prayerId)
-            ->whereNotNull('published_at')
-            ->whereNull('archived_at')
-            ->exists();
+        PrayerRecordAlias::query()
+            ->where('user_id', $user->id)
+            ->where('record_type', $recordType)
+            ->where('canonical_id', $canonicalId)
+            ->delete();
     }
 
     private function isConstraintViolation(QueryException $exception): bool

@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Ramsey\Uuid\Uuid;
 
 uses(RefreshDatabase::class);
@@ -140,7 +141,8 @@ it('creates one deterministic vote, treats retries as duplicates, and derives th
         ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(1);
 });
 
-it('locks the authenticated user before the canonical prayer when putting a vote', function () {
+it('records user-before-prayer acquisition order for vote PUTs in SQLite', function () {
+    // SQLite proves the application acquisition contract; real FOR UPDATE behavior is a Postgres deployment test.
     $user = User::factory()->create();
     $prayerId = seededPrayerId();
     $queries = [];
@@ -169,6 +171,87 @@ it('locks the authenticated user before the canonical prayer when putting a vote
     expect($userLockIndex)->not->toBeFalse()
         ->and($prayerLockIndex)->not->toBeFalse()
         ->and($userLockIndex)->toBeLessThan($prayerLockIndex);
+});
+
+it('uses the same sorted prayer acquisition order for A-B and B-A batches in SQLite', function () {
+    // SQLite proves the application acquisition contract; real FOR UPDATE behavior is a Postgres deployment test.
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $prayerA = seededPrayerId();
+    $prayerB = seededPrayerId(2);
+    $queries = [];
+
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = [
+            'sql' => strtolower($query->sql),
+            'bindings' => $query->bindings,
+        ];
+    });
+
+    $batch = function (bool $reverse) use ($prayerA, $prayerB): array {
+        $operations = [
+            syncPrayerOperation(
+                $reverse
+                    ? '0198a600-0000-7000-8000-000000000003'
+                    : '0198a600-0000-7000-8000-000000000001',
+                'prayer_votes',
+                'put',
+                $reverse
+                    ? '0198a600-0000-7000-8000-000000000004'
+                    : '0198a600-0000-7000-8000-000000000002',
+                ['prayer_id' => $prayerB],
+            ),
+            syncPrayerOperation(
+                $reverse
+                    ? '0198a600-0000-7000-8000-000000000007'
+                    : '0198a600-0000-7000-8000-000000000005',
+                'today_prayers',
+                'put',
+                $reverse
+                    ? '0198a600-0000-7000-8000-000000000008'
+                    : '0198a600-0000-7000-8000-000000000006',
+                [
+                    'local_date' => '2026-08-11',
+                    'prayer_id' => $prayerA,
+                    'include_action' => false,
+                    'action_completed' => false,
+                ],
+            ),
+        ];
+
+        return ['operations' => $reverse ? array_reverse($operations) : $operations];
+    };
+    $lockedPrayerBindings = fn (array $captured): ?array => collect($captured)
+        ->first(fn (array $query): bool => str_contains($query['sql'], 'from "library_prayers"')
+            && str_contains($query['sql'], 'order by')
+            && count($query['bindings']) === 2)['bindings'] ?? null;
+
+    $this->actingAs($first)->postJson('/api/sync/mutations', $batch(false))
+        ->assertOk()->assertJsonPath('accepted', 2);
+    $firstOrder = $lockedPrayerBindings($queries);
+
+    $queries = [];
+    $this->actingAs($second)->postJson('/api/sync/mutations', $batch(true))
+        ->assertOk()->assertJsonPath('accepted', 2);
+    $secondOrder = $lockedPrayerBindings($queries);
+
+    expect($firstOrder)->toBe([$prayerA, $prayerB])
+        ->and($secondOrder)->toBe([$prayerA, $prayerB]);
+});
+
+it('creates user-scoped alias and prayer lookup indexes', function () {
+    expect(Schema::hasTable('prayer_record_aliases'))->toBeTrue()
+        ->and(Schema::hasIndex('prayer_votes', ['prayer_id']))->toBeTrue()
+        ->and(Schema::hasIndex('today_prayers', ['prayer_id']))->toBeTrue()
+        ->and(Schema::hasIndex(
+            'prayer_record_aliases',
+            ['user_id', 'record_type', 'alias_id'],
+            'unique',
+        ))->toBeTrue()
+        ->and(Schema::hasIndex(
+            'prayer_record_aliases',
+            ['user_id', 'record_type', 'canonical_id'],
+        ))->toBeTrue();
 });
 
 it('accepts offline installation ids while assigning ownership from authentication', function () {
@@ -209,7 +292,7 @@ it('accepts offline installation ids while assigning ownership from authenticati
         ->and(TodayPrayer::findOrFail($todayId)->user_id)->toBe($user->id);
 });
 
-it('accepts second-installation PUTs by authenticated unique keys', function () {
+it('keeps first canonical rows addressable through second-installation aliases', function () {
     $user = User::factory()->create();
     $prayerId = seededPrayerId();
     $canonicalVoteId = '0198a300-0000-7000-8000-000000000011';
@@ -249,9 +332,97 @@ it('accepts second-installation PUTs by authenticated unique keys', function () 
         ->and(TodayPrayer::first()->id)->toBe($canonicalTodayId)
         ->and(TodayPrayer::first()->prayer_id)->toBe(seededPrayerId(2))
         ->and(TodayPrayer::first()->include_action)->toBeFalse();
+
+    $secondVoteId = '0198a300-0000-7000-8000-000000000012';
+    $secondTodayId = '0198a300-0000-7000-8000-000000000032';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [syncPrayerOperation(
+            '0198a300-0000-7000-8000-000000000041',
+            'today_prayers',
+            'patch',
+            $secondTodayId,
+            ['action_completed' => true],
+        )],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    expect(TodayPrayer::first()->id)->toBe($canonicalTodayId)
+        ->and(TodayPrayer::first()->action_completed)->toBeTrue();
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            syncPrayerOperation(
+                '0198a300-0000-7000-8000-000000000042',
+                'prayer_votes',
+                'delete',
+                $secondVoteId,
+            ),
+            syncPrayerOperation(
+                '0198a300-0000-7000-8000-000000000043',
+                'today_prayers',
+                'delete',
+                $secondTodayId,
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 2)
+        ->assertJsonPath('rejected', 0);
+
+    expect(PrayerVote::count())->toBe(0)
+        ->and(TodayPrayer::count())->toBe(0)
+        ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(0);
 });
 
-it('deletes votes idempotently, forbids deleting another users row, and recomputes counts', function () {
+it('repairs a stale alias when a later semantic PUT finds a replacement canonical row', function () {
+    $user = User::factory()->create();
+    $date = '2026-08-11';
+    $firstId = '0198a700-0000-7000-8000-000000000001';
+    $aliasId = '0198a700-0000-7000-8000-000000000002';
+    $replacementId = '0198a700-0000-7000-8000-000000000003';
+    $put = fn (string $operationId, string $id): array => syncPrayerOperation(
+        $operationId,
+        'today_prayers',
+        'put',
+        $id,
+        [
+            'local_date' => $date,
+            'prayer_id' => seededPrayerId(),
+            'include_action' => true,
+            'action_completed' => false,
+        ],
+    );
+
+    foreach ([
+        $put('0198a700-0000-7000-8000-000000000011', $firstId),
+        $put('0198a700-0000-7000-8000-000000000012', $aliasId),
+    ] as $operation) {
+        $this->actingAs($user)->postJson('/api/sync/mutations', ['operations' => [$operation]])
+            ->assertOk()->assertJsonPath('accepted', 1);
+    }
+
+    DB::table('today_prayers')->where('id', $firstId)->delete();
+    foreach ([
+        $put('0198a700-0000-7000-8000-000000000013', $replacementId),
+        $put('0198a700-0000-7000-8000-000000000014', $aliasId),
+    ] as $operation) {
+        $this->actingAs($user)->postJson('/api/sync/mutations', ['operations' => [$operation]])
+            ->assertOk()->assertJsonPath('accepted', 1);
+    }
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [syncPrayerOperation(
+            '0198a700-0000-7000-8000-000000000015',
+            'today_prayers',
+            'patch',
+            $aliasId,
+            ['action_completed' => true],
+        )],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    expect(TodayPrayer::findOrFail($replacementId)->action_completed)->toBeTrue();
+});
+
+it('deletes votes idempotently without revealing another users row', function () {
     $first = User::factory()->create();
     $second = User::factory()->create();
     $prayerId = seededPrayerId();
@@ -278,9 +449,11 @@ it('deletes votes idempotently, forbids deleting another users row, and recomput
             voteId($first, $prayerId),
         )],
     ])->assertOk()
-        ->assertJsonPath('accepted', 0)
-        ->assertJsonPath('rejected', 1)
-        ->assertJsonPath('code', 'inaccessible_record');
+        ->assertJsonPath('accepted', 1)
+        ->assertJsonPath('rejected', 0);
+
+    expect(PrayerVote::count())->toBe(2)
+        ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(2);
 
     $this->actingAs($first)->postJson('/api/sync/mutations', [
         'operations' => [syncPrayerOperation(
@@ -385,7 +558,7 @@ it('puts patches and deletes a deterministic Today selection', function () {
     expect(TodayPrayer::count())->toBe(0);
 });
 
-it('uses one code for inaccessible and missing private Today patches', function () {
+it('uses uniform semantics for foreign and missing private Today ids', function () {
     $owner = User::factory()->create();
     $attacker = User::factory()->create();
     $date = '2026-08-11';
@@ -406,7 +579,7 @@ it('uses one code for inaccessible and missing private Today patches', function 
         )],
     ])->assertOk()->assertJsonPath('accepted', 1);
 
-    $this->actingAs($attacker)->postJson('/api/sync/mutations', [
+    $foreignPatch = $this->actingAs($attacker)->postJson('/api/sync/mutations', [
         'operations' => [syncPrayerOperation(
             '0198a200-0000-7000-8000-000000000031',
             'today_prayers',
@@ -414,21 +587,47 @@ it('uses one code for inaccessible and missing private Today patches', function 
             $id,
             ['action_completed' => true],
         )],
-    ])->assertOk()
+    ]);
+    $foreignPatch->assertOk()
         ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('rejected', 1)
         ->assertJsonPath('code', 'inaccessible_record');
 
-    $this->actingAs($owner)->postJson('/api/sync/mutations', [
+    $missingPatch = $this->actingAs($attacker)->postJson('/api/sync/mutations', [
         'operations' => [syncPrayerOperation(
             '0198a200-0000-7000-8000-000000000032',
             'today_prayers',
             'patch',
-            todayId($owner, '2026-08-12'),
+            todayId($attacker, '2026-08-12'),
             ['action_completed' => true],
         )],
-    ])->assertOk()
+    ]);
+    $missingPatch->assertOk()
         ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('rejected', 1)
         ->assertJsonPath('code', 'inaccessible_record');
+
+    expect($foreignPatch->json())->toBe([
+        'accepted' => 0,
+        'rejected' => 1,
+        'duplicates' => 0,
+        'code' => 'inaccessible_record',
+    ])->and($missingPatch->json())->toBe($foreignPatch->json());
+
+    foreach ([$id, todayId($attacker, '2026-08-13')] as $index => $deleteId) {
+        $this->actingAs($attacker)->postJson('/api/sync/mutations', [
+            'operations' => [syncPrayerOperation(
+                sprintf('0198a200-0000-7000-8000-%012d', 33 + $index),
+                'today_prayers',
+                'delete',
+                $deleteId,
+            )],
+        ])->assertOk()
+            ->assertJsonPath('accepted', 1)
+            ->assertJsonPath('rejected', 0);
+    }
+
+    expect(TodayPrayer::findOrFail($id)->action_completed)->toBeFalse();
 });
 
 it('requires published non-archived prayer references', function () {
@@ -686,24 +885,10 @@ it('resolves a concurrent operation insert race through the HTTP handler', funct
         ->and(SyncOperation::count())->toBe(0);
 });
 
-it('deletes voting users and repairs counts inside one transaction', function () {
+it('repairs helpful counts when a user is deleted through a bulk query', function () {
     $first = User::factory()->create();
     $second = User::factory()->create();
     $prayerId = seededPrayerId();
-    $baselineTransactionLevel = DB::transactionLevel();
-    $eventTransactionLevels = [];
-    $deleteQueries = [];
-
-    User::deleting(function (User $user) use ($first, &$eventTransactionLevels): void {
-        if ($user->is($first)) {
-            $eventTransactionLevels['deleting'] = DB::transactionLevel();
-        }
-    });
-    User::deleted(function (User $user) use ($first, &$eventTransactionLevels): void {
-        if ($user->is($first)) {
-            $eventTransactionLevels['deleted'] = DB::transactionLevel();
-        }
-    });
 
     foreach ([$first, $second] as $index => $user) {
         $this->actingAs($user)->postJson('/api/sync/mutations', [
@@ -719,29 +904,15 @@ it('deletes voting users and repairs counts inside one transaction', function ()
 
     expect(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(2);
 
-    DB::listen(function ($query) use (&$deleteQueries): void {
-        $deleteQueries[] = strtolower($query->sql);
-    });
+    User::query()->whereKey($first->id)->delete();
 
-    $first->delete();
-
-    $userLockIndex = collect($deleteQueries)->search(
-        fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from "users"'),
-    );
-    $voteSnapshotIndex = collect($deleteQueries)->search(
-        fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from "prayer_votes"'),
-    );
-
-    expect(PrayerVote::count())->toBe(1)
+    expect(User::whereKey($first->id)->exists())->toBeFalse()
+        ->and(PrayerVote::count())->toBe(1)
         ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(1)
-        ->and($eventTransactionLevels['deleting'])->toBeGreaterThan($baselineTransactionLevel)
-        ->and($eventTransactionLevels['deleted'])->toBeGreaterThan($baselineTransactionLevel)
-        ->and($userLockIndex)->not->toBeFalse()
-        ->and($voteSnapshotIndex)->not->toBeFalse()
-        ->and($userLockIndex)->toBeLessThan($voteSnapshotIndex);
+        ->and(PrayerVote::first()->user_id)->toBe($second->id);
 });
 
-it('rolls back the user cascade and count repair when a deleted listener fails', function () {
+it('repairs helpful counts when a vote is deleted directly', function () {
     $user = User::factory()->create();
     $prayerId = seededPrayerId();
     $voteId = '0198a500-0000-7000-8000-000000000001';
@@ -756,15 +927,32 @@ it('rolls back the user cascade and count repair when a deleted listener fails',
         )],
     ])->assertOk()->assertJsonPath('accepted', 1);
 
-    User::deleted(function (User $deleted) use ($user): void {
-        if ($deleted->is($user)) {
-            throw new RuntimeException('rollback probe');
-        }
-    });
+    DB::table('prayer_votes')->where('id', $voteId)->delete();
 
-    expect(fn () => $user->delete())->toThrow(RuntimeException::class, 'rollback probe');
+    expect(PrayerVote::whereKey($voteId)->exists())->toBeFalse()
+        ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(0);
+});
 
-    expect(User::whereKey($user->id)->exists())->toBeTrue()
-        ->and(PrayerVote::whereKey($voteId)->exists())->toBeTrue()
-        ->and(LibraryPrayer::findOrFail($prayerId)->helpful_count)->toBe(1);
+it('moves helpful counts when a vote prayer is updated directly', function () {
+    $user = User::factory()->create();
+    $firstPrayerId = seededPrayerId();
+    $secondPrayerId = seededPrayerId(2);
+    $voteId = '0198a500-0000-7000-8000-000000000003';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [syncPrayerOperation(
+            '0198a500-0000-7000-8000-000000000004',
+            'prayer_votes',
+            'put',
+            $voteId,
+            ['prayer_id' => $firstPrayerId],
+        )],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    DB::table('prayer_votes')->where('id', $voteId)->update([
+        'prayer_id' => $secondPrayerId,
+    ]);
+
+    expect(LibraryPrayer::findOrFail($firstPrayerId)->helpful_count)->toBe(0)
+        ->and(LibraryPrayer::findOrFail($secondPrayerId)->helpful_count)->toBe(1);
 });
