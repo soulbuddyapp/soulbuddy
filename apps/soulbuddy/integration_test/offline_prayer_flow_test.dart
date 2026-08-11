@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:soulbuddy/app/app.dart';
 import 'package:soulbuddy/app/router.dart';
 import 'package:soulbuddy/core/database/app_database.dart';
@@ -9,7 +12,7 @@ import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
 
-const _databasePath = 'soulbuddy-prayer-integration.db';
+const _databaseName = 'soulbuddy-prayer-integration.db';
 const _identity = LocalIdentity(
   ownerId: 'offline-prayer-integration-owner',
   deviceId: 'offline-prayer-integration-device',
@@ -21,7 +24,8 @@ void main() {
   testWidgets(
     'a Helpful prayer and completed action persist through a real database reopen',
     (tester) async {
-      final firstContainer = _newContainer();
+      final databasePath = await _testDatabasePath();
+      final firstContainer = _newContainer(databasePath);
       final firstDatabase = await firstContainer.read(
         appDatabaseProvider.future,
       );
@@ -125,7 +129,7 @@ void main() {
       firstContainer.dispose();
       await firstDatabase.close();
 
-      final reopenedContainer = _newContainer();
+      final reopenedContainer = _newContainer(databasePath);
       final reopenedDatabase = await reopenedContainer.read(
         appDatabaseProvider.future,
       );
@@ -163,15 +167,21 @@ void main() {
   );
 }
 
-ProviderContainer _newContainer() {
+ProviderContainer _newContainer(String databasePath) {
   return ProviderContainer(
     overrides: [
       appDatabaseProvider.overrideWith(
-        (ref) => AppDatabase.open(path: _databasePath),
+        (ref) => AppDatabase.open(path: databasePath),
       ),
       localIdentityProvider.overrideWith((ref) async => _identity),
     ],
   );
+}
+
+Future<String> _testDatabasePath() async {
+  if (kIsWeb) return _databaseName;
+  final directory = await getApplicationSupportDirectory();
+  return path.join(directory.path, _databaseName);
 }
 
 Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
