@@ -13,7 +13,7 @@ import 'package:soulbuddy/features/today/presentation/today_screen.dart';
 import '../../helpers/in_memory_prayer_repository.dart';
 
 void main() {
-  test('Today prayer stream releases its watcher when the screen leaves', () {
+  test('Today date and prayer providers are autoDispose', () {
     expect(todayPrayerDateProvider.isAutoDispose, isTrue);
     expect(todayPrayerProvider.isAutoDispose, isTrue);
   });
@@ -78,6 +78,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.completedTodayDate, DateTime(2026, 8, 11));
+    expect(repository.completedTodayPrayerId, _prayer.id);
     expect(repository.completedTodayValue, isTrue);
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
     _expectNoGamification(tester);
@@ -100,10 +101,101 @@ void main() {
     await repository.started.future;
 
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).onChanged, isNull);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('choose-different-prayer')))
+          .onPressed,
+      isNull,
+    );
 
     repository.release();
     await tester.pumpAndSettle();
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('choose-different-prayer')))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('replacement stays incomplete when a prior write finishes', (
+    tester,
+  ) async {
+    final prayerA = _today(includeAction: true);
+    final prayerB = TodayPrayer(
+      prayer: _nextDayPrayerWithAction,
+      localDate: DateTime(2026, 8, 11),
+      includeAction: true,
+      actionCompleted: false,
+    );
+    final repository = _ReplacementDuringCompletionRepository(prayerA);
+    addTearDown(repository.release);
+    addTearDown(repository.close);
+    await _pumpToday(tester, repository: repository);
+    await _scrollTo(tester, const Key('today-action-done'));
+
+    await tester.tap(find.byKey(const Key('today-action-done')));
+    await tester.pump();
+    await repository.started.future;
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('choose-different-prayer')))
+          .onPressed,
+      isNull,
+    );
+
+    repository.replaceWith(prayerB);
+    await tester.pump();
+    expect(find.text(prayerB.prayer.title), findsOneWidget);
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+
+    repository.release();
+    await tester.pumpAndSettle();
+
+    expect(find.text(prayerB.prayer.title), findsOneWidget);
+    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
+    expect(repository.current.prayer.id, prayerB.prayer.id);
+    expect(repository.current.actionCompleted, isFalse);
+  });
+
+  testWidgets('completion targets the date displayed when it was tapped', (
+    tester,
+  ) async {
+    final dateChanges = StreamController<PrayerLocalDate>(sync: true);
+    addTearDown(dateChanges.close);
+    final repository = _DatedMutationRepository({
+      DateTime(2026, 8, 11): TodayPrayer(
+        prayer: _prayer,
+        localDate: DateTime(2026, 8, 11),
+        includeAction: true,
+        actionCompleted: false,
+      ),
+      DateTime(2026, 8, 12): TodayPrayer(
+        prayer: _nextDayPrayerWithAction,
+        localDate: DateTime(2026, 8, 12),
+        includeAction: true,
+        actionCompleted: false,
+      ),
+    });
+    addTearDown(repository.close);
+    await _pumpToday(
+      tester,
+      repository: repository,
+      dateStream: () async* {
+        yield (year: 2026, month: 8, day: 11);
+        yield* dateChanges.stream;
+      }(),
+    );
+    await _scrollTo(tester, const Key('today-action-done'));
+    expect(find.text(_prayer.title), findsOneWidget);
+
+    dateChanges.add((year: 2026, month: 8, day: 12));
+    await tester.tap(find.byKey(const Key('today-action-done')));
+    await tester.pumpAndSettle();
+
+    expect(repository.completedDate, DateTime(2026, 8, 11));
+    expect(repository.completedPrayerId, _prayer.id);
   });
 
   testWidgets('completion failure is generic and recoverable', (tester) async {
@@ -202,6 +294,96 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('bounded fallback detects a local wall-clock date change', (
+    tester,
+  ) async {
+    var currentTime = DateTime(2026, 8, 11, 10);
+    final repository = _DatedPrayerRepository({
+      DateTime(2026, 8, 11): TodayPrayer(
+        prayer: _prayer,
+        localDate: DateTime(2026, 8, 11),
+        includeAction: false,
+        actionCompleted: false,
+      ),
+      DateTime(2026, 8, 12): TodayPrayer(
+        prayer: _nextDayPrayer,
+        localDate: DateTime(2026, 8, 12),
+        includeAction: false,
+        actionCompleted: false,
+      ),
+    });
+    addTearDown(repository.close);
+    await _pumpToday(tester, repository: repository, now: () => currentTime);
+    expect(find.text(_prayer.title), findsOneWidget);
+
+    await tester.pump(const Duration(minutes: 15));
+    await tester.pumpAndSettle();
+    expect(repository.watchedDates, [DateTime(2026, 8, 11)]);
+
+    currentTime = DateTime(2026, 8, 12);
+    await tester.pump(const Duration(minutes: 15));
+    await tester.pumpAndSettle();
+
+    expect(find.text(_nextDayPrayer.title), findsOneWidget);
+    expect(repository.watchedDates, [
+      DateTime(2026, 8, 11),
+      DateTime(2026, 8, 12),
+    ]);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('app resume immediately resamples the mounted local date', (
+    tester,
+  ) async {
+    var currentTime = DateTime(2026, 8, 11, 10);
+    final resumes = StreamController<int>.broadcast(sync: true);
+    addTearDown(resumes.close);
+    final repository = _DatedPrayerRepository({
+      DateTime(2026, 8, 11): TodayPrayer(
+        prayer: _prayer,
+        localDate: DateTime(2026, 8, 11),
+        includeAction: false,
+        actionCompleted: false,
+      ),
+      DateTime(2026, 8, 12): TodayPrayer(
+        prayer: _nextDayPrayer,
+        localDate: DateTime(2026, 8, 12),
+        includeAction: false,
+        actionCompleted: false,
+      ),
+    });
+    addTearDown(repository.close);
+    await _pumpToday(
+      tester,
+      repository: repository,
+      now: () => currentTime,
+      resumeStream: resumes.stream,
+    );
+    final providerScopeElement = tester.element(find.byType(ProviderScope));
+    final todayScreenElement = tester.element(find.byType(TodayScreen));
+    expect(find.text(_prayer.title), findsOneWidget);
+
+    currentTime = DateTime(2026, 8, 12);
+    resumes.add(1);
+    await tester.pumpAndSettle();
+
+    expect(find.text(_nextDayPrayer.title), findsOneWidget);
+    expect(
+      identical(
+        tester.element(find.byType(ProviderScope)),
+        providerScopeElement,
+      ),
+      isTrue,
+    );
+    expect(
+      identical(tester.element(find.byType(TodayScreen)), todayScreenElement),
+      isTrue,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('remains scrollable and readable at 200% text scale', (
     tester,
   ) async {
@@ -231,6 +413,8 @@ Future<void> _pumpToday(
   WidgetTester tester, {
   required InMemoryPrayerRepository repository,
   DateTime Function()? now,
+  Stream<PrayerLocalDate>? dateStream,
+  Stream<int>? resumeStream,
   TextScaler textScaler = TextScaler.noScaling,
 }) async {
   final router = GoRouter(
@@ -257,6 +441,10 @@ Future<void> _pumpToday(
         prayerClockProvider.overrideWithValue(
           now ?? () => DateTime(2026, 8, 11, 12),
         ),
+        if (dateStream != null)
+          todayPrayerDateProvider.overrideWith((ref) => dateStream),
+        if (resumeStream != null)
+          prayerAppResumeProvider.overrideWith((ref) => resumeStream),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -323,11 +511,16 @@ class _DelayedCompletionRepository extends InMemoryPrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
+    required String expectedPrayerId,
     required bool value,
   }) async {
     if (!started.isCompleted) started.complete();
     await _release.future;
-    await super.completeTodayAction(localDate, value: value);
+    await super.completeTodayAction(
+      localDate,
+      expectedPrayerId: expectedPrayerId,
+      value: value,
+    );
   }
 
   void release() {
@@ -344,9 +537,61 @@ class _FailingCompletionRepository extends InMemoryPrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
+    required String expectedPrayerId,
     required bool value,
   }) async {
     throw StateError('private prayer text must never be logged');
+  }
+}
+
+class _ReplacementDuringCompletionRepository extends InMemoryPrayerRepository {
+  _ReplacementDuringCompletionRepository(this.current)
+    : super(prayers: const [_prayer, _nextDayPrayerWithAction]);
+
+  TodayPrayer current;
+  final started = Completer<void>();
+  final _release = Completer<void>();
+  final _todayChanges = StreamController<TodayPrayer>.broadcast(sync: true);
+
+  @override
+  Stream<TodayPrayer?> watchToday(DateTime localDate) async* {
+    yield current;
+    yield* _todayChanges.stream;
+  }
+
+  @override
+  Future<void> completeTodayAction(
+    DateTime localDate, {
+    required String expectedPrayerId,
+    required bool value,
+  }) async {
+    if (!started.isCompleted) started.complete();
+    await _release.future;
+    if (current.localDate == localDate &&
+        current.prayer.id == expectedPrayerId) {
+      current = TodayPrayer(
+        prayer: current.prayer,
+        localDate: current.localDate,
+        includeAction: current.includeAction,
+        actionCompleted: value,
+      );
+      _todayChanges.add(current);
+    }
+  }
+
+  void replaceWith(TodayPrayer replacement) {
+    current = replacement;
+    _todayChanges.add(replacement);
+  }
+
+  void release() {
+    if (!_release.isCompleted) _release.complete();
+  }
+
+  @override
+  Future<void> close() async {
+    await _todayChanges.close();
+    await super.close();
   }
 }
 
@@ -361,6 +606,23 @@ class _DatedPrayerRepository extends InMemoryPrayerRepository {
   Stream<TodayPrayer?> watchToday(DateTime localDate) async* {
     watchedDates.add(localDate);
     yield selections[localDate];
+  }
+}
+
+class _DatedMutationRepository extends _DatedPrayerRepository {
+  _DatedMutationRepository(super.selections);
+
+  DateTime? completedDate;
+  String? completedPrayerId;
+
+  @override
+  Future<void> completeTodayAction(
+    DateTime localDate, {
+    required String expectedPrayerId,
+    required bool value,
+  }) async {
+    completedDate = localDate;
+    completedPrayerId = expectedPrayerId;
   }
 }
 
@@ -389,4 +651,15 @@ const _nextDayPrayer = LibraryPrayer(
   purpose: PrayerPurpose.gratitude,
   helpfulCount: 4,
   viewerMarkedHelpful: false,
+);
+
+const _nextDayPrayerWithAction = LibraryPrayer(
+  id: 'gratitude-action',
+  title: 'For a new day with action',
+  body: 'Father, thank you for this new day. Keep me near you. Amen.',
+  grounding: PrayerGrounding.generalChristian,
+  purpose: PrayerPurpose.gratitude,
+  helpfulCount: 4,
+  viewerMarkedHelpful: false,
+  action: 'Thank someone today.',
 );

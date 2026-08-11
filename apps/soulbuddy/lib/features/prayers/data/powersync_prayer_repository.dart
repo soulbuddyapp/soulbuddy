@@ -202,6 +202,7 @@ class PowerSyncPrayerRepository implements PrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
+    required String expectedPrayerId,
     required bool value,
   }) async {
     final dateKey = _dateKey(localDate);
@@ -210,9 +211,9 @@ class PowerSyncPrayerRepository implements PrayerRepository {
       '''
       UPDATE today_prayers
       SET action_completed = ?
-      WHERE id = ? AND owner_id = ? AND local_date = ?
+      WHERE id = ? AND owner_id = ? AND local_date = ? AND prayer_id = ?
       ''',
-      [value ? 1 : 0, id, ownerId, dateKey],
+      [value ? 1 : 0, id, ownerId, dateKey, expectedPrayerId],
     );
   }
 

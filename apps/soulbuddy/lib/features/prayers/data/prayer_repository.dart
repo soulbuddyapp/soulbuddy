@@ -15,5 +15,9 @@ abstract interface class PrayerRepository {
 
   Stream<TodayPrayer?> watchToday(DateTime localDate);
 
-  Future<void> completeTodayAction(DateTime localDate, {required bool value});
+  Future<void> completeTodayAction(
+    DateTime localDate, {
+    required String expectedPrayerId,
+    required bool value,
+  });
 }

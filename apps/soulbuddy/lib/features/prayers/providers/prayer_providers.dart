@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database_provider.dart';
@@ -21,22 +22,48 @@ final prayerClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
+final prayerAppResumeProvider = StreamProvider.autoDispose<int>((ref) {
+  var resumeCount = 0;
+  final controller = StreamController<int>(sync: true);
+  final observer = _PrayerAppLifecycleObserver(() {
+    if (!controller.isClosed) controller.add(++resumeCount);
+  });
+  WidgetsBinding.instance.addObserver(observer);
+  ref.onDispose(() {
+    WidgetsBinding.instance.removeObserver(observer);
+    unawaited(controller.close());
+  });
+  return controller.stream;
+});
+
 final todayPrayerDateProvider = StreamProvider.autoDispose<PrayerLocalDate>((
   ref,
 ) {
   final clock = ref.watch(prayerClockProvider);
   Timer? rolloverTimer;
   var disposed = false;
+  PrayerLocalDate? emittedDate;
   late final StreamController<PrayerLocalDate> controller;
 
   void emitDateAndScheduleRollover() {
     if (disposed) return;
     final now = clock();
-    controller.add((year: now.year, month: now.month, day: now.day));
+    final date = (year: now.year, month: now.month, day: now.day);
+    if (date != emittedDate) {
+      emittedDate = date;
+      controller.add(date);
+    }
     final nextLocalMidnight = DateTime(now.year, now.month, now.day + 1);
+    final untilMidnight = nextLocalMidnight.difference(now);
+    // Today sits in an indexed stack and may remain listened to off-screen.
+    // This bounded one-shot catches wall-clock/timezone changes without
+    // minute-level polling.
+    const maximumResampleDelay = Duration(minutes: 15);
     rolloverTimer?.cancel();
     rolloverTimer = Timer(
-      nextLocalMidnight.difference(now),
+      untilMidnight < maximumResampleDelay
+          ? untilMidnight
+          : maximumResampleDelay,
       emitDateAndScheduleRollover,
     );
   }
@@ -49,6 +76,9 @@ final todayPrayerDateProvider = StreamProvider.autoDispose<PrayerLocalDate>((
       rolloverTimer?.cancel();
     },
   );
+  ref.listen(prayerAppResumeProvider, (previous, next) {
+    if (next case AsyncData()) emitDateAndScheduleRollover();
+  });
   ref.onDispose(() {
     disposed = true;
     rolloverTimer?.cancel();
@@ -56,6 +86,17 @@ final todayPrayerDateProvider = StreamProvider.autoDispose<PrayerLocalDate>((
   });
   return controller.stream;
 });
+
+class _PrayerAppLifecycleObserver extends WidgetsBindingObserver {
+  _PrayerAppLifecycleObserver(this.onResume);
+
+  final VoidCallback onResume;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) onResume();
+  }
+}
 
 final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
   final database = await ref.watch(appDatabaseProvider.future);

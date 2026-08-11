@@ -61,7 +61,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     : _SelectedPrayer(
                         today: today,
                         updatingAction: _updatingAction,
-                        onActionChanged: _completeAction,
+                        onActionChanged: (value) =>
+                            _completeAction(today, value),
                       ),
               ),
             ],
@@ -71,15 +72,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  Future<void> _completeAction(bool value) async {
+  Future<void> _completeAction(TodayPrayer displayedToday, bool value) async {
     setState(() => _updatingAction = true);
     try {
-      final dateFuture = ref.read(todayPrayerDateProvider.future);
       final repositoryFuture = ref.read(prayerRepositoryProvider.future);
-      final date = await dateFuture;
       final repository = await repositoryFuture;
       await repository.completeTodayAction(
-        DateTime(date.year, date.month, date.day),
+        displayedToday.localDate,
+        expectedPrayerId: displayedToday.prayer.id,
         value: value,
       );
     } catch (_) {
@@ -201,7 +201,7 @@ class _SelectedPrayer extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         TextButton(
           key: const Key('choose-different-prayer'),
-          onPressed: () => context.go('/prayers'),
+          onPressed: updatingAction ? null : () => context.go('/prayers'),
           child: const Text('Choose a different prayer'),
         ),
       ],

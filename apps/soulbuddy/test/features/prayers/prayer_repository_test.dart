@@ -220,7 +220,11 @@ void main() {
       expect(rows.single['local_date'], '2026-08-11');
       expect(rows.single['id'], matches(RegExp(r'^[0-9a-f-]{14}5[0-9a-f-]+$')));
 
-      await repository.completeTodayAction(DateTime(2026, 8, 11), value: true);
+      await repository.completeTodayAction(
+        DateTime(2026, 8, 11),
+        expectedPrayerId: 'prayer-1',
+        value: true,
+      );
 
       expect(
         (await repository.watchToday(DateTime(2026, 8, 11)).first)
@@ -251,6 +255,7 @@ void main() {
       await firstRepository.selectForToday('prayer-1', includeAction: true);
       await firstRepository.completeTodayAction(
         DateTime(2026, 8, 11),
+        expectedPrayerId: 'prayer-1',
         value: true,
       );
       await firstDatabase.close();
@@ -274,6 +279,44 @@ void main() {
       expect(today?.actionCompleted, isTrue);
     },
   );
+
+  test('ignores completion from a replaced Today selection', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/soulbuddy.db',
+    );
+    addTearDown(database.close);
+    final repository = PowerSyncPrayerRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      now: () => DateTime(2026, 8, 11, 12),
+    );
+    await _seedBundledPrayer(
+      database.powersync,
+      id: 'prayer-a',
+      title: 'Prayer A',
+      action: 'Action A',
+    );
+    await _seedBundledPrayer(
+      database.powersync,
+      id: 'prayer-b',
+      title: 'Prayer B',
+      action: 'Action B',
+    );
+
+    await repository.selectForToday('prayer-a', includeAction: true);
+    final displayed = await repository.watchToday(DateTime(2026, 8, 11)).first;
+    await repository.selectForToday('prayer-b', includeAction: true);
+
+    await repository.completeTodayAction(
+      displayed!.localDate,
+      expectedPrayerId: displayed.prayer.id,
+      value: true,
+    );
+
+    final current = await repository.watchToday(DateTime(2026, 8, 11)).first;
+    expect(current?.prayer.id, 'prayer-b');
+    expect(current?.actionCompleted, isFalse);
+  });
 }
 
 Future<void> _seedCanonicalPrayer(

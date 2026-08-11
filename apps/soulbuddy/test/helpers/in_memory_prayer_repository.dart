@@ -19,6 +19,7 @@ class InMemoryPrayerRepository implements PrayerRepository {
   bool? selectedIncludeAction;
   DateTime? watchedTodayDate;
   DateTime? completedTodayDate;
+  String? completedTodayPrayerId;
   bool? completedTodayValue;
 
   @override
@@ -79,12 +80,14 @@ class InMemoryPrayerRepository implements PrayerRepository {
   @override
   Future<void> completeTodayAction(
     DateTime localDate, {
+    required String expectedPrayerId,
     required bool value,
   }) async {
     completedTodayDate = localDate;
+    completedTodayPrayerId = expectedPrayerId;
     completedTodayValue = value;
     final current = _todayFor(localDate);
-    if (current == null) return;
+    if (current == null || current.prayer.id != expectedPrayerId) return;
     _todayPrayer = TodayPrayer(
       prayer: current.prayer,
       localDate: current.localDate,
