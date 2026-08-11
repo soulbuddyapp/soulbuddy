@@ -11,6 +11,14 @@ import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import '../../helpers/in_memory_prayer_repository.dart';
 
 void main() {
+  test('filter and detail stream providers release unused watchers', () {
+    expect(
+      prayerLibraryProvider((grounding: null, purpose: null)).isAutoDispose,
+      isTrue,
+    );
+    expect(prayerProvider('family').isAutoDispose, isTrue);
+  });
+
   testWidgets('filters, opens, marks Helpful, and selects a prayer for today', (
     tester,
   ) async {
@@ -60,6 +68,7 @@ void main() {
     await tester.tap(find.byKey(const Key('use-today')));
     await tester.pumpAndSettle();
     expect(find.text('Include the suggested action'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
 
     await tester.tap(find.byKey(const Key('confirm-use-today')));
@@ -117,6 +126,94 @@ void main() {
     expect(visibleCopy, isNot(contains('rank')));
     expect(visibleCopy, isNot(contains('leaderboard')));
   });
+
+  testWidgets('keeps confirmation open while a Today selection is saving', (
+    tester,
+  ) async {
+    final repository = DelayedSelectionPrayerRepository(prayers: _prayers());
+    addTearDown(repository.completeSelection);
+    addTearDown(repository.close);
+    await _pumpFlow(tester, repository: repository);
+
+    await tester.scrollUntilVisible(
+      find.text('For my family'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('For my family'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('use-today')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-use-today')));
+    await tester.pump();
+    await repository.selectionStarted.future;
+
+    expect(find.textContaining('Saving'), findsOneWidget);
+    await tester.tapAt(const Offset(8, 8));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Use this prayer today?'), findsOneWidget);
+    expect(find.text(_familyPrayerBody), findsOneWidget);
+
+    repository.completeSelection();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Today destination'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Retry rebuilds a failed prayer repository', (tester) async {
+    final repository = _repository();
+    addTearDown(repository.close);
+    var attempts = 0;
+    final router = GoRouter(
+      initialLocation: '/prayers',
+      routes: [
+        GoRoute(
+          path: '/prayers',
+          builder: (context, state) => const Scaffold(body: PrayersScreen()),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prayerRepositoryProvider.overrideWith((ref) async {
+            attempts += 1;
+            if (attempts == 1) throw StateError('startup failed');
+            return repository;
+          }),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('The prayer library could not be opened just now.'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.text('The prayer library could not be opened just now.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+
+    expect(attempts, 2);
+    await tester.scrollUntilVisible(
+      find.text('For my family'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('For my family'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpFlow(
@@ -169,38 +266,40 @@ Future<void> _pumpFlow(
 }
 
 InMemoryPrayerRepository _repository() {
-  return InMemoryPrayerRepository(
-    prayers: const [
-      LibraryPrayer(
-        id: 'family',
-        title: 'For my family',
-        body: _familyPrayerBody,
-        grounding: PrayerGrounding.generalChristian,
-        purpose: PrayerPurpose.family,
-        helpfulCount: 12,
-        viewerMarkedHelpful: false,
-        action: 'Ease someone’s burden today.',
-      ),
-      LibraryPrayer(
-        id: 'catholic-family',
-        title: 'A Catholic family prayer',
-        body: 'Lord, help this family. Through Christ our Lord. Amen.',
-        grounding: PrayerGrounding.catholic,
-        purpose: PrayerPurpose.family,
-        helpfulCount: 4,
-        viewerMarkedHelpful: false,
-      ),
-      LibraryPrayer(
-        id: 'daily',
-        title: 'For this day',
-        body: 'Father, guide this day. In Jesus’ name. Amen.',
-        grounding: PrayerGrounding.generalChristian,
-        purpose: PrayerPurpose.daily,
-        helpfulCount: 2,
-        viewerMarkedHelpful: false,
-      ),
-    ],
-  );
+  return InMemoryPrayerRepository(prayers: _prayers());
+}
+
+List<LibraryPrayer> _prayers() {
+  return const [
+    LibraryPrayer(
+      id: 'family',
+      title: 'For my family',
+      body: _familyPrayerBody,
+      grounding: PrayerGrounding.generalChristian,
+      purpose: PrayerPurpose.family,
+      helpfulCount: 12,
+      viewerMarkedHelpful: false,
+      action: 'Ease someone’s burden today.',
+    ),
+    LibraryPrayer(
+      id: 'catholic-family',
+      title: 'A Catholic family prayer',
+      body: 'Lord, help this family. Through Christ our Lord. Amen.',
+      grounding: PrayerGrounding.catholic,
+      purpose: PrayerPurpose.family,
+      helpfulCount: 4,
+      viewerMarkedHelpful: false,
+    ),
+    LibraryPrayer(
+      id: 'daily',
+      title: 'For this day',
+      body: 'Father, guide this day. In Jesus’ name. Amen.',
+      grounding: PrayerGrounding.generalChristian,
+      purpose: PrayerPurpose.daily,
+      helpfulCount: 2,
+      viewerMarkedHelpful: false,
+    ),
+  ];
 }
 
 const _familyPrayerBody =

@@ -91,3 +91,24 @@ class InMemoryPrayerRepository implements PrayerRepository {
     return null;
   }
 }
+
+class DelayedSelectionPrayerRepository extends InMemoryPrayerRepository {
+  DelayedSelectionPrayerRepository({required super.prayers});
+
+  final selectionStarted = Completer<void>();
+  final _allowSelection = Completer<void>();
+
+  @override
+  Future<void> selectForToday(
+    String prayerId, {
+    required bool includeAction,
+  }) async {
+    if (!selectionStarted.isCompleted) selectionStarted.complete();
+    await _allowSelection.future;
+    await super.selectForToday(prayerId, includeAction: includeAction);
+  }
+
+  void completeSelection() {
+    if (!_allowSelection.isCompleted) _allowSelection.complete();
+  }
+}

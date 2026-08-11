@@ -7,6 +7,7 @@ import '../../../core/design/app_spacing.dart';
 import '../domain/library_prayer.dart';
 import '../providers/prayer_providers.dart';
 import 'prayer_library_tile.dart';
+import 'use_today_confirmation_sheet.dart';
 
 class PrayerDetailScreen extends ConsumerStatefulWidget {
   const PrayerDetailScreen({required this.prayerId, super.key});
@@ -28,7 +29,7 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _DetailUnavailable(
         onBack: () => context.go('/prayers'),
-        onRetry: () => ref.invalidate(prayerProvider(widget.prayerId)),
+        onRetry: () => retryPrayerDetailProviders(ref, widget.prayerId),
       ),
       data: (value) {
         if (value == null) {
@@ -66,7 +67,7 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                '${prayerPurposeLabel(prayer.purpose)} · '
+                '${prayerPurposeLabel(prayer.purpose)} \u00B7 '
                 '${prayerGroundingLabel(prayer.grounding)}',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -124,7 +125,7 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                                 ? Icons.favorite
                                 : Icons.favorite_border,
                           ),
-                    label: Text('Helpful · ${prayer.helpfulCount}'),
+                    label: Text('Helpful \u00B7 ${prayer.helpfulCount}'),
                   ),
                   FilledButton(
                     key: const Key('use-today'),
@@ -160,94 +161,26 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
   }
 
   Future<void> _showUseToday(LibraryPrayer prayer) async {
-    var includeAction = prayer.action != null;
-    var saving = false;
-
-    await showModalBottomSheet<void>(
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        'Use this prayer today?',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    if (prayer.action != null) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text('Include the suggested action'),
-                        subtitle: Text(prayer.action!),
-                        value: includeAction,
-                        onChanged: saving
-                            ? null
-                            : (value) {
-                                setSheetState(
-                                  () => includeAction = value ?? false,
-                                );
-                              },
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.lg),
-                    FilledButton(
-                      key: const Key('confirm-use-today'),
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              setSheetState(() => saving = true);
-                              await _selectForToday(
-                                Navigator.of(sheetContext),
-                                prayer,
-                                includeAction: includeAction,
-                              );
-                            },
-                      child: Text(saving ? 'Saving…' : 'Use today'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => UseTodayConfirmationSheet(
+        prayer: prayer,
+        onConfirm: (includeAction) =>
+            _selectForToday(prayer, includeAction: includeAction),
+      ),
     );
+    if (saved == true && mounted) context.go('/today');
   }
 
   Future<void> _selectForToday(
-    NavigatorState sheetNavigator,
     LibraryPrayer prayer, {
     required bool includeAction,
   }) async {
-    try {
-      final repository = await ref.read(prayerRepositoryProvider.future);
-      await repository.selectForToday(prayer.id, includeAction: includeAction);
-      if (!mounted || !sheetNavigator.mounted) return;
-      sheetNavigator.pop();
-      context.go('/today');
-    } catch (_) {
-      if (!mounted || !sheetNavigator.mounted) return;
-      sheetNavigator.pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save this prayer. Try again.')),
-      );
-    }
+    final repository = await ref.read(prayerRepositoryProvider.future);
+    await repository.selectForToday(prayer.id, includeAction: includeAction);
   }
 }
 

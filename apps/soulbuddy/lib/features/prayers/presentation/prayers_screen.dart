@@ -22,9 +22,8 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final library = ref.watch(
-      prayerLibraryProvider((grounding: _grounding, purpose: _purpose)),
-    );
+    final filter = (grounding: _grounding, purpose: _purpose);
+    final library = ref.watch(prayerLibraryProvider(filter));
 
     return SafeArea(
       child: Align(
@@ -68,7 +67,7 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
                   ),
                 ),
                 error: (error, stackTrace) => _LibraryUnavailable(
-                  onRetry: () => ref.invalidate(prayerLibraryProvider),
+                  onRetry: () => retryPrayerLibraryProviders(ref, filter),
                 ),
                 data: (prayers) {
                   if (prayers.isEmpty) {

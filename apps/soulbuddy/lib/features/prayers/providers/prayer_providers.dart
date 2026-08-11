@@ -23,11 +23,8 @@ final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
   );
 });
 
-final prayerLibraryProvider =
-    StreamProvider.family<List<LibraryPrayer>, PrayerLibraryFilter>((
-      ref,
-      filter,
-    ) async* {
+final prayerLibraryProvider = StreamProvider.autoDispose
+    .family<List<LibraryPrayer>, PrayerLibraryFilter>((ref, filter) async* {
       final repository = await ref.watch(prayerRepositoryProvider.future);
       yield* repository.watchLibrary(
         grounding: filter.grounding,
@@ -35,10 +32,24 @@ final prayerLibraryProvider =
       );
     });
 
-final prayerProvider = StreamProvider.family<LibraryPrayer?, String>((
-  ref,
-  prayerId,
-) async* {
-  final repository = await ref.watch(prayerRepositoryProvider.future);
-  yield* repository.watchPrayer(prayerId);
-});
+final prayerProvider = StreamProvider.autoDispose
+    .family<LibraryPrayer?, String>((ref, prayerId) async* {
+      final repository = await ref.watch(prayerRepositoryProvider.future);
+      yield* repository.watchPrayer(prayerId);
+    });
+
+void retryPrayerLibraryProviders(WidgetRef ref, PrayerLibraryFilter filter) {
+  _invalidatePrayerStartup(ref);
+  ref.invalidate(prayerLibraryProvider(filter));
+}
+
+void retryPrayerDetailProviders(WidgetRef ref, String prayerId) {
+  _invalidatePrayerStartup(ref);
+  ref.invalidate(prayerProvider(prayerId));
+}
+
+void _invalidatePrayerStartup(WidgetRef ref) {
+  ref.invalidate(appDatabaseProvider);
+  ref.invalidate(localIdentityProvider);
+  ref.invalidate(prayerRepositoryProvider);
+}
