@@ -3,27 +3,35 @@ import 'package:flutter/material.dart';
 import '../../../core/design/app_spacing.dart';
 
 class PrayerLibraryChoices extends StatelessWidget {
-  const PrayerLibraryChoices({super.key});
+  const PrayerLibraryChoices({
+    required this.onLibrary,
+    required this.onPersonalized,
+    super.key,
+  });
+
+  final VoidCallback onLibrary;
+  final VoidCallback onPersonalized;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const library = _PrayerChoice(
-          key: Key('library-choice'),
+        final library = _PrayerChoice(
+          key: const Key('library-choice'),
           title: 'Choose from library',
           subtitle: 'Current',
           selected: true,
+          onTap: onLibrary,
         );
-        const personalized = _PrayerChoice(
-          key: Key('personalized-choice'),
+        final personalized = _PrayerChoice(
+          key: const Key('personalized-choice'),
           title: 'Create personalized',
-          subtitle: 'Next',
-          enabled: false,
+          subtitle: 'Guided',
+          onTap: onPersonalized,
         );
 
         if (constraints.maxWidth >= 560) {
-          return const Row(
+          return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: library),
@@ -33,7 +41,7 @@ class PrayerLibraryChoices extends StatelessWidget {
           );
         }
 
-        return const Column(
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             library,
@@ -51,21 +59,22 @@ class _PrayerChoice extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.selected = false,
-    this.enabled = true,
+    required this.onTap,
     super.key,
   });
 
   final String title;
   final String subtitle;
   final bool selected;
-  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       excludeSemantics: true,
-      enabled: enabled,
+      button: true,
+      enabled: true,
       selected: selected,
       label: '$title, $subtitle',
       child: ConstrainedBox(
@@ -78,31 +87,32 @@ class _PrayerChoice extends StatelessWidget {
             border: Border.all(color: colorScheme.outline),
             borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Row(
-              children: [
-                Icon(
-                  selected ? Icons.check_circle : Icons.lock_clock_outlined,
-                  color: enabled
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Row(
+                children: [
+                  Icon(
+                    selected ? Icons.check_circle : Icons.auto_awesome_outlined,
+                    color: colorScheme.primary,
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -34,7 +34,7 @@ void main() {
     expect(find.text('Prayers'), findsOneWidget);
     expect(find.text('Choose from library'), findsOneWidget);
     expect(find.text('Create personalized'), findsOneWidget);
-    expect(find.text('Next'), findsOneWidget);
+    expect(find.text('Guided'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('For my family'),
       300,

@@ -64,6 +64,14 @@ void main() {
     expect(passage.verses.map((verse) => verse.number), orderedEquals([1, 2]));
   });
 
+  test('lists canonical books and available chapters', () async {
+    final repository = SqliteScriptureRepository.open(databasePath);
+    addTearDown(repository.close);
+
+    expect(await repository.books(), ['John']);
+    expect(await repository.chapters('Jn'), [3]);
+  });
+
   test('returns a typed not-found result for an unknown reference', () async {
     final repository = SqliteScriptureRepository.open(databasePath);
     addTearDown(repository.close);

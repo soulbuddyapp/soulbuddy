@@ -26,6 +26,34 @@ class SqliteScriptureRepository implements ScriptureRepository {
   }
 
   @override
+  Future<List<String>> books() async {
+    final rows = _database.select('SELECT text FROM books ORDER BY _id');
+    return List.unmodifiable(rows.map((row) => (row['text'] as String).trim()));
+  }
+
+  @override
+  Future<List<int>> chapters(String book) async {
+    final normalized = _bookAliases[book.trim().toLowerCase()] ?? book.trim();
+    final bookRows = _database.select(
+      '''
+      SELECT _id FROM books
+      WHERE lower(shortname) = lower(?) OR lower(text) = lower(?)
+      LIMIT 1
+      ''',
+      [normalized, normalized],
+    );
+    if (bookRows.isEmpty) throw ScriptureReferenceNotFound(book);
+    final rows = _database.select(
+      '''
+      SELECT DISTINCT chapter_id FROM verses
+      WHERE book_id = ? ORDER BY chapter_id
+      ''',
+      [bookRows.single['_id']],
+    );
+    return List.unmodifiable(rows.map((row) => row['chapter_id'] as int));
+  }
+
+  @override
   Future<ScripturePassage> chapter({
     required String book,
     required int chapter,

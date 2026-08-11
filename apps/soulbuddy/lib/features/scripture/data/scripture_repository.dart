@@ -1,6 +1,10 @@
 import '../domain/scripture_passage.dart';
 
 abstract interface class ScriptureRepository {
+  Future<List<String>> books();
+
+  Future<List<int>> chapters(String book);
+
   Future<ScripturePassage> chapter({
     required String book,
     required int chapter,

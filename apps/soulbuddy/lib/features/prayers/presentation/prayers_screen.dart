@@ -49,7 +49,10 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              const PrayerLibraryChoices(),
+              PrayerLibraryChoices(
+                onLibrary: () {},
+                onPersonalized: () => context.go('/prayers/create'),
+              ),
               const SizedBox(height: AppSpacing.xl),
               PrayerLibraryFilters(
                 grounding: _grounding,

@@ -5,6 +5,7 @@ import '../core/design/app_colors.dart';
 import '../features/circles/presentation/circles_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
+import '../features/prayers/presentation/personalized_prayer_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
@@ -32,6 +33,16 @@ final GoRouter appRouter = GoRouter(
               path: '/prayers',
               builder: (context, state) => const PrayersScreen(),
               routes: [
+                GoRoute(
+                  path: 'create',
+                  builder: (context, state) => const PersonalizedPrayerScreen(),
+                ),
+                GoRoute(
+                  path: 'requests/:requestId',
+                  builder: (context, state) => PersonalizedPrayerScreen(
+                    requestId: state.pathParameters['requestId'],
+                  ),
+                ),
                 GoRoute(
                   path: ':prayerId',
                   builder: (context, state) => PrayerDetailScreen(
