@@ -1,0 +1,329 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/design/app_colors.dart';
+import '../../../core/design/app_spacing.dart';
+import '../domain/library_prayer.dart';
+import '../providers/prayer_providers.dart';
+import 'prayer_library_tile.dart';
+
+class PrayerDetailScreen extends ConsumerStatefulWidget {
+  const PrayerDetailScreen({required this.prayerId, super.key});
+
+  final String prayerId;
+
+  @override
+  ConsumerState<PrayerDetailScreen> createState() => _PrayerDetailScreenState();
+}
+
+class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
+  var _updatingHelpful = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final prayer = ref.watch(prayerProvider(widget.prayerId));
+
+    return prayer.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) => _DetailUnavailable(
+        onBack: () => context.go('/prayers'),
+        onRetry: () => ref.invalidate(prayerProvider(widget.prayerId)),
+      ),
+      data: (value) {
+        if (value == null) {
+          return _PrayerMissing(onBack: () => context.go('/prayers'));
+        }
+        return _buildPrayer(context, value);
+      },
+    );
+  }
+
+  Widget _buildPrayer(BuildContext context, LibraryPrayer prayer) {
+    return SafeArea(
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => context.go('/prayers'),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Prayers'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Semantics(
+                header: true,
+                child: Text(
+                  prayer.title,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                '${prayerPurposeLabel(prayer.purpose)} · '
+                '${prayerGroundingLabel(prayer.grounding)}',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                prayer.body,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(height: 1.65),
+              ),
+              if (prayer.action case final action?) ...[
+                const SizedBox(height: AppSpacing.xl),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(
+                      AppSpacing.componentRadius,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Suggested action',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(action),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xl),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  OutlinedButton.icon(
+                    key: const Key('helpful-toggle'),
+                    onPressed: _updatingHelpful
+                        ? null
+                        : () => _setHelpful(prayer),
+                    icon: _updatingHelpful
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            prayer.viewerMarkedHelpful
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                          ),
+                    label: Text('Helpful · ${prayer.helpfulCount}'),
+                  ),
+                  FilledButton(
+                    key: const Key('use-today'),
+                    onPressed: () => _showUseToday(prayer),
+                    child: const Text('Use today'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _setHelpful(LibraryPrayer prayer) async {
+    setState(() => _updatingHelpful = true);
+    try {
+      final repository = await ref.read(prayerRepositoryProvider.future);
+      await repository.setHelpful(
+        prayer.id,
+        value: !prayer.viewerMarkedHelpful,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update Helpful. Try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _updatingHelpful = false);
+    }
+  }
+
+  Future<void> _showUseToday(LibraryPrayer prayer) async {
+    var includeAction = prayer.action != null;
+    var saving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        'Use this prayer today?',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    if (prayer.action != null) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Include the suggested action'),
+                        subtitle: Text(prayer.action!),
+                        value: includeAction,
+                        onChanged: saving
+                            ? null
+                            : (value) {
+                                setSheetState(
+                                  () => includeAction = value ?? false,
+                                );
+                              },
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.lg),
+                    FilledButton(
+                      key: const Key('confirm-use-today'),
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              setSheetState(() => saving = true);
+                              await _selectForToday(
+                                Navigator.of(sheetContext),
+                                prayer,
+                                includeAction: includeAction,
+                              );
+                            },
+                      child: Text(saving ? 'Saving…' : 'Use today'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _selectForToday(
+    NavigatorState sheetNavigator,
+    LibraryPrayer prayer, {
+    required bool includeAction,
+  }) async {
+    try {
+      final repository = await ref.read(prayerRepositoryProvider.future);
+      await repository.selectForToday(prayer.id, includeAction: includeAction);
+      if (!mounted || !sheetNavigator.mounted) return;
+      sheetNavigator.pop();
+      context.go('/today');
+    } catch (_) {
+      if (!mounted || !sheetNavigator.mounted) return;
+      sheetNavigator.pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save this prayer. Try again.')),
+      );
+    }
+  }
+}
+
+class _DetailUnavailable extends StatelessWidget {
+  const _DetailUnavailable({required this.onBack, required this.onRetry});
+
+  final VoidCallback onBack;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DetailMessage(
+      title: 'Prayer unavailable',
+      body: 'This prayer could not be opened just now.',
+      actions: [
+        OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+        TextButton(onPressed: onBack, child: const Text('Back to Prayers')),
+      ],
+    );
+  }
+}
+
+class _PrayerMissing extends StatelessWidget {
+  const _PrayerMissing({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DetailMessage(
+      title: 'Prayer not found',
+      body: 'It may no longer be in the library.',
+      actions: [
+        OutlinedButton(onPressed: onBack, child: const Text('Back to Prayers')),
+      ],
+    );
+  }
+}
+
+class _DetailMessage extends StatelessWidget {
+  const _DetailMessage({
+    required this.title,
+    required this.body,
+    required this.actions,
+  });
+
+  final String title;
+  final String body;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: AppSpacing.sm),
+                Text(body, textAlign: TextAlign.center),
+                const SizedBox(height: AppSpacing.lg),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: actions,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
