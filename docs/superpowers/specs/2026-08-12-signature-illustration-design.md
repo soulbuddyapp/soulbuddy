@@ -1,5 +1,7 @@
 # SoulBuddy Signature Illustration Design
 
+> **Superseded on 2026-08-13.** Do not implement or extend this direction. The approved replacement is `2026-08-13-covenant-grace-visual-audio-design.md`, which removes the olive-tree and stone-memorial illustration.
+
 ## Goal
 
 Give SoulBuddy one memorable visual expression of its spiritual-formation framework without adding decorative clutter or making first-use screens scroll.

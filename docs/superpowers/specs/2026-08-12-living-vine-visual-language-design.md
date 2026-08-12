@@ -1,5 +1,7 @@
 # SoulBuddy Living Vine Visual Language Design
 
+> **Superseded on 2026-08-13.** Do not implement or extend this direction. The approved replacement is `2026-08-13-covenant-grace-visual-audio-design.md`, which removes all vine, branch, tree, flower, and fruit imagery.
+
 ## Goal
 
 Give SoulBuddy one coherent visual language for daily spiritual life, grounded in Christ's words: "I am the vine; you are the branches." The system should make the app feel living, calm, and recognizably SoulBuddy without turning spiritual formation into a score or decorating every surface.
@@ -70,4 +72,3 @@ Two gently interwoven branches express prayer and encouragement shared in privat
 ## Scope of the first slice
 
 This slice establishes the tokens and reusable code-native primitive, then applies one restrained contextual composition to Today, Prayers, Remember, and Circles. It does not redesign every detail screen, generate a tree from user activity, add seasonal progression, or create new backend state.
-
