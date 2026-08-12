@@ -22,32 +22,28 @@ class TodayStartGuide extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _TodayGuideMark(),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Begin with prayer',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Turn your attention toward God, surrender this day, '
-                        'and carry faith into action.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colors.onSurfaceVariant,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final largeText =
+                    MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+                if (largeText) {
+                  return _GuideCopy(colors: colors);
+                }
+                final illustrationWidth = constraints.maxWidth < 280
+                    ? 64.0
+                    : 112.0;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: illustrationWidth,
+                      child: const _SignatureIllustration(),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(child: _GuideCopy(colors: colors)),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
@@ -74,50 +70,47 @@ class TodayStartGuide extends StatelessWidget {
   }
 }
 
-class _TodayGuideMark extends StatelessWidget {
-  const _TodayGuideMark();
+class _GuideCopy extends StatelessWidget {
+  const _GuideCopy({required this.colors});
+
+  final ColorScheme colors;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('Begin with prayer', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: AppSpacing.xs),
+      Text(
+        'Turn your attention toward God, surrender this day, '
+        'and carry faith into action.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: colors.onSurfaceVariant,
+          height: 1.4,
+        ),
+      ),
+    ],
+  );
+}
+
+class _SignatureIllustration extends StatelessWidget {
+  const _SignatureIllustration();
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return Semantics(
-      label: 'Prayer, action, and remembrance',
+      label:
+          'An olive tree growing from remembered grace and bearing fruit for others.',
+      image: true,
       child: ExcludeSemantics(
-        child: Center(
-          child: SizedBox.square(
-            dimension: 48,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colors.primaryContainer,
-                  ),
-                ),
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: colors.surface,
-                    border: Border.all(color: colors.outline),
-                  ),
-                ),
-                Icon(Icons.wb_sunny_outlined, size: 20, color: colors.primary),
-                Positioned(
-                  right: 0,
-                  bottom: 4,
-                  child: Icon(
-                    Icons.eco_outlined,
-                    size: 16,
-                    color: colors.secondary,
-                  ),
-                ),
-              ],
-            ),
+        child: SizedBox(
+          key: const Key('today-signature-illustration'),
+          height: 88,
+          child: Image.asset(
+            'assets/images/soulbuddy_olive_memorial.webp',
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            gaplessPlayback: true,
           ),
         ),
       ),

@@ -85,6 +85,7 @@ flutter:
     - assets/content/prayer_library.json
     - assets/scripture/rsvce.db
     - assets/audio/feedback/
+    - assets/images/soulbuddy_olive_memorial.webp
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -21,6 +21,7 @@ void main() {
   });
 
   testWidgets('no selection offers a calm guided start', (tester) async {
+    final semantics = tester.ensureSemantics();
     final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
     addTearDown(repository.close);
     await _pumpToday(tester, repository: repository);
@@ -28,6 +29,19 @@ void main() {
     expect(find.text('Today'), findsOneWidget);
     expect(find.text('Pray. Act. Remember.'), findsOneWidget);
     expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
+    expect(
+      find.byKey(const Key('today-signature-illustration')),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label ==
+                'An olive tree growing from remembered grace and bearing fruit for others.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Begin with prayer'), findsOneWidget);
     expect(
       find.text(
@@ -54,6 +68,57 @@ void main() {
 
     expect(find.text('Prayer library destination'), findsOneWidget);
     _expectNoGamification(tester);
+    semantics.dispose();
+  });
+
+  testWidgets('signature guide fits above real shell navigation', (
+    tester,
+  ) async {
+    final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
+    addTearDown(repository.close);
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpToday(
+      tester,
+      repository: repository,
+      includeShellNavigation: true,
+    );
+
+    final guideBottom = tester
+        .getBottomLeft(find.byKey(const Key('today-start-guide-end')))
+        .dy;
+    final navigationTop = tester
+        .getTopLeft(find.byKey(const Key('test-shell-navigation')))
+        .dy;
+    expect(guideBottom, lessThanOrEqualTo(navigationTop));
+    expect(
+      find.byKey(const Key('choose-prayer')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('today-record-memory')).hitTestable(),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('signature guide yields visual space at 200% text scale', (
+    tester,
+  ) async {
+    final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
+    addTearDown(repository.close);
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pumpToday(
+      tester,
+      repository: repository,
+      textScaler: const TextScaler.linear(2),
+      includeShellNavigation: true,
+    );
+
+    expect(find.byKey(const Key('today-signature-illustration')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('today-record-memory')));
+    expect(find.byKey(const Key('today-record-memory')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('guided start opens Record from its secondary action', (
@@ -450,13 +515,31 @@ Future<void> _pumpToday(
   Stream<PrayerLocalDate>? dateStream,
   Stream<int>? resumeStream,
   TextScaler textScaler = TextScaler.noScaling,
+  bool includeShellNavigation = false,
 }) async {
   final router = GoRouter(
     initialLocation: '/today',
     routes: [
       GoRoute(
         path: '/today',
-        builder: (context, state) => const Scaffold(body: TodayScreen()),
+        builder: (context, state) => Scaffold(
+          body: const TodayScreen(),
+          bottomNavigationBar: includeShellNavigation
+              ? NavigationBar(
+                  key: const Key('test-shell-navigation'),
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.today_outlined),
+                      label: 'Today',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.menu_book_outlined),
+                      label: 'Prayers',
+                    ),
+                  ],
+                )
+              : null,
+        ),
       ),
       GoRoute(
         path: '/prayers',
