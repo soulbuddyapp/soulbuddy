@@ -291,4 +291,5 @@ const appSchema = Schema([
     Column.text('created_at'),
     Column.text('resolved_at'),
   ]),
+  Table.localOnly('app_preferences', [Column.integer('bool_value')]),
 ]);
