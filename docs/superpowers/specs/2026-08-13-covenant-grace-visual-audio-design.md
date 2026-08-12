@@ -1,8 +1,10 @@
 # SoulBuddy Covenant and Grace Visual and Audio Design
 
-**Date:** 2026-08-13  
-**Status:** Approved direction; written specification awaiting final user review  
-**Platforms:** Flutter Android, iOS, and web  
+**Date:** 2026-08-13
+
+**Status:** Approved direction; written specification awaiting final user review
+
+**Platforms:** Flutter Android, iOS, and web
 **Supersedes:** `2026-08-12-living-vine-visual-language-design.md` and `2026-08-12-signature-illustration-design.md`
 
 ## Purpose
