@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/design/living_vine_tokens.dart';
 
 void main() {
   test('provides distinct complete light and dark themes', () {
@@ -17,5 +18,19 @@ void main() {
     );
     expect(dark.filledButtonTheme.style, isNotNull);
     expect(dark.navigationBarTheme.backgroundColor, isNotNull);
+  });
+
+  test('provides distinct botanical roles in both themes', () {
+    final lightTheme = AppTheme.light();
+    final darkTheme = AppTheme.dark();
+    final light = lightTheme.extension<LivingVineColors>()!;
+    final dark = darkTheme.extension<LivingVineColors>()!;
+
+    expect(light.vine, isNot(lightTheme.scaffoldBackgroundColor));
+    expect(light.leaf, isNot(light.blossom));
+    expect(light.fruit, isNot(light.memorial));
+    expect(dark.vine, isNot(darkTheme.scaffoldBackgroundColor));
+    expect(dark.botanicalWash, isNot(darkTheme.colorScheme.surface));
+    expect(dark.vine, isNot(light.vine));
   });
 }

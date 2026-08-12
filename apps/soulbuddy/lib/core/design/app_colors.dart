@@ -10,6 +10,9 @@ abstract final class AppPalette {
   static const forest700 = Color(0xFF285943);
   static const forest850 = Color(0xFF174334);
   static const ochre700 = Color(0xFF9A6B2F);
+  static const berry700 = Color(0xFF7B4B45);
+  static const blossom300 = Color(0xFFD9A8A0);
+  static const stone500 = Color(0xFF8B8375);
   static const sage200 = Color(0xFFDDE3DE);
   static const red700 = Color(0xFFB3261E);
   static const warm950 = Color(0xFF111713);
@@ -19,6 +22,9 @@ abstract final class AppPalette {
   static const sage300 = Color(0xFFAEBBB2);
   static const sage700 = Color(0xFF415248);
   static const ochre300 = Color(0xFFD7B77F);
+  static const berry300 = Color(0xFFD8A29A);
+  static const blossom200 = Color(0xFFE7C3BD);
+  static const stone300 = Color(0xFFBDB4A5);
   static const red300 = Color(0xFFFFB4AB);
 }
 

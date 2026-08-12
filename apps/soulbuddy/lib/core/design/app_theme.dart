@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'app_type.dart';
+import 'living_vine_tokens.dart';
 
 /// Component-level mappings built only from SoulBuddy semantic tokens.
 abstract final class AppTheme {
@@ -169,6 +170,11 @@ abstract final class AppTheme {
         space: 1,
       ),
       focusColor: colorScheme.primary.withValues(alpha: 0.14),
+      extensions: [
+        colorScheme.brightness == Brightness.dark
+            ? LivingVineColors.dark
+            : LivingVineColors.light,
+      ],
     );
   }
 }
