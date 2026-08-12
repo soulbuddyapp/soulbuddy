@@ -23,3 +23,9 @@ final encountersProvider = StreamProvider<List<Encounter>>((ref) async* {
   final repository = await ref.watch(encounterRepositoryProvider.future);
   yield* repository.watchAll();
 });
+
+final memoryReflectionsProvider = StreamProvider.autoDispose
+    .family<List<MemoryReflection>, String>((ref, encounterId) async* {
+      final repository = await ref.watch(encounterRepositoryProvider.future);
+      yield* repository.watchReflections(encounterId);
+    });

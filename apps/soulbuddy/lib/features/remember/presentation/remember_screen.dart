@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/feature_page.dart';
 import '../../record/providers/encounter_providers.dart';
 import 'encounter_list_tile.dart';
 
-class RememberScreen extends ConsumerWidget {
+class RememberScreen extends ConsumerStatefulWidget {
   const RememberScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RememberScreen> createState() => _RememberScreenState();
+}
+
+class _RememberScreenState extends ConsumerState<RememberScreen> {
+  var _query = '';
+
+  @override
+  Widget build(BuildContext context) {
     final encounters = ref.watch(encountersProvider);
 
     return encounters.when(
@@ -28,11 +36,23 @@ class RememberScreen extends ConsumerWidget {
         ),
       ),
       data: (items) {
+        final filtered = items
+            .where((item) {
+              final query = _query.trim().toLowerCase();
+              if (query.isEmpty) return true;
+              return item.title.toLowerCase().contains(query) ||
+                  item.memoryType.name.toLowerCase().contains(query);
+            })
+            .toList(growable: false);
         if (items.isEmpty) {
-          return const FeaturePage(
+          return FeaturePage(
             title: 'What you have recorded',
             description:
                 'When something happens that you do not want to forget, record it.',
+            action: FilledButton(
+              onPressed: () => context.go('/record'),
+              child: const Text('Record something'),
+            ),
           );
         }
 
@@ -43,7 +63,7 @@ class RememberScreen extends ConsumerWidget {
               constraints: const BoxConstraints(maxWidth: 720),
               child: ListView.separated(
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: items.length + 1,
+                itemCount: filtered.length + 2,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
@@ -63,7 +83,18 @@ class RememberScreen extends ConsumerWidget {
                     );
                   }
 
-                  return EncounterListTile(encounter: items[index - 1]);
+                  if (index == 1) {
+                    return TextField(
+                      key: const Key('remember-search'),
+                      decoration: const InputDecoration(
+                        labelText: 'Search your records',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (value) => setState(() => _query = value),
+                    );
+                  }
+
+                  return EncounterListTile(encounter: filtered[index - 2]);
                 },
               ),
             ),

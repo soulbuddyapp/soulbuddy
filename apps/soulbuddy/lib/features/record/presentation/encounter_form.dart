@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
 import '../domain/encounter_draft.dart';
+import '../domain/encounter.dart';
 
 class EncounterForm extends StatefulWidget {
   const EncounterForm({
     required this.onSave,
     required this.onCancel,
+    this.memoryType = MemoryType.encounter,
     super.key,
   });
 
   final Future<void> Function(EncounterDraft draft) onSave;
   final VoidCallback onCancel;
+  final MemoryType memoryType;
 
   @override
   State<EncounterForm> createState() => _EncounterFormState();
@@ -25,6 +27,8 @@ class _EncounterFormState extends State<EncounterForm> {
   late final TextEditingController _dateController;
   var _isAltar = false;
   var _isSaving = false;
+  late var _sensitive = widget.memoryType == MemoryType.leftBehind;
+  var _recallEnabled = true;
 
   @override
   void initState() {
@@ -63,6 +67,9 @@ class _EncounterFormState extends State<EncounterForm> {
           body: _bodyController.text,
           occurredOn: _dateController.text,
           isAltar: _isAltar,
+          memoryType: widget.memoryType,
+          sensitive: _sensitive,
+          recallEnabled: _recallEnabled,
         ),
       );
     } finally {
@@ -72,6 +79,7 @@ class _EncounterFormState extends State<EncounterForm> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return SafeArea(
       child: Align(
         alignment: Alignment.topCenter,
@@ -96,9 +104,30 @@ class _EncounterFormState extends State<EncounterForm> {
                   Semantics(
                     header: true,
                     child: Text(
-                      'Record an encounter',
+                      'Record ${_memoryTypeLabel(widget.memoryType)}',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  SwitchListTile(
+                    title: const Text('Sensitive'),
+                    subtitle: const Text(
+                      'Hide the excerpt on the Remember list.',
+                    ),
+                    value: _sensitive,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _sensitive = value),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Include in daily remembrance'),
+                    subtitle: const Text(
+                      'SoulBuddy may bring this back for quiet recall.',
+                    ),
+                    value: _recallEnabled,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) => setState(() => _recallEnabled = value),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   TextFormField(
@@ -145,8 +174,8 @@ class _EncounterFormState extends State<EncounterForm> {
                   const SizedBox(height: AppSpacing.md),
                   DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      border: Border.all(color: AppColors.outline),
+                      color: colors.surface,
+                      border: Border.all(color: colors.outlineVariant),
                       borderRadius: BorderRadius.circular(
                         AppSpacing.componentRadius,
                       ),
@@ -169,7 +198,7 @@ class _EncounterFormState extends State<EncounterForm> {
                   const SizedBox(height: AppSpacing.lg),
                   FilledButton(
                     onPressed: _isSaving ? null : _save,
-                    child: Text(_isSaving ? 'Saving…' : 'Save encounter'),
+                    child: Text(_isSaving ? 'Saving…' : 'Save'),
                   ),
                 ],
               ),
@@ -180,6 +209,12 @@ class _EncounterFormState extends State<EncounterForm> {
     );
   }
 }
+
+String _memoryTypeLabel(MemoryType type) => switch (type) {
+  MemoryType.encounter => 'an encounter',
+  MemoryType.leftBehind => 'What I left behind',
+  _ => type.name[0].toUpperCase() + type.name.substring(1),
+};
 
 String _dateOnly(DateTime value) {
   final year = value.year.toString().padLeft(4, '0');

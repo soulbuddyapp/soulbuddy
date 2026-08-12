@@ -11,6 +11,7 @@ import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/personalized_prayer_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
+import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
@@ -94,6 +95,12 @@ final GoRouter appRouter = GoRouter(
                   builder: (context, state) => ScripturePassageScreen(
                     book: state.pathParameters['book']!,
                     chapter: int.parse(state.pathParameters['chapter']!),
+                  ),
+                ),
+                GoRoute(
+                  path: ':memoryId',
+                  builder: (context, state) => MemoryDetailScreen(
+                    memoryId: state.pathParameters['memoryId']!,
                   ),
                 ),
               ],

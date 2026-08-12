@@ -8,10 +8,11 @@ import '../../../core/presentation/feature_page.dart';
 import '../../../core/storage/persistent_storage.dart';
 import '../data/encounter_repository.dart';
 import '../domain/encounter_draft.dart';
+import '../domain/encounter.dart';
 import '../providers/encounter_providers.dart';
 import 'encounter_form.dart';
 
-enum _RecordView { choices, encounter, saved }
+enum _RecordView { choices, form, saved }
 
 class RecordScreen extends ConsumerStatefulWidget {
   const RecordScreen({super.key});
@@ -22,20 +23,16 @@ class RecordScreen extends ConsumerStatefulWidget {
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
   var _view = _RecordView.choices;
-
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Coming in the next milestone')),
-    );
-  }
+  var _memoryType = MemoryType.encounter;
 
   @override
   Widget build(BuildContext context) {
     final repository = ref.watch(encounterRepositoryProvider);
 
     return switch (_view) {
-      _RecordView.encounter => repository.when(
+      _RecordView.form => repository.when(
         data: (value) => EncounterForm(
+          memoryType: _memoryType,
           onCancel: () => setState(() => _view = _RecordView.choices),
           onSave: (draft) => _saveEncounter(value, draft),
         ),
@@ -45,7 +42,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         ),
       ),
       _RecordView.saved => FeaturePage(
-        title: 'Encounter saved',
+        title: 'Record saved',
         description: 'It is ready for you in Remember.',
         action: FilledButton(
           onPressed: () => setState(() => _view = _RecordView.choices),
@@ -61,26 +58,44 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
             _RecordChoice(
               label: 'Encounter',
               icon: Icons.auto_awesome_outlined,
-              onPressed: () => setState(() => _view = _RecordView.encounter),
+              onPressed: () => _open(MemoryType.encounter),
             ),
             const SizedBox(height: AppSpacing.sm),
             _RecordChoice(
-              label: 'Lesson',
+              label: 'Promise',
+              icon: Icons.handshake_outlined,
+              onPressed: () => _open(MemoryType.promise),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _RecordChoice(
+              label: 'What I left behind',
+              icon: Icons.arrow_forward_outlined,
+              onPressed: () => _open(MemoryType.leftBehind),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _RecordChoice(
+              label: 'Revelation',
               icon: Icons.lightbulb_outline,
-              onPressed: _showComingSoon,
+              onPressed: () => _open(MemoryType.revelation),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            _RecordChoice(
-              label: 'Commitment',
-              icon: Icons.check_circle_outline,
-              onPressed: _showComingSoon,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _RecordChoice(
-              label: 'Prayer',
-              icon: Icons.menu_book_outlined,
-              onPressed: _showComingSoon,
-            ),
+            for (final choice in const [
+              (MemoryType.scripture, 'Scripture', Icons.menu_book_outlined),
+              (MemoryType.person, 'Person', Icons.person_outline),
+              (MemoryType.family, 'Family', Icons.family_restroom_outlined),
+              (MemoryType.lesson, 'Lesson', Icons.school_outlined),
+              (
+                MemoryType.testimony,
+                'Testimony',
+                Icons.record_voice_over_outlined,
+              ),
+            ]) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _RecordChoice(
+                label: choice.$2,
+                icon: choice.$3,
+                onPressed: () => _open(choice.$1),
+              ),
+            ],
           ],
         ),
       ),
@@ -95,6 +110,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     unawaited(requestPersistentStorage());
     if (mounted) setState(() => _view = _RecordView.saved);
   }
+
+  void _open(MemoryType type) => setState(() {
+    _memoryType = type;
+    _view = _RecordView.form;
+  });
 }
 
 class _RecordChoice extends StatelessWidget {
@@ -110,9 +130,9 @@ class _RecordChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return ConstrainedBox(
       key: Key('record-choice-${label.toLowerCase()}'),
-      height: 52,
+      constraints: const BoxConstraints(minHeight: 52),
       child: OutlinedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon),

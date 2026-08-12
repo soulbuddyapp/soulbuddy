@@ -10,6 +10,7 @@ class InMemoryEncounterRepository implements EncounterRepository {
 
   final DateTime Function() _now;
   final List<Encounter> _items = [];
+  final Map<String, List<MemoryReflection>> _reflections = {};
   final _changes = StreamController<List<Encounter>>.broadcast(sync: true);
   var _nextId = 1;
 
@@ -78,14 +79,26 @@ class InMemoryEncounterRepository implements EncounterRepository {
 
   @override
   Stream<List<MemoryReflection>> watchReflections(String encounterId) =>
-      Stream.value(const []);
+      Stream.value(List.unmodifiable(_reflections[encounterId] ?? const []));
 
   @override
   Future<MemoryReflection> addReflection(
     String encounterId, {
     required String body,
     required String localDate,
-  }) => throw UnimplementedError();
+  }) async {
+    final reflection = MemoryReflection(
+      id: 'reflection-${_nextId++}',
+      encounterId: encounterId,
+      ownerId: 'test-owner',
+      body: body.trim(),
+      localDate: localDate,
+      createdAt: _now().toUtc(),
+      deviceId: 'test-device',
+    );
+    _reflections.putIfAbsent(encounterId, () => []).insert(0, reflection);
+    return reflection;
+  }
 
   Future<void> close() => _changes.close();
 
