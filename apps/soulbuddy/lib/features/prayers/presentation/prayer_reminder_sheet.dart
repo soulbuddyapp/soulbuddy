@@ -4,6 +4,7 @@ import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
 
 import '../../../core/design/app_spacing.dart';
+import '../application/prayer_reminder_scheduler.dart';
 import '../domain/personal_prayer.dart';
 import '../domain/prayer_reminder.dart';
 import '../providers/prayer_practice_providers.dart';
@@ -108,6 +109,9 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final permissionStatus = ref.watch(
+      prayerNotificationPermissionStatusProvider,
+    );
     return PopScope(
       canPop: !_saving,
       child: Padding(
@@ -128,6 +132,46 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                   'Prayer reminder',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
+                if (widget.existing case final existing?) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _scheduleLabel(context, existing),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    permissionStatus.when(
+                      data: _permissionLabel,
+                      loading: () => 'Checking notificationsâ€¦',
+                      error: (_, _) => 'Notification status unavailable',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _testReminder,
+                        icon: const Icon(Icons.notification_add_outlined),
+                        label: const Text('Test reminder'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _saving ? null : _pause,
+                        icon: const Icon(Icons.pause_outlined),
+                        label: const Text('Pause on this device'),
+                      ),
+                      TextButton(
+                        onPressed: _saving ? null : _confirmRemove,
+                        child: const Text('Remove reminder'),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: AppSpacing.xl),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 Wrap(
                   spacing: AppSpacing.sm,
@@ -261,6 +305,85 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
     }
   }
 
+  Future<void> _testReminder() async {
+    setState(() => _saving = true);
+    try {
+      await ref.read(prayerReminderTestProvider)();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Test reminder sent')));
+    } catch (_) {
+      if (mounted) {
+        setState(() => _validation = 'Could not send a test reminder.');
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _pause() async {
+    final existing = widget.existing;
+    if (existing == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(prayerReminderPauseProvider)(existing.id);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Reminder paused on this device')),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _validation = 'Could not pause this reminder just now.';
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmRemove() async {
+    final existing = widget.existing;
+    if (existing == null) return;
+    final remove = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove this reminder?'),
+        content: const Text(
+          'The prayer and your private prayer history will remain.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (remove != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(prayerReminderRemoveProvider)(existing.id);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(const SnackBar(content: Text('Reminder removed')));
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _validation = 'Could not remove this reminder just now.';
+        });
+      }
+    }
+  }
+
   PrayerReminderSchedule _buildSchedule(String timezoneName) {
     final localTime = PrayerLocalTime(hour: _time.hour, minute: _time.minute);
     return switch (_choice) {
@@ -316,6 +439,15 @@ String _weekdayLabel(int weekday) => const {
   DateTime.saturday: 'S',
   DateTime.sunday: 'S',
 }[weekday]!;
+
+String _permissionLabel(NotificationPermissionStatus status) =>
+    switch (status) {
+      NotificationPermissionStatus.granted => 'Notifications are on',
+      NotificationPermissionStatus.denied =>
+        'Notifications are off on this device',
+      NotificationPermissionStatus.unsupported =>
+        'Reminders appear while SoulBuddy is open',
+    };
 
 String _scheduleLabel(BuildContext context, PrayerReminder reminder) {
   final time = MaterialLocalizations.of(context).formatTimeOfDay(

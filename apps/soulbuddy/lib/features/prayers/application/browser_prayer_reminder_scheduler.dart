@@ -16,6 +16,13 @@ class BrowserPrayerReminderScheduler implements PrayerReminderScheduler {
   Future<bool> requestPermission() async => false;
 
   @override
+  Future<NotificationPermissionStatus> permissionStatus() async =>
+      NotificationPermissionStatus.unsupported;
+
+  @override
+  Future<void> showTestReminder() async {}
+
+  @override
   Future<void> schedule(PrayerScheduledNotification notification) async {}
 
   @override

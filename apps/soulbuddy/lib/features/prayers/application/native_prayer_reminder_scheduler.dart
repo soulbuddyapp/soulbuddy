@@ -57,12 +57,30 @@ class NativeNotificationResponseData {
   final String? payload;
 }
 
+class NativeImmediateNotificationRequest {
+  const NativeImmediateNotificationRequest({
+    required this.title,
+    required this.body,
+    required this.startsAudio,
+    this.payload,
+  });
+
+  final String title;
+  final String body;
+  final bool startsAudio;
+  final String? payload;
+}
+
 abstract interface class NativePrayerNotificationClient {
   Stream<NativeNotificationResponseData> get responses;
 
   Future<void> initialize();
 
   Future<bool> requestPermission();
+
+  Future<NotificationPermissionStatus> permissionStatus();
+
+  Future<void> showImmediate(NativeImmediateNotificationRequest request);
 
   Future<void> schedule(NativeNotificationRequest request);
 
@@ -89,6 +107,19 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   @override
   Future<bool> requestPermission() => _client.requestPermission();
+
+  @override
+  Future<NotificationPermissionStatus> permissionStatus() =>
+      _client.permissionStatus();
+
+  @override
+  Future<void> showTestReminder() => _client.showImmediate(
+    const NativeImmediateNotificationRequest(
+      title: 'Prayer reminder',
+      body: 'Your reminders are ready on this device',
+      startsAudio: false,
+    ),
+  );
 
   @override
   Future<void> schedule(PrayerScheduledNotification notification) {
@@ -244,6 +275,50 @@ class FlutterLocalNotificationsPrayerClient
           true;
     }
     return true;
+  }
+
+  @override
+  Future<NotificationPermissionStatus> permissionStatus() async {
+    if (Platform.isAndroid) {
+      final enabled = await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.areNotificationsEnabled();
+      return (enabled ?? true)
+          ? NotificationPermissionStatus.granted
+          : NotificationPermissionStatus.denied;
+    }
+    if (Platform.isIOS) {
+      final permissions = await _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions();
+      return (permissions?.isEnabled ?? true)
+          ? NotificationPermissionStatus.granted
+          : NotificationPermissionStatus.denied;
+    }
+    return NotificationPermissionStatus.granted;
+  }
+
+  @override
+  Future<void> showImmediate(NativeImmediateNotificationRequest request) {
+    return _plugin.show(
+      id: 2147483000,
+      title: request.title,
+      body: request.body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'prayer_reminders',
+          'Prayer reminders',
+          channelDescription: 'Private reminders to pray',
+          visibility: NotificationVisibility.private,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+      payload: request.payload,
+    );
   }
 
   @override

@@ -1,5 +1,7 @@
 enum PrayerReminderAction { open, prayed, snoozeTenMinutes, dismiss }
 
+enum NotificationPermissionStatus { granted, denied, unsupported }
+
 class PrayerReminderResponse {
   const PrayerReminderResponse({
     required this.reminderId,
@@ -34,6 +36,10 @@ abstract interface class PrayerReminderScheduler {
   Future<void> initialize();
 
   Future<bool> requestPermission();
+
+  Future<NotificationPermissionStatus> permissionStatus();
+
+  Future<void> showTestReminder();
 
   Future<void> schedule(PrayerScheduledNotification notification);
 

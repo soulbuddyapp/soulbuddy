@@ -628,6 +628,15 @@ class _FakePrayerReminderScheduler implements PrayerReminderScheduler {
   }
 
   @override
+  Future<NotificationPermissionStatus> permissionStatus() async =>
+      permissionGranted
+      ? NotificationPermissionStatus.granted
+      : NotificationPermissionStatus.denied;
+
+  @override
+  Future<void> showTestReminder() async {}
+
+  @override
   Future<void> schedule(PrayerScheduledNotification notification) async {
     scheduled.add(notification);
     callOrder.add('schedule:${notification.platformNotificationId}');

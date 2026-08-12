@@ -14,6 +14,10 @@ void main() {
       final scheduler = NativePrayerReminderScheduler(client: client);
 
       await scheduler.initialize();
+      expect(
+        await scheduler.permissionStatus(),
+        NotificationPermissionStatus.granted,
+      );
       expect(await scheduler.requestPermission(), isTrue);
       await scheduler.schedule(
         PrayerScheduledNotification(
@@ -49,6 +53,12 @@ void main() {
         request.actions.every((action) => action.showsUserInterface),
         isTrue,
       );
+      await scheduler.showTestReminder();
+      final testRequest = client.immediateRequests.single;
+      expect(testRequest.title, 'Prayer reminder');
+      expect(testRequest.body, 'Your reminders are ready on this device');
+      expect(testRequest.startsAudio, isFalse);
+      expect(testRequest.payload, isNull);
     },
   );
 
@@ -117,6 +127,11 @@ void main() {
 
     await scheduler.initialize();
     expect(await scheduler.requestPermission(), isFalse);
+    expect(
+      await scheduler.permissionStatus(),
+      NotificationPermissionStatus.unsupported,
+    );
+    await scheduler.showTestReminder();
     await scheduler.schedule(
       PrayerScheduledNotification(
         platformNotificationId: 1,
@@ -135,6 +150,7 @@ class _FakeNativeNotificationClient implements NativePrayerNotificationClient {
   final _responses =
       StreamController<NativeNotificationResponseData>.broadcast();
   final requests = <NativeNotificationRequest>[];
+  final immediateRequests = <NativeImmediateNotificationRequest>[];
   int initializeCalls = 0;
   int permissionCalls = 0;
 
@@ -150,6 +166,15 @@ class _FakeNativeNotificationClient implements NativePrayerNotificationClient {
   Future<bool> requestPermission() async {
     permissionCalls++;
     return true;
+  }
+
+  @override
+  Future<NotificationPermissionStatus> permissionStatus() async =>
+      NotificationPermissionStatus.granted;
+
+  @override
+  Future<void> showImmediate(NativeImmediateNotificationRequest request) async {
+    immediateRequests.add(request);
   }
 
   @override

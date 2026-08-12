@@ -66,6 +66,52 @@ final prayerReminderDeviceEnablerProvider =
       };
     });
 
+final prayerNotificationPermissionStatusProvider =
+    FutureProvider<NotificationPermissionStatus>((ref) async {
+      final scheduler = ref.watch(prayerReminderSchedulerProvider);
+      await ref.watch(prayerReminderCoordinatorProvider.future);
+      return scheduler.permissionStatus();
+    });
+
+final prayerReminderTestProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    final scheduler = ref.read(prayerReminderSchedulerProvider);
+    await ref.read(prayerReminderCoordinatorProvider.future);
+    await scheduler.showTestReminder();
+    ref.invalidate(prayerNotificationPermissionStatusProvider);
+  };
+});
+
+final prayerReminderPauseProvider = Provider<Future<void> Function(String)>((
+  ref,
+) {
+  return (reminderId) async {
+    final repository = await ref.read(prayerPracticeRepositoryProvider.future);
+    final device = await repository.watchDevice(reminderId).first;
+    if (device?.enabledOnDevice == true) {
+      await ref
+          .read(prayerReminderSchedulerProvider)
+          .cancel(device!.platformNotificationId);
+    }
+    await repository.setDeviceEnabled(reminderId, enabled: false);
+  };
+});
+
+final prayerReminderRemoveProvider = Provider<Future<void> Function(String)>((
+  ref,
+) {
+  return (reminderId) async {
+    final repository = await ref.read(prayerPracticeRepositoryProvider.future);
+    final device = await repository.watchDevice(reminderId).first;
+    if (device?.enabledOnDevice == true) {
+      await ref
+          .read(prayerReminderSchedulerProvider)
+          .cancel(device!.platformNotificationId);
+    }
+    await repository.archiveReminder(reminderId);
+  };
+});
+
 final prayerReminderProvider = StreamProvider.autoDispose
     .family<PrayerReminder?, String>((ref, personalPrayerId) async* {
       final repository = await ref.watch(

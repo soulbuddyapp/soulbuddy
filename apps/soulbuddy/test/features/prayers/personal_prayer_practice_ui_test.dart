@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_practice_repository.dart';
+import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
@@ -79,6 +80,53 @@ void main() {
     );
     expect(everyDay.selected, isTrue);
     expect(find.text('7:30 AM'), findsOneWidget);
+    expect(find.text('Every day at 7:30 AM'), findsWidgets);
+    expect(find.text('Notifications are on'), findsOneWidget);
+    expect(find.text('Test reminder'), findsOneWidget);
+    expect(find.text('Pause on this device'), findsOneWidget);
+    expect(find.text('Remove reminder'), findsOneWidget);
+  });
+
+  testWidgets('tests, pauses, and removes an existing reminder safely', (
+    tester,
+  ) async {
+    final repository = _PracticeRepository();
+    final calls = <String>[];
+    await tester.pumpWidget(
+      _app(
+        repository,
+        reminder: _reminder(
+          PrayerReminderSchedule.daily(
+            localTime: PrayerLocalTime(hour: 7, minute: 30),
+            timezone: 'Africa/Lagos',
+          ),
+        ),
+        testReminder: () async => calls.add('test'),
+        pauseReminder: (id) async => calls.add('pause:$id'),
+        removeReminder: (id) async => calls.add('remove:$id'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Every day at 7:30 AM'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Test reminder'));
+    await tester.pumpAndSettle();
+    expect(calls, ['test']);
+    expect(find.text('Test reminder sent'), findsOneWidget);
+
+    await tester.tap(find.text('Pause on this device'));
+    await tester.pumpAndSettle();
+    expect(calls, ['test', 'pause:reminder-1']);
+
+    await tester.tap(find.text('Every day at 7:30 AM'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove reminder'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove this reminder?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove'));
+    await tester.pumpAndSettle();
+    expect(calls, ['test', 'pause:reminder-1', 'remove:reminder-1']);
   });
 
   testWidgets(
@@ -201,6 +249,9 @@ Widget _app(
   PrayerReminder? reminder,
   Future<bool> Function(String)? enableDevice,
   TextScaler textScaler = TextScaler.noScaling,
+  Future<void> Function()? testReminder,
+  Future<void> Function(String)? pauseReminder,
+  Future<void> Function(String)? removeReminder,
 }) {
   final prayer = PersonalPrayer(
     id: 'prayer-1',
@@ -232,6 +283,16 @@ Widget _app(
       ),
       prayerReminderDeviceEnablerProvider.overrideWithValue(
         enableDevice ?? (id) async => true,
+      ),
+      prayerNotificationPermissionStatusProvider.overrideWith(
+        (ref) async => NotificationPermissionStatus.granted,
+      ),
+      prayerReminderTestProvider.overrideWithValue(testReminder ?? () async {}),
+      prayerReminderPauseProvider.overrideWithValue(
+        pauseReminder ?? (id) async {},
+      ),
+      prayerReminderRemoveProvider.overrideWithValue(
+        removeReminder ?? (id) async {},
       ),
     ],
     child: MaterialApp(
