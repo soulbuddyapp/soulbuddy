@@ -9,4 +9,12 @@ abstract interface class EncounterRepository {
   Future<void> markAsAltar(String encounterId, {required bool value});
 
   Future<void> archive(String encounterId);
+
+  Stream<List<MemoryReflection>> watchReflections(String encounterId);
+
+  Future<MemoryReflection> addReflection(
+    String encounterId, {
+    required String body,
+    required String localDate,
+  });
 }

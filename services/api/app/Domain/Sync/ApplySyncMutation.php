@@ -5,6 +5,7 @@ namespace App\Domain\Sync;
 use App\Models\Encounter;
 use App\Models\EncounterRevision;
 use App\Models\LibraryPrayer;
+use App\Models\MemoryReflection;
 use App\Models\PersonalPrayer;
 use App\Models\PrayerRecordAlias;
 use App\Models\PrayerVote;
@@ -24,6 +25,7 @@ class ApplySyncMutation
     private const SUPPORTED_TABLES = [
         'encounters',
         'encounter_revisions',
+        'memory_reflections',
         'prayer_votes',
         'today_prayers',
         'personal_prayers',
@@ -85,7 +87,7 @@ class ApplySyncMutation
         }
 
         $encounterOperations = $pending
-            ->whereIn('table', ['encounters', 'encounter_revisions'])
+            ->whereIn('table', ['encounters', 'encounter_revisions', 'memory_reflections'])
             ->all();
         $prayerOperations = $pending
             ->whereIn('table', ['prayer_votes', 'today_prayers'])
@@ -170,6 +172,7 @@ class ApplySyncMutation
                         match ($operation['table']) {
                             'encounters' => $this->applyEncounter($user, $operation),
                             'encounter_revisions' => $this->applyRevision($user, $operation),
+                            'memory_reflections' => $this->applyReflection($user, $operation),
                             'prayer_votes' => $this->applyPrayerVote(
                                 $user,
                                 $operation,
@@ -221,6 +224,9 @@ class ApplySyncMutation
             if ($operation['table'] === 'encounter_revisions' && $operation['type'] !== 'put') {
                 return 'immutable_revision';
             }
+            if ($operation['table'] === 'memory_reflections' && $operation['type'] !== 'put') {
+                return 'immutable_reflection';
+            }
             if ($operation['table'] === 'prayer_votes' && $operation['type'] === 'patch') {
                 return 'unsupported_operation';
             }
@@ -243,6 +249,22 @@ class ApplySyncMutation
                     return $revision->user_id === $user->id
                         ? 'immutable_revision'
                         : 'forbidden';
+                }
+            }
+            if ($operation['table'] === 'memory_reflections') {
+                $reflection = MemoryReflection::find($operation['id']);
+                if ($reflection !== null) {
+                    return $reflection->user_id === $user->id
+                        ? 'immutable_reflection'
+                        : 'forbidden';
+                }
+                $encounterId = $operation['data']['encounter_id'] ?? null;
+                $encounterInBatch = collect($operations)
+                    ->where('table', 'encounters')
+                    ->where('type', 'put')
+                    ->contains('id', $encounterId);
+                if (! $encounterInBatch && ! Encounter::whereKey($encounterId)->exists()) {
+                    return 'missing_record';
                 }
             }
         }
@@ -289,6 +311,13 @@ class ApplySyncMutation
 
     private function validateData(array $operations): ?string
     {
+        $memorySnapshotKeys = [
+            'memory_type',
+            'sensitive',
+            'recall_enabled',
+            'recall_paused',
+            'recall_interval_days',
+        ];
         foreach ($operations as $operation) {
             if ($operation['type'] === 'delete') {
                 if (in_array($operation['table'], ['prayer_votes', 'today_prayers'], true)
@@ -300,15 +329,20 @@ class ApplySyncMutation
             }
 
             $rules = match ([$operation['table'], $operation['type']]) {
-                ['encounters', 'put'] => ['title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'occurred_on' => ['required', 'date_format:Y-m-d'], 'is_altar' => ['required', 'boolean'], 'current_revision_id' => ['required', 'uuid'], 'archived_at' => ['nullable', 'date']],
-                ['encounters', 'patch'] => ['title' => ['sometimes', 'string', 'max:120'], 'body' => ['sometimes', 'nullable', 'string', 'max:4000'], 'occurred_on' => ['sometimes', 'date_format:Y-m-d'], 'is_altar' => ['sometimes', 'boolean'], 'current_revision_id' => ['sometimes', 'uuid'], 'archived_at' => ['sometimes', 'nullable', 'date'], 'updated_at' => ['sometimes', 'date']],
-                ['encounter_revisions', 'put'] => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120']],
+                ['encounters', 'put'] => ['title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'occurred_on' => ['required', 'date_format:Y-m-d'], 'is_altar' => ['required', 'boolean'], 'current_revision_id' => ['required', 'uuid'], 'archived_at' => ['nullable', 'date'], 'memory_type' => ['sometimes', 'in:encounter,promise,left_behind,revelation,scripture,person,family,lesson,testimony'], 'sensitive' => ['sometimes', 'boolean'], 'recall_enabled' => ['sometimes', 'boolean'], 'recall_paused' => ['sometimes', 'boolean'], 'recall_interval_days' => ['sometimes', 'integer', 'min:1', 'max:365']],
+                ['encounters', 'patch'] => ['title' => ['sometimes', 'string', 'max:120'], 'body' => ['sometimes', 'nullable', 'string', 'max:4000'], 'occurred_on' => ['sometimes', 'date_format:Y-m-d'], 'is_altar' => ['sometimes', 'boolean'], 'current_revision_id' => ['sometimes', 'uuid'], 'archived_at' => ['sometimes', 'nullable', 'date'], 'updated_at' => ['sometimes', 'date'], 'memory_type' => ['sometimes', 'in:encounter,promise,left_behind,revelation,scripture,person,family,lesson,testimony'], 'sensitive' => ['sometimes', 'boolean'], 'recall_enabled' => ['sometimes', 'boolean'], 'recall_paused' => ['sometimes', 'boolean'], 'recall_interval_days' => ['sometimes', 'integer', 'min:1', 'max:365']],
+                ['encounter_revisions', 'put'] => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120'], 'memory_type' => ['sometimes', 'in:encounter,promise,left_behind,revelation,scripture,person,family,lesson,testimony'], 'sensitive' => ['sometimes', 'boolean'], 'recall_enabled' => ['sometimes', 'boolean'], 'recall_paused' => ['sometimes', 'boolean'], 'recall_interval_days' => ['sometimes', 'integer', 'min:1', 'max:365']],
+                ['memory_reflections', 'put'] => ['encounter_id' => ['required', 'uuid'], 'owner_id' => [], 'body' => ['required', 'string', 'max:4000'], 'local_date' => ['required', 'date_format:Y-m-d'], 'created_at' => ['required', 'date'], 'device_id' => ['required', 'string', 'max:120']],
                 ['prayer_votes', 'put'] => ['owner_id' => [], 'prayer_id' => ['required', 'uuid'], 'created_at' => ['sometimes', 'date']],
                 ['today_prayers', 'put'] => ['owner_id' => [], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['sometimes', 'nullable', 'uuid'], 'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
                 ['today_prayers', 'patch'] => ['prayer_id' => ['sometimes', 'nullable', 'uuid'], 'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'], 'include_action' => ['sometimes', 'boolean'], 'action_completed' => ['sometimes', 'boolean']],
             };
 
             if ($this->hasUnexpectedPrayerFields($operation, array_keys($rules))) {
+                return 'invalid_data';
+            }
+            if (in_array($operation['table'], ['encounters', 'encounter_revisions', 'memory_reflections'], true)
+                && array_diff(array_keys($operation['data']), array_keys($rules)) !== []) {
                 return 'invalid_data';
             }
             if (Validator::make($operation['data'], $rules)->fails()) {
@@ -326,6 +360,26 @@ class ApplySyncMutation
             }
             if ($operation['type'] === 'patch' && $operation['data'] === []) {
                 return 'invalid_data';
+            }
+        }
+
+        $encounters = collect($operations)->where('table', 'encounters')->where('type', 'put');
+        $revisions = collect($operations)->where('table', 'encounter_revisions');
+        foreach ($encounters as $encounter) {
+            $revision = $revisions->firstWhere('id', $encounter['data']['current_revision_id']);
+            if ($revision === null) {
+                continue;
+            }
+            foreach ($memorySnapshotKeys as $key) {
+                $default = match ($key) {
+                    'memory_type' => 'encounter',
+                    'recall_interval_days' => 7,
+                    'recall_enabled' => true,
+                    default => false,
+                };
+                if (($encounter['data'][$key] ?? $default) !== ($revision['data'][$key] ?? $default)) {
+                    return 'invalid_data';
+                }
             }
         }
 
@@ -365,6 +419,11 @@ class ApplySyncMutation
                 'is_altar' => $operation['data']['is_altar'],
                 'current_revision_id' => $operation['data']['current_revision_id'],
                 'archived_at' => $operation['data']['archived_at'] ?? null,
+                'memory_type' => $operation['data']['memory_type'] ?? 'encounter',
+                'sensitive' => $operation['data']['sensitive'] ?? false,
+                'recall_enabled' => $operation['data']['recall_enabled'] ?? true,
+                'recall_paused' => $operation['data']['recall_paused'] ?? false,
+                'recall_interval_days' => $operation['data']['recall_interval_days'] ?? 7,
             ]
             : Arr::only($operation['data'], [
                 'title',
@@ -373,6 +432,11 @@ class ApplySyncMutation
                 'is_altar',
                 'current_revision_id',
                 'archived_at',
+                'memory_type',
+                'sensitive',
+                'recall_enabled',
+                'recall_paused',
+                'recall_interval_days',
             ]);
         $encounter->forceFill($attributes)->save();
     }
@@ -389,6 +453,26 @@ class ApplySyncMutation
             'body' => $operation['data']['body'] ?? null,
             'device_id' => $operation['data']['device_id'],
             'created_at' => now(),
+            'memory_type' => $operation['data']['memory_type'] ?? 'encounter',
+            'sensitive' => $operation['data']['sensitive'] ?? false,
+            'recall_enabled' => $operation['data']['recall_enabled'] ?? true,
+            'recall_paused' => $operation['data']['recall_paused'] ?? false,
+            'recall_interval_days' => $operation['data']['recall_interval_days'] ?? 7,
+        ]);
+    }
+
+    private function applyReflection(User $user, array $operation): void
+    {
+        $encounter = Encounter::findOrFail($operation['data']['encounter_id']);
+        Gate::forUser($user)->authorize('update', $encounter);
+        MemoryReflection::create([
+            'id' => $operation['id'],
+            'encounter_id' => $encounter->id,
+            'user_id' => $user->id,
+            'body' => $operation['data']['body'],
+            'local_date' => $operation['data']['local_date'],
+            'created_at' => $operation['data']['created_at'],
+            'device_id' => $operation['data']['device_id'],
         ]);
     }
 

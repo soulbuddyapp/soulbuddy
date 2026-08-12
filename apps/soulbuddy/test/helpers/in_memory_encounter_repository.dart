@@ -34,6 +34,11 @@ class InMemoryEncounterRepository implements EncounterRepository {
       updatedAt: now,
       currentRevisionId: 'revision-$id',
       syncState: EncounterSyncState.pending,
+      memoryType: draft.memoryType,
+      sensitive: draft.sensitive,
+      recallEnabled: draft.recallEnabled,
+      recallPaused: draft.recallPaused,
+      recallIntervalDays: draft.recallIntervalDays,
     );
     _items.insert(0, encounter);
     _emit();
@@ -56,6 +61,11 @@ class InMemoryEncounterRepository implements EncounterRepository {
       updatedAt: _now().toUtc(),
       currentRevisionId: current.currentRevisionId,
       syncState: current.syncState,
+      memoryType: current.memoryType,
+      sensitive: current.sensitive,
+      recallEnabled: current.recallEnabled,
+      recallPaused: current.recallPaused,
+      recallIntervalDays: current.recallIntervalDays,
     );
     _emit();
   }
@@ -65,6 +75,17 @@ class InMemoryEncounterRepository implements EncounterRepository {
     _items.removeWhere((item) => item.id == encounterId);
     _emit();
   }
+
+  @override
+  Stream<List<MemoryReflection>> watchReflections(String encounterId) =>
+      Stream.value(const []);
+
+  @override
+  Future<MemoryReflection> addReflection(
+    String encounterId, {
+    required String body,
+    required String localDate,
+  }) => throw UnimplementedError();
 
   Future<void> close() => _changes.close();
 

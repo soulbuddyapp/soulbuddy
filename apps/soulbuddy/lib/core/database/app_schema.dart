@@ -13,6 +13,11 @@ const appSchema = Schema([
       Column.text('updated_at'),
       Column.text('archived_at'),
       Column.text('current_revision_id'),
+      Column.text('memory_type'),
+      Column.integer('sensitive'),
+      Column.integer('recall_enabled'),
+      Column.integer('recall_paused'),
+      Column.integer('recall_interval_days'),
     ],
     indexes: [
       Index('encounters_owner_date', [
@@ -30,9 +35,31 @@ const appSchema = Schema([
       Column.text('body'),
       Column.text('created_at'),
       Column.text('device_id'),
+      Column.text('memory_type'),
+      Column.integer('sensitive'),
+      Column.integer('recall_enabled'),
+      Column.integer('recall_paused'),
+      Column.integer('recall_interval_days'),
     ],
     indexes: [
       Index('encounter_revisions_parent', [IndexedColumn('encounter_id')]),
+    ],
+  ),
+  Table(
+    'memory_reflections',
+    [
+      Column.text('encounter_id'),
+      Column.text('owner_id'),
+      Column.text('body'),
+      Column.text('local_date'),
+      Column.text('created_at'),
+      Column.text('device_id'),
+    ],
+    indexes: [
+      Index('memory_reflections_parent_date', [
+        IndexedColumn('encounter_id'),
+        IndexedColumn('local_date'),
+      ]),
     ],
   ),
   Table(

@@ -2,6 +2,7 @@
 
 use App\Models\Encounter;
 use App\Models\EncounterRevision;
+use App\Models\MemoryReflection;
 use App\Models\SyncOperation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,6 +52,126 @@ it('applies an encounter and revision atomically', function () {
     expect(Encounter::first()->user_id)->toBe($user->id)
         ->and(EncounterRevision::count())->toBe(1)
         ->and(SyncOperation::count())->toBe(2);
+});
+
+it('stores typed memory fields in both current and immutable history', function () {
+    $user = User::factory()->create();
+    $batch = encounterBatch();
+    $fields = [
+        'memory_type' => 'promise',
+        'sensitive' => true,
+        'recall_enabled' => true,
+        'recall_paused' => false,
+        'recall_interval_days' => 14,
+    ];
+    $batch['operations'][0]['data'] += $fields;
+    $batch['operations'][1]['data'] += $fields;
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', $batch)
+        ->assertOk()->assertJsonPath('accepted', 2);
+
+    expect(Encounter::first())
+        ->memory_type->toBe('promise')
+        ->sensitive->toBeTrue()
+        ->recall_interval_days->toBe(14)
+        ->and(EncounterRevision::first())
+        ->memory_type->toBe('promise')
+        ->sensitive->toBeTrue()
+        ->recall_interval_days->toBe(14);
+});
+
+it('keeps legacy encounter payloads backward compatible', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user)->postJson('/api/sync/mutations', encounterBatch())
+        ->assertOk()->assertJsonPath('accepted', 2);
+
+    expect(Encounter::first()->memory_type)->toBe('encounter')
+        ->and(EncounterRevision::first()->memory_type)->toBe('encounter');
+});
+
+it('rejects unknown memory types before writing', function () {
+    $user = User::factory()->create();
+    $batch = encounterBatch();
+    $batch['operations'][0]['data']['memory_type'] = 'certified_revelation';
+    $batch['operations'][1]['data']['memory_type'] = 'certified_revelation';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', $batch)
+        ->assertOk()
+        ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('code', 'invalid_data');
+
+    expect(Encounter::count())->toBe(0);
+});
+
+it('rejects unknown memory fields and mismatched revision snapshots', function (string $case) {
+    $user = User::factory()->create();
+    $batch = encounterBatch();
+    if ($case === 'unknown') {
+        $batch['operations'][0]['data']['recall_intervl_days'] = 14;
+    } else {
+        $batch['operations'][0]['data']['memory_type'] = 'promise';
+        $batch['operations'][1]['data']['memory_type'] = 'revelation';
+    }
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', $batch)
+        ->assertOk()->assertJsonPath('code', 'invalid_data');
+    expect(Encounter::count())->toBe(0);
+})->with(['unknown', 'mismatch']);
+
+it('appends an owned reflection without rewriting encounter history', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user)->postJson('/api/sync/mutations', encounterBatch())->assertOk();
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [[
+            'operation_id' => '0198a000-0000-7000-8000-000000000031',
+            'table' => 'memory_reflections',
+            'type' => 'put',
+            'id' => '0198a000-0000-7000-8000-000000000032',
+            'data' => [
+                'encounter_id' => '0198a000-0000-7000-8000-000000000002',
+                'owner_id' => 'ignored-offline-owner-shape',
+                'body' => 'I now understand more about patience.',
+                'local_date' => '2026-08-12',
+                'created_at' => '2026-08-12T09:00:00.000Z',
+                'device_id' => 'test-device',
+            ],
+        ]],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    expect(MemoryReflection::first())
+        ->user_id->toBe($user->id)
+        ->body->toContain('patience')
+        ->and(EncounterRevision::count())->toBe(1);
+});
+
+it('keeps reflections append-only and owner scoped', function () {
+    $owner = User::factory()->create();
+    $other = User::factory()->create();
+    $this->actingAs($owner)->postJson('/api/sync/mutations', encounterBatch())->assertOk();
+
+    $operation = [
+        'operations' => [[
+            'operation_id' => '0198a000-0000-7000-8000-000000000033',
+            'table' => 'memory_reflections',
+            'type' => 'put',
+            'id' => '0198a000-0000-7000-8000-000000000034',
+            'data' => [
+                'encounter_id' => '0198a000-0000-7000-8000-000000000002',
+                'body' => 'A reflection',
+                'local_date' => '2026-08-12',
+                'created_at' => '2026-08-12T09:00:00.000Z',
+                'device_id' => 'other-device',
+            ],
+        ]],
+    ];
+    $this->actingAs($other)->postJson('/api/sync/mutations', $operation)
+        ->assertOk()->assertJsonPath('code', 'forbidden');
+
+    $operation['operations'][0]['type'] = 'patch';
+    $this->actingAs($owner)->postJson('/api/sync/mutations', $operation)
+        ->assertOk()->assertJsonPath('code', 'immutable_reflection');
+    expect(MemoryReflection::count())->toBe(0);
 });
 
 it('records user-before-record acquisition order for Encounter transactions in SQLite', function () {

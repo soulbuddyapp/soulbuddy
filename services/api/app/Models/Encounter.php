@@ -19,6 +19,9 @@ class Encounter extends Model
             'occurred_on' => 'date',
             'is_altar' => 'boolean',
             'archived_at' => 'datetime',
+            'sensitive' => 'boolean',
+            'recall_enabled' => 'boolean',
+            'recall_paused' => 'boolean',
         ];
     }
 

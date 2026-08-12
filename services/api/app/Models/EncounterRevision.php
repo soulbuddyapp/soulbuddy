@@ -16,7 +16,12 @@ class EncounterRevision extends Model
 
     protected function casts(): array
     {
-        return ['created_at' => 'datetime'];
+        return [
+            'created_at' => 'datetime',
+            'sensitive' => 'boolean',
+            'recall_enabled' => 'boolean',
+            'recall_paused' => 'boolean',
+        ];
     }
 
     public function encounter(): BelongsTo

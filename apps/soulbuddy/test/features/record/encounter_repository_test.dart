@@ -114,4 +114,83 @@ void main() {
     );
     expect(revisions, hasLength(1));
   });
+
+  test('persists typed remembrance fields in the immutable revision', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/soulbuddy.db',
+    );
+    addTearDown(database.close);
+    final repository = PowerSyncEncounterRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      deviceId: 'device-1',
+      now: () => DateTime.utc(2026, 8, 12, 9),
+    );
+
+    final memory = await repository.create(
+      const EncounterDraft(
+        title: 'What I promised',
+        body: 'I will return to prayer each morning.',
+        occurredOn: '2026-08-12',
+        isAltar: true,
+        memoryType: MemoryType.promise,
+        sensitive: true,
+        recallEnabled: true,
+        recallIntervalDays: 14,
+      ),
+    );
+
+    expect(memory.memoryType, MemoryType.promise);
+    expect(memory.sensitive, isTrue);
+    expect(memory.recallEnabled, isTrue);
+    expect(memory.recallIntervalDays, 14);
+    final revision = await database.powersync.get(
+      'SELECT memory_type, sensitive, recall_enabled, recall_interval_days '
+      'FROM encounter_revisions WHERE id = ?',
+      [memory.currentRevisionId],
+    );
+    expect(revision, {
+      'memory_type': 'promise',
+      'sensitive': 1,
+      'recall_enabled': 1,
+      'recall_interval_days': 14,
+    });
+  });
+
+  test(
+    'appends dated reflections without changing the original record',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      final repository = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+        now: () => DateTime.utc(2026, 8, 12, 10),
+      );
+      final memory = await repository.create(
+        const EncounterDraft(
+          title: 'A lesson to revisit',
+          body: 'The original understanding.',
+          occurredOn: '2026-08-11',
+          isAltar: false,
+          memoryType: MemoryType.revelation,
+        ),
+      );
+
+      await repository.addReflection(
+        memory.id,
+        body: 'I now understand that patience was part of the lesson.',
+        localDate: '2026-08-12',
+      );
+
+      final reflections = await repository.watchReflections(memory.id).first;
+      expect(reflections.single.body, contains('patience'));
+      expect(reflections.single.localDate, '2026-08-12');
+      final original = await repository.watchAll().first;
+      expect(original.single.body, 'The original understanding.');
+    },
+  );
 }
