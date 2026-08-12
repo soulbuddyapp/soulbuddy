@@ -52,6 +52,7 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
           timestamp,
         ],
       );
+      await _recordShown(chosen['id'] as String, date, timestamp);
     } catch (_) {
       final raced = await _get(date);
       if (raced == null) rethrow;
@@ -90,6 +91,11 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
         date,
         expectedEncounterId,
       ],
+    );
+    await _recordShown(
+      chosen['id'] as String,
+      date,
+      _now().toUtc().toIso8601String(),
     );
     return _get(date);
   }
@@ -138,7 +144,7 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
     for (final row in rows) {
       final last = await database.getOptional(
         '''
-        SELECT local_date FROM daily_memory_occurrences
+        SELECT local_date FROM daily_memory_history
         WHERE owner_id = ? AND encounter_id = ? AND local_date < ?
         ORDER BY local_date DESC LIMIT 1
         ''',
@@ -154,6 +160,27 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
       }
     }
     return eligible;
+  }
+
+  Future<void> _recordShown(
+    String encounterId,
+    String date,
+    String timestamp,
+  ) async {
+    final id = _uuid.v5(Namespace.url.value, '$ownerId:$date:$encounterId');
+    final existing = await database.getOptional(
+      'SELECT id FROM daily_memory_history WHERE id = ?',
+      [id],
+    );
+    if (existing != null) return;
+    await database.execute(
+      '''
+      INSERT INTO daily_memory_history(
+        id, owner_id, encounter_id, local_date, shown_at
+      ) VALUES (?, ?, ?, ?, ?)
+      ''',
+      [id, ownerId, encounterId, date, timestamp],
+    );
   }
 
   Map<String, dynamic> _deterministicChoice(

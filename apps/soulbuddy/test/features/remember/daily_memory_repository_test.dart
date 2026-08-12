@@ -168,4 +168,42 @@ void main() {
       expect(saved?.status, DailyMemoryStatus.remembered);
     },
   );
+
+  test(
+    'choose another remembers every shown memory for its interval',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      final encounters = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+      );
+      for (final title in ['First promise', 'Second promise']) {
+        await encounters.create(
+          EncounterDraft(
+            title: title,
+            body: '',
+            occurredOn: '2026-08-10',
+            isAltar: false,
+            memoryType: MemoryType.promise,
+            recallIntervalDays: 7,
+          ),
+        );
+      }
+      final repository = PowerSyncDailyMemoryRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+      );
+      final first = await repository.ensureForDate(DateTime(2026, 8, 12));
+      await repository.chooseAnother(
+        DateTime(2026, 8, 12),
+        expectedEncounterId: first!.memory.id,
+      );
+
+      expect(await repository.ensureForDate(DateTime(2026, 8, 13)), isNull);
+    },
+  );
 }
