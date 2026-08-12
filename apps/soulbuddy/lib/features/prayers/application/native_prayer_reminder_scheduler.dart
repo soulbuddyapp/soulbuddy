@@ -78,6 +78,9 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
   Stream<PrayerReminderResponse>? _responses;
 
   @override
+  bool get supportsSystemNotifications => true;
+
+  @override
   Stream<PrayerReminderResponse> get responses =>
       _responses ??= _client.responses.map(_decodeResponse);
 

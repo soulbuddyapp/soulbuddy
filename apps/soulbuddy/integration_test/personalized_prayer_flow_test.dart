@@ -16,6 +16,7 @@ import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
 import 'package:soulbuddy/features/prayers/data/laravel_prayer_draft_api.dart';
+import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 
 const _databaseName = 'soulbuddy-personalized-prayer-integration.db';
@@ -113,6 +114,9 @@ void main() {
       final firstWorker = await firstContainer.read(
         prayerGenerationWorkerProvider.future,
       );
+      final firstCoordinator = await firstContainer.read(
+        prayerReminderCoordinatorProvider.future,
+      );
       await firstWorker.dispose();
       await firstDatabase.powersync.execute(
         '''
@@ -123,6 +127,8 @@ void main() {
         [DateTime.utc(2026).toIso8601String(), requestId, _identity.ownerId],
       );
       firstContainer.dispose();
+      await tester.pump();
+      await firstCoordinator.dispose();
       await _drainAndClose(tester, firstDatabase);
 
       endpoint.online = true;
@@ -433,9 +439,22 @@ Future<void> _closeApp(
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
   final worker = await container.read(prayerGenerationWorkerProvider.future);
+  final coordinator = await container.read(
+    prayerReminderCoordinatorProvider.future,
+  );
   await worker.dispose();
   container.dispose();
+  await tester.pump();
+  await coordinator.dispose();
+  await _drainAsyncDisposals(tester);
   await _drainAndClose(tester, database);
+}
+
+Future<void> _drainAsyncDisposals(WidgetTester tester) async {
+  for (var turn = 0; turn < 10; turn++) {
+    await Future<void>.delayed(Duration.zero);
+    await tester.pump();
+  }
 }
 
 Future<void> _drainAndClose(WidgetTester tester, AppDatabase database) async {
@@ -551,6 +570,12 @@ Future<void> _settle(WidgetTester tester, {int frames = 12}) async {
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   if (finder.evaluate().isEmpty) {
+    await _pumpUntil(tester, finder);
+  }
+  if (finder.evaluate().isEmpty) {
+    fail('The requested control did not become available: $finder');
+  }
+  if (finder.hitTestable().evaluate().isEmpty) {
     await tester.scrollUntilVisible(
       finder,
       240,

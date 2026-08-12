@@ -281,6 +281,30 @@ void main() {
   });
 
   group('PrayerGenerationWorker', () {
+    testWidgets('dispose waits for its pending watch to cancel', (
+      tester,
+    ) async {
+      final repository = _StallingGenerationRepository(
+        _queuedRequest(DateTime.utc(2026, 8, 11, 8)),
+      );
+      final worker = PrayerGenerationWorker(
+        repository: repository,
+        dispatcher: PrayerGenerationDispatcher(
+          repository: repository,
+          api: _FakePrayerDraftApi(onGenerate: (_, _, _) async => _generated),
+        ),
+      )..start();
+      await tester.pump();
+
+      var completed = false;
+      final disposal = worker.dispose().then((_) => completed = true);
+      await tester.pump();
+      expect(repository.cancellationStarted, isTrue);
+      expect(completed, isFalse);
+      repository.releaseCancellation();
+      await disposal;
+    });
+
     testWidgets('wakes for the next bounded retry time', (tester) async {
       var now = DateTime.utc(2026, 8, 11, 8);
       final repository = _MemoryGenerationRepository(
@@ -569,4 +593,25 @@ class _MemoryGenerationRepository implements PrayerGenerationRepository {
   @override
   Future<void> update(PrayerGenerationRequest request) =>
       throw UnimplementedError();
+}
+
+class _StallingGenerationRepository extends _MemoryGenerationRepository {
+  _StallingGenerationRepository(super.current) {
+    _pending = StreamController<List<PrayerGenerationRequest>>(
+      onCancel: () async {
+        cancellationStarted = true;
+        _cancellationBlocker ??= Completer<void>();
+        await _cancellationBlocker!.future;
+      },
+    );
+  }
+
+  bool cancellationStarted = false;
+  Completer<void>? _cancellationBlocker;
+  late final StreamController<List<PrayerGenerationRequest>> _pending;
+
+  @override
+  Stream<List<PrayerGenerationRequest>> watchPending() => _pending.stream;
+
+  void releaseCancellation() => _cancellationBlocker?.complete();
 }

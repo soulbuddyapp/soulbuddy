@@ -52,6 +52,24 @@ void main() {
   });
 
   test(
+    'browser fallback enables the in-app card without an OS prompt',
+    () async {
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler(
+        permissionGranted: false,
+        supportsSystemNotifications: false,
+      );
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+
+      expect(await coordinator.enableOnThisDevice('reminder-1'), isTrue);
+      expect(scheduler.permissionCalls, 0);
+      expect(repository.deviceChanges, [('reminder-1', true)]);
+    },
+  );
+
+  test(
     'schedule and timezone changes cancel before replacing notification',
     () async {
       final repository = _FakePrayerPracticeRepository();
@@ -224,6 +242,153 @@ void main() {
 
     expect((await due).map((item) => item.reminder.id), ['reminder-1']);
   });
+
+  test(
+    'a reconcile before the schedule watch catches up does not skip today',
+    () async {
+      var current = DateTime.utc(2026, 8, 11, 5);
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = PrayerReminderCoordinator(
+        repository: repository,
+        scheduler: scheduler,
+        calculator: TimezonePrayerOccurrenceCalculator.initialize(),
+        clock: () => current,
+        timezoneName: () async => 'UTC',
+      );
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+
+      final stale = _occurrence(nextAt: null);
+      repository.emit([stale]);
+      await pumpEventQueue(times: 20);
+      expect(
+        repository.scheduleChanges.last.nextOccurrenceAt,
+        DateTime.utc(2026, 8, 11, 6, 30),
+      );
+
+      current = DateTime.utc(2026, 8, 11, 6, 31);
+      await coordinator.reconcileNow();
+
+      expect(coordinator.currentDue, hasLength(1));
+      expect(
+        repository.scheduleChanges.last.nextOccurrenceAt,
+        DateTime.utc(2026, 8, 11, 6, 30),
+      );
+    },
+  );
+
+  test('a newer reminder edit supersedes a pending device schedule', () async {
+    var current = DateTime.utc(2026, 8, 11, 5);
+    final repository = _FakePrayerPracticeRepository();
+    final scheduler = _FakePrayerReminderScheduler();
+    final coordinator = PrayerReminderCoordinator(
+      repository: repository,
+      scheduler: scheduler,
+      calculator: TimezonePrayerOccurrenceCalculator.initialize(),
+      clock: () => current,
+      timezoneName: () async => 'UTC',
+    );
+    addTearDown(coordinator.dispose);
+    await coordinator.start();
+
+    repository.emit([_occurrence(nextAt: null)]);
+    await pumpEventQueue(times: 20);
+    current = DateTime.utc(2026, 8, 11, 6, 31);
+    repository.emit([
+      _occurrence(
+        nextAt: null,
+        localHour: 8,
+        reminderUpdatedAt: DateTime.utc(2026, 8, 11, 6, 31),
+      ),
+    ]);
+    await pumpEventQueue(times: 20);
+
+    expect(coordinator.currentDue, isEmpty);
+    expect(
+      repository.scheduleChanges.last.nextOccurrenceAt,
+      DateTime.utc(2026, 8, 11, 8),
+    );
+  });
+
+  test(
+    'dispose waits for the database watch to release before completing',
+    () async {
+      final repository = _FakePrayerPracticeRepository(
+        stallDueCancellation: true,
+      );
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      await coordinator.start();
+
+      var completed = false;
+      final disposal = coordinator.dispose().then((_) => completed = true);
+      await pumpEventQueue();
+      expect(repository.dueCancellationStarted, isTrue);
+      expect(completed, isFalse);
+      repository.releaseDueCancellation();
+      await disposal.timeout(const Duration(seconds: 1));
+      repository.emit([_occurrence(nextAt: DateTime.utc(2026, 8, 11, 4, 59))]);
+      scheduler.emit(
+        _response(
+          _occurrence(nextAt: DateTime.utc(2026, 8, 11, 4, 59)),
+          PrayerReminderAction.prayed,
+        ),
+      );
+      await pumpEventQueue();
+      expect(repository.sessionRecords, isEmpty);
+    },
+  );
+
+  test(
+    'concurrent dispose calls await the same reconciliation drain',
+    () async {
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler()..stallCancel = true;
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      await coordinator.start();
+      repository.emit([_occurrence(nextAt: DateTime.utc(2026, 8, 11, 7, 30))]);
+      await pumpEventQueue();
+      expect(scheduler.cancelCallsStarted, 1);
+
+      var firstCompleted = false;
+      var secondCompleted = false;
+      final firstDispose = coordinator.dispose().then(
+        (_) => firstCompleted = true,
+      );
+      final secondDispose = coordinator.dispose().then(
+        (_) => secondCompleted = true,
+      );
+      await pumpEventQueue();
+      expect(firstCompleted, isFalse);
+      expect(secondCompleted, isFalse);
+      scheduler.releaseCancel();
+      await Future.wait([firstDispose, secondDispose]);
+      scheduler.emit(
+        _response(
+          _occurrence(nextAt: DateTime.utc(2026, 8, 11, 4, 59)),
+          PrayerReminderAction.prayed,
+        ),
+      );
+      await pumpEventQueue();
+      expect(repository.sessionRecords, isEmpty);
+    },
+  );
+
+  test('dispose is not held open by a paused public stream listener', () async {
+    final repository = _FakePrayerPracticeRepository();
+    final scheduler = _FakePrayerReminderScheduler();
+    final coordinator = _coordinator(repository, scheduler, now: now);
+    await coordinator.start();
+    final dueSubscription = coordinator.dueOccurrences.listen((_) {});
+    dueSubscription.pause();
+    addTearDown(() async {
+      dueSubscription.resume();
+      await dueSubscription.cancel();
+    });
+
+    await coordinator.dispose().timeout(const Duration(seconds: 1));
+  });
 }
 
 PrayerReminderCoordinator _coordinator(
@@ -250,18 +415,23 @@ PrayerReminderResponse _response(
 
 DuePrayerOccurrence _occurrence({
   String reminderId = 'reminder-1',
-  required DateTime nextAt,
+  required DateTime? nextAt,
   bool once = false,
   String scheduledTimezone = 'UTC',
+  int localHour = 6,
+  DateTime? reminderUpdatedAt,
 }) {
   final schedule = once
       ? PrayerReminderSchedule.once(
           localTime: PrayerLocalTime(hour: 4, minute: 59),
           timezone: 'UTC',
-          onceAt: nextAt,
+          onceAt: nextAt ?? DateTime.utc(2026, 8, 11, 4, 59),
         )
       : PrayerReminderSchedule.daily(
-          localTime: PrayerLocalTime(hour: 6, minute: 30),
+          localTime: PrayerLocalTime(
+            hour: localHour,
+            minute: localHour == 6 ? 30 : 0,
+          ),
           timezone: 'UTC',
         );
   return DuePrayerOccurrence(
@@ -272,7 +442,7 @@ DuePrayerOccurrence _occurrence({
       schedule: schedule,
       enabled: true,
       createdAt: DateTime.utc(2026),
-      updatedAt: DateTime.utc(2026),
+      updatedAt: reminderUpdatedAt ?? DateTime.utc(2026),
     ),
     device: PrayerReminderDevice(
       id: 'device-row-1',
@@ -305,6 +475,9 @@ class _SessionRecord {
 }
 
 class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
+  _FakePrayerPracticeRepository({this.stallDueCancellation = false});
+
+  final bool stallDueCancellation;
   final _due = StreamController<List<DuePrayerOccurrence>>.broadcast();
   final deviceChanges = <(String, bool)>[];
   final scheduleChanges = <_ScheduleChange>[];
@@ -313,11 +486,26 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
   final dismissals = <(String, String)>[];
   int recordFailuresRemaining = 0;
   int recordAttempts = 0;
+  bool dueCancellationStarted = false;
+  Completer<void>? _dueCancellationBlocker;
 
   void emit(List<DuePrayerOccurrence> value) => _due.add(value);
 
   @override
-  Stream<List<DuePrayerOccurrence>> watchDue(DateTime atUtc) => _due.stream;
+  Stream<List<DuePrayerOccurrence>> watchDue(DateTime atUtc) =>
+      stallDueCancellation ? _stallingDueStream() : _due.stream;
+
+  Stream<List<DuePrayerOccurrence>> _stallingDueStream() async* {
+    try {
+      yield* _due.stream;
+    } finally {
+      dueCancellationStarted = true;
+      _dueCancellationBlocker ??= Completer<void>();
+      await _dueCancellationBlocker!.future;
+    }
+  }
+
+  void releaseDueCancellation() => _dueCancellationBlocker?.complete();
 
   @override
   Future<void> setDeviceEnabled(
@@ -409,14 +597,20 @@ class _FakePrayerReminderScheduler implements PrayerReminderScheduler {
   _FakePrayerReminderScheduler({
     this.permissionGranted = true,
     this.initializeResponse,
+    this.supportsSystemNotifications = true,
   });
   final bool permissionGranted;
   final PrayerReminderResponse? initializeResponse;
+  @override
+  final bool supportsSystemNotifications;
   final _responses = StreamController<PrayerReminderResponse>.broadcast();
   final scheduled = <PrayerScheduledNotification>[];
   final cancelled = <int>[];
   final callOrder = <String>[];
   int permissionCalls = 0;
+  int cancelCallsStarted = 0;
+  bool stallCancel = false;
+  Completer<void>? _cancelBlocker;
 
   @override
   Stream<PrayerReminderResponse> get responses => _responses.stream;
@@ -441,9 +635,16 @@ class _FakePrayerReminderScheduler implements PrayerReminderScheduler {
 
   @override
   Future<void> cancel(int platformNotificationId) async {
+    cancelCallsStarted++;
+    if (stallCancel) {
+      _cancelBlocker ??= Completer<void>();
+      await _cancelBlocker!.future;
+    }
     cancelled.add(platformNotificationId);
     callOrder.add('cancel:$platformNotificationId');
   }
 
   void emit(PrayerReminderResponse response) => _responses.add(response);
+
+  void releaseCancel() => _cancelBlocker?.complete();
 }

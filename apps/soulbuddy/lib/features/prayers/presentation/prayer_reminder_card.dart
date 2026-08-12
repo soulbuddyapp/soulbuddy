@@ -110,23 +110,29 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
   Future<void> _perform(PrayerReminderAction action) async {
     if (_busy) return;
     final displayedOccurrence = widget.occurrence;
+    final messenger = ScaffoldMessenger.of(context);
+    final retract = ref.read(prayerSessionRetractorProvider);
     setState(() => _busy = true);
     try {
       final session = await ref.read(prayerReminderActionProvider)(
         displayedOccurrence,
         action,
       );
-      if (!mounted) return;
-      setState(() => _busy = false);
+      if (mounted) setState(() => _busy = false);
       if (session != null) {
-        final messenger = ScaffoldMessenger.of(context);
         messenger.showSnackBar(
           SnackBar(
             duration: const Duration(seconds: 5),
             content: const Text('Prayer time recorded'),
             action: SnackBarAction(
               label: 'Undo',
-              onPressed: () => unawaited(_undo(session.id)),
+              onPressed: () => unawaited(
+                _undo(
+                  messenger: messenger,
+                  retract: retract,
+                  sessionId: session.id,
+                ),
+              ),
             ),
           ),
         );
@@ -142,12 +148,16 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
     }
   }
 
-  Future<void> _undo(String sessionId) async {
+  Future<void> _undo({
+    required ScaffoldMessengerState messenger,
+    required Future<void> Function(String) retract,
+    required String sessionId,
+  }) async {
     try {
-      await ref.read(prayerSessionRetractorProvider)(sessionId);
+      await retract(sessionId);
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!messenger.mounted) return;
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Could not undo this prayer record just now.'),
         ),

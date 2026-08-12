@@ -27,6 +27,8 @@ class PrayerScheduledNotification {
 }
 
 abstract interface class PrayerReminderScheduler {
+  bool get supportsSystemNotifications;
+
   Stream<PrayerReminderResponse> get responses;
 
   Future<void> initialize();

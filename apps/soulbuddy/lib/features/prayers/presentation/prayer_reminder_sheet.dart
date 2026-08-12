@@ -32,6 +32,7 @@ class PrayerReminderControl extends ConsumerWidget {
   }) => SizedBox(
     width: double.infinity,
     child: OutlinedButton.icon(
+      key: const Key('personal-prayer-reminder-control'),
       style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
       onPressed: enabled
           ? () => showPrayerReminderSheet(

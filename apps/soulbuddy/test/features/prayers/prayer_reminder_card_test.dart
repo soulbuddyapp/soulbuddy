@@ -149,6 +149,64 @@ void main() {
     );
     expect(find.textContaining('private database detail'), findsNothing);
   });
+
+  testWidgets('offers Undo after the completed action removes the due card', (
+    tester,
+  ) async {
+    final occurrence = _occurrence();
+    final due = StreamController<List<DuePrayerOccurrence>>();
+    final completion = Completer<PrayerSession?>();
+    await tester.pumpWidget(
+      _app(
+        occurrence,
+        due: due.stream,
+        perform: (value, action) => completion.future,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('I prayed this'));
+    due.add(const []);
+    await tester.pump();
+    expect(find.text('Evening prayer'), findsNothing);
+    completion.complete(_session());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Prayer time recorded'), findsOneWidget);
+    expect(find.text('Undo'), findsOneWidget);
+  });
+
+  testWidgets('keeps Undo actionable at the compact app viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final occurrence = _occurrence();
+    final due = StreamController<List<DuePrayerOccurrence>>();
+    final retractions = <String>[];
+    await tester.pumpWidget(
+      _compactApp(
+        occurrence,
+        due: due.stream,
+        perform: (value, action) async {
+          due.add(const []);
+          return _session();
+        },
+        retract: (id) async => retractions.add(id),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('I prayed this'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Undo').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('Undo').hitTestable());
+    await tester.pumpAndSettle();
+    expect(retractions, ['session-1']);
+  });
 }
 
 Widget _app(
@@ -180,6 +238,50 @@ Widget _app(
             bottom: 12,
             child: PrayerReminderCardHost(),
           ),
+        ],
+      ),
+    ),
+  ),
+);
+
+Widget _compactApp(
+  DuePrayerOccurrence occurrence, {
+  required Stream<List<DuePrayerOccurrence>> due,
+  required Future<PrayerSession?> Function(
+    DuePrayerOccurrence,
+    PrayerReminderAction,
+  )
+  perform,
+  required Future<void> Function(String) retract,
+}) => ProviderScope(
+  overrides: [
+    duePrayerOccurrencesProvider.overrideWith((ref) async* {
+      yield [occurrence];
+      yield* due;
+    }),
+    prayerReminderActionProvider.overrideWithValue(perform),
+    prayerSessionRetractorProvider.overrideWithValue(retract),
+  ],
+  child: MaterialApp(
+    builder: (context, child) => Stack(
+      fit: StackFit.expand,
+      children: [
+        child ?? const SizedBox.shrink(),
+        const Positioned(
+          left: 12,
+          right: 12,
+          bottom: 92,
+          child: PrayerReminderCardHost(),
+        ),
+      ],
+    ),
+    home: Scaffold(
+      body: const SizedBox.expand(),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.book), label: 'Prayers'),
         ],
       ),
     ),

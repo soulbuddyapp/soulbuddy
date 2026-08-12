@@ -48,17 +48,27 @@ try {
   $targets = @(
     'integration_test/offline_encounter_flow_test.dart',
     'integration_test/offline_prayer_flow_test.dart',
-    'integration_test/personalized_prayer_flow_test.dart'
+    'integration_test/personalized_prayer_flow_test.dart',
+    'integration_test/prayer_reminder_flow_test.dart'
   )
 
   foreach ($target in $targets) {
-    flutter drive `
-      -d chrome `
-      --driver=test_driver/integration_test.dart `
-      --target=$target `
-      --headless `
-      --browser-dimension=390x844
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $targetOutput = @(
+      flutter drive `
+        -d chrome `
+        --driver=test_driver/integration_test.dart `
+        --target=$target `
+        --headless `
+        --browser-dimension=390x844 2>&1
+    )
+    $targetExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
+    $targetOutput | ForEach-Object { Write-Host $_ }
+    $reportedFailure = $targetOutput | Select-String `
+      -Pattern 'Failure Details:|Some tests failed|\[E\]'
+    if ($targetExitCode -ne 0 -or $reportedFailure) { exit 1 }
   }
 } finally {
   Pop-Location

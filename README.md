@@ -36,6 +36,10 @@ When sync is configured, canonical Laravel prayer rows replace bundled rows with
 
 Personalized requests and their selected context snapshots remain local-only until the user confirms the DeepSeek disclosure. An offline confirmation stays queued in the local database and resumes from the same request after reconnect or restart. Only the confirmed choices and explicitly selected records are sent; raw request, context, draft, and token values must never be written to logs or test diagnostics. Accepted prayers, immutable revisions, their Encounter/Scripture links, and typed Today selections are private synchronized records.
 
+Saved personal prayers can also have one once, daily, or selected-day reminder at a local wall time. The reminder schedule and quiet prayer-session count sync privately, while notification enablement remains specific to each device. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload. When the app is open—or on web, where native delivery is unavailable—the same persisted occurrence appears as a compact in-app card with `Open prayer`, `I prayed this`, `Snooze 10 minutes`, and `Dismiss`.
+
+Confirming a prayer records the exact displayed prayer revision offline and offers a five-minute Undo. Timezone changes preserve the chosen local wall time and reschedule quietly. This release does not include Web Push, narration, publication, streaks, scores, rankings, or claims about the spiritual value of a recorded count.
+
 ## Run Laravel
 
 ```powershell
@@ -82,13 +86,27 @@ powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 powershell -ExecutionPolicy Bypass -File scripts/run_web_integration.ps1
 ```
 
-The browser script matches the installed Chrome version to the official ChromeDriver release in a temporary directory, then runs three network-independent flows at a mobile viewport: Encounter save/relaunch/Scripture; prayer filter/Helpful/Today/action completion/database reopen; and guided personalized prayer/offline queue/authenticated reconnect/edit/accept/Today/database reopen.
+The browser script matches the installed Chrome version to the official ChromeDriver release in a temporary directory, then runs four network-independent flows at a mobile viewport: Encounter save/relaunch/Scripture; prayer filter/Helpful/Today/action completion/database reopen; guided personalized prayer/offline queue/authenticated reconnect/edit/accept/Today/database reopen; and saved-prayer reminder/session/Undo/database reopen.
 
 Run the personalized flow on the Android 14 emulator as well:
 
 ```powershell
 Set-Location apps/soulbuddy
 flutter test integration_test/personalized_prayer_flow_test.dart -d emulator-5554
+```
+
+The Android-native reminder target requires API 33+ notification permission to be granted through ADB after the freshly installed test starts. It verifies a real private, generic, actionable notification and its `I prayed this` response:
+
+In one terminal, start the test:
+
+```powershell
+flutter drive -d emulator-5554 --driver=test_driver/integration_test.dart --target=integration_test/prayer_reminder_android_test.dart
+```
+
+While it is waiting for permission, grant it from a second terminal:
+
+```powershell
+adb -s emulator-5554 shell pm grant app.soulbuddy.soulbuddy android.permission.POST_NOTIFICATIONS
 ```
 
 See [the approved product design](docs/superpowers/specs/2026-08-10-soulbuddy-mvp-design.md), [the foundation plan](docs/superpowers/plans/2026-08-10-foundation-local-first-vertical-slice.md), [the prayer-library plan](docs/superpowers/plans/2026-08-11-prayer-library-practices.md), and [local-first invariants](docs/architecture/local-first.md).

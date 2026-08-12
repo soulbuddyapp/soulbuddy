@@ -4,6 +4,9 @@ class BrowserPrayerReminderScheduler implements PrayerReminderScheduler {
   const BrowserPrayerReminderScheduler();
 
   @override
+  bool get supportsSystemNotifications => false;
+
+  @override
   Stream<PrayerReminderResponse> get responses => const Stream.empty();
 
   @override
