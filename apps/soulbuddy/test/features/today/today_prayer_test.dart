@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/presentation/living_vine.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
@@ -166,6 +167,14 @@ void main() {
     await _pumpToday(tester, repository: repository);
 
     expect(find.text('Practical action'), findsOneWidget);
+    expect(
+      tester
+          .widget<LivingVine>(
+            find.byKey(const Key('today-living-vine'), skipOffstage: false),
+          )
+          .variant,
+      LivingVineVariant.blossom,
+    );
     expect(find.text(_prayerAction), findsOneWidget);
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
     await _scrollTo(tester, const Key('today-action-done'));
@@ -176,6 +185,15 @@ void main() {
 
     await tester.tap(find.byKey(const Key('today-action-done')));
     await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<LivingVine>(
+            find.byKey(const Key('today-living-vine'), skipOffstage: false),
+          )
+          .variant,
+      LivingVineVariant.fruit,
+    );
 
     expect(repository.completedTodayDate, DateTime(2026, 8, 11));
     expect(repository.completedTodayPrayerId, _prayer.id);

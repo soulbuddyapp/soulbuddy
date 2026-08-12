@@ -31,6 +31,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         dailyMemory is AsyncData &&
         todayPrayer.value == null &&
         dailyMemory.value == null;
+    final todayVineVariant =
+        todayPrayer is AsyncData<TodayPrayer?> &&
+            todayPrayer.value?.actionCompleted == true
+        ? LivingVineVariant.fruit
+        : LivingVineVariant.blossom;
 
     return SafeArea(
       child: Align(
@@ -71,11 +76,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   if (!showStartGuide &&
                       MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
                     const SizedBox(width: AppSpacing.md),
-                    const SizedBox(
+                    SizedBox(
                       width: 144,
                       child: LivingVine(
-                        key: Key('today-living-vine'),
-                        variant: LivingVineVariant.blossom,
+                        key: const Key('today-living-vine'),
+                        variant: todayVineVariant,
                         animate: true,
                       ),
                     ),
