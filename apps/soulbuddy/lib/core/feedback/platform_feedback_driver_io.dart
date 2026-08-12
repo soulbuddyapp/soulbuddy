@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 
 import 'app_feedback.dart';
@@ -20,7 +23,30 @@ class _IoPlatformFeedbackDriver implements PlatformFeedbackDriver {
 
   @override
   Future<void> playSound(AppFeedbackSound sound) async {
-    // Original, provenance-tracked tones are added in the next implementation
-    // task. Sound is deliberately a safe no-op until those assets exist.
+    final player = AudioPlayer();
+    final completion = player.onPlayerComplete.first.whenComplete(
+      player.dispose,
+    );
+    try {
+      await player.play(
+        AssetSource(_assetPath(sound)),
+        volume: 0.18,
+        ctx: AudioContextConfig(
+          respectSilence: true,
+          focus: AudioContextConfigFocus.mixWithOthers,
+        ).build(),
+      );
+      unawaited(completion);
+    } catch (_) {
+      await player.dispose();
+      rethrow;
+    }
   }
 }
+
+String _assetPath(AppFeedbackSound sound) => switch (sound) {
+  AppFeedbackSound.softTap => 'audio/feedback/soft_tap.wav',
+  AppFeedbackSound.gentleCompletion => 'audio/feedback/gentle_completion.wav',
+  AppFeedbackSound.publicationEligible =>
+    'audio/feedback/publication_eligible.wav',
+};

@@ -47,6 +47,7 @@ dependencies:
   flutter_local_notifications: 20.1.0
   timezone: 0.10.1
   flutter_timezone: 5.1.0
+  audioplayers: 6.7.1
 
 dev_dependencies:
   flutter_test:
@@ -60,6 +61,7 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   alchemist: ^0.14.0
   accessibility_tools: ^2.7.1
+  crypto: ^3.0.6
   integration_test:
     sdk: flutter
 
@@ -82,6 +84,7 @@ flutter:
   assets:
     - assets/content/prayer_library.json
     - assets/scripture/rsvce.db
+    - assets/audio/feedback/
 
   # To add assets to your application, add an assets section, like this:
   # assets:
