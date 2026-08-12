@@ -1,8 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design/app_colors.dart';
 import '../core/design/app_spacing.dart';
+import '../core/feedback/app_feedback.dart';
+import '../core/feedback/app_feedback_preferences.dart';
+import '../core/feedback/app_feedback_providers.dart';
 import '../features/circles/presentation/circles_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
@@ -130,7 +136,7 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
-class _SoulBuddyShell extends StatelessWidget {
+class _SoulBuddyShell extends ConsumerWidget {
   const _SoulBuddyShell({required this.navigationShell});
 
   static const _destinations = [
@@ -163,7 +169,17 @@ class _SoulBuddyShell extends StatelessWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  void _selectDestination(int index) {
+  void _selectDestination(WidgetRef ref, int index) {
+    if (index != navigationShell.currentIndex) {
+      final preferences =
+          ref.read(appFeedbackPreferencesProvider).value ??
+          AppFeedbackPreferences.defaults;
+      unawaited(
+        ref
+            .read(appFeedbackServiceProvider)
+            .emit(AppFeedbackIntent.selection, preferences: preferences),
+      );
+    }
     navigationShell.goBranch(
       index,
       initialLocation: index == navigationShell.currentIndex,
@@ -171,7 +187,7 @@ class _SoulBuddyShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= 840) {
@@ -181,7 +197,8 @@ class _SoulBuddyShell extends StatelessWidget {
                 NavigationRail(
                   extended: constraints.maxWidth >= 1080,
                   selectedIndex: navigationShell.currentIndex,
-                  onDestinationSelected: _selectDestination,
+                  onDestinationSelected: (index) =>
+                      _selectDestination(ref, index),
                   groupAlignment: -0.75,
                   destinations: [
                     for (final destination in _destinations)
@@ -207,7 +224,7 @@ class _SoulBuddyShell extends StatelessWidget {
             ),
             child: NavigationBar(
               selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: _selectDestination,
+              onDestinationSelected: (index) => _selectDestination(ref, index),
               destinations: [
                 for (final destination in _destinations)
                   NavigationDestination(

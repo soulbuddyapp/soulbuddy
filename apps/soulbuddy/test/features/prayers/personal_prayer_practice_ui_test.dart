@@ -242,6 +242,25 @@ void main() {
     expect(find.textContaining('Publish', findRichText: true), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('offers sharing preparation only on the transition to forty', (
+    tester,
+  ) async {
+    final repository = _PracticeRepository(initialCount: 39);
+    await tester.pumpWidget(_app(repository));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('I prayed this'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('You can now prepare this prayer to share'),
+      findsOneWidget,
+    );
+    expect(find.text('Not now'), findsOneWidget);
+    expect(find.textContaining('spiritual value'), findsNothing);
+    expect(find.textContaining('streak'), findsNothing);
+  });
 }
 
 Widget _app(
@@ -403,6 +422,9 @@ class _PracticeRepository implements PrayerPracticeRepository {
       const Stream.empty();
   @override
   Stream<int> watchSessionCount(String revisionId) => counts;
+
+  @override
+  Future<int> getSessionCount(String revisionId) async => _count;
   @override
   Future<void> archiveReminder(String reminderId) async {}
   @override

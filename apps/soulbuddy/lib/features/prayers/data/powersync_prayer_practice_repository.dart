@@ -133,6 +133,19 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
   }
 
   @override
+  Future<int> getSessionCount(String revisionId) async {
+    final row = await database.get(
+      '''
+      SELECT COUNT(*) AS session_count
+      FROM prayer_sessions
+      WHERE owner_id = ? AND prayer_revision_id = ? AND retracted_at IS NULL
+      ''',
+      [ownerId, revisionId],
+    );
+    return row['session_count'] as int;
+  }
+
+  @override
   Future<PrayerReminder> saveReminder({
     required String personalPrayerId,
     required PrayerReminderSchedule schedule,

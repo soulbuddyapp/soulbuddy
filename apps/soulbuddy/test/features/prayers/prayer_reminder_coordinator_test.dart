@@ -580,6 +580,9 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
   Stream<int> watchSessionCount(String revisionId) => const Stream.empty();
 
   @override
+  Future<int> getSessionCount(String revisionId) async => 0;
+
+  @override
   Future<PrayerReminder> saveReminder({
     required String personalPrayerId,
     required PrayerReminderSchedule schedule,

@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/feedback/app_feedback.dart';
+import '../../../core/feedback/app_feedback_preferences.dart';
+import '../../../core/feedback/app_feedback_providers.dart';
+import '../../../core/feedback/completion_feedback.dart';
 import '../domain/personal_prayer.dart';
 import '../domain/prayer_session.dart';
 import '../providers/prayer_practice_providers.dart';
@@ -100,6 +104,9 @@ class _PrayerSessionActionsState extends ConsumerState<PrayerSessionActions> {
       final repository = await ref.read(
         prayerPracticeRepositoryProvider.future,
       );
+      final countBefore = await repository.getSessionCount(
+        displayedPrayer.currentRevisionId,
+      );
       final timezoneName = await ref.read(prayerDeviceTimezoneProvider)();
       final session = await repository.recordSession(
         personalPrayerId: displayedPrayer.id,
@@ -115,6 +122,9 @@ class _PrayerSessionActionsState extends ConsumerState<PrayerSessionActions> {
         _saving = false;
         _lastSession = session;
       });
+      if (countBefore == 39) {
+        await _showPublicationEligibility(displayedPrayer);
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
@@ -123,6 +133,66 @@ class _PrayerSessionActionsState extends ConsumerState<PrayerSessionActions> {
         });
       }
     }
+  }
+
+  Future<void> _showPublicationEligibility(PersonalPrayer prayer) async {
+    final preferences =
+        ref.read(appFeedbackPreferencesProvider).value ??
+        AppFeedbackPreferences.defaults;
+    final reducedMotion =
+        preferences.reducedMotion ||
+        (MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+    unawaited(
+      ref
+          .read(appFeedbackServiceProvider)
+          .emit(
+            AppFeedbackIntent.publicationEligible,
+            preferences: preferences,
+            systemReduceMotion: reducedMotion,
+          ),
+    );
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CompletionFeedback(
+                cue: reducedMotion
+                    ? AppFeedbackVisualCue.check
+                    : AppFeedbackVisualCue.lightMotes,
+                animate: !reducedMotion,
+                semanticLabel: 'Prayer sharing preparation is available',
+              ),
+              Text(
+                'You can now prepare this prayer to share',
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Nothing will be published until you review and choose to share it.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('Prepare to share'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext),
+                child: const Text('Not now'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _undo() async {
