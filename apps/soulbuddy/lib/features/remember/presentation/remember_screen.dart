@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/feature_page.dart';
+import '../../../core/presentation/living_vine.dart';
 import '../../record/providers/encounter_providers.dart';
 import '../presentation/daily_remembrance_card.dart';
 import '../providers/daily_memory_providers.dart';
@@ -52,9 +53,20 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
             title: 'What you have recorded',
             description:
                 'When something happens that you do not want to forget, record it.',
-            action: FilledButton(
-              onPressed: () => context.go('/record'),
-              child: const Text('Record something'),
+            action: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const LivingVine(
+                  key: Key('remember-living-vine'),
+                  variant: LivingVineVariant.memorial,
+                  height: 48,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FilledButton(
+                  onPressed: () => context.go('/record'),
+                  child: const Text('Record something'),
+                ),
+              ],
             ),
           );
         }
@@ -76,12 +88,32 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                         top: AppSpacing.md,
                         bottom: AppSpacing.md,
                       ),
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          'What you have recorded',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                'What you have recorded',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineMedium,
+                              ),
+                            ),
+                          ),
+                          if (MediaQuery.textScalerOf(context).scale(1) <
+                              1.5) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            const SizedBox(
+                              width: 128,
+                              child: LivingVine(
+                                key: Key('remember-living-vine'),
+                                variant: LivingVineVariant.memorial,
+                                height: 48,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     );
                   }

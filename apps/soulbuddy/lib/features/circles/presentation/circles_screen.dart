@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/presentation/living_vine.dart';
 import '../domain/circle.dart';
 import '../providers/circle_providers.dart';
 import 'create_circle_sheet.dart';
@@ -80,7 +81,14 @@ class _CirclesStartGuide extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.people_outline, size: 40, color: colors.primary),
+                const SizedBox(
+                  width: 80,
+                  child: LivingVine(
+                    key: Key('circles-living-vine'),
+                    variant: LivingVineVariant.intertwined,
+                    height: 48,
+                  ),
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(

@@ -144,6 +144,7 @@ void main() {
 
       expect(find.text(_prayer.title), findsOneWidget);
       expect(find.text(_prayer.body), findsOneWidget);
+      expect(find.byKey(const Key('today-living-vine')), findsOneWidget);
       expect(find.text('Family · General Christian'), findsOneWidget);
       expect(find.text('Choose a different prayer'), findsOneWidget);
       expect(find.byType(Card), findsOneWidget);

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
+import '../../../core/presentation/living_vine.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../../prayers/presentation/prayer_library_tile.dart';
 import '../../prayers/providers/prayer_providers.dart';
@@ -40,19 +41,46 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               const SizedBox(height: AppSpacing.md),
-              Semantics(
-                header: true,
-                child: Text(
-                  'Today',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Pray. Act. Remember.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            'Today',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          'Pray. Act. Remember.',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!showStartGuide &&
+                      MediaQuery.textScalerOf(context).scale(1) < 1.5) ...[
+                    const SizedBox(width: AppSpacing.md),
+                    const SizedBox(
+                      width: 144,
+                      child: LivingVine(
+                        key: Key('today-living-vine'),
+                        variant: LivingVineVariant.blossom,
+                        animate: true,
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: AppSpacing.md),
               if (showStartGuide)

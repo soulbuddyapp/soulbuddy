@@ -21,7 +21,12 @@ class LivingVine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<LivingVineColors>()!;
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<LivingVineColors>() ??
+        (theme.brightness == Brightness.dark
+            ? LivingVineColors.dark
+            : LivingVineColors.light);
     final motionDisabled = MediaQuery.disableAnimationsOf(context);
     final duration = animate && !motionDisabled
         ? const Duration(milliseconds: 420)

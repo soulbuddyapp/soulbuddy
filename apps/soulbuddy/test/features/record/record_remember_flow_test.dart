@@ -13,6 +13,25 @@ import 'package:soulbuddy/features/remember/presentation/memory_detail_screen.da
 import '../../helpers/in_memory_encounter_repository.dart';
 
 void main() {
+  testWidgets('gives an empty Remember screen a memorial visual', (
+    tester,
+  ) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: const MaterialApp(home: Scaffold(body: RememberScreen())),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.byKey(const Key('remember-living-vine')), findsOneWidget);
+    expect(find.text('Record something'), findsOneWidget);
+  });
+
   testWidgets('records an encounter and shows it in Remember immediately', (
     tester,
   ) async {
@@ -185,6 +204,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Sensitive memory'), findsOneWidget);
+    expect(find.byKey(const Key('remember-living-vine')), findsOneWidget);
     expect(find.text('A sensitive detail'), findsNothing);
     await tester.enterText(find.byKey(const Key('remember-search')), 'promise');
     await _settle(tester);

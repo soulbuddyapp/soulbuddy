@@ -19,6 +19,7 @@ void main() {
     await _pumpCircles(tester, repository: repository);
 
     expect(find.text('Circles'), findsOneWidget);
+    expect(find.byKey(const Key('circles-living-vine')), findsOneWidget);
     expect(find.text('A private place to begin'), findsOneWidget);
     expect(find.text('Only you · saved on this device'), findsOneWidget);
     expect(find.text('Create a Circle'), findsOneWidget);

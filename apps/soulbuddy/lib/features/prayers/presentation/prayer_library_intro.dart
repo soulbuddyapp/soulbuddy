@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/presentation/living_vine.dart';
 
 class PrayerLibraryIntro extends StatelessWidget {
   const PrayerLibraryIntro({required this.onPersonalized, super.key});
@@ -20,14 +21,24 @@ class PrayerLibraryIntro extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: AppSpacing.minimumTouchTarget,
-              height: AppSpacing.minimumTouchTarget,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                shape: BoxShape.circle,
+            SizedBox(
+              width: 76,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.surface.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(
+                    AppSpacing.componentRadius,
+                  ),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: LivingVine(
+                    key: Key('prayers-living-vine'),
+                    variant: LivingVineVariant.leaf,
+                    height: 56,
+                  ),
+                ),
               ),
-              child: Icon(Icons.auto_awesome_outlined, color: colors.primary),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(

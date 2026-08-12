@@ -58,4 +58,17 @@ void main() {
     expect(paint.painter, isA<LivingVinePainter>());
     expect((paint.painter! as LivingVinePainter).reveal, 1);
   });
+
+  testWidgets('falls back safely when a host has no botanical extension', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: LivingVine(variant: LivingVineVariant.memorial)),
+      ),
+    );
+
+    expect(find.byType(LivingVine), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

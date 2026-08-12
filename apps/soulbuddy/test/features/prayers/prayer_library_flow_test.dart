@@ -32,6 +32,7 @@ void main() {
     await _pumpFlow(tester, repository: repository);
 
     expect(find.text('Prayers'), findsOneWidget);
+    expect(find.byKey(const Key('prayers-living-vine')), findsOneWidget);
     expect(find.text('Prayer is communion'), findsOneWidget);
     expect(
       find.text(
