@@ -31,7 +31,10 @@ class _DailyRemembranceScreenState
 
   @override
   Widget build(BuildContext context) {
-    final daily = ref.watch(dailyMemoryProvider);
+    final routeDate = DateTime.tryParse(widget.localDate);
+    final daily = routeDate == null
+        ? const AsyncValue<DailyMemory?>.data(null)
+        : ref.watch(dailyMemoryForDateProvider(routeDate));
     return Scaffold(
       appBar: AppBar(title: const Text('Remember')),
       body: daily.when(

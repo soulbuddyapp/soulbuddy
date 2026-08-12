@@ -1,4 +1,5 @@
 import 'package:powersync/powersync.dart';
+import 'package:powersync/sqlite_async.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../record/domain/encounter.dart';
@@ -36,23 +37,30 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
     final timestamp = _now().toUtc().toIso8601String();
     final occurrenceId = _uuid.v5(Namespace.url.value, '$ownerId:$date');
     try {
-      await database.execute(
-        '''
-        INSERT INTO daily_memory_occurrences(
-          id, owner_id, local_date, encounter_id, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''',
-        [
-          occurrenceId,
-          ownerId,
+      await database.writeTransaction((transaction) async {
+        await transaction.execute(
+          '''
+          INSERT INTO daily_memory_occurrences(
+            id, owner_id, local_date, encounter_id, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ''',
+          [
+            occurrenceId,
+            ownerId,
+            date,
+            chosen['id'],
+            DailyMemoryStatus.active.wireValue,
+            timestamp,
+            timestamp,
+          ],
+        );
+        await _recordShown(
+          chosen['id'] as String,
           date,
-          chosen['id'],
-          DailyMemoryStatus.active.wireValue,
           timestamp,
-          timestamp,
-        ],
-      );
-      await _recordShown(chosen['id'] as String, date, timestamp);
+          transaction: transaction,
+        );
+      });
     } catch (_) {
       final raced = await _get(date);
       if (raced == null) rethrow;
@@ -77,26 +85,30 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
     );
     if (candidates.isEmpty) return current;
     final chosen = _deterministicChoice(candidates, '$date:another');
-    await database.execute(
-      '''
-      UPDATE daily_memory_occurrences
-      SET encounter_id = ?, status = ?, updated_at = ?
-      WHERE owner_id = ? AND local_date = ? AND encounter_id = ?
-      ''',
-      [
-        chosen['id'],
-        DailyMemoryStatus.active.wireValue,
-        _now().toUtc().toIso8601String(),
-        ownerId,
+    final timestamp = _now().toUtc().toIso8601String();
+    await database.writeTransaction((transaction) async {
+      await transaction.execute(
+        '''
+        UPDATE daily_memory_occurrences
+        SET encounter_id = ?, status = ?, updated_at = ?
+        WHERE owner_id = ? AND local_date = ? AND encounter_id = ?
+        ''',
+        [
+          chosen['id'],
+          DailyMemoryStatus.active.wireValue,
+          timestamp,
+          ownerId,
+          date,
+          expectedEncounterId,
+        ],
+      );
+      await _recordShown(
+        chosen['id'] as String,
         date,
-        expectedEncounterId,
-      ],
-    );
-    await _recordShown(
-      chosen['id'] as String,
-      date,
-      _now().toUtc().toIso8601String(),
-    );
+        timestamp,
+        transaction: transaction,
+      );
+    });
     return _get(date);
   }
 
@@ -165,15 +177,17 @@ class PowerSyncDailyMemoryRepository implements DailyMemoryRepository {
   Future<void> _recordShown(
     String encounterId,
     String date,
-    String timestamp,
-  ) async {
+    String timestamp, {
+    SqliteWriteContext? transaction,
+  }) async {
+    final writer = transaction ?? database;
     final id = _uuid.v5(Namespace.url.value, '$ownerId:$date:$encounterId');
-    final existing = await database.getOptional(
+    final existing = await writer.getOptional(
       'SELECT id FROM daily_memory_history WHERE id = ?',
       [id],
     );
     if (existing != null) return;
-    await database.execute(
+    await writer.execute(
       '''
       INSERT INTO daily_memory_history(
         id, owner_id, encounter_id, local_date, shown_at

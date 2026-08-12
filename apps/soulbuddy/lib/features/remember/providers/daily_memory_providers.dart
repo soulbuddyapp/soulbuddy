@@ -35,6 +35,14 @@ final dailyMemoryProvider = StreamProvider.autoDispose<DailyMemory?>((
   }
 });
 
+final dailyMemoryForDateProvider = StreamProvider.autoDispose
+    .family<DailyMemory?, DateTime>((ref, localDate) async* {
+      final date = DateTime(localDate.year, localDate.month, localDate.day);
+      final repository = await ref.watch(dailyMemoryRepositoryProvider.future);
+      await repository.ensureForDate(date);
+      yield* repository.watchForDate(date);
+    });
+
 void retryDailyMemoryProvider(WidgetRef ref) {
   final database = ref.read(appDatabaseProvider);
   final identity = ref.read(localIdentityProvider);
