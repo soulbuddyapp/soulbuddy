@@ -15,17 +15,11 @@ Make SoulBuddy immediately understandable to a new user without turning spiritua
 
 ## Today
 
-When neither a prayer nor a daily remembrance is available, Today presents a single composed guide rather than two isolated buttons. A calm focal graphic introduces three short steps:
-
-1. Choose a prayer.
-2. Carry out its practical action when one is present.
-3. Record and revisit the deeds of the Lord, personal encounters, promises, surrender, and lessons.
-
-“Choose a prayer” is the primary action and “Record something to remember” is secondary. Once either item exists, the guide yields to the real prayer and remembrance content so daily use remains quiet.
+When neither a prayer nor a daily remembrance is available, Today presents one compact composed guide rather than two isolated buttons. Its framework-grounded invitation connects prayer with attention to God, surrender, and faithful action. “Choose a prayer” is the primary action and “Record something to remember” is secondary. The entire empty state and both actions fit the initial normal-text viewport without scrolling. Once either item exists, the guide yields to the real content so daily use remains quiet.
 
 ## Prayers
 
-The first view leads with a small “Start here” recommendation and the highest-ranked prayers. “Create personalized” stays visible as a secondary route. Grounding and purpose filters move behind a labelled, accessible disclosure control. The control summarizes active choices, preserves filter state, and expands automatically when a filter produces no result. This retains the full library while preventing the first screen from presenting two paths, two filter groups, and a long list with equal weight.
+The first view describes prayer as communion and invites the user to turn toward God, surrender desire, and carry faith into action. It makes no unsubstantiated claims about community helpfulness or ranking. “Create personalized” stays visible as a secondary route. Grounding and purpose filters move behind a labelled, accessible disclosure control. The control summarizes active choices and preserves filter state. This retains the full library while reducing first-use overload.
 
 ## Circles
 
@@ -37,7 +31,7 @@ Circles are private and invitation-only. The first usable slice supports:
 - sending text messages offline;
 - seeing explicit placeholders for invitation and structured sharing actions that require the authenticated server boundary.
 
-The screen must not imply that local-only members have received messages or invitations. Cross-device invitations, roles, moderation, reactions, and shared snapshots remain part of the existing MVP specification and must be implemented with the server authorization boundary before those controls become active.
+The empty state uses only a compact private-by-design and deliberate-sharing explanation, with the creation action visible without scrolling at normal text size. The screen must not imply that local-only members have received messages or invitations. Cross-device invitations, roles, moderation, reactions, and shared snapshots remain part of the existing MVP specification and must be implemented with the server authorization boundary before those controls become active.
 
 ## Accessibility and responsiveness
 

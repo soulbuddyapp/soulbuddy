@@ -20,22 +20,54 @@ void main() {
     expect(todayPrayerProvider.isAutoDispose, isTrue);
   });
 
-  testWidgets('no selection offers a working prayer-library action', (
-    tester,
-  ) async {
+  testWidgets('no selection offers a calm guided start', (tester) async {
     final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
     addTearDown(repository.close);
     await _pumpToday(tester, repository: repository);
 
     expect(find.text('Today'), findsOneWidget);
     expect(find.text('Pray. Act. Remember.'), findsOneWidget);
+    expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
+    expect(find.text('Begin with prayer'), findsOneWidget);
+    expect(
+      find.text(
+        'Turn your attention toward God, surrender this day, and carry faith into action.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Choose a prayer for today'), findsOneWidget);
+    expect(find.text('Record something to remember'), findsOneWidget);
+    expect(
+      find.byKey(const Key('choose-prayer')).hitTestable(),
+      findsOneWidget,
+    );
+    final viewportHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    expect(
+      tester.getBottomLeft(find.byKey(const Key('today-start-guide-end'))).dy,
+      lessThanOrEqualTo(viewportHeight),
+    );
 
+    await _scrollTo(tester, const Key('choose-prayer'));
     await tester.tap(find.byKey(const Key('choose-prayer')));
     await tester.pumpAndSettle();
 
     expect(find.text('Prayer library destination'), findsOneWidget);
     _expectNoGamification(tester);
+  });
+
+  testWidgets('guided start opens Record from its secondary action', (
+    tester,
+  ) async {
+    final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
+    addTearDown(repository.close);
+    await _pumpToday(tester, repository: repository);
+
+    await _scrollTo(tester, const Key('today-record-memory'));
+    await tester.tap(find.byKey(const Key('today-record-memory')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Record destination'), findsOneWidget);
   });
 
   testWidgets(

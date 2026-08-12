@@ -10,6 +10,7 @@ import '../core/feedback/app_feedback.dart';
 import '../core/feedback/app_feedback_preferences.dart';
 import '../core/feedback/app_feedback_providers.dart';
 import '../features/circles/presentation/circles_screen.dart';
+import '../features/circles/presentation/circle_detail_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayer_draft_screen.dart';
@@ -128,6 +129,14 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: '/circles',
               builder: (context, state) => const CirclesScreen(),
+              routes: [
+                GoRoute(
+                  path: ':circleId',
+                  builder: (context, state) => CircleDetailScreen(
+                    circleId: state.pathParameters['circleId']!,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

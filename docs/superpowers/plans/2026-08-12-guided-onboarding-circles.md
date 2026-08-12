@@ -33,7 +33,7 @@
 
 - [ ] Add tests asserting filters start collapsed, expand from a labelled control, summarize active choices, and remain recoverable when no prayers match.
 - [ ] Run the focused test and confirm the new finders fail.
-- [ ] Add a compact “Start here” intro with one library recommendation and a subordinate personalized-prayer action.
+- [ ] Add a compact framework-grounded prayer intro and a subordinate personalized-prayer action, without ranking claims.
 - [ ] Place existing filters inside an accessible `ExpansionTile`-style disclosure without nested horizontal page scrolling.
 - [ ] Run focused tests at phone width and 200% text scale.
 

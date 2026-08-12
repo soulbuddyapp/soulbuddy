@@ -357,4 +357,53 @@ const appSchema = Schema([
     Column.text('resolved_at'),
   ]),
   Table.localOnly('app_preferences', [Column.integer('bool_value')]),
+  Table.localOnly(
+    'circles',
+    [
+      Column.text('owner_id'),
+      Column.text('name'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('circles_owner_updated', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('updated_at'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'circle_members',
+    [
+      Column.text('circle_id'),
+      Column.text('owner_id'),
+      Column.text('display_name'),
+      Column.text('role'),
+      Column.text('joined_at'),
+    ],
+    indexes: [
+      Index('circle_members_circle_owner', [
+        IndexedColumn('circle_id'),
+        IndexedColumn('owner_id'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'circle_messages',
+    [
+      Column.text('circle_id'),
+      Column.text('owner_id'),
+      Column.text('body'),
+      Column.text('created_at'),
+      Column.text('device_id'),
+      Column.text('delivery'),
+    ],
+    indexes: [
+      Index('circle_messages_circle_created', [
+        IndexedColumn('circle_id'),
+        IndexedColumn('created_at'),
+      ]),
+    ],
+  ),
 ]);

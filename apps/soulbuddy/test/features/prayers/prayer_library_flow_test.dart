@@ -32,9 +32,17 @@ void main() {
     await _pumpFlow(tester, repository: repository);
 
     expect(find.text('Prayers'), findsOneWidget);
-    expect(find.text('Choose from library'), findsOneWidget);
+    expect(find.text('Prayer is communion'), findsOneWidget);
+    expect(
+      find.text(
+        'Choose words that help you turn toward God, surrender your desires, and carry faith into action.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Create personalized'), findsOneWidget);
-    expect(find.text('Guided'), findsOneWidget);
+    expect(find.byKey(const Key('prayer-filter-disclosure')), findsOneWidget);
+    expect(find.text('Refine the library'), findsOneWidget);
+    expect(find.byKey(const Key('grounding-general-christian')), findsNothing);
     await tester.scrollUntilVisible(
       find.text('For my family'),
       300,
@@ -43,6 +51,11 @@ void main() {
     expect(find.text('For my family'), findsOneWidget);
 
     await tester.ensureVisible(
+      find.byKey(const Key('prayer-filter-disclosure')),
+    );
+    await tester.tap(find.byKey(const Key('prayer-filter-disclosure')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
       find.byKey(const Key('grounding-general-christian')),
     );
     await tester.tap(find.byKey(const Key('grounding-general-christian')));
@@ -50,6 +63,8 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('purpose-family')));
     await tester.tap(find.byKey(const Key('purpose-family')));
     await tester.pumpAndSettle();
+
+    expect(find.text('General Christian · Family'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('For my family'),
@@ -97,12 +112,20 @@ void main() {
       textScaler: const TextScaler.linear(2),
     );
 
-    for (final key in [
-      'library-choice',
-      'personalized-choice',
-      'grounding-all',
-      'grounding-general-christian',
-    ]) {
+    for (final key in ['personalized-choice', 'prayer-filter-disclosure']) {
+      await tester.scrollUntilVisible(
+        find.byKey(Key(key)),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        tester.getSize(find.byKey(Key(key))).height,
+        greaterThanOrEqualTo(48),
+      );
+    }
+    await tester.tap(find.byKey(const Key('prayer-filter-disclosure')));
+    await tester.pumpAndSettle();
+    for (final key in ['grounding-all', 'grounding-general-christian']) {
       await tester.scrollUntilVisible(
         find.byKey(Key(key)),
         200,
@@ -314,6 +337,8 @@ Future<void> _tapLibraryRetry(WidgetTester tester) async {
     find.text('The prayer library could not be opened just now.'),
     findsOneWidget,
   );
+  await tester.ensureVisible(find.text('Try again'));
+  await tester.pumpAndSettle();
   await tester.tap(find.text('Try again'));
   await tester.pumpAndSettle();
 }

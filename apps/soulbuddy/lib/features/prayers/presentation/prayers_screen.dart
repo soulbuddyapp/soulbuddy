@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../domain/library_prayer.dart';
 import '../providers/prayer_providers.dart';
-import 'prayer_library_choices.dart';
 import 'prayer_library_filters.dart';
+import 'prayer_library_intro.dart';
 import 'prayer_library_tile.dart';
 
 class PrayersScreen extends ConsumerStatefulWidget {
@@ -19,6 +19,7 @@ class PrayersScreen extends ConsumerStatefulWidget {
 class _PrayersScreenState extends ConsumerState<PrayersScreen> {
   PrayerGrounding? _grounding;
   PrayerPurpose? _purpose;
+  var _filtersExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -49,17 +50,36 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              PrayerLibraryChoices(
-                onLibrary: () {},
+              PrayerLibraryIntro(
                 onPersonalized: () => context.go('/prayers/create'),
               ),
-              const SizedBox(height: AppSpacing.xl),
-              PrayerLibraryFilters(
-                grounding: _grounding,
-                purpose: _purpose,
-                onGroundingChanged: (value) =>
-                    setState(() => _grounding = value),
-                onPurposeChanged: (value) => setState(() => _purpose = value),
+              const SizedBox(height: AppSpacing.lg),
+              Card(
+                child: ExpansionTile(
+                  key: const Key('prayer-filter-disclosure'),
+                  initiallyExpanded: _filtersExpanded,
+                  onExpansionChanged: (value) =>
+                      setState(() => _filtersExpanded = value),
+                  leading: const Icon(Icons.tune_outlined),
+                  title: const Text('Refine the library'),
+                  subtitle: Text(_filterSummary),
+                  childrenPadding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                  ),
+                  children: [
+                    PrayerLibraryFilters(
+                      grounding: _grounding,
+                      purpose: _purpose,
+                      onGroundingChanged: (value) =>
+                          setState(() => _grounding = value),
+                      onPurposeChanged: (value) =>
+                          setState(() => _purpose = value),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.xl),
               library.when(
@@ -103,6 +123,14 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
       _grounding = null;
       _purpose = null;
     });
+  }
+
+  String get _filterSummary {
+    final labels = <String>[
+      if (_grounding != null) prayerGroundingLabel(_grounding!),
+      if (_purpose != null) prayerPurposeLabel(_purpose!),
+    ];
+    return labels.isEmpty ? 'All prayers' : labels.join(' · ');
   }
 }
 

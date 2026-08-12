@@ -9,6 +9,7 @@ import '../../prayers/presentation/prayer_library_tile.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../remember/presentation/daily_remembrance_card.dart';
 import '../../remember/providers/daily_memory_providers.dart';
+import 'today_start_guide.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -24,6 +25,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Widget build(BuildContext context) {
     final todayPrayer = ref.watch(todayPrayerProvider);
     final dailyMemory = ref.watch(dailyMemoryProvider);
+    final showStartGuide =
+        todayPrayer is AsyncData<TodayPrayer?> &&
+        dailyMemory is AsyncData &&
+        todayPrayer.value == null &&
+        dailyMemory.value == null;
 
     return SafeArea(
       child: Align(
@@ -48,47 +54,54 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: AppSpacing.xl),
-              todayPrayer.when(
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: CircularProgressIndicator(),
+              const SizedBox(height: AppSpacing.md),
+              if (showStartGuide)
+                TodayStartGuide(
+                  onChoosePrayer: () => context.go('/prayers'),
+                  onRecordMemory: () => context.go('/record'),
+                )
+              else
+                todayPrayer.when(
+                  loading: () => const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: CircularProgressIndicator(),
+                    ),
                   ),
-                ),
-                error: (error, stackTrace) => _TodayUnavailable(
-                  onRetry: () => retryTodayPrayerProvider(ref),
-                ),
-                data: (today) => today == null
-                    ? const _NoPrayerSelected()
-                    : _SelectedPrayer(
-                        today: today,
-                        updatingAction: _updatingAction,
-                        onActionChanged: (value) =>
-                            _completeAction(today, value),
-                      ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              dailyMemory.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => retryDailyMemoryProvider(ref),
-                    child: const Text('Open remembrance again'),
+                  error: (error, stackTrace) => _TodayUnavailable(
+                    onRetry: () => retryTodayPrayerProvider(ref),
                   ),
-                ),
-                data: (daily) => daily == null
-                    ? Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton(
-                          key: const Key('record-something-to-remember'),
-                          onPressed: () => context.go('/record'),
-                          child: const Text('Record something to remember'),
+                  data: (today) => today == null
+                      ? const _NoPrayerSelected()
+                      : _SelectedPrayer(
+                          today: today,
+                          updatingAction: _updatingAction,
+                          onActionChanged: (value) =>
+                              _completeAction(today, value),
                         ),
-                      )
-                    : DailyRemembranceCard(dailyMemory: daily),
-              ),
+                ),
+              if (!showStartGuide) const SizedBox(height: AppSpacing.lg),
+              if (!showStartGuide)
+                dailyMemory.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => retryDailyMemoryProvider(ref),
+                      child: const Text('Open remembrance again'),
+                    ),
+                  ),
+                  data: (daily) => daily == null
+                      ? Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton(
+                            key: const Key('record-something-to-remember'),
+                            onPressed: () => context.go('/record'),
+                            child: const Text('Record something to remember'),
+                          ),
+                        )
+                      : DailyRemembranceCard(dailyMemory: daily),
+                ),
             ],
           ),
         ),
