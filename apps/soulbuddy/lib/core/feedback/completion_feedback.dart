@@ -53,6 +53,7 @@ class _CompletionFeedbackState extends State<CompletionFeedback>
     return Semantics(
       liveRegion: true,
       label: widget.semanticLabel,
+      excludeSemantics: true,
       child: SizedBox.square(
         dimension: 88,
         child: AnimatedBuilder(

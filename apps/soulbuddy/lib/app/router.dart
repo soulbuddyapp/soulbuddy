@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design/app_colors.dart';
+import '../core/design/app_spacing.dart';
 import '../features/circles/presentation/circles_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
@@ -11,11 +12,16 @@ import '../features/prayers/presentation/personalized_prayer_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
         return _SoulBuddyShell(navigationShell: navigationShell);
@@ -170,14 +176,14 @@ class _SoulBuddyShell extends StatelessWidget {
                   ],
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: navigationShell),
+                Expanded(child: _ShellBody(navigationShell: navigationShell)),
               ],
             ),
           );
         }
 
         return Scaffold(
-          body: navigationShell,
+          body: _ShellBody(navigationShell: navigationShell),
           bottomNavigationBar: DecoratedBox(
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: AppColors.outline)),
@@ -199,6 +205,36 @@ class _SoulBuddyShell extends StatelessWidget {
       },
     );
   }
+}
+
+class _ShellBody extends StatelessWidget {
+  const _ShellBody({required this.navigationShell});
+
+  final StatefulNavigationShell navigationShell;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Positioned.fill(child: navigationShell),
+      Positioned(
+        top: AppSpacing.sm,
+        right: AppSpacing.sm,
+        child: SafeArea(
+          child: Material(
+            color: Theme.of(
+              context,
+            ).colorScheme.surface.withValues(alpha: 0.94),
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: 'Settings',
+              onPressed: () => context.push('/settings'),
+              icon: const Icon(Icons.settings_outlined),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _AppDestination {

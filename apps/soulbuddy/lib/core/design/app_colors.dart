@@ -12,6 +12,14 @@ abstract final class AppPalette {
   static const ochre700 = Color(0xFF9A6B2F);
   static const sage200 = Color(0xFFDDE3DE);
   static const red700 = Color(0xFFB3261E);
+  static const warm950 = Color(0xFF111713);
+  static const forest900 = Color(0xFF17211B);
+  static const forest800 = Color(0xFF223129);
+  static const sage100 = Color(0xFFE8EEE9);
+  static const sage300 = Color(0xFFAEBBB2);
+  static const sage700 = Color(0xFF415248);
+  static const ochre300 = Color(0xFFD7B77F);
+  static const red300 = Color(0xFFFFB4AB);
 }
 
 /// Semantic color roles used throughout SoulBuddy.
@@ -26,4 +34,15 @@ abstract final class AppColors {
   static const accent = AppPalette.ochre700;
   static const outline = AppPalette.sage200;
   static const danger = AppPalette.red700;
+
+  static const darkCanvas = AppPalette.warm950;
+  static const darkSurface = AppPalette.forest900;
+  static const darkSurfaceMuted = AppPalette.forest800;
+  static const darkInk = AppPalette.sage100;
+  static const darkInkMuted = AppPalette.sage300;
+  static const darkAction = Color(0xFF8AC9A7);
+  static const darkActionStrong = Color(0xFFB5E4C9);
+  static const darkAccent = AppPalette.ochre300;
+  static const darkOutline = AppPalette.sage700;
+  static const darkDanger = AppPalette.red300;
 }

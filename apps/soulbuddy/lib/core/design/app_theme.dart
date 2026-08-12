@@ -6,8 +6,8 @@ import 'app_type.dart';
 
 /// Component-level mappings built only from SoulBuddy semantic tokens.
 abstract final class AppTheme {
-  static ThemeData light() {
-    const colorScheme = ColorScheme.light(
+  static ThemeData light() => _build(
+    const ColorScheme.light(
       primary: AppColors.action,
       onPrimary: AppColors.surface,
       primaryContainer: AppColors.surfaceMuted,
@@ -20,23 +20,54 @@ abstract final class AppTheme {
       error: AppColors.danger,
       onError: AppColors.surface,
       outline: AppColors.outline,
-    );
+    ),
+    canvas: AppColors.canvas,
+    surfaceMuted: AppColors.surfaceMuted,
+    inkMuted: AppColors.inkMuted,
+  );
+
+  static ThemeData dark() => _build(
+    const ColorScheme.dark(
+      primary: AppColors.darkAction,
+      onPrimary: AppColors.darkCanvas,
+      primaryContainer: AppColors.darkSurfaceMuted,
+      onPrimaryContainer: AppColors.darkActionStrong,
+      secondary: AppColors.darkAccent,
+      onSecondary: AppColors.darkCanvas,
+      surface: AppColors.darkSurface,
+      onSurface: AppColors.darkInk,
+      onSurfaceVariant: AppColors.darkInkMuted,
+      error: AppColors.darkDanger,
+      onError: AppColors.darkCanvas,
+      outline: AppColors.darkOutline,
+    ),
+    canvas: AppColors.darkCanvas,
+    surfaceMuted: AppColors.darkSurfaceMuted,
+    inkMuted: AppColors.darkInkMuted,
+  );
+
+  static ThemeData _build(
+    ColorScheme colorScheme, {
+    required Color canvas,
+    required Color surfaceMuted,
+    required Color inkMuted,
+  }) {
     const radius = BorderRadius.all(
       Radius.circular(AppSpacing.componentRadius),
     );
-    const inputBorder = OutlineInputBorder(
+    final inputBorder = OutlineInputBorder(
       borderRadius: radius,
-      borderSide: BorderSide(color: AppColors.outline),
+      borderSide: BorderSide(color: colorScheme.outline),
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.canvas,
-      canvasColor: AppColors.canvas,
+      scaffoldBackgroundColor: canvas,
+      canvasColor: canvas,
       textTheme: AppType.textTheme.apply(
-        bodyColor: AppColors.ink,
-        displayColor: AppColors.ink,
+        bodyColor: colorScheme.onSurface,
+        displayColor: colorScheme.onSurface,
       ),
       materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
@@ -44,41 +75,41 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         height: 72,
         elevation: 0,
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.surfaceMuted,
+        backgroundColor: colorScheme.surface,
+        indicatorColor: surfaceMuted,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           return IconThemeData(
             color: states.contains(WidgetState.selected)
-                ? AppColors.action
-                : AppColors.inkMuted,
+                ? colorScheme.primary
+                : inkMuted,
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           return AppType.textTheme.labelMedium?.copyWith(
             color: states.contains(WidgetState.selected)
-                ? AppColors.actionStrong
-                : AppColors.inkMuted,
+                ? colorScheme.onPrimaryContainer
+                : inkMuted,
           );
         }),
       ),
       navigationRailTheme: NavigationRailThemeData(
         elevation: 0,
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.surfaceMuted,
-        selectedIconTheme: const IconThemeData(color: AppColors.action),
-        unselectedIconTheme: const IconThemeData(color: AppColors.inkMuted),
+        backgroundColor: colorScheme.surface,
+        indicatorColor: surfaceMuted,
+        selectedIconTheme: IconThemeData(color: colorScheme.primary),
+        unselectedIconTheme: IconThemeData(color: inkMuted),
         selectedLabelTextStyle: AppType.textTheme.labelMedium?.copyWith(
-          color: AppColors.actionStrong,
+          color: colorScheme.onPrimaryContainer,
         ),
         unselectedLabelTextStyle: AppType.textTheme.labelMedium?.copyWith(
-          color: AppColors.inkMuted,
+          color: inkMuted,
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
-        constraints: BoxConstraints(minHeight: 56),
-        contentPadding: EdgeInsets.symmetric(
+        fillColor: colorScheme.surface,
+        constraints: const BoxConstraints(minHeight: 56),
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.md,
         ),
@@ -86,15 +117,15 @@ abstract final class AppTheme {
         enabledBorder: inputBorder,
         focusedBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.action, width: 2),
+          borderSide: BorderSide(color: colorScheme.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.danger),
+          borderSide: BorderSide(color: colorScheme.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: radius,
-          borderSide: BorderSide(color: AppColors.danger, width: 2),
+          borderSide: BorderSide(color: colorScheme.error, width: 2),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -103,8 +134,8 @@ abstract final class AppTheme {
             AppSpacing.minimumTouchTarget,
             AppSpacing.minimumTouchTarget,
           ),
-          backgroundColor: AppColors.action,
-          foregroundColor: AppColors.surface,
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
           shape: const RoundedRectangleBorder(borderRadius: radius),
           elevation: 0,
           textStyle: AppType.textTheme.labelLarge,
@@ -116,28 +147,28 @@ abstract final class AppTheme {
             AppSpacing.minimumTouchTarget,
             AppSpacing.minimumTouchTarget,
           ),
-          foregroundColor: AppColors.actionStrong,
-          side: const BorderSide(color: AppColors.outline),
+          foregroundColor: colorScheme.primary,
+          side: BorderSide(color: colorScheme.outline),
           shape: const RoundedRectangleBorder(borderRadius: radius),
           textStyle: AppType.textTheme.labelLarge,
         ),
       ),
-      cardTheme: const CardThemeData(
-        color: AppColors.surface,
+      cardTheme: CardThemeData(
+        color: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: radius,
-          side: BorderSide(color: AppColors.outline),
+          side: BorderSide(color: colorScheme.outline),
         ),
       ),
-      dividerTheme: const DividerThemeData(
-        color: AppColors.outline,
+      dividerTheme: DividerThemeData(
+        color: colorScheme.outline,
         thickness: 1,
         space: 1,
       ),
-      focusColor: AppColors.action.withValues(alpha: 0.14),
+      focusColor: colorScheme.primary.withValues(alpha: 0.14),
     );
   }
 }

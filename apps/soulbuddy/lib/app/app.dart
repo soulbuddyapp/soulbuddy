@@ -25,6 +25,8 @@ class SoulBuddyApp extends ConsumerWidget {
       title: 'SoulBuddy',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       routerConfig: appRouter,
       builder: (context, child) {
         final compactNavigation = MediaQuery.sizeOf(context).width < 840;
