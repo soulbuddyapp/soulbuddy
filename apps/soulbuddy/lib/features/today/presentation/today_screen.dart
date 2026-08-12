@@ -7,6 +7,8 @@ import '../../../core/design/app_spacing.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../../prayers/presentation/prayer_library_tile.dart';
 import '../../prayers/providers/prayer_providers.dart';
+import '../../remember/presentation/daily_remembrance_card.dart';
+import '../../remember/providers/daily_memory_providers.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -21,6 +23,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final todayPrayer = ref.watch(todayPrayerProvider);
+    final dailyMemory = ref.watch(dailyMemoryProvider);
 
     return SafeArea(
       child: Align(
@@ -64,6 +67,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         onActionChanged: (value) =>
                             _completeAction(today, value),
                       ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              dailyMemory.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => retryDailyMemoryProvider(ref),
+                    child: const Text('Open remembrance again'),
+                  ),
+                ),
+                data: (daily) => daily == null
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton(
+                          key: const Key('record-something-to-remember'),
+                          onPressed: () => context.go('/record'),
+                          child: const Text('Record something to remember'),
+                        ),
+                      )
+                    : DailyRemembranceCard(dailyMemory: daily),
               ),
             ],
           ),

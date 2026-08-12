@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/feature_page.dart';
 import '../../record/providers/encounter_providers.dart';
+import '../presentation/daily_remembrance_card.dart';
+import '../providers/daily_memory_providers.dart';
 import 'encounter_list_tile.dart';
 
 class RememberScreen extends ConsumerStatefulWidget {
@@ -20,6 +22,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
   @override
   Widget build(BuildContext context) {
     final encounters = ref.watch(encountersProvider);
+    final dailyMemory = ref.watch(dailyMemoryProvider);
 
     return encounters.when(
       loading: () => const FeaturePage(
@@ -63,7 +66,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
               constraints: const BoxConstraints(maxWidth: 720),
               child: ListView.separated(
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: filtered.length + 2,
+                itemCount: filtered.length + 3,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
@@ -84,6 +87,19 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                   }
 
                   if (index == 1) {
+                    return dailyMemory.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, _) => TextButton(
+                        onPressed: () => retryDailyMemoryProvider(ref),
+                        child: const Text('Open today’s remembrance again'),
+                      ),
+                      data: (daily) => daily == null
+                          ? const SizedBox.shrink()
+                          : DailyRemembranceCard(dailyMemory: daily),
+                    );
+                  }
+
+                  if (index == 2) {
                     return TextField(
                       key: const Key('remember-search'),
                       decoration: const InputDecoration(
@@ -94,7 +110,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                     );
                   }
 
-                  return EncounterListTile(encounter: filtered[index - 2]);
+                  return EncounterListTile(encounter: filtered[index - 3]);
                 },
               ),
             ),

@@ -12,6 +12,7 @@ import '../features/prayers/presentation/personalized_prayer_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
 import '../features/remember/presentation/memory_detail_screen.dart';
+import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
@@ -44,12 +45,15 @@ final GoRouter appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: 'create',
-                  builder: (context, state) => const PersonalizedPrayerScreen(),
+                  builder: (context, state) => PersonalizedPrayerScreen(
+                    initialMemoryId: state.uri.queryParameters['memoryId'],
+                  ),
                 ),
                 GoRoute(
                   path: 'requests/:requestId',
                   builder: (context, state) => PersonalizedPrayerScreen(
                     requestId: state.pathParameters['requestId'],
+                    initialMemoryId: state.uri.queryParameters['memoryId'],
                   ),
                   routes: [
                     GoRoute(
@@ -90,6 +94,12 @@ final GoRouter appRouter = GoRouter(
               path: '/remember',
               builder: (context, state) => const RememberScreen(),
               routes: [
+                GoRoute(
+                  path: 'daily/:localDate',
+                  builder: (context, state) => DailyRemembranceScreen(
+                    localDate: state.pathParameters['localDate']!,
+                  ),
+                ),
                 GoRoute(
                   path: 'scripture/:book/:chapter',
                   builder: (context, state) => ScripturePassageScreen(

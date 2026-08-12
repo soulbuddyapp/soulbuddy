@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,16 +8,32 @@ import '../../../core/design/app_spacing.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_generation_request.dart';
 import '../providers/personal_prayer_providers.dart';
+import '../../record/providers/encounter_providers.dart';
 import 'personalized_prayer_choices.dart';
 import 'prayer_context_picker.dart';
 
-class PersonalizedPrayerScreen extends ConsumerWidget {
-  const PersonalizedPrayerScreen({this.requestId, super.key});
+class PersonalizedPrayerScreen extends ConsumerStatefulWidget {
+  const PersonalizedPrayerScreen({
+    this.requestId,
+    this.initialMemoryId,
+    super.key,
+  });
 
   final String? requestId;
+  final String? initialMemoryId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PersonalizedPrayerScreen> createState() =>
+      _PersonalizedPrayerScreenState();
+}
+
+class _PersonalizedPrayerScreenState
+    extends ConsumerState<PersonalizedPrayerScreen> {
+  bool _addingInitialMemory = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final requestId = widget.requestId;
     final provider = personalizedPrayerControllerProvider(requestId);
     final flow = ref.watch(provider);
     ref.listen(provider, (previous, next) {
@@ -29,8 +47,25 @@ class PersonalizedPrayerScreen extends ConsumerWidget {
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
-        GoRouter.maybeOf(context)?.go('/prayers/requests/${value.request!.id}');
+        final memoryQuery = widget.initialMemoryId == null
+            ? ''
+            : '?memoryId=${Uri.encodeComponent(widget.initialMemoryId!)}';
+        GoRouter.maybeOf(
+          context,
+        )?.go('/prayers/requests/${value.request!.id}$memoryQuery');
       });
+    });
+    ref.listen(provider, (previous, next) {
+      final memoryId = widget.initialMemoryId;
+      final request = next.value?.request;
+      if (memoryId == null ||
+          request == null ||
+          _addingInitialMemory ||
+          request.contexts.any((item) => item.sourceId == memoryId)) {
+        return;
+      }
+      _addingInitialMemory = true;
+      unawaited(_addInitialMemory(requestId, memoryId));
     });
     return Material(
       color: Theme.of(context).colorScheme.surface,
@@ -53,6 +88,20 @@ class PersonalizedPrayerScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _addInitialMemory(String? requestId, String memoryId) async {
+    try {
+      final memories = await ref.read(encountersProvider.future);
+      final matches = memories.where((item) => item.id == memoryId);
+      if (matches.isNotEmpty) {
+        await ref
+            .read(personalizedPrayerControllerProvider(requestId).notifier)
+            .addEncounter(matches.first);
+      }
+    } finally {
+      _addingInitialMemory = false;
+    }
   }
 }
 

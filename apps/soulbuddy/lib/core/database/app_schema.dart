@@ -62,6 +62,28 @@ const appSchema = Schema([
       ]),
     ],
   ),
+  Table.localOnly(
+    'daily_memory_occurrences',
+    [
+      Column.text('owner_id'),
+      Column.text('local_date'),
+      Column.text('encounter_id'),
+      Column.text('status'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('daily_memory_owner_date', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('local_date'),
+      ]),
+      Index('daily_memory_history', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('encounter_id'),
+        IndexedColumn('local_date'),
+      ]),
+    ],
+  ),
   Table(
     'library_prayers',
     [

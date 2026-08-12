@@ -10,6 +10,7 @@ import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/today/presentation/today_screen.dart';
+import 'package:soulbuddy/features/remember/providers/daily_memory_providers.dart';
 
 import '../../helpers/in_memory_prayer_repository.dart';
 
@@ -431,6 +432,11 @@ Future<void> _pumpToday(
           body: Center(child: Text('Prayer library destination')),
         ),
       ),
+      GoRoute(
+        path: '/record',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('Record destination'))),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -439,6 +445,7 @@ Future<void> _pumpToday(
     ProviderScope(
       overrides: [
         prayerRepositoryProvider.overrideWith((ref) async => repository),
+        dailyMemoryProvider.overrideWith((ref) => Stream.value(null)),
         prayerClockProvider.overrideWithValue(
           now ?? () => DateTime(2026, 8, 11, 12),
         ),

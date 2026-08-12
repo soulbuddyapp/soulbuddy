@@ -142,7 +142,7 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                   Text(
                     permissionStatus.when(
                       data: _permissionLabel,
-                      loading: () => 'Checking notificationsâ€¦',
+                      loading: () => 'Checking notifications…',
                       error: (_, _) => 'Notification status unavailable',
                     ),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
