@@ -8,6 +8,11 @@ import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_reminder_card.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
+import 'package:soulbuddy/core/feedback/app_feedback.dart';
+import 'package:soulbuddy/core/feedback/app_feedback_preferences.dart';
+import 'package:soulbuddy/core/feedback/app_feedback_providers.dart';
+import 'package:soulbuddy/core/feedback/app_feedback_service.dart';
+import 'package:soulbuddy/core/feedback/platform_feedback_driver.dart';
 
 void main() {
   testWidgets('shows a compact private card without blocking navigation', (
@@ -31,13 +36,94 @@ void main() {
 
     expect(find.text('Evening prayer'), findsOneWidget);
     expect(find.text('Father, keep this private body hidden.'), findsNothing);
+    expect(find.text('7:00 PM'), findsOneWidget);
+    expect(find.byKey(const Key('prayer-reminder-icon')), findsOneWidget);
+    expect(find.byKey(const Key('prayer-reminder-focus-edge')), findsOneWidget);
     expect(find.text('Open prayer'), findsOneWidget);
     expect(find.text('I prayed this'), findsOneWidget);
     expect(find.text('Snooze 10 minutes'), findsOneWidget);
-    expect(find.text('Dismiss'), findsOneWidget);
+    expect(find.text('Dismiss'), findsNothing);
     expect(find.textContaining('Listen'), findsNothing);
     await tester.tap(find.text('Keep navigating'));
     expect(navigationTaps, 1);
+  });
+
+  testWidgets('summarizes multiple due reminders without stacking cards', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(_occurrence(), initialOccurrences: [_occurrence(), _occurrence(2)]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PrayerReminderCard), findsOneWidget);
+    expect(find.text('2 prayer reminders due'), findsOneWidget);
+  });
+
+  testWidgets('dismiss is kept in the overflow menu', (tester) async {
+    final actions = <PrayerReminderAction>[];
+    await tester.pumpWidget(
+      _app(
+        _occurrence(),
+        perform: (value, action) async {
+          actions.add(action);
+          return null;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dismiss'), findsNothing);
+    await tester.tap(find.byKey(const Key('prayer-reminder-more-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dismiss'));
+    await tester.pumpAndSettle();
+    expect(actions, [PrayerReminderAction.dismiss]);
+  });
+
+  testWidgets('emits entrance feedback once for each immutable occurrence', (
+    tester,
+  ) async {
+    final driver = _RecordingDriver();
+    final due = StreamController<List<DuePrayerOccurrence>>();
+    addTearDown(due.close);
+    await tester.pumpWidget(
+      _app(_occurrence(), due: due.stream, driver: driver),
+    );
+    await tester.pumpAndSettle();
+    expect(driver.haptics, [AppHaptic.selection]);
+    expect(driver.sounds, isEmpty);
+
+    due.add([_occurrence()]);
+    await tester.pumpAndSettle();
+    expect(driver.haptics, [AppHaptic.selection]);
+
+    due.add([_occurrence(2)]);
+    await tester.pumpAndSettle();
+    expect(driver.haptics, [AppHaptic.selection, AppHaptic.selection]);
+  });
+
+  testWidgets('remains usable at compact width and 200 percent text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(
+          textScaler: TextScaler.linear(2),
+          disableAnimations: true,
+        ),
+        child: _app(_occurrence()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Open prayer').hitTestable(), findsOneWidget);
+    expect(find.text('I prayed this').hitTestable(), findsOneWidget);
   });
 
   testWidgets(
@@ -216,12 +302,20 @@ Widget _app(
   Future<PrayerSession?> Function(DuePrayerOccurrence, PrayerReminderAction)?
   perform,
   Future<void> Function(String)? retract,
+  List<DuePrayerOccurrence>? initialOccurrences,
+  PlatformFeedbackDriver? driver,
 }) => ProviderScope(
   overrides: [
     duePrayerOccurrencesProvider.overrideWith((ref) async* {
-      yield [occurrence];
+      yield initialOccurrences ?? [occurrence];
       if (due != null) yield* due;
     }),
+    appFeedbackPreferencesProvider.overrideWith(
+      (ref) => Stream.value(AppFeedbackPreferences.defaults),
+    ),
+    appFeedbackServiceProvider.overrideWithValue(
+      AppFeedbackService(driver: driver ?? _RecordingDriver()),
+    ),
     prayerReminderActionProvider.overrideWithValue(
       perform ?? (value, action) async => null,
     ),
@@ -261,22 +355,27 @@ Widget _compactApp(
     }),
     prayerReminderActionProvider.overrideWithValue(perform),
     prayerSessionRetractorProvider.overrideWithValue(retract),
+    appFeedbackPreferencesProvider.overrideWith(
+      (ref) => Stream.value(AppFeedbackPreferences.defaults),
+    ),
+    appFeedbackServiceProvider.overrideWithValue(
+      AppFeedbackService(driver: _RecordingDriver()),
+    ),
   ],
   child: MaterialApp(
-    builder: (context, child) => Stack(
-      fit: StackFit.expand,
-      children: [
-        child ?? const SizedBox.shrink(),
-        const Positioned(
-          left: 12,
-          right: 12,
-          bottom: 92,
-          child: PrayerReminderCardHost(),
-        ),
-      ],
-    ),
     home: Scaffold(
-      body: const SizedBox.expand(),
+      body: Stack(
+        fit: StackFit.expand,
+        children: const [
+          SizedBox.expand(),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: PrayerReminderCardHost(),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
         destinations: const [
@@ -288,11 +387,11 @@ Widget _compactApp(
   ),
 );
 
-DuePrayerOccurrence _occurrence() {
+DuePrayerOccurrence _occurrence([int sequence = 1]) {
   final at = DateTime.utc(2026, 8, 11, 18);
   return DuePrayerOccurrence(
     reminder: PrayerReminder(
-      id: 'reminder-1',
+      id: 'reminder-$sequence',
       ownerId: 'owner-1',
       personalPrayerId: 'prayer-1',
       schedule: PrayerReminderSchedule.daily(
@@ -304,8 +403,8 @@ DuePrayerOccurrence _occurrence() {
       updatedAt: at,
     ),
     device: PrayerReminderDevice(
-      id: 'device-row-1',
-      reminderId: 'reminder-1',
+      id: 'device-row-$sequence',
+      reminderId: 'reminder-$sequence',
       deviceId: 'device-1',
       enabledOnDevice: true,
       nextOccurrenceAt: at,
@@ -318,6 +417,17 @@ DuePrayerOccurrence _occurrence() {
     prayerRevisionId: 'revision-1',
     occurrenceAt: at,
   );
+}
+
+class _RecordingDriver implements PlatformFeedbackDriver {
+  final haptics = <AppHaptic>[];
+  final sounds = <AppFeedbackSound>[];
+
+  @override
+  Future<void> playHaptic(AppHaptic haptic) async => haptics.add(haptic);
+
+  @override
+  Future<void> playSound(AppFeedbackSound sound) async => sounds.add(sound);
 }
 
 PrayerSession _session() => PrayerSession(
