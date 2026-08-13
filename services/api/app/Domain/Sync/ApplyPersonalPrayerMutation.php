@@ -55,17 +55,25 @@ final class ApplyPersonalPrayerMutation
             }
         }
 
+        foreach ($operations->where('table', 'personal_prayer_revisions')->groupBy('id') as $duplicates) {
+            $first = $duplicates->first();
+            if ($duplicates->contains(
+                fn (array $operation): bool => ! $this->sameRevisionData(
+                    $first['data'],
+                    $operation['data'],
+                ),
+            )) {
+                return 'immutable_revision';
+            }
+        }
+
         foreach ($operations->where('table', 'personal_prayer_revisions') as $operation) {
             $existing = PersonalPrayerRevision::query()->find($operation['id']);
             if ($existing !== null) {
                 if ($existing->user_id !== $user->id) {
                     return 'forbidden';
                 }
-                $data = $operation['data'];
-                if ($existing->prayer_id !== ($data['prayer_id'] ?? null)
-                    || $existing->body !== ($data['body'] ?? null)
-                    || $existing->action !== ($data['action'] ?? null)
-                    || $existing->device_id !== ($data['device_id'] ?? null)) {
+                if (! $this->sameStoredRevision($existing, $operation['data'])) {
                     return 'immutable_revision';
                 }
             }
@@ -102,6 +110,26 @@ final class ApplyPersonalPrayerMutation
         foreach ($existing as $prayer) {
             if ($prayer->user_id !== $user->id) {
                 return 'forbidden';
+            }
+        }
+
+        $revisionOperations = $operations->where('table', 'personal_prayer_revisions');
+        $existingRevisions = PersonalPrayerRevision::query()
+            ->whereIn('id', $revisionOperations->pluck('id')->unique())
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+        foreach ($revisionOperations as $operation) {
+            $revision = $existingRevisions->get($operation['id']);
+            if ($revision === null) {
+                continue;
+            }
+            if ($revision->user_id !== $user->id) {
+                return 'forbidden';
+            }
+            if (! $this->sameStoredRevision($revision, $operation['data'])) {
+                return 'immutable_revision';
             }
         }
 
@@ -145,11 +173,11 @@ final class ApplyPersonalPrayerMutation
             }
         }
 
-        foreach ($operations->where('table', 'personal_prayer_revisions') as $operation) {
-            if (PersonalPrayerRevision::query()->whereKey($operation['id'])->exists()) {
+        foreach ($revisionOperations as $operation) {
+            if ($existingRevisions->has($operation['id'])) {
                 continue;
             }
-            PersonalPrayerRevision::create([
+            $revision = PersonalPrayerRevision::create([
                 'id' => $operation['id'],
                 'prayer_id' => $operation['data']['prayer_id'],
                 'user_id' => $user->id,
@@ -158,6 +186,7 @@ final class ApplyPersonalPrayerMutation
                 'device_id' => $operation['data']['device_id'],
                 'created_at' => now(),
             ]);
+            $existingRevisions->put($revision->id, $revision);
         }
 
         foreach ($operations->where('table', 'personal_prayer_links') as $operation) {
@@ -254,6 +283,24 @@ final class ApplyPersonalPrayerMutation
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $left @param array<string, mixed> $right */
+    private function sameRevisionData(array $left, array $right): bool
+    {
+        return ($left['prayer_id'] ?? null) === ($right['prayer_id'] ?? null)
+            && ($left['body'] ?? null) === ($right['body'] ?? null)
+            && ($left['action'] ?? null) === ($right['action'] ?? null)
+            && ($left['device_id'] ?? null) === ($right['device_id'] ?? null);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function sameStoredRevision(PersonalPrayerRevision $revision, array $data): bool
+    {
+        return $revision->prayer_id === ($data['prayer_id'] ?? null)
+            && $revision->body === ($data['body'] ?? null)
+            && $revision->action === ($data['action'] ?? null)
+            && $revision->device_id === ($data['device_id'] ?? null);
     }
 
     /** @param Collection<int, array<string, mixed>> $operations */

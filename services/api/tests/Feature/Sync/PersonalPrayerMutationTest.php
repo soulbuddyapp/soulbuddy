@@ -171,6 +171,55 @@ it('accepts an identical immutable revision through a new replay-safe operation'
     expect(PersonalPrayerRevision::whereKey($revisionId)->count())->toBe(1);
 });
 
+it('rejects conflicting duplicate immutable revisions in one batch', function () {
+    $user = User::factory()->create();
+    $prayerId = '0198a800-0000-7000-8000-000000000131';
+    $revisionId = '0198a800-0000-7000-8000-000000000132';
+    $base = [
+        'owner_id' => $user->public_id,
+        'prayer_id' => $prayerId,
+        'body' => 'Father, guide me today. Amen.',
+        'action' => null,
+        'device_id' => 'device-1',
+    ];
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            personalPrayerOperation(
+                '0198a800-0000-7000-8000-000000000133',
+                'personal_prayers',
+                $prayerId,
+                [
+                    'owner_id' => $user->public_id,
+                    'title' => 'Morning prayer',
+                    'style' => 'daily',
+                    'reach' => 'personal',
+                    'grounding' => 'general_christian',
+                    'purpose' => 'daily',
+                    'current_revision_id' => $revisionId,
+                    'archived_at' => null,
+                ],
+            ),
+            personalPrayerOperation(
+                '0198a800-0000-7000-8000-000000000134',
+                'personal_prayer_revisions',
+                $revisionId,
+                $base,
+            ),
+            personalPrayerOperation(
+                '0198a800-0000-7000-8000-000000000135',
+                'personal_prayer_revisions',
+                $revisionId,
+                array_replace($base, ['body' => 'Conflicting body']),
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('code', 'immutable_revision');
+
+    expect(PersonalPrayerRevision::count())->toBe(0);
+});
+
 it('rejects an incomplete prayer revision pair without writing', function () {
     $user = User::factory()->create();
 
