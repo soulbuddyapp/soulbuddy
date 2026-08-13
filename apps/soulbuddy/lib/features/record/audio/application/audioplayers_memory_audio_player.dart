@@ -6,8 +6,10 @@ import '../data/audio_asset_store.dart';
 import 'memory_audio_player.dart';
 
 class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
-  AudioplayersMemoryAudioPlayerDriver();
+  AudioplayersMemoryAudioPlayerDriver({AudioPlayer Function()? playerFactory})
+    : _playerFactory = playerFactory ?? AudioPlayer.new;
 
+  final AudioPlayer Function() _playerFactory;
   final Map<String, AudioPlayer> _players = {};
   final Map<String, List<StreamSubscription<Object?>>> _subscriptions = {};
   final StreamController<Duration> _durations =
@@ -32,7 +34,7 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
   @override
   Future<void> prepare(String assetId, AudioPlaybackSource source) async {
     if (_players.containsKey(assetId)) return;
-    final player = AudioPlayer();
+    final player = _playerFactory();
     try {
       // Keep the prepared source attached after completion so the same memory
       // can be replayed without reopening its private bytes.
@@ -63,10 +65,12 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
     if (_currentAssetId == assetId) {
       _currentAssetId = null;
     }
-    for (final subscription in _subscriptions.remove(assetId) ?? const []) {
+    final subscriptions = _subscriptions.remove(assetId) ?? const [];
+    final player = _players.remove(assetId);
+    for (final subscription in subscriptions) {
       await subscription.cancel();
     }
-    await _players.remove(assetId)?.dispose();
+    await player?.dispose();
   }
 
   @override
