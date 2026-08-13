@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:powersync/powersync.dart';
 import 'package:uuid/uuid.dart';
 
+import '../audio/data/audio_asset_store.dart';
+import '../audio/domain/memory_audio.dart';
 import '../domain/encounter.dart';
 import '../domain/encounter_draft.dart';
 import 'encounter_repository.dart';
@@ -12,6 +16,7 @@ class PowerSyncEncounterRepository implements EncounterRepository {
     required this.deviceId,
     DateTime Function()? now,
     Uuid? uuid,
+    this.audioAssetStore,
   }) : _now = now ?? DateTime.now,
        _uuid = uuid ?? const Uuid();
 
@@ -20,6 +25,7 @@ class PowerSyncEncounterRepository implements EncounterRepository {
   final String deviceId;
   final DateTime Function() _now;
   final Uuid _uuid;
+  final AudioAssetStore? audioAssetStore;
 
   @override
   Stream<List<Encounter>> watchAll() {
@@ -48,11 +54,26 @@ class PowerSyncEncounterRepository implements EncounterRepository {
   Future<Encounter> create(EncounterDraft draft) async {
     final encounterId = _uuid.v7();
     final revisionId = _uuid.v7();
+    final audioId = draft.audio == null ? null : _uuid.v7();
     final timestamp = _now().toUtc().toIso8601String();
 
-    await database.writeTransaction((transaction) async {
-      await transaction.execute(
-        '''
+    CommittedAudio? committedAudio;
+    if (draft.audio case final audio?) {
+      final store = audioAssetStore;
+      if (store == null) {
+        throw StateError('Private audio storage is unavailable.');
+      }
+      committedAudio = await store.commitTemporary(
+        TemporaryAudio(key: audio.temporaryKey, locator: audio.temporaryKey),
+        assetId: audioId!,
+        mimeType: audio.mimeType,
+      );
+    }
+
+    try {
+      await database.writeTransaction((transaction) async {
+        await transaction.execute(
+          '''
         INSERT INTO encounters(
           id, owner_id, title, body, occurred_on, is_altar,
           created_at, updated_at, archived_at, current_revision_id,
@@ -60,47 +81,92 @@ class PowerSyncEncounterRepository implements EncounterRepository {
           recall_interval_days
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
         ''',
-        [
-          encounterId,
-          ownerId,
-          draft.title.trim(),
-          draft.body.trim(),
-          draft.occurredOn,
-          draft.isAltar ? 1 : 0,
-          timestamp,
-          timestamp,
-          revisionId,
-          draft.memoryType.wireValue,
-          draft.sensitive ? 1 : 0,
-          draft.recallEnabled ? 1 : 0,
-          draft.recallPaused ? 1 : 0,
-          draft.recallIntervalDays,
-        ],
-      );
-      await transaction.execute(
-        '''
+          [
+            encounterId,
+            ownerId,
+            draft.title.trim(),
+            draft.body.trim(),
+            draft.occurredOn,
+            draft.isAltar ? 1 : 0,
+            timestamp,
+            timestamp,
+            revisionId,
+            draft.memoryType.wireValue,
+            draft.sensitive ? 1 : 0,
+            draft.recallEnabled ? 1 : 0,
+            draft.recallPaused ? 1 : 0,
+            draft.recallIntervalDays,
+          ],
+        );
+        await transaction.execute(
+          '''
         INSERT INTO encounter_revisions(
           id, encounter_id, owner_id, title, body, created_at, device_id
           , memory_type, sensitive, recall_enabled, recall_paused,
           recall_interval_days
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''',
-        [
-          revisionId,
-          encounterId,
-          ownerId,
-          draft.title.trim(),
-          draft.body.trim(),
-          timestamp,
-          deviceId,
-          draft.memoryType.wireValue,
-          draft.sensitive ? 1 : 0,
-          draft.recallEnabled ? 1 : 0,
-          draft.recallPaused ? 1 : 0,
-          draft.recallIntervalDays,
-        ],
-      );
-    });
+          [
+            revisionId,
+            encounterId,
+            ownerId,
+            draft.title.trim(),
+            draft.body.trim(),
+            timestamp,
+            deviceId,
+            draft.memoryType.wireValue,
+            draft.sensitive ? 1 : 0,
+            draft.recallEnabled ? 1 : 0,
+            draft.recallPaused ? 1 : 0,
+            draft.recallIntervalDays,
+          ],
+        );
+        if (draft.audio case final audio?) {
+          final durable = committedAudio!;
+          final savedAudio = MemoryAudio(
+            id: audioId!,
+            encounterId: encounterId,
+            revisionId: revisionId,
+            storageKey: durable.storageKey,
+            mimeType: audio.mimeType,
+            duration: audio.duration,
+            byteSize: durable.byteSize,
+            waveform: audio.waveform,
+            createdAt: DateTime.parse(timestamp),
+          );
+          await transaction.execute(
+            '''
+            INSERT INTO memory_audio_assets(
+              id, owner_id, encounter_id, encounter_revision_id,
+              storage_key, mime_type, duration_ms, byte_size,
+              waveform_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            [
+              savedAudio.id,
+              ownerId,
+              savedAudio.encounterId,
+              savedAudio.revisionId,
+              savedAudio.storageKey,
+              savedAudio.mimeType,
+              savedAudio.duration.inMilliseconds,
+              savedAudio.byteSize,
+              jsonEncode(savedAudio.waveform),
+              savedAudio.createdAt.toIso8601String(),
+            ],
+          );
+        }
+      });
+    } catch (error, stackTrace) {
+      if (committedAudio case final durable?) {
+        try {
+          await audioAssetStore!.delete(durable.storageKey);
+        } catch (_) {
+          // Startup orphan cleanup will retry without exposing the key.
+        }
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
 
     return Encounter(
       id: encounterId,

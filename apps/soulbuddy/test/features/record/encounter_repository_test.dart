@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
 import 'package:soulbuddy/features/record/data/powersync_encounter_repository.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
@@ -78,6 +80,106 @@ void main() {
     final saved = await reopenedRepository.watchAll().first;
     expect(saved.single.title, 'Remember this help');
     expect(saved.single.isAltar, isTrue);
+  });
+
+  test(
+    'saves durable voice and memory metadata as one visible action',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      final assets = _FakeAudioAssetStore();
+      final repository = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+        audioAssetStore: assets,
+        now: () => DateTime.utc(2026, 8, 13, 8),
+      );
+
+      final memory = await repository.create(
+        EncounterDraft(
+          title: 'Voice memory · 13 Aug',
+          body: '',
+          occurredOn: '2026-08-13',
+          isAltar: false,
+          audio: MemoryAudioDraft(
+            temporaryKey: '/private/take-1.m4a',
+            mimeType: 'audio/mp4',
+            duration: const Duration(seconds: 7),
+            waveform: const [0.12, 0.48, 0.83, 0.31],
+          ),
+        ),
+      );
+
+      final rows = await database.powersync.getAll(
+        'SELECT * FROM memory_audio_assets WHERE encounter_id = ?',
+        [memory.id],
+      );
+      expect(rows, hasLength(1));
+      expect(rows.single['owner_id'], 'owner-1');
+      expect(rows.single['encounter_revision_id'], memory.currentRevisionId);
+      expect(rows.single['duration_ms'], 7000);
+      expect(rows.single['byte_size'], 4);
+      expect(assets.committedLocators, ['/private/take-1.m4a']);
+      expect(assets.deletedKeys, isEmpty);
+
+      final crud = await database.powersync.getCrudBatch();
+      expect(crud, isNotNull);
+      expect(
+        crud!.crud.any((entry) => entry.table == 'memory_audio_assets'),
+        isFalse,
+      );
+    },
+  );
+
+  test('failed durable import leaves no user-visible memory', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/soulbuddy.db',
+    );
+    addTearDown(database.close);
+    final assets = _FakeAudioAssetStore()..commitError = StateError('disk');
+    final repository = PowerSyncEncounterRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      deviceId: 'device-1',
+      audioAssetStore: assets,
+    );
+
+    await expectLater(
+      repository.create(_audioDraft()),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(
+      await database.powersync.getAll('SELECT id FROM encounters'),
+      isEmpty,
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM memory_audio_assets'),
+      isEmpty,
+    );
+    expect(assets.deletedKeys, isEmpty);
+  });
+
+  test('database failure deletes the newly committed durable asset', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/soulbuddy.db',
+    );
+    final assets = _FakeAudioAssetStore();
+    final repository = PowerSyncEncounterRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      deviceId: 'device-1',
+      audioAssetStore: assets,
+    );
+    await database.close();
+
+    await expectLater(repository.create(_audioDraft()), throwsA(anything));
+
+    expect(assets.committedKeys, hasLength(1));
+    expect(assets.deletedKeys, assets.committedKeys);
   });
 
   test('updates altar state and archives without deleting history', () async {
@@ -193,4 +295,59 @@ void main() {
       expect(original.single.body, 'The original understanding.');
     },
   );
+}
+
+EncounterDraft _audioDraft() => EncounterDraft(
+  title: 'Voice memory · 13 Aug',
+  body: '',
+  occurredOn: '2026-08-13',
+  isAltar: false,
+  audio: MemoryAudioDraft(
+    temporaryKey: '/private/take.m4a',
+    mimeType: 'audio/mp4',
+    duration: const Duration(seconds: 3),
+    waveform: const [0.3, 0.7],
+  ),
+);
+
+class _FakeAudioAssetStore implements AudioAssetStore {
+  Object? commitError;
+  final committedLocators = <String>[];
+  final committedKeys = <String>[];
+  final deletedKeys = <String>[];
+
+  @override
+  Future<TemporaryAudio> allocateTemporary({
+    required String takeId,
+    required String extension,
+  }) async =>
+      TemporaryAudio(key: takeId, locator: '/private/$takeId.$extension');
+
+  @override
+  Future<CommittedAudio> commitTemporary(
+    TemporaryAudio temporary, {
+    required String assetId,
+    required String mimeType,
+  }) async {
+    committedLocators.add(temporary.locator);
+    if (commitError case final error?) throw error;
+    final key = 'audio/$assetId.m4a';
+    committedKeys.add(key);
+    return CommittedAudio(storageKey: key, byteSize: 4);
+  }
+
+  @override
+  Future<void> delete(String storageKey) async => deletedKeys.add(storageKey);
+
+  @override
+  Future<void> discardTemporary(String locator) async {}
+
+  @override
+  Future<AudioPlaybackSource?> open(String storageKey) async => null;
+
+  @override
+  Future<void> cleanup(
+    Set<String> referencedStorageKeys, {
+    required DateTime olderThan,
+  }) async {}
 }

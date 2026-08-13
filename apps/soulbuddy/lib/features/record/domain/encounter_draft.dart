@@ -1,4 +1,5 @@
 import 'encounter.dart';
+import '../audio/domain/memory_audio.dart';
 
 class EncounterDraft {
   const EncounterDraft({
@@ -11,6 +12,7 @@ class EncounterDraft {
     this.recallEnabled = true,
     this.recallPaused = false,
     this.recallIntervalDays = 7,
+    this.audio,
   });
 
   final String title;
@@ -22,4 +24,5 @@ class EncounterDraft {
   final bool recallEnabled;
   final bool recallPaused;
   final int recallIntervalDays;
+  final MemoryAudioDraft? audio;
 }
