@@ -294,6 +294,14 @@ class AudioCaptureController extends ChangeNotifier {
       }
       _recordingSessionActive = false;
     }
+    if (_reviewResult case final result?) {
+      try {
+        await _recorder.discard(result);
+      } catch (_) {
+        // Startup orphan cleanup handles any private take left behind.
+      }
+      _reviewResult = null;
+    }
     await _recorder.dispose();
   }
 

@@ -3,18 +3,25 @@ import 'package:flutter/material.dart';
 import '../../../core/design/app_spacing.dart';
 import '../domain/encounter_draft.dart';
 import '../domain/encounter.dart';
+import '../audio/domain/memory_audio.dart';
 
 class EncounterForm extends StatefulWidget {
   const EncounterForm({
     required this.onSave,
     required this.onCancel,
     this.memoryType = MemoryType.encounter,
+    this.allowMemoryTypeChoice = false,
+    this.initialTitle,
+    this.audio,
     super.key,
   });
 
   final Future<void> Function(EncounterDraft draft) onSave;
   final VoidCallback onCancel;
   final MemoryType memoryType;
+  final bool allowMemoryTypeChoice;
+  final String? initialTitle;
+  final MemoryAudioDraft? audio;
 
   @override
   State<EncounterForm> createState() => _EncounterFormState();
@@ -22,17 +29,20 @@ class EncounterForm extends StatefulWidget {
 
 class _EncounterFormState extends State<EncounterForm> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
+  late final TextEditingController _titleController;
   final _bodyController = TextEditingController();
   late final TextEditingController _dateController;
   var _isAltar = false;
   var _isSaving = false;
   late var _sensitive = widget.memoryType == MemoryType.leftBehind;
   var _recallEnabled = true;
+  late var _memoryType = widget.memoryType;
+  String? _saveError;
 
   @override
   void initState() {
     super.initState();
+    _titleController = TextEditingController(text: widget.initialTitle);
     _dateController = TextEditingController(text: _dateOnly(DateTime.now()));
   }
 
@@ -59,7 +69,10 @@ class _EncounterFormState extends State<EncounterForm> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+      _saveError = null;
+    });
     try {
       await widget.onSave(
         EncounterDraft(
@@ -67,11 +80,20 @@ class _EncounterFormState extends State<EncounterForm> {
           body: _bodyController.text,
           occurredOn: _dateController.text,
           isAltar: _isAltar,
-          memoryType: widget.memoryType,
+          memoryType: _memoryType,
           sensitive: _sensitive,
           recallEnabled: _recallEnabled,
+          audio: widget.audio,
         ),
       );
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _saveError = widget.audio == null
+              ? 'The memory could not be saved. Try again.'
+              : 'The recording is still here. Try saving again or discard it.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -104,11 +126,38 @@ class _EncounterFormState extends State<EncounterForm> {
                   Semantics(
                     header: true,
                     child: Text(
-                      'Record ${_memoryTypeLabel(widget.memoryType)}',
+                      'Record ${_memoryTypeLabel(_memoryType)}',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
+                  if (widget.allowMemoryTypeChoice) ...[
+                    Text(
+                      'What kind of memory is this?',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (final type in MemoryType.values)
+                          ChoiceChip(
+                            label: Text(_memoryTypeChipLabel(type)),
+                            selected: _memoryType == type,
+                            onSelected: _isSaving
+                                ? null
+                                : (_) => setState(() {
+                                    _memoryType = type;
+                                    if (type == MemoryType.leftBehind) {
+                                      _sensitive = true;
+                                    }
+                                  }),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   SwitchListTile(
                     title: const Text('Sensitive'),
                     subtitle: const Text(
@@ -196,6 +245,10 @@ class _EncounterFormState extends State<EncounterForm> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
+                  if (_saveError case final error?) ...[
+                    Text(error, key: const Key('encounter-save-error')),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   FilledButton(
                     onPressed: _isSaving ? null : _save,
                     child: Text(_isSaving ? 'Saving…' : 'Save'),
@@ -213,6 +266,11 @@ class _EncounterFormState extends State<EncounterForm> {
 String _memoryTypeLabel(MemoryType type) => switch (type) {
   MemoryType.encounter => 'an encounter',
   MemoryType.leftBehind => 'What I left behind',
+  _ => type.name[0].toUpperCase() + type.name.substring(1),
+};
+
+String _memoryTypeChipLabel(MemoryType type) => switch (type) {
+  MemoryType.leftBehind => 'Left behind',
   _ => type.name[0].toUpperCase() + type.name.substring(1),
 };
 

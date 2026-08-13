@@ -167,6 +167,17 @@ void main() {
     },
   );
 
+  test('close immediately discards an unsaved review take', () async {
+    await controller.start();
+    clock.advance(const Duration(seconds: 1));
+    await controller.stop();
+
+    await controller.close();
+
+    expect(recorder.discardedLocators, ['blob:recording']);
+    expect(recorder.disposeCalls, 1);
+  });
+
   test('discard and record again remove the unsaved take', () async {
     await controller.start();
     clock.advance(const Duration(seconds: 1));

@@ -13,6 +13,7 @@ class InMemoryEncounterRepository implements EncounterRepository {
   final Map<String, List<MemoryReflection>> _reflections = {};
   final _changes = StreamController<List<Encounter>>.broadcast(sync: true);
   var _nextId = 1;
+  EncounterDraft? lastDraft;
 
   @override
   Stream<List<Encounter>> watchAll() async* {
@@ -22,6 +23,7 @@ class InMemoryEncounterRepository implements EncounterRepository {
 
   @override
   Future<Encounter> create(EncounterDraft draft) async {
+    lastDraft = draft;
     final now = _now().toUtc();
     final id = 'encounter-${_nextId++}';
     final encounter = Encounter(

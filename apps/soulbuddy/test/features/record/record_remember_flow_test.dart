@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/app/app.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/record/presentation/record_screen.dart';
+import 'package:soulbuddy/features/record/presentation/encounter_form.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
@@ -13,6 +21,123 @@ import 'package:soulbuddy/features/remember/presentation/memory_detail_screen.da
 import '../../helpers/in_memory_encounter_repository.dart';
 
 void main() {
+  testWidgets('Record begins with equal Speak and Write paths', (tester) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: const MaterialApp(home: Scaffold(body: RecordScreen())),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.text('Keep what you do not want to forget.'), findsOneWidget);
+    expect(find.byKey(const Key('record-speak')), findsOneWidget);
+    expect(find.byKey(const Key('record-write')), findsOneWidget);
+    expect(find.text('Encounter'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('record-write')));
+    await _settle(tester);
+    expect(find.text('Encounter'), findsOneWidget);
+    expect(find.textContaining('Coming'), findsNothing);
+  });
+
+  testWidgets(
+    'Speak records, reviews, and saves without requiring typed body',
+    (tester) async {
+      final repository = InMemoryEncounterRepository();
+      final recorder = _RecordFlowRecorder();
+      final controller = AudioCaptureController(
+        recorder: recorder,
+        allocateTemporary: () async =>
+            const TemporaryAudio(key: 'take', locator: '/private/take.m4a'),
+      );
+      addTearDown(() async {
+        await controller.close();
+        await repository.close();
+      });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            encounterRepositoryProvider.overrideWith((ref) async => repository),
+            audioCaptureControllerProvider.overrideWith(
+              (ref) async => controller,
+            ),
+          ],
+          child: const MaterialApp(home: Scaffold(body: RecordScreen())),
+        ),
+      );
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('record-speak')));
+      await _settle(tester);
+      await tester.tap(find.text('Start recording'));
+      await _settle(tester);
+      await tester.tap(find.text('Stop'));
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(find.text('What kind of memory is this?'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Promise'), findsOneWidget);
+      final titleField = tester.widget<TextFormField>(
+        find.byKey(const Key('encounter-title')),
+      );
+      expect(titleField.controller!.text, startsWith('Voice memory ·'));
+      await tester.ensureVisible(find.text('Save'));
+      await tester.tap(find.text('Save'));
+      await _settle(tester);
+
+      expect(repository.lastDraft!.audio, isNotNull);
+      expect(repository.lastDraft!.body, isEmpty);
+      expect(find.text('Record saved'), findsOneWidget);
+    },
+  );
+
+  testWidgets('failed voice save keeps the take and offers a retry', (
+    tester,
+  ) async {
+    var attempts = 0;
+    final audio = MemoryAudioDraft(
+      temporaryKey: '/private/take.m4a',
+      mimeType: 'audio/mp4',
+      duration: const Duration(seconds: 2),
+      waveform: const [0.2, 0.8],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EncounterForm(
+            initialTitle: 'Voice memory · 13 Aug',
+            audio: audio,
+            onCancel: () {},
+            onSave: (_) async {
+              attempts++;
+              throw StateError('disk');
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await _settle(tester);
+
+    expect(attempts, 1);
+    expect(
+      find.text('The recording is still here. Try saving again or discard it.'),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.text('Save'));
+    await tester.pump();
+    expect(find.text('Save').hitTestable(), findsOneWidget);
+  });
+
   testWidgets('gives an empty Remember screen one quiet incised mark', (
     tester,
   ) async {
@@ -99,6 +224,8 @@ void main() {
 
     await tester.tap(find.text('Record').last);
     await _settle(tester);
+    await tester.tap(find.byKey(const Key('record-write')));
+    await _settle(tester);
     await tester.tap(find.text('Encounter'));
     await _settle(tester);
 
@@ -154,6 +281,9 @@ void main() {
     );
     await _settle(tester);
 
+    await tester.tap(find.byKey(const Key('record-write')));
+    await _settle(tester);
+
     for (final label in [
       'Encounter',
       'Promise',
@@ -196,6 +326,8 @@ void main() {
     await _settle(tester);
 
     for (final label in ['Promise', 'What I left behind', 'Revelation']) {
+      await tester.tap(find.byKey(const Key('record-write')));
+      await _settle(tester);
       await tester.ensureVisible(find.text(label));
       await tester.tap(find.text(label));
       await _settle(tester);
@@ -293,6 +425,43 @@ void main() {
     expect(find.text('I understand more about patience now.'), findsOneWidget);
     expect(find.text('The original record.'), findsOneWidget);
   });
+}
+
+class _RecordFlowRecorder implements AudioRecorderGateway {
+  final _amplitudes = StreamController<double>.broadcast();
+
+  @override
+  Stream<double> get amplitudes => _amplitudes.stream;
+
+  @override
+  bool get canPause => true;
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> discard(AudioRecorderResult result) async {}
+
+  @override
+  Future<void> dispose() => _amplitudes.close();
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> resume() async {}
+
+  @override
+  Future<void> start(TemporaryAudio temporary) async {}
+
+  @override
+  Future<AudioRecorderResult> stop() async => const AudioRecorderResult(
+    locator: '/private/take.m4a',
+    mimeType: 'audio/mp4',
+  );
 }
 
 Future<void> _settle(WidgetTester tester) async {

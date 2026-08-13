@@ -1,8 +1,14 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database_provider.dart';
 import '../../../../core/identity/local_identity_providers.dart';
 import '../application/memory_audio_orphan_cleanup.dart';
+import '../application/audio_capture_controller.dart';
+import '../application/record_plugin_driver.dart';
 import '../data/audio_asset_store.dart';
 import '../data/audio_asset_store_factory.dart';
 import '../data/memory_audio_repository.dart';
@@ -31,3 +37,18 @@ final memoryAudioStartupCleanupProvider = FutureProvider<void>((ref) async {
     assetStore: assetStore,
   ).run();
 });
+
+final audioCaptureControllerProvider =
+    FutureProvider.autoDispose<AudioCaptureController>((ref) async {
+      final assetStore = await ref.watch(audioAssetStoreProvider.future);
+      final recorder = createRecordPluginAudioRecorder(assetStore);
+      final controller = AudioCaptureController(
+        recorder: recorder,
+        allocateTemporary: () => assetStore.allocateTemporary(
+          takeId: const Uuid().v7(),
+          extension: kIsWeb ? 'webm' : 'm4a',
+        ),
+      );
+      ref.onDispose(() => unawaited(controller.close()));
+      return controller;
+    });
