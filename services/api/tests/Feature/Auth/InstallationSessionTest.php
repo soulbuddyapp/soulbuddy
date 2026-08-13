@@ -25,6 +25,8 @@ it('creates one private application session for a new installation', function ()
     $user = User::where('public_id', $ownerId)->firstOrFail();
     $installation = $user->installations()->whereKey($deviceId)->firstOrFail();
     expect($response->json('token'))->toBeString()->not->toContain($secret)
+        ->and($response->json('display_name'))->toBe($user->name)
+        ->and($user->name)->toMatch('/^SoulBuddy [0-9]{4}$/')
         ->and(Hash::check($secret, $installation->secret_hash))->toBeTrue()
         ->and($installation->secret_hash)->not->toContain($secret);
     foreach (['error', 'warning', 'info', 'debug', 'log'] as $level) {

@@ -123,6 +123,54 @@ it('accepts a complete prayer revision and structured Scripture link', function 
         ->and(TodayPrayer::first()->personal_prayer_id)->toBe($prayerId);
 });
 
+it('accepts an identical immutable revision through a new replay-safe operation', function () {
+    $user = User::factory()->create();
+    $prayerId = '0198a800-0000-7000-8000-000000000121';
+    $revisionId = '0198a800-0000-7000-8000-000000000122';
+    $operations = [
+        personalPrayerOperation(
+            '0198a800-0000-7000-8000-000000000123',
+            'personal_prayers',
+            $prayerId,
+            [
+                'owner_id' => $user->public_id,
+                'title' => 'Morning prayer',
+                'style' => 'daily',
+                'reach' => 'personal',
+                'grounding' => 'general_christian',
+                'purpose' => 'daily',
+                'current_revision_id' => $revisionId,
+                'archived_at' => null,
+            ],
+        ),
+        personalPrayerOperation(
+            '0198a800-0000-7000-8000-000000000124',
+            'personal_prayer_revisions',
+            $revisionId,
+            [
+                'owner_id' => $user->public_id,
+                'prayer_id' => $prayerId,
+                'body' => 'Father, guide me today. Amen.',
+                'action' => null,
+                'device_id' => 'device-1',
+            ],
+        ),
+    ];
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => $operations,
+    ])->assertOk()->assertJsonPath('accepted', 2);
+    $operations[0]['operation_id'] = '0198a800-0000-7000-8000-000000000125';
+    $operations[1]['operation_id'] = '0198a800-0000-7000-8000-000000000126';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => $operations,
+    ])->assertOk()
+        ->assertJsonPath('accepted', 2)
+        ->assertJsonPath('rejected', 0);
+
+    expect(PersonalPrayerRevision::whereKey($revisionId)->count())->toBe(1);
+});
+
 it('rejects an incomplete prayer revision pair without writing', function () {
     $user = User::factory()->create();
 

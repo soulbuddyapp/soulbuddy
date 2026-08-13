@@ -58,9 +58,16 @@ final class ApplyPersonalPrayerMutation
         foreach ($operations->where('table', 'personal_prayer_revisions') as $operation) {
             $existing = PersonalPrayerRevision::query()->find($operation['id']);
             if ($existing !== null) {
-                return $existing->user_id === $user->id
-                    ? 'immutable_revision'
-                    : 'forbidden';
+                if ($existing->user_id !== $user->id) {
+                    return 'forbidden';
+                }
+                $data = $operation['data'];
+                if ($existing->prayer_id !== ($data['prayer_id'] ?? null)
+                    || $existing->body !== ($data['body'] ?? null)
+                    || $existing->action !== ($data['action'] ?? null)
+                    || $existing->device_id !== ($data['device_id'] ?? null)) {
+                    return 'immutable_revision';
+                }
             }
         }
 
@@ -139,6 +146,9 @@ final class ApplyPersonalPrayerMutation
         }
 
         foreach ($operations->where('table', 'personal_prayer_revisions') as $operation) {
+            if (PersonalPrayerRevision::query()->whereKey($operation['id'])->exists()) {
+                continue;
+            }
             PersonalPrayerRevision::create([
                 'id' => $operation['id'],
                 'prayer_id' => $operation['data']['prayer_id'],

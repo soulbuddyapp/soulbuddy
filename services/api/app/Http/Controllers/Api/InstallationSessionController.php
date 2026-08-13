@@ -25,7 +25,7 @@ class InstallationSessionController extends Controller
                 $user = new User;
                 $user->forceFill([
                     'public_id' => $validated['owner_id'],
-                    'name' => 'SoulBuddy',
+                    'name' => 'SoulBuddy '.str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT),
                     'email' => $validated['owner_id'].'@install.soulbuddy.invalid',
                     'password' => Str::random(64),
                 ])->save();
@@ -48,7 +48,11 @@ class InstallationSessionController extends Controller
             $user->tokens()->where('name', 'installation:'.$installation->id)->delete();
             $token = $user->createToken('installation:'.$installation->id, ['app'])->plainTextToken;
 
-            return ['token' => $token, 'owner_id' => $user->public_id];
+            return [
+                'token' => $token,
+                'owner_id' => $user->public_id,
+                'display_name' => $user->name,
+            ];
         }, attempts: 3);
 
         return response()->json($result, $created ? 201 : 200);

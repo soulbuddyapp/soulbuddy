@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 const localOwnerIdStorageKey = 'soulbuddy.local_owner_id';
 const deviceIdStorageKey = 'soulbuddy.device_id';
 const appSessionTokenStorageKey = 'soulbuddy.app_session_token';
+const profileDisplayNameStorageKey = 'soulbuddy.profile_display_name';
 
 typedef AppSessionTokenReader = Future<String?> Function();
 

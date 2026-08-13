@@ -95,20 +95,6 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
     );
   }
 
-  Future<void> flushPending(
-    PowerSyncDatabase database, {
-    int maximumTransactions = 20,
-  }) async {
-    for (var index = 0; index < maximumTransactions; index++) {
-      final transaction = await database.getNextCrudTransaction();
-      if (transaction == null) return;
-      await uploadTransaction(transaction);
-    }
-    if (await database.getNextCrudTransaction() != null) {
-      throw const LaravelSyncUnavailable();
-    }
-  }
-
   Future<void> uploadTransaction(
     CrudTransaction transaction, {
     Future<void> Function(SyncIssue issue)? recordIssue,

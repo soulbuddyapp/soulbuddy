@@ -20,7 +20,11 @@ void main() {
         client: MockClient((request) async {
           requests.add(request);
           return http.Response(
-            jsonEncode({'token': 'plain-session-token', 'owner_id': 'owner-1'}),
+            jsonEncode({
+              'token': 'plain-session-token',
+              'owner_id': 'owner-1',
+              'display_name': 'SoulBuddy 4827',
+            }),
             201,
             headers: {'content-type': 'application/json'},
           );
@@ -41,6 +45,7 @@ void main() {
         payload['installation_secret'],
       );
       expect(writes[appSessionTokenStorageKey], 'plain-session-token');
+      expect(writes[profileDisplayNameStorageKey], 'SoulBuddy 4827');
     },
   );
 

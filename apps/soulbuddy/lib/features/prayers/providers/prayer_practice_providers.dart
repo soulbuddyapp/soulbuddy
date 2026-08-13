@@ -9,7 +9,6 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/identity/local_identity_providers.dart';
-import '../../../core/sync/laravel_backend_connector.dart';
 import '../application/prayer_occurrence_calculator.dart';
 import '../application/prayer_audio_environment.dart';
 import '../application/prayer_audio_environment_factory.dart';
@@ -21,6 +20,7 @@ import '../application/prayer_reminder_scheduler_factory.dart';
 import '../data/powersync_prayer_practice_repository.dart';
 import '../data/laravel_prayer_narration_repository.dart';
 import '../data/prayer_narration_repository.dart';
+import '../data/prayer_narration_prerequisite_uploader.dart';
 import '../data/prayer_practice_repository.dart';
 import '../domain/prayer_reminder.dart';
 import '../domain/prayer_reference.dart';
@@ -75,6 +75,7 @@ final prepareReminderNarrationProvider =
         required revisionId,
         required autoplay,
       }) async {
+        ref.invalidate(installationSessionBootstrapProvider);
         await ref.read(installationSessionBootstrapProvider.future);
         final database = await ref.read(appDatabaseProvider.future);
         final identity = await ref.read(localIdentityProvider.future);
@@ -82,21 +83,19 @@ final prepareReminderNarrationProvider =
         if (configured == null || !configured.hasScheme) {
           throw const PrayerNarrationException('narration_unavailable');
         }
-        final syncClient = http.Client();
+        final prerequisiteClient = http.Client();
         try {
-          await LaravelBackendConnector(
-                apiBaseUri: configured,
-                powerSyncEndpoint: '',
-                installationId: identity.deviceId,
-                accessToken: ref.read(appSessionTokenReaderProvider),
-                client: syncClient,
-              )
-              .flushPending(database.powersync)
-              .timeout(const Duration(seconds: 30));
+          await PrayerNarrationPrerequisiteUploader(
+            database: database.powersync,
+            apiBaseUri: configured,
+            installationId: identity.deviceId,
+            accessToken: ref.read(appSessionTokenReaderProvider),
+            client: prerequisiteClient,
+          ).upload(personalPrayerId: personalPrayerId, revisionId: revisionId);
         } on Exception {
           throw const PrayerNarrationException('narration_unavailable');
         } finally {
-          syncClient.close();
+          prerequisiteClient.close();
         }
         final narration = await ref
             .read(prayerNarrationRepositoryProvider)
