@@ -56,11 +56,11 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
     this.preparedAssetLimit = 2,
   }) : _assetStore = assetStore,
        _driver = driver {
-    if (preparedAssetLimit < 1) {
+    if (preparedAssetLimit < 2) {
       throw ArgumentError.value(
         preparedAssetLimit,
         'preparedAssetLimit',
-        'must be at least one',
+        'must be at least two so active playback is never evicted',
       );
     }
     _subscriptions = [
@@ -93,16 +93,17 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
 
   Future<bool> _prepare(MemoryAudio audio) async {
     try {
-      final source = await _assetStore.open(audio.storageKey);
-      if (_closed || source == null) return false;
       var prepared = false;
       final operation = Future<void>.sync(() async {
         if (_closed) return;
         await _preparationTail;
+        if (_closed) return;
         if (_touchPrepared(audio.id)) {
           prepared = true;
           return;
         }
+        final source = await _assetStore.open(audio.storageKey);
+        if (_closed || source == null) return;
         await _makePreparedRoom(audio.id);
         await _driver.prepare(audio.id, source);
         if (_closed) {
@@ -252,6 +253,7 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    await _preparationTail.catchError((Object _) {});
     await _commandTail.catchError((Object _) {});
     for (final subscription in _subscriptions) {
       await subscription.cancel();

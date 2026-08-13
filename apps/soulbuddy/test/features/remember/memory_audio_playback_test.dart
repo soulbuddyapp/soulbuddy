@@ -83,6 +83,59 @@ void main() {
   });
 
   test(
+    'distinct private assets are opened through one bounded queue',
+    () async {
+      final assets = _BlockingPlaybackAssetStore();
+      final coordinator = MemoryAudioPlaybackCoordinator(
+        assetStore: assets,
+        driver: _PlaybackDriver(),
+      );
+      addTearDown(coordinator.close);
+
+      final first = coordinator.prepare(_audio('audio-a', 'audio/a.m4a'));
+      final second = coordinator.prepare(_audio('audio-b', 'audio/b.m4a'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(assets.openedKeys, ['audio/a.m4a']);
+      assets.releaseFirst();
+      expect(await first, isTrue);
+      expect(await second, isTrue);
+      expect(assets.openedKeys, ['audio/a.m4a', 'audio/b.m4a']);
+    },
+  );
+
+  test('close waits for an in-flight private source before disposal', () async {
+    final assets = _BlockingPlaybackAssetStore();
+    final driver = _PlaybackDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: assets,
+      driver: driver,
+    );
+
+    final preparation = coordinator.prepare(_audio('audio-a', 'audio/a.m4a'));
+    await Future<void>.delayed(Duration.zero);
+    final closing = coordinator.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(driver.events, isNot(contains('dispose')));
+
+    assets.releaseFirst();
+    expect(await preparation, isFalse);
+    await closing;
+    expect(driver.events, contains('dispose'));
+  });
+
+  test('requires room for an active and a pending private asset', () {
+    expect(
+      () => MemoryAudioPlaybackCoordinator(
+        assetStore: _PlaybackAssetStore(),
+        driver: _PlaybackDriver(),
+        preparedAssetLimit: 1,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test(
     'a prepared first command reaches the player in the user gesture',
     () async {
       final driver = _PlaybackDriver();
@@ -226,6 +279,22 @@ class _PlaybackAssetStore implements AudioAssetStore {
 
   @override
   Future<void> discardTemporary(String locator) => throw UnimplementedError();
+}
+
+class _BlockingPlaybackAssetStore extends _PlaybackAssetStore {
+  final _firstRelease = Completer<void>();
+
+  void releaseFirst() => _firstRelease.complete();
+
+  @override
+  Future<AudioPlaybackSource?> open(String storageKey) async {
+    if (openedKeys.isEmpty) {
+      openedKeys.add(storageKey);
+      await _firstRelease.future;
+      return const FileAudioPlaybackSource('a');
+    }
+    return super.open(storageKey);
+  }
 }
 
 class _PlaybackDriver implements MemoryAudioPlayerDriver {
