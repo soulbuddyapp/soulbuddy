@@ -7,12 +7,16 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_database_provider.dart';
 import '../../../../core/identity/local_identity_providers.dart';
 import '../application/memory_audio_orphan_cleanup.dart';
+import '../application/audioplayers_memory_audio_player.dart';
+import '../application/memory_audio_deletion.dart';
+import '../application/memory_audio_player.dart';
 import '../application/audio_capture_controller.dart';
 import '../application/record_plugin_driver.dart';
 import '../data/audio_asset_store.dart';
 import '../data/audio_asset_store_factory.dart';
 import '../data/memory_audio_repository.dart';
 import '../data/powersync_memory_audio_repository.dart';
+import '../domain/memory_audio.dart';
 
 final audioAssetStoreProvider = FutureProvider<AudioAssetStore>((ref) async {
   return createAudioAssetStore();
@@ -36,6 +40,32 @@ final memoryAudioStartupCleanupProvider = FutureProvider<void>((ref) async {
     repository: repository,
     assetStore: assetStore,
   ).run();
+});
+
+final memoryAudioForEncounterProvider = StreamProvider.autoDispose
+    .family<MemoryAudio?, String>((ref, encounterId) async* {
+      final repository = await ref.watch(memoryAudioRepositoryProvider.future);
+      yield* repository.watchForEncounter(encounterId);
+    });
+
+final memoryAudioPlaybackCoordinatorProvider =
+    FutureProvider.autoDispose<MemoryAudioPlaybackCoordinator>((ref) async {
+      final assetStore = await ref.watch(audioAssetStoreProvider.future);
+      final coordinator = MemoryAudioPlaybackCoordinator(
+        assetStore: assetStore,
+        driver: AudioplayersMemoryAudioPlayerDriver(),
+      );
+      ref.onDispose(() => unawaited(coordinator.close()));
+      return coordinator;
+    });
+
+final memoryAudioDeletionProvider = FutureProvider<MemoryAudioDeletion>((
+  ref,
+) async {
+  return MemoryAudioDeletion(
+    repository: await ref.watch(memoryAudioRepositoryProvider.future),
+    assetStore: await ref.watch(audioAssetStoreProvider.future),
+  );
 });
 
 final audioCaptureControllerProvider =

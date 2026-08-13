@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../record/audio/presentation/audio_playback_control.dart';
+import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/domain/encounter.dart';
 import '../../record/providers/encounter_providers.dart';
 
@@ -28,6 +30,9 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
   Widget build(BuildContext context) {
     final memories = ref.watch(encountersProvider);
     final reflections = ref.watch(memoryReflectionsProvider(widget.memoryId));
+    final audio = ref
+        .watch(memoryAudioForEncounterProvider(widget.memoryId))
+        .whenOrNull(data: (value) => value);
     return Scaffold(
       appBar: AppBar(title: const Text('Remember')),
       body: memories.when(
@@ -59,6 +64,14 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                 if (memory.body.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.md),
                   SelectableText(memory.body),
+                ],
+                if (audio != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  AudioPlaybackControl(
+                    audio: audio,
+                    allowDelete: true,
+                    stopOnDispose: true,
+                  ),
                 ],
                 const SizedBox(height: AppSpacing.xl),
                 Text(

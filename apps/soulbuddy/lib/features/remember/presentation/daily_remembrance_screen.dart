@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../record/domain/encounter.dart';
+import '../../record/audio/presentation/audio_playback_control.dart';
+import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/providers/encounter_providers.dart';
 import '../domain/daily_memory.dart';
 import '../providers/daily_memory_providers.dart';
@@ -57,6 +59,9 @@ class _DailyRemembranceScreenState
   Widget _content(DailyMemory daily) {
     final memory = daily.memory;
     final reflections = ref.watch(memoryReflectionsProvider(memory.id));
+    final audio = ref
+        .watch(memoryAudioForEncounterProvider(memory.id))
+        .whenOrNull(data: (value) => value);
     return SafeArea(
       top: false,
       child: ListView(
@@ -76,6 +81,15 @@ class _DailyRemembranceScreenState
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(height: 1.6),
+            ),
+          ],
+          if (audio != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            AudioPlaybackControl(
+              audio: audio,
+              label: 'Listen to this memory',
+              playLabel: 'Listen',
+              stopOnDispose: true,
             ),
           ],
           const SizedBox(height: AppSpacing.xl),

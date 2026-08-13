@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../record/domain/encounter.dart';
+import '../../record/audio/presentation/audio_playback_control.dart';
+import '../../record/audio/providers/memory_audio_providers.dart';
 
-class EncounterListTile extends StatelessWidget {
+class EncounterListTile extends ConsumerWidget {
   const EncounterListTile({required this.encounter, super.key});
 
   final Encounter encounter;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final audio = ref
+        .watch(memoryAudioForEncounterProvider(encounter.id))
+        .whenOrNull(data: (value) => value);
     return Card(
       child: InkWell(
         onTap: () => context.push('/remember/${encounter.id}'),
@@ -27,7 +33,7 @@ class EncounterListTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      encounter.title,
+                      encounter.sensitive ? 'Private memory' : encounter.title,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
@@ -67,10 +73,17 @@ class EncounterListTile extends StatelessWidget {
                 ).textTheme.labelMedium?.copyWith(color: AppColors.inkMuted),
               ),
               const CovenantIncisedDivider(),
-              if (encounter.sensitive) ...[
+              if (audio != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                const Text('Sensitive memory'),
-              ] else if (encounter.body.isNotEmpty) ...[
+                AudioPlaybackControl(
+                  audio: audio,
+                  compact: true,
+                  label: encounter.sensitive
+                      ? 'Audio memory'
+                      : 'Voice recording',
+                ),
+              ],
+              if (!encounter.sensitive && encounter.body.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   encounter.body,

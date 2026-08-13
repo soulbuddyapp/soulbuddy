@@ -379,11 +379,12 @@ void main() {
     );
     await _settle(tester);
 
-    expect(find.text('Sensitive memory'), findsOneWidget);
+    expect(find.text('Private memory'), findsOneWidget);
     expect(find.byKey(const Key('remember-living-vine')), findsNothing);
     expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
     expect(find.byKey(const Key('promise-paired-slab-mark')), findsOneWidget);
     expect(find.text('A sensitive detail'), findsNothing);
+    expect(find.text('A private freedom'), findsNothing);
     await tester.enterText(find.byKey(const Key('remember-search')), 'promise');
     await _settle(tester);
     expect(find.text('A promise to remember'), findsOneWidget);

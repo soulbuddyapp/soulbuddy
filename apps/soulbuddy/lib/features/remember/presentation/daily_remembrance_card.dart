@@ -10,6 +10,8 @@ import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../record/domain/encounter.dart';
+import '../../record/audio/presentation/audio_playback_control.dart';
+import '../../record/audio/providers/memory_audio_providers.dart';
 import '../domain/daily_memory.dart';
 import '../providers/daily_memory_providers.dart';
 
@@ -29,6 +31,9 @@ class _DailyRemembranceCardState extends ConsumerState<DailyRemembranceCard> {
   @override
   Widget build(BuildContext context) {
     final daily = widget.dailyMemory;
+    final audio = ref
+        .watch(memoryAudioForEncounterProvider(daily.memory.id))
+        .whenOrNull(data: (value) => value);
     return Card(
       key: const Key('daily-remembrance-card'),
       child: InkWell(
@@ -72,6 +77,16 @@ class _DailyRemembranceCardState extends ConsumerState<DailyRemembranceCard> {
                 key: Key('daily-memory-incised-mark'),
               ),
               const SizedBox(height: AppSpacing.sm),
+              if (daily.status == DailyMemoryStatus.active &&
+                  audio != null) ...[
+                AudioPlaybackControl(
+                  audio: audio,
+                  compact: true,
+                  label: 'Voice memory',
+                  playLabel: 'Listen',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               if (daily.status == DailyMemoryStatus.active)
                 Wrap(
                   spacing: AppSpacing.sm,
