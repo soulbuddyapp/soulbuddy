@@ -138,11 +138,15 @@ final prayerSessionCountProvider = StreamProvider.autoDispose
     });
 
 final prayerSessionForDateProvider = StreamProvider.autoDispose
-    .family<bool, (PrayerReference, DateTime)>((ref, request) async* {
+    .family<bool, (PrayerReference, DateTime, String?)>((ref, request) async* {
       final repository = await ref.watch(
         prayerPracticeRepositoryProvider.future,
       );
-      yield* repository.watchSessionForDate(request.$1, request.$2);
+      yield* repository.watchSessionForDate(
+        request.$1,
+        request.$2,
+        revisionId: request.$3,
+      );
     });
 
 final duePrayerOccurrencesProvider = StreamProvider<List<DuePrayerOccurrence>>((

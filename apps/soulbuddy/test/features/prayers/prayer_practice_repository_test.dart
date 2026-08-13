@@ -263,6 +263,40 @@ void main() {
     },
   );
 
+  test('matches a personal session by its exact immutable revision', () async {
+    final database = await _openSeededDatabase(temporaryDirectory, 'revision');
+    addTearDown(database.close);
+    final repository = _repository(database);
+    const reference = PrayerReference.personal(prayerId);
+
+    await repository.recordSession(
+      prayer: reference,
+      revisionId: revisionId,
+      timezone: 'Africa/Lagos',
+    );
+
+    expect(
+      await repository
+          .watchSessionForDate(
+            reference,
+            DateTime(2026, 8, 11),
+            revisionId: revisionId,
+          )
+          .first,
+      isTrue,
+    );
+    expect(
+      await repository
+          .watchSessionForDate(
+            reference,
+            DateTime(2026, 8, 11),
+            revisionId: '0198a900-0000-7000-8000-000000000099',
+          )
+          .first,
+      isFalse,
+    );
+  });
+
   test('enforces revision shape before writing either prayer source', () async {
     final database = await _openSeededDatabase(temporaryDirectory, 'shape');
     addTearDown(database.close);

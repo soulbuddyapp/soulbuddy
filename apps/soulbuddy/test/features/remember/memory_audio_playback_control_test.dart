@@ -137,6 +137,9 @@ class _ControlDriver implements MemoryAudioPlayerDriver {
   Future<void> prepare(String assetId, AudioPlaybackSource source) async {}
 
   @override
+  Future<void> release(String assetId) async {}
+
+  @override
   Future<void> play(String assetId, AudioPlaybackSource source) async =>
       events.add('play');
 

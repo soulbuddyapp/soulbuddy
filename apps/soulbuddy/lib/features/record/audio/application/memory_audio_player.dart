@@ -14,6 +14,7 @@ abstract interface class MemoryAudioPlayerDriver {
   Stream<MemoryAudioDriverStatus> get statusChanges;
 
   Future<void> prepare(String assetId, AudioPlaybackSource source);
+  Future<void> release(String assetId);
   Future<void> play(String assetId, AudioPlaybackSource source);
   Future<void> pause();
   Future<void> resume();
@@ -52,8 +53,16 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
   MemoryAudioPlaybackCoordinator({
     required AudioAssetStore assetStore,
     required MemoryAudioPlayerDriver driver,
+    this.preparedAssetLimit = 2,
   }) : _assetStore = assetStore,
        _driver = driver {
+    if (preparedAssetLimit < 1) {
+      throw ArgumentError.value(
+        preparedAssetLimit,
+        'preparedAssetLimit',
+        'must be at least one',
+      );
+    }
     _subscriptions = [
       _driver.positionChanges.listen(_onPosition),
       _driver.durationChanges.listen(_onDuration),
@@ -63,8 +72,11 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
 
   final AudioAssetStore _assetStore;
   final MemoryAudioPlayerDriver _driver;
-  final Map<String, AudioPlaybackSource> _preparedSources = {};
+  final int preparedAssetLimit;
+  final LinkedHashMap<String, AudioPlaybackSource> _preparedSources =
+      LinkedHashMap();
   final Map<String, Future<bool>> _preparations = {};
+  Future<void> _preparationTail = Future.value();
   late final List<StreamSubscription<Object?>> _subscriptions;
   MemoryAudioPlaybackState _state = const MemoryAudioPlaybackState();
   MemoryAudioPlaybackState get state => _state;
@@ -75,7 +87,7 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
 
   Future<bool> prepare(MemoryAudio audio) {
     if (_closed) return Future.value(false);
-    if (_preparedSources.containsKey(audio.id)) return Future.value(true);
+    if (_touchPrepared(audio.id)) return Future.value(true);
     return _preparations.putIfAbsent(audio.id, () => _prepare(audio));
   }
 
@@ -83,16 +95,55 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
     try {
       final source = await _assetStore.open(audio.storageKey);
       if (_closed || source == null) return false;
-      await _driver.prepare(audio.id, source);
-      if (_closed) return false;
-      _preparedSources[audio.id] = source;
-      return true;
+      var prepared = false;
+      final operation = Future<void>.sync(() async {
+        if (_closed) return;
+        await _preparationTail;
+        if (_touchPrepared(audio.id)) {
+          prepared = true;
+          return;
+        }
+        await _makePreparedRoom(audio.id);
+        await _driver.prepare(audio.id, source);
+        if (_closed) {
+          await _driver.release(audio.id);
+          return;
+        }
+        _preparedSources[audio.id] = source;
+        prepared = true;
+      });
+      _preparationTail = operation.then<void>((_) {}).catchError((_) {});
+      await operation;
+      return prepared;
     } catch (_) {
       return false;
     } finally {
-      if (!_preparedSources.containsKey(audio.id)) {
-        _preparations.remove(audio.id);
-      }
+      _preparations.remove(audio.id);
+    }
+  }
+
+  bool _touchPrepared(String assetId) {
+    final source = _preparedSources.remove(assetId);
+    if (source == null) return false;
+    _preparedSources[assetId] = source;
+    return true;
+  }
+
+  Future<void> _makePreparedRoom(String assetId) async {
+    _preparedSources.remove(assetId);
+    while (_preparedSources.length >= preparedAssetLimit) {
+      final activeId = switch (_state.status) {
+        MemoryAudioPlaybackStatus.loading ||
+        MemoryAudioPlaybackStatus.playing ||
+        MemoryAudioPlaybackStatus.paused => _state.assetId,
+        _ => null,
+      };
+      final evictedId = _preparedSources.keys.firstWhere(
+        (id) => id != activeId,
+        orElse: () => _preparedSources.keys.first,
+      );
+      _preparedSources.remove(evictedId);
+      await _driver.release(evictedId);
     }
   }
 
@@ -120,8 +171,11 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
       ),
     );
     try {
+      if (!_preparedSources.containsKey(audio.id)) {
+        await _preparations[audio.id];
+      }
       final source =
-          _preparedSources[audio.id] ??
+          _preparedSources.remove(audio.id) ??
           await _assetStore.open(audio.storageKey);
       if (source == null) {
         _emit(
@@ -134,6 +188,10 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
         );
         return;
       }
+      if (_preparedSources.length >= preparedAssetLimit) {
+        await _makePreparedRoom(audio.id);
+      }
+      _preparedSources[audio.id] = source;
       await _driver.play(audio.id, source);
       _emit(
         MemoryAudioPlaybackState(

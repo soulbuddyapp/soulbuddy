@@ -49,7 +49,11 @@ final dailyPracticeStateProvider =
       }
 
       final sessionValue = ref.watch(
-        prayerSessionForDateProvider((today.prayer.reference, date)),
+        prayerSessionForDateProvider((
+          today.prayer.reference,
+          date,
+          today.prayerRevisionId,
+        )),
       );
       if (sessionValue case AsyncError(:final error, :final stackTrace)) {
         return AsyncError(error, stackTrace);

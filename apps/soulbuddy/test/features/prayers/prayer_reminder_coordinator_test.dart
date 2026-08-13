@@ -583,8 +583,9 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
   @override
   Stream<bool> watchSessionForDate(
     PrayerReference prayer,
-    DateTime localDate,
-  ) => const Stream.empty();
+    DateTime localDate, {
+    String? revisionId,
+  }) => const Stream.empty();
 
   @override
   Future<int> getSessionCount(String revisionId) async => 0;

@@ -762,8 +762,9 @@ class _TodayPracticeRepository implements PrayerPracticeRepository {
   @override
   Stream<bool> watchSessionForDate(
     PrayerReference prayer,
-    DateTime localDate,
-  ) async* {
+    DateTime localDate, {
+    String? revisionId,
+  }) async* {
     yield _hasSession;
     yield* _sessionChanges.stream;
   }

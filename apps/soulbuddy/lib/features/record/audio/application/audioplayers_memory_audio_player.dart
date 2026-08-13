@@ -9,7 +9,7 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
   AudioplayersMemoryAudioPlayerDriver();
 
   final Map<String, AudioPlayer> _players = {};
-  final List<StreamSubscription<Object?>> _subscriptions = [];
+  final Map<String, List<StreamSubscription<Object?>>> _subscriptions = {};
   final StreamController<Duration> _durations =
       StreamController<Duration>.broadcast();
   final StreamController<Duration> _positions =
@@ -43,7 +43,7 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
       rethrow;
     }
     _players[assetId] = player;
-    _subscriptions.addAll([
+    _subscriptions[assetId] = [
       player.onDurationChanged.listen((value) {
         if (_currentAssetId == assetId) _durations.add(value);
       }),
@@ -55,7 +55,18 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
           _statuses.add(_status(value));
         }
       }),
-    ]);
+    ];
+  }
+
+  @override
+  Future<void> release(String assetId) async {
+    if (_currentAssetId == assetId) {
+      _currentAssetId = null;
+    }
+    for (final subscription in _subscriptions.remove(assetId) ?? const []) {
+      await subscription.cancel();
+    }
+    await _players.remove(assetId)?.dispose();
   }
 
   @override
@@ -92,13 +103,16 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
 
   @override
   Future<void> dispose() async {
-    for (final subscription in _subscriptions) {
-      await subscription.cancel();
+    for (final subscriptions in _subscriptions.values) {
+      for (final subscription in subscriptions) {
+        await subscription.cancel();
+      }
     }
     for (final player in _players.values) {
       await player.dispose();
     }
     _players.clear();
+    _subscriptions.clear();
     await _positions.close();
     await _durations.close();
     await _statuses.close();

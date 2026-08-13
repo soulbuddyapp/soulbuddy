@@ -147,7 +147,15 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
   }
 
   @override
-  Stream<bool> watchSessionForDate(PrayerReference prayer, DateTime localDate) {
+  Stream<bool> watchSessionForDate(
+    PrayerReference prayer,
+    DateTime localDate, {
+    String? revisionId,
+  }) {
+    if (prayer.source == PrayerSource.personal &&
+        (revisionId == null || revisionId.isEmpty)) {
+      return Stream.value(false);
+    }
     return database
         .watch(
           '''
@@ -157,6 +165,7 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
               AND ((? = 'library' AND library_prayer_id = ?
                     AND personal_prayer_id IS NULL)
                 OR (? = 'personal' AND personal_prayer_id = ?
+                    AND prayer_revision_id = ?
                     AND library_prayer_id IS NULL))
           ) AS has_session
           ''',
@@ -167,6 +176,7 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
             prayer.id,
             prayer.source.name,
             prayer.id,
+            revisionId,
           ],
         )
         .map((rows) => rows.single['has_session'] == 1);

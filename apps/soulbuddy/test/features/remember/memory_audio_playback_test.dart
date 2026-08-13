@@ -64,6 +64,24 @@ void main() {
     expect(driver.prepareCount, 1);
   });
 
+  test('preparation evicts the least recently used private asset', () async {
+    final assets = _PlaybackAssetStore();
+    final driver = _PlaybackDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: assets,
+      driver: driver,
+      preparedAssetLimit: 2,
+    );
+    addTearDown(coordinator.close);
+
+    await coordinator.prepare(_audio('audio-a', 'audio/a.m4a'));
+    await coordinator.prepare(_audio('audio-b', 'audio/b.m4a'));
+    await coordinator.prepare(_audio('audio-c', 'audio/c.m4a'));
+
+    expect(driver.events, contains('release:audio-a'));
+    expect(driver.preparedAssetIds, {'audio-b', 'audio-c'});
+  });
+
   test(
     'a prepared first command reaches the player in the user gesture',
     () async {
@@ -179,6 +197,7 @@ class _PlaybackAssetStore implements AudioAssetStore {
         Uint8List.fromList([1, 2, 3]),
         mimeType: 'audio/mp4',
       ),
+      'audio/c.m4a' => const FileAudioPlaybackSource('c'),
       _ => null,
     };
   }
@@ -215,6 +234,7 @@ class _PlaybackDriver implements MemoryAudioPlayerDriver {
   final positions = StreamController<Duration>.broadcast();
   final durations = StreamController<Duration>.broadcast();
   final statuses = StreamController<MemoryAudioDriverStatus>.broadcast();
+  final preparedAssetIds = <String>{};
 
   @override
   Stream<Duration> get durationChanges => durations.stream;
@@ -239,6 +259,13 @@ class _PlaybackDriver implements MemoryAudioPlayerDriver {
   @override
   Future<void> prepare(String assetId, AudioPlaybackSource source) async {
     prepareCount++;
+    preparedAssetIds.add(assetId);
+  }
+
+  @override
+  Future<void> release(String assetId) async {
+    preparedAssetIds.remove(assetId);
+    events.add('release:$assetId');
   }
 
   @override

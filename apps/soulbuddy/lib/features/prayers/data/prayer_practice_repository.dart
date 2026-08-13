@@ -7,7 +7,11 @@ abstract interface class PrayerPracticeRepository {
   Stream<PrayerReminderDevice?> watchDevice(String reminderId);
   Stream<List<DuePrayerOccurrence>> watchDue(DateTime atUtc);
   Stream<int> watchSessionCount(String revisionId);
-  Stream<bool> watchSessionForDate(PrayerReference prayer, DateTime localDate);
+  Stream<bool> watchSessionForDate(
+    PrayerReference prayer,
+    DateTime localDate, {
+    String? revisionId,
+  });
   Future<int> getSessionCount(String revisionId);
 
   Future<PrayerReminder> saveReminder({
