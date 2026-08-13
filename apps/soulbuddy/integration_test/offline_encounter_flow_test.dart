@@ -52,6 +52,8 @@ void main() {
 
     appRouter.go('/record');
     await _settle(tester);
+    await tester.tap(find.byKey(const Key('record-write')));
+    await _settle(tester);
     await tester.tap(find.text('Encounter'));
     await _settle(tester);
     _expectNoException(tester, 'opening the Encounter form');
@@ -64,8 +66,8 @@ void main() {
       find.byKey(const Key('encounter-body')),
       'I received help when I needed it.',
     );
-    await tester.ensureVisible(find.text('Save encounter'));
-    await tester.tap(find.text('Save encounter'));
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
     await _settle(tester);
     _expectNoException(tester, 'saving the Encounter');
 
@@ -116,7 +118,7 @@ void main() {
     expect(reopenedRows.single['title'], 'Help I want to remember');
     expect(reopenedRows.single['body'], 'I received help when I needed it.');
 
-    await tester.tap(find.text('Open John 3').first);
+    appRouter.go('/remember/scripture/John/3');
     await _pumpUntil(tester, find.textContaining('RSVCE'));
     _expectNoException(tester, 'opening bundled Scripture');
     if (find.textContaining('RSVCE').evaluate().isEmpty) {

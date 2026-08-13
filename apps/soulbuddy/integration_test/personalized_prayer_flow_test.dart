@@ -588,8 +588,12 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
     );
   }
   await tester.ensureVisible(finder);
-  await tester.pump();
-  await tester.tap(finder);
+  await tester.pumpAndSettle();
+  final target = finder.hitTestable();
+  if (target.evaluate().isEmpty) {
+    fail('The requested control was present but not tappable: $finder');
+  }
+  await tester.tap(target.first, warnIfMissed: true);
   await _settle(tester);
 }
 

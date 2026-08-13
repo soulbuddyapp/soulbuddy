@@ -20,80 +20,91 @@ class EncounterListTile extends ConsumerWidget {
         .watch(memoryAudioForEncounterProvider(encounter.id))
         .whenOrNull(data: (value) => value);
     return Card(
-      child: InkWell(
-        onTap: () => context.push('/remember/${encounter.id}'),
-        borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => context.push('/remember/${encounter.id}'),
+            borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      encounter.sensitive ? 'Private memory' : encounter.title,
-                      style: Theme.of(context).textTheme.titleMedium,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          encounter.sensitive
+                              ? 'Private memory'
+                              : encounter.title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                      if (encounter.memoryType == MemoryType.promise) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        const CovenantPairedSlabMark(
+                          key: Key('promise-paired-slab-mark'),
+                        ),
+                      ],
+                      if (encounter.isAltar) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceMuted,
+                            borderRadius: BorderRadius.circular(AppSpacing.sm),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
+                            ),
+                            child: Text('Altar'),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _typeLabel(encounter.memoryType),
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                  Text(
+                    encounter.occurredOn,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.inkMuted,
                     ),
                   ),
-                  if (encounter.memoryType == MemoryType.promise) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    const CovenantPairedSlabMark(
-                      key: Key('promise-paired-slab-mark'),
-                    ),
-                  ],
-                  if (encounter.isAltar) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(AppSpacing.sm),
-                      ),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
-                        ),
-                        child: Text('Altar'),
-                      ),
+                  const CovenantIncisedDivider(),
+                  if (!encounter.sensitive && encounter.body.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      encounter.body,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                _typeLabel(encounter.memoryType),
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              Text(
-                encounter.occurredOn,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelMedium?.copyWith(color: AppColors.inkMuted),
-              ),
-              const CovenantIncisedDivider(),
-              if (audio != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                AudioPlaybackControl(
-                  audio: audio,
-                  compact: true,
-                  label: encounter.sensitive
-                      ? 'Audio memory'
-                      : 'Voice recording',
-                ),
-              ],
-              if (!encounter.sensitive && encounter.body.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  encounter.body,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+          if (audio != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
+              child: AudioPlaybackControl(
+                audio: audio,
+                compact: true,
+                label: encounter.sensitive ? 'Audio memory' : 'Voice recording',
+              ),
+            ),
+        ],
       ),
     );
   }

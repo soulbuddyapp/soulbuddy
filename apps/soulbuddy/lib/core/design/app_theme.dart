@@ -4,7 +4,6 @@ import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'app_type.dart';
 import 'covenant_grace_tokens.dart';
-import 'living_vine_tokens.dart';
 
 /// Component-level mappings built only from SoulBuddy semantic tokens.
 abstract final class AppTheme {
@@ -175,9 +174,6 @@ abstract final class AppTheme {
         colorScheme.brightness == Brightness.dark
             ? CovenantGraceColors.dark
             : CovenantGraceColors.light,
-        colorScheme.brightness == Brightness.dark
-            ? LivingVineColors.dark
-            : LivingVineColors.light,
       ],
     );
   }

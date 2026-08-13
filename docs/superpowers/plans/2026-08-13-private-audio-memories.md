@@ -522,3 +522,32 @@ git commit -m "feat: deliver offline audio memories"
 ## Plan completion gate
 
 The slice is incomplete unless real audio is recorded and replayed on an Android emulator and the connected physical device, Chrome proves durable reopen, permission denial leaves Write usable, no user audio reaches Laravel/AI/logging, and no disabled or future-facing Speak control exists.
+
+## Follow-up slice: typed Encounter audio and intelligent reminder narration
+
+### Task 7: Preserve memory type after speaking
+
+- Add failing Record widget coverage proving `Speak` -> capture -> `Continue` opens the memory type chooser, `Encounter` opens the form with the take attached, and save persists both Encounter fields and audio metadata.
+- Reuse the existing `_memoryChoices`; keep the temporary take alive while choosing a type and discard it only on explicit back/cancel.
+- Extend the real Chrome audio flow to choose `Encounter`, enter a title/body, save, reopen, and play the same device-local bytes.
+
+### Task 8: Cached prayer narration contract
+
+- Add Laravel feature/contract tests for ownership, immutable-revision loading, consent version, Deepgram request shape, content-hash cache reuse, concurrent generation, byte/content-type limits, encrypted/private storage, and short-lived authenticated playback URLs.
+- Add `PrayerNarrationProvider` and `DeepgramPrayerNarrationProvider`; the endpoint accepts IDs and consent only, never arbitrary text.
+- Add Flutter narration repository/cache/player state with offline reuse and no relationship to `memory_audio_assets`.
+
+### Task 9: Intelligent opt-in reminder playback
+
+- Add failing domain/repository/migration tests for a per-device `autoplay_when_opened` flag; default false and retain exact reminder/revision identity.
+- Add a concise reminder-sheet switch named `Play prayer when opened`, available only after disclosure and narration readiness.
+- Add a playback policy unit with injectable audio-route/interruption state. Permit autoplay only after an explicit in-app reminder open and a ready cached asset; silent/DND, unknown route, failure, or missing cache returns `manual` without throwing.
+- Add reminder-card tests proving autoplay occurs once for the displayed occurrence, a visible `Play prayer` fallback always remains, navigation is not blocked, and playback never calls the prayer-session writer.
+- Extend Android and Chrome integration coverage with fake narration bytes and deterministic device policy.
+
+### Task 10: Production API and deployment
+
+- Configure Flutter release defaults for `https://sbuddy.elbiblio.com` while retaining compile-time overrides for local tests.
+- Add Laravel health/config smoke coverage, MariaDB-compatible migrations, queue/storage setup, and deployment notes without committing secrets.
+- Deploy to `/var/www/soulbuddy` using the server's existing PHP-FPM, web-server, supervisor/cron, TLS, and MariaDB conventions discovered read-only from `/var/www/elb_api`.
+- Run migrations with maintenance-safe checks, restart only SoulBuddy-owned services, then verify TLS, `/up`, authentication rejection, prayer generation validation, sync validation, and narration authorization from outside the server.

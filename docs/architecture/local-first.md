@@ -15,6 +15,9 @@ SoulBuddy treats the device database as the interaction path and Laravel/Postgre
 - An empty remote configuration leaves the application usable in local-only mode.
 - Sync issues are local-only records. Recording one can never create another upload mutation.
 - Browser storage persistence is requested only after an important save; denial or lack of support never blocks the save.
+- A recorded memory keeps its audio bytes only on the device that captured them: app-private files on Android/iOS and IndexedDB in the browser. Only the Encounter text and revision use the sync queue.
+- Audio metadata is local-only and owner-scoped. Playback never uploads a recording or sends it to Laravel, AI, TTS, analytics, or logs.
+- Removing audio first deletes its owned metadata, then its private bytes. Interrupted byte cleanup is retried by non-logging orphan cleanup, while the written memory remains intact.
 
 ## Server mutation semantics
 

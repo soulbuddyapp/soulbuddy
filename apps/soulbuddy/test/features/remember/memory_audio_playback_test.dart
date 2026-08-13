@@ -29,6 +29,60 @@ void main() {
     expect(coordinator.state.status, MemoryAudioPlaybackStatus.playing);
   });
 
+  test('prepared private bytes are reused when playback starts', () async {
+    final assets = _PlaybackAssetStore();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: assets,
+      driver: _PlaybackDriver(),
+    );
+    addTearDown(coordinator.close);
+    final audio = _audio('audio-a', 'audio/a.m4a');
+
+    expect(await coordinator.prepare(audio), isTrue);
+    await coordinator.play(audio);
+
+    expect(assets.openedKeys, ['audio/a.m4a']);
+  });
+
+  test('concurrent preparation opens and prepares one private asset', () async {
+    final assets = _PlaybackAssetStore();
+    final driver = _PlaybackDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: assets,
+      driver: driver,
+    );
+    addTearDown(coordinator.close);
+    final audio = _audio('audio-a', 'audio/a.m4a');
+
+    final prepared = await Future.wait([
+      coordinator.prepare(audio),
+      coordinator.prepare(audio),
+    ]);
+
+    expect(prepared, [isTrue, isTrue]);
+    expect(assets.openedKeys, ['audio/a.m4a']);
+    expect(driver.prepareCount, 1);
+  });
+
+  test(
+    'a prepared first command reaches the player in the user gesture',
+    () async {
+      final driver = _PlaybackDriver();
+      final coordinator = MemoryAudioPlaybackCoordinator(
+        assetStore: _PlaybackAssetStore(),
+        driver: driver,
+      );
+      addTearDown(coordinator.close);
+      final audio = _audio('audio-a', 'audio/a.m4a');
+      await coordinator.prepare(audio);
+
+      final playback = coordinator.play(audio);
+
+      expect(driver.events, ['play:file:a']);
+      await playback;
+    },
+  );
+
   test('forwards pause, seek, completion, and releases on close', () async {
     final driver = _PlaybackDriver();
     final coordinator = MemoryAudioPlaybackCoordinator(
@@ -114,16 +168,20 @@ MemoryAudio _audio(String id, String storageKey) => MemoryAudio(
 );
 
 class _PlaybackAssetStore implements AudioAssetStore {
+  final openedKeys = <String>[];
+
   @override
-  Future<AudioPlaybackSource?> open(String storageKey) async =>
-      switch (storageKey) {
-        'audio/a.m4a' => const FileAudioPlaybackSource('a'),
-        'audio/b.m4a' => BytesAudioPlaybackSource(
-          Uint8List.fromList([1, 2, 3]),
-          mimeType: 'audio/mp4',
-        ),
-        _ => null,
-      };
+  Future<AudioPlaybackSource?> open(String storageKey) async {
+    openedKeys.add(storageKey);
+    return switch (storageKey) {
+      'audio/a.m4a' => const FileAudioPlaybackSource('a'),
+      'audio/b.m4a' => BytesAudioPlaybackSource(
+        Uint8List.fromList([1, 2, 3]),
+        mimeType: 'audio/mp4',
+      ),
+      _ => null,
+    };
+  }
 
   @override
   Future<TemporaryAudio> allocateTemporary({
@@ -153,6 +211,7 @@ class _PlaybackAssetStore implements AudioAssetStore {
 
 class _PlaybackDriver implements MemoryAudioPlayerDriver {
   final events = <String>[];
+  var prepareCount = 0;
   final positions = StreamController<Duration>.broadcast();
   final durations = StreamController<Duration>.broadcast();
   final statuses = StreamController<MemoryAudioDriverStatus>.broadcast();
@@ -178,7 +237,12 @@ class _PlaybackDriver implements MemoryAudioPlayerDriver {
   Future<void> pause() async => events.add('pause');
 
   @override
-  Future<void> play(AudioPlaybackSource source) async {
+  Future<void> prepare(String assetId, AudioPlaybackSource source) async {
+    prepareCount++;
+  }
+
+  @override
+  Future<void> play(String assetId, AudioPlaybackSource source) async {
     switch (source) {
       case FileAudioPlaybackSource(:final path):
         events.add('play:file:$path');

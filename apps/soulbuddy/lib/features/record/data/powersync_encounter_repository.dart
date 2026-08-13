@@ -28,10 +28,8 @@ class PowerSyncEncounterRepository implements EncounterRepository {
   final AudioAssetStore? audioAssetStore;
 
   @override
-  Stream<List<Encounter>> watchAll() {
-    return database
-        .watch(
-          '''
+  Stream<List<Encounter>> watchAll() async* {
+    const query = '''
           SELECT id, owner_id, title, body, occurred_on, is_altar,
                  created_at, updated_at, current_revision_id,
                  memory_type, sensitive, recall_enabled, recall_paused,
@@ -39,15 +37,16 @@ class PowerSyncEncounterRepository implements EncounterRepository {
           FROM encounters
           WHERE owner_id = ? AND archived_at IS NULL
           ORDER BY occurred_on DESC, created_at DESC
-          ''',
-          parameters: [ownerId],
-        )
-        .map(
-          (rows) => rows
-              .map<Map<String, dynamic>>((row) => row)
-              .map(_encounterFromRow)
-              .toList(growable: false),
-        );
+          ''';
+    List<Encounter> mapRows(Iterable<Map<String, dynamic>> rows) =>
+        rows.map(_encounterFromRow).toList(growable: false);
+
+    // A direct first read makes an already-persisted local record available
+    // even while PowerSync's web change stream is reattaching after a reopen.
+    yield mapRows(await database.getAll(query, [ownerId]));
+    yield* database
+        .watch(query, parameters: [ownerId])
+        .map((rows) => mapRows(rows.map<Map<String, dynamic>>((row) => row)));
   }
 
   @override

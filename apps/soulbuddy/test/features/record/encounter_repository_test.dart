@@ -83,6 +83,51 @@ void main() {
   });
 
   test(
+    'emits a persisted encounter before the change stream attaches',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      await database.powersync.execute(
+        '''
+      INSERT INTO encounters(
+        id, owner_id, title, body, occurred_on, is_altar,
+        created_at, updated_at, archived_at, current_revision_id,
+        memory_type, sensitive, recall_enabled, recall_paused,
+        recall_interval_days
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+      ''',
+        [
+          'persisted-encounter',
+          'owner-1',
+          'Already remembered',
+          '',
+          '2026-08-10',
+          0,
+          '2026-08-10T12:00:00.000Z',
+          '2026-08-10T12:00:00.000Z',
+          'persisted-revision',
+          'encounter',
+          0,
+          1,
+          0,
+          7,
+        ],
+      );
+      final repository = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+      );
+
+      final first = await repository.watchAll().first;
+
+      expect(first.single.id, 'persisted-encounter');
+    },
+  );
+
+  test(
     'saves durable voice and memory metadata as one visible action',
     () async {
       final database = await openTestDatabase(

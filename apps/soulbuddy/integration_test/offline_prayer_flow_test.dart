@@ -49,8 +49,10 @@ void main() {
       );
       await _pumpUntil(tester, find.text('For this day'));
       _expectNoException(tester, 'opening the bundled prayer library');
-      expect(find.text('Choose from library'), findsOneWidget);
+      expect(find.byKey(const Key('library-choice')), findsOneWidget);
 
+      await tester.tap(find.byKey(const Key('prayer-filter-disclosure')));
+      await _settle(tester);
       await tester.tap(find.byKey(const Key('grounding-general-christian')));
       await _settle(tester);
       await tester.tap(find.byKey(const Key('purpose-daily')));
@@ -101,7 +103,13 @@ void main() {
       expect(selectedRows.single['include_action'], 1);
       expect(selectedRows.single['action_completed'], 0);
 
-      await tester.tap(find.byKey(const Key('today-action-done')));
+      await tester.ensureVisible(find.byKey(const Key('today-action-done')));
+      await tester.pump();
+      final actionControl = find
+          .byKey(const Key('today-action-done'))
+          .hitTestable();
+      expect(actionControl, findsOneWidget);
+      await tester.tap(actionControl);
       await _pumpUntil(
         tester,
         find.byWidgetPredicate(

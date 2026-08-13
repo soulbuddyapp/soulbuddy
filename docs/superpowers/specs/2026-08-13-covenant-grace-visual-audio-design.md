@@ -296,3 +296,11 @@ Screens depend on these interfaces rather than platform plugins directly. The ex
 ## Acceptance summary
 
 The slice is accepted when SoulBuddy has one recognizable Covenant and Grace language; natural non-rounded slabs communicate sacred covenant without resembling graves; Today animates factual Pray, Act, and Remember responses without gamification; all rejected botanical assets are gone; new users can act above the fold; and a person can privately speak, review, save, replay, remember, and delete an audio memory on supported mobile and web platforms without being forced to type.
+
+## Approved 2026-08-13 refinement: typed voice memories and reminder narration
+
+The recording flow treats audio as an input method, not as a memory type. After a user keeps a recording, SoulBuddy shows the same concise memory-type choices used by writing. Choosing `Encounter` creates an Encounter with the private device-local recording attached; Promise, Revelation, Testimony, and the other existing types work identically. The user may add or omit written notes. The original recording is never sent to Deepgram, DeepSeek, or any other AI service.
+
+Prayer reminders may offer narration only for the immutable prayer revision named by the due occurrence. A reminder has an explicit `Play prayer when opened` preference, disabled by default until the narration disclosure is accepted and a cached narration is ready. A system notification never plays audio. When the in-app reminder overlay visibly opens through user action, SoulBuddy may start the cached narration if the preference is enabled and the platform reports an appropriate audio route. Silent/DND, an unavailable/unknown route, failed preparation, missing network/cache, or reduced-interruption policy leaves the overlay open with a prominent `Play prayer` control. Playback does not record a prayer session; only `I prayed this` does.
+
+Laravel reads the owned immutable revision, generates one cached Deepgram Aura 2 asset per content/voice configuration, and returns only authenticated short-lived playback access. Reminder autoplay never sends arbitrary client text, never uses a user-recorded Encounter, and never falls back to a different voice provider silently.

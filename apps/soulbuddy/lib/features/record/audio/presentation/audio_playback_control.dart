@@ -33,7 +33,20 @@ class AudioPlaybackControl extends ConsumerStatefulWidget {
 
 class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl> {
   MemoryAudioPlaybackCoordinator? _coordinator;
+  MemoryAudioPlaybackCoordinator? _preparedCoordinator;
+  String? _preparedAudioId;
+  Future<bool>? _preparation;
   bool _deleting = false;
+
+  @override
+  void didUpdateWidget(covariant AudioPlaybackControl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.audio.id != widget.audio.id) {
+      _preparedCoordinator = null;
+      _preparedAudioId = null;
+      _preparation = null;
+    }
+  }
 
   @override
   void dispose() {
@@ -53,14 +66,38 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl> {
           Text('${widget.label} · ${_durationLabel(widget.audio.duration)}'),
       data: (coordinator) {
         _coordinator = coordinator;
-        return AnimatedBuilder(
-          animation: coordinator,
-          builder: (context, _) => widget.compact
-              ? _compactControl(coordinator)
-              : _fullControl(coordinator),
+        final preparation = _prepare(coordinator);
+        return FutureBuilder<bool>(
+          future: preparation,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return _loadingControl();
+            }
+            if (snapshot.data != true) {
+              return Text(
+                '${widget.label} · This audio is not available on this device.',
+              );
+            }
+            return AnimatedBuilder(
+              animation: coordinator,
+              builder: (context, _) => widget.compact
+                  ? _compactControl(coordinator)
+                  : _fullControl(coordinator),
+            );
+          },
         );
       },
     );
+  }
+
+  Future<bool> _prepare(MemoryAudioPlaybackCoordinator coordinator) {
+    if (_preparedCoordinator != coordinator ||
+        _preparedAudioId != widget.audio.id) {
+      _preparedCoordinator = coordinator;
+      _preparedAudioId = widget.audio.id;
+      _preparation = coordinator.prepare(widget.audio);
+    }
+    return _preparation!;
   }
 
   Widget _loadingControl() => Row(

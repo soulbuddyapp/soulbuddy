@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
@@ -12,7 +13,8 @@ abstract interface class MemoryAudioPlayerDriver {
   Stream<Duration> get durationChanges;
   Stream<MemoryAudioDriverStatus> get statusChanges;
 
-  Future<void> play(AudioPlaybackSource source);
+  Future<void> prepare(String assetId, AudioPlaybackSource source);
+  Future<void> play(String assetId, AudioPlaybackSource source);
   Future<void> pause();
   Future<void> resume();
   Future<void> seek(Duration position);
@@ -61,11 +63,38 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
 
   final AudioAssetStore _assetStore;
   final MemoryAudioPlayerDriver _driver;
+  final Map<String, AudioPlaybackSource> _preparedSources = {};
+  final Map<String, Future<bool>> _preparations = {};
   late final List<StreamSubscription<Object?>> _subscriptions;
   MemoryAudioPlaybackState _state = const MemoryAudioPlaybackState();
   MemoryAudioPlaybackState get state => _state;
   bool _closed = false;
+  bool _commandRunning = false;
+  final Queue<_PendingAudioCommand> _pendingCommands = Queue();
   Future<void> _commandTail = Future.value();
+
+  Future<bool> prepare(MemoryAudio audio) {
+    if (_closed) return Future.value(false);
+    if (_preparedSources.containsKey(audio.id)) return Future.value(true);
+    return _preparations.putIfAbsent(audio.id, () => _prepare(audio));
+  }
+
+  Future<bool> _prepare(MemoryAudio audio) async {
+    try {
+      final source = await _assetStore.open(audio.storageKey);
+      if (_closed || source == null) return false;
+      await _driver.prepare(audio.id, source);
+      if (_closed) return false;
+      _preparedSources[audio.id] = source;
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      if (!_preparedSources.containsKey(audio.id)) {
+        _preparations.remove(audio.id);
+      }
+    }
+  }
 
   Future<void> play(MemoryAudio audio) => _serialize(() async {
     if (_closed) return;
@@ -91,7 +120,9 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
       ),
     );
     try {
-      final source = await _assetStore.open(audio.storageKey);
+      final source =
+          _preparedSources[audio.id] ??
+          await _assetStore.open(audio.storageKey);
       if (source == null) {
         _emit(
           MemoryAudioPlaybackState(
@@ -103,7 +134,7 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
         );
         return;
       }
-      await _driver.play(source);
+      await _driver.play(audio.id, source);
       _emit(
         MemoryAudioPlaybackState(
           assetId: audio.id,
@@ -173,15 +204,41 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
       // Disposal still releases the platform player.
     }
     await _driver.dispose();
+    _preparedSources.clear();
+    _preparations.clear();
   }
 
   Future<void> _serialize(Future<void> Function() command) {
-    final result = _commandTail.then(
-      (_) => command(),
-      onError: (_) => command(),
+    final pending = _PendingAudioCommand(command);
+    _pendingCommands.add(pending);
+    _commandTail = pending.completer.future.then<void>(
+      (_) {},
+      onError: (_, _) {},
     );
-    _commandTail = result.then<void>((_) {}, onError: (_, _) {});
-    return result;
+    _drainCommands();
+    return pending.completer.future;
+  }
+
+  void _drainCommands() {
+    if (_commandRunning || _pendingCommands.isEmpty) return;
+    _commandRunning = true;
+    final pending = _pendingCommands.removeFirst();
+    late final Future<void> result;
+    try {
+      result = pending.command();
+    } catch (error, stackTrace) {
+      result = Future.error(error, stackTrace);
+    }
+    result
+        .then(
+          (_) => pending.completer.complete(),
+          onError: (Object error, StackTrace stackTrace) =>
+              pending.completer.completeError(error, stackTrace),
+        )
+        .whenComplete(() {
+          _commandRunning = false;
+          _drainCommands();
+        });
   }
 
   void _onPosition(Duration value) {
@@ -235,4 +292,11 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
     _state = value;
     notifyListeners();
   }
+}
+
+class _PendingAudioCommand {
+  _PendingAudioCommand(this.command);
+
+  final Future<void> Function() command;
+  final Completer<void> completer = Completer<void>();
 }
