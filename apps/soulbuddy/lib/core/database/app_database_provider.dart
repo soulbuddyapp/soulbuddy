@@ -12,7 +12,6 @@ import '../sync/laravel_backend_connector.dart';
 import 'app_database.dart';
 
 final appDatabaseProvider = FutureProvider<AppDatabase>((ref) async {
-  await ref.watch(installationSessionBootstrapProvider.future);
   final String databasePath;
   if (kIsWeb) {
     databasePath = 'soulbuddy.db';
@@ -23,6 +22,7 @@ final appDatabaseProvider = FutureProvider<AppDatabase>((ref) async {
 
   LaravelBackendConnector? connector;
   if (AppConfig.syncConfigured) {
+    await ref.watch(installationSessionBootstrapProvider.future);
     final apiBaseUri = Uri.tryParse(AppConfig.apiBaseUrl);
     if (apiBaseUri != null && apiBaseUri.hasScheme) {
       final storage = ref.watch(secureStorageProvider);

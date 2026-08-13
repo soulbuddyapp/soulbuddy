@@ -29,6 +29,9 @@ class PrayerNarrationController extends Controller
             ->where('prayer_id', $validated['personal_prayer_id'])
             ->where('user_id', $user->id)
             ->firstOrFail();
+        if (mb_strlen($revision->body) > 2000) {
+            return response()->json(['code' => 'narration_too_long'], 422);
+        }
 
         $hash = hash('sha256', implode('|', [
             'prayer-narration-v1',

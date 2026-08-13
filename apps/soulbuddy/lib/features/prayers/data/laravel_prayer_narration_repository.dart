@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
@@ -14,6 +15,7 @@ class LaravelPrayerNarrationRepository implements PrayerNarrationRepository {
     required this.accessToken,
     required this.client,
     this.disclosureVersion = 'deepgram-aura2-1',
+    this.requestTimeout = const Duration(seconds: 30),
   });
 
   static const maximumBytes = 2000000;
@@ -22,6 +24,7 @@ class LaravelPrayerNarrationRepository implements PrayerNarrationRepository {
   final Future<String?> Function() accessToken;
   final http.Client client;
   final String disclosureVersion;
+  final Duration requestTimeout;
 
   @override
   Future<PrayerNarration> prepare({
@@ -33,20 +36,27 @@ class LaravelPrayerNarrationRepository implements PrayerNarrationRepository {
     if (token == null || token.isEmpty) {
       throw const PrayerNarrationException('authentication_required');
     }
-    final response = await client.post(
-      _resolve('/api/prayer-narrations'),
-      headers: {
-        'authorization': 'Bearer $token',
-        'accept': 'application/json',
-        'content-type': 'application/json',
-      },
-      body: jsonEncode({
-        'personal_prayer_id': personalPrayerId,
-        'prayer_revision_id': prayerRevisionId,
-        'disclosure_version': disclosureVersion,
-        'consent': consent,
-      }),
-    );
+    late final http.Response response;
+    try {
+      response = await client
+          .post(
+            _resolve('/api/prayer-narrations'),
+            headers: {
+              'authorization': 'Bearer $token',
+              'accept': 'application/json',
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'personal_prayer_id': personalPrayerId,
+              'prayer_revision_id': prayerRevisionId,
+              'disclosure_version': disclosureVersion,
+              'consent': consent,
+            }),
+          )
+          .timeout(requestTimeout);
+    } on TimeoutException {
+      throw const PrayerNarrationException('narration_timeout');
+    }
     if (response.statusCode != 200) {
       throw PrayerNarrationException(_code(response));
     }
@@ -58,10 +68,17 @@ class LaravelPrayerNarrationRepository implements PrayerNarrationRepository {
         decoded['playback_url'] is! String) {
       throw const PrayerNarrationException('invalid_response');
     }
-    final playback = await client.get(
-      _resolve(decoded['playback_url'] as String),
-      headers: {'authorization': 'Bearer $token', 'accept': 'audio/mpeg'},
-    );
+    late final http.Response playback;
+    try {
+      playback = await client
+          .get(
+            _resolve(decoded['playback_url'] as String),
+            headers: {'authorization': 'Bearer $token', 'accept': 'audio/mpeg'},
+          )
+          .timeout(requestTimeout);
+    } on TimeoutException {
+      throw const PrayerNarrationException('narration_timeout');
+    }
     final type = playback.headers['content-type']?.split(';').first.trim();
     if (playback.statusCode != 200 ||
         type != 'audio/mpeg' ||

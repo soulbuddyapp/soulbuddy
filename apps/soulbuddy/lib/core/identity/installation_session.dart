@@ -16,12 +16,14 @@ class InstallationSessionBootstrap {
     required this.read,
     required this.write,
     required this.client,
+    this.requestTimeout = const Duration(seconds: 15),
   });
 
   final Uri? apiBaseUri;
   final Future<String?> Function(String key) read;
   final Future<void> Function(String key, String value) write;
   final http.Client client;
+  final Duration requestTimeout;
 
   Future<void> ensure(LocalIdentity identity) async {
     final base = apiBaseUri;
@@ -32,20 +34,22 @@ class InstallationSessionBootstrap {
       await write(installationSecretStorageKey, secret);
     }
     try {
-      final response = await client.post(
-        Uri.parse(
-          '${base.toString().replaceFirst(RegExp(r'/$'), '')}/api/installations/session',
-        ),
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-        },
-        body: jsonEncode({
-          'owner_id': identity.ownerId,
-          'device_id': identity.deviceId,
-          'installation_secret': secret,
-        }),
-      );
+      final response = await client
+          .post(
+            Uri.parse(
+              '${base.toString().replaceFirst(RegExp(r'/$'), '')}/api/installations/session',
+            ),
+            headers: {
+              'accept': 'application/json',
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'owner_id': identity.ownerId,
+              'device_id': identity.deviceId,
+              'installation_secret': secret,
+            }),
+          )
+          .timeout(requestTimeout);
       if (response.statusCode != 200 && response.statusCode != 201) return;
       final decoded = jsonDecode(response.body);
       if (decoded is! Map<String, dynamic> ||

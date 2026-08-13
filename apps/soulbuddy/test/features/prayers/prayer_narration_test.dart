@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -87,6 +88,30 @@ void main() {
         consent: true,
       ),
       throwsA(isA<PrayerNarrationException>()),
+    );
+  });
+
+  test('bounds a stalled narration request', () async {
+    final repository = LaravelPrayerNarrationRepository(
+      apiBaseUri: Uri.parse('https://sbuddy.elbiblio.com'),
+      accessToken: () async => 'token',
+      requestTimeout: const Duration(milliseconds: 10),
+      client: MockClient((request) => Completer<http.Response>().future),
+    );
+
+    await expectLater(
+      repository.prepare(
+        personalPrayerId: 'prayer-1',
+        prayerRevisionId: 'revision-1',
+        consent: true,
+      ),
+      throwsA(
+        isA<PrayerNarrationException>().having(
+          (error) => error.code,
+          'code',
+          'narration_timeout',
+        ),
+      ),
     );
   });
 

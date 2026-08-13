@@ -156,6 +156,38 @@ void main() {
     },
   );
 
+  test('narration preference never resumes a paused reminder', () async {
+    final database = await _openSeededDatabase(
+      temporaryDirectory,
+      'narration-paused',
+    );
+    addTearDown(database.close);
+    final repository = _repository(database);
+    final reminder = await repository.saveReminder(
+      personalPrayerId: prayerId,
+      schedule: PrayerReminderSchedule.daily(
+        localTime: PrayerLocalTime(hour: 8, minute: 0),
+        timezone: 'Africa/Lagos',
+      ),
+      enableOnThisDevice: true,
+    );
+    await repository.setDeviceEnabled(reminder.id, enabled: false);
+
+    await repository.saveNarrationPreference(
+      reminderId: reminder.id,
+      consentAccepted: true,
+      autoplayWhenOpened: true,
+      revisionId: revisionId,
+      bytes: [1, 2, 3],
+      contentType: 'audio/mpeg',
+    );
+
+    expect(
+      (await repository.watchDevice(reminder.id).first)?.enabledOnDevice,
+      isFalse,
+    );
+  });
+
   test('refuses autoplay without consent and exact cached narration', () async {
     final database = await _openSeededDatabase(
       temporaryDirectory,

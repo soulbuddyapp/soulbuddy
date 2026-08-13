@@ -59,6 +59,18 @@ it('loads only an owned immutable revision and never accepts arbitrary text', fu
         ->assertNotFound();
 });
 
+it('rejects narration above the provider limit before synthesis', function () {
+    $user = User::factory()->create();
+    [$prayer, $revision] = ownedPrayerRevision($user, str_repeat('a', 2001));
+    $provider = $this->mock(PrayerNarrationProvider::class);
+    $provider->shouldNotReceive('synthesize');
+
+    $this->actingAs($user)
+        ->postJson('/api/prayer-narrations', narrationPayload($prayer, $revision))
+        ->assertUnprocessable()
+        ->assertJsonPath('code', 'narration_too_long');
+});
+
 it('caches one encrypted narration by exact content and voice configuration', function () {
     $user = User::factory()->create();
     [$prayer, $revision] = ownedPrayerRevision($user, 'Father, teach me to walk faithfully. Amen.');

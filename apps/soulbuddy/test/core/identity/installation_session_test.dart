@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -84,4 +85,21 @@ void main() {
       expect(writes, isNot(contains(appSessionTokenStorageKey)));
     },
   );
+
+  test('bounds a server that accepts but never answers', () async {
+    final bootstrap = InstallationSessionBootstrap(
+      apiBaseUri: Uri.parse('https://sbuddy.elbiblio.com'),
+      read: (key) async => null,
+      write: (key, value) async {},
+      requestTimeout: const Duration(milliseconds: 10),
+      client: MockClient((request) => Completer<http.Response>().future),
+    );
+
+    await expectLater(
+      bootstrap.ensure(
+        const LocalIdentity(ownerId: 'owner-1', deviceId: 'device-1'),
+      ),
+      completes,
+    );
+  });
 }

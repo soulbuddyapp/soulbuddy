@@ -331,12 +331,17 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
     }
     return database.writeTransaction((transaction) async {
       await _requireReminder(transaction, reminderId);
-      await _upsertDevice(
-        transaction,
-        reminderId: reminderId,
-        enabled: true,
-        now: _now().toUtc().toIso8601String(),
+      final device = await transaction.getOptional(
+        '''
+        SELECT id FROM prayer_reminder_devices
+        WHERE reminder_id = ? AND device_id = ?
+        LIMIT 1
+        ''',
+        [reminderId, deviceId],
       );
+      if (device == null) {
+        throw StateError('Prayer reminder is unavailable on this device');
+      }
       await transaction.execute(
         '''
         UPDATE prayer_reminder_devices

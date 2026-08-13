@@ -124,6 +124,7 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
     final autoplay =
         _autoplayOverride ??
         ((device?.autoplayWhenOpened ?? false) && readyForDisplayedRevision);
+    final narrationEligible = widget.prayer.body.runes.length <= 2000;
     return PopScope(
       canPop: !_saving,
       child: Padding(
@@ -193,12 +194,19 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                       'Uses a private cached narration. System notifications stay silent.',
                     ),
                     value: autoplay,
-                    onChanged: _saving
+                    onChanged: _saving || !narrationEligible
                         ? null
                         : (value) => value
                               ? _acceptNarration(existing)
                               : _disableNarration(existing, device),
                   ),
+                  if (!narrationEligible)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Narration is available for prayers up to 2,000 characters.',
+                      ),
+                    ),
                   const Divider(height: AppSpacing.xl),
                 ],
                 const SizedBox(height: AppSpacing.md),
