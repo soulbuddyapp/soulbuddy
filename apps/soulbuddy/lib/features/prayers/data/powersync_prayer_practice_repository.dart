@@ -5,6 +5,7 @@ import 'package:timezone/timezone.dart' as timezone;
 import 'package:uuid/uuid.dart';
 
 import '../domain/prayer_reminder.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/prayer_session.dart';
 import 'prayer_practice_repository.dart';
 
@@ -143,6 +144,32 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
       [ownerId, revisionId],
     );
     return row['session_count'] as int;
+  }
+
+  @override
+  Stream<bool> watchSessionForDate(PrayerReference prayer, DateTime localDate) {
+    return database
+        .watch(
+          '''
+          SELECT EXISTS(
+            SELECT 1 FROM prayer_sessions
+            WHERE owner_id = ? AND local_date = ? AND retracted_at IS NULL
+              AND ((? = 'library' AND library_prayer_id = ?
+                    AND personal_prayer_id IS NULL)
+                OR (? = 'personal' AND personal_prayer_id = ?
+                    AND library_prayer_id IS NULL))
+          ) AS has_session
+          ''',
+          parameters: [
+            ownerId,
+            _dateOnly(localDate),
+            prayer.source.name,
+            prayer.id,
+            prayer.source.name,
+            prayer.id,
+          ],
+        )
+        .map((rows) => rows.single['has_session'] == 1);
   }
 
   @override
@@ -328,13 +355,26 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
 
   @override
   Future<PrayerSession> recordSession({
-    required String personalPrayerId,
-    required String revisionId,
+    required PrayerReference prayer,
     required String timezone,
+    String? revisionId,
     String? reminderId,
     String? occurrenceKey,
   }) {
     final isReminder = reminderId != null || occurrenceKey != null;
+    if (prayer.id.trim().isEmpty) {
+      throw ArgumentError.value(prayer.id, 'prayer');
+    }
+    if (prayer.source == PrayerSource.library && revisionId != null) {
+      throw ArgumentError('Library prayer sessions cannot carry a revision');
+    }
+    if (prayer.source == PrayerSource.personal &&
+        (revisionId == null || revisionId.trim().isEmpty)) {
+      throw ArgumentError('Personal prayer sessions require a revision');
+    }
+    if (prayer.source == PrayerSource.library && isReminder) {
+      throw ArgumentError('Library prayer sessions cannot come from reminders');
+    }
     if (isReminder &&
         (reminderId == null ||
             occurrenceKey == null ||
@@ -347,16 +387,40 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
     }
 
     return database.writeTransaction((transaction) async {
-      final prayer = await transaction.getOptional(
-        '''
-        SELECT id, current_revision_id FROM personal_prayers
-        WHERE id = ? AND owner_id = ? AND archived_at IS NULL
-        LIMIT 1
-        ''',
-        [personalPrayerId, ownerId],
-      );
-      if (prayer == null || prayer['current_revision_id'] != revisionId) {
-        throw StateError('Displayed prayer revision is no longer current');
+      if (prayer.source == PrayerSource.library) {
+        final available = await transaction.getOptional(
+          '''
+          WITH available AS (
+            SELECT id FROM library_prayers
+            WHERE id = ? AND published_at IS NOT NULL AND archived_at IS NULL
+            UNION ALL
+            SELECT bundled.id FROM bundled_prayers AS bundled
+            WHERE bundled.id = ? AND bundled.archived_at IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM library_prayers AS canonical
+                WHERE canonical.id = bundled.id
+              )
+          )
+          SELECT id FROM available LIMIT 1
+          ''',
+          [prayer.id, prayer.id],
+        );
+        if (available == null) {
+          throw StateError('Displayed prayer is no longer available');
+        }
+      } else {
+        final available = await transaction.getOptional(
+          '''
+          SELECT id, current_revision_id FROM personal_prayers
+          WHERE id = ? AND owner_id = ? AND archived_at IS NULL
+          LIMIT 1
+          ''',
+          [prayer.id, ownerId],
+        );
+        if (available == null ||
+            available['current_revision_id'] != revisionId) {
+          throw StateError('Displayed prayer revision is no longer current');
+        }
       }
       if (isReminder) {
         final reminder = await transaction.getOptional(
@@ -366,7 +430,7 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
             AND enabled = 1 AND archived_at IS NULL
           LIMIT 1
           ''',
-          [reminderId, ownerId, personalPrayerId],
+          [reminderId, ownerId, prayer.id],
         );
         if (reminder == null) {
           throw StateError('Prayer reminder is unavailable');
@@ -385,7 +449,7 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
       );
       if (existing != null) {
         final session = PrayerSession.fromRow(existing);
-        if (session.personalPrayerId != personalPrayerId ||
+        if (session.prayer != prayer ||
             session.prayerRevisionId != revisionId ||
             session.reminderId != reminderId ||
             session.reminderOccurrenceKey != occurrenceKey) {
@@ -399,15 +463,16 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
       await transaction.execute(
         '''
         INSERT INTO prayer_sessions(
-          id, owner_id, personal_prayer_id, prayer_revision_id, reminder_id,
-          reminder_occurrence_key, source, occurred_at, local_date, timezone,
-          device_id, retracted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+          id, owner_id, library_prayer_id, personal_prayer_id,
+          prayer_revision_id, reminder_id, reminder_occurrence_key, source,
+          occurred_at, local_date, timezone, device_id, retracted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
         ''',
         [
           id,
           ownerId,
-          personalPrayerId,
+          prayer.source == PrayerSource.library ? prayer.id : null,
+          prayer.source == PrayerSource.personal ? prayer.id : null,
           revisionId,
           reminderId,
           occurrenceKey,

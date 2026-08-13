@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\LibraryPrayer;
 use App\Models\PersonalPrayer;
 use App\Models\PersonalPrayerRevision;
 use App\Models\PrayerReminder;
@@ -93,6 +94,39 @@ function sessionData(
     ], $overrides);
 }
 
+function librarySessionData(string $libraryPrayerId, array $overrides = []): array
+{
+    return array_replace([
+        'owner_id' => 'ignored-client-owner',
+        'library_prayer_id' => $libraryPrayerId,
+        'personal_prayer_id' => null,
+        'prayer_revision_id' => null,
+        'reminder_id' => null,
+        'reminder_occurrence_key' => null,
+        'source' => 'manual',
+        'occurred_at' => '2026-08-13T07:00:00.000Z',
+        'local_date' => '2026-08-13',
+        'timezone' => 'Africa/Lagos',
+        'device_id' => 'device-1',
+        'retracted_at' => null,
+    ], $overrides);
+}
+
+function seedLibraryPracticePrayer(array $overrides = []): LibraryPrayer
+{
+    return LibraryPrayer::create(array_replace([
+        'id' => '0198a100-0000-7000-8000-000000000001',
+        'title' => 'For this day',
+        'body' => 'Father, keep me near you through this day. Amen.',
+        'grounding' => 'general_christian',
+        'purpose' => 'daily',
+        'action' => null,
+        'helpful_count' => 0,
+        'published_at' => '2026-08-13T00:00:00.000Z',
+        'archived_at' => null,
+    ], $overrides));
+}
+
 it('creates private reminder and exact-revision session schema', function () {
     expect(Schema::hasColumns('prayer_reminders', [
         'id', 'user_id', 'personal_prayer_id', 'schedule_type', 'local_time',
@@ -100,11 +134,99 @@ it('creates private reminder and exact-revision session schema', function () {
         'updated_at', 'archived_at',
     ]))->toBeTrue()
         ->and(Schema::hasColumns('prayer_sessions', [
-            'id', 'user_id', 'personal_prayer_id', 'prayer_revision_id',
+            'id', 'user_id', 'library_prayer_id', 'personal_prayer_id', 'prayer_revision_id',
             'reminder_id', 'reminder_occurrence_key', 'source', 'occurred_at',
             'local_date', 'timezone', 'device_id', 'retracted_at',
         ]))->toBeTrue();
 });
+
+it('accepts a manual session for one published library prayer source', function () {
+    $user = User::factory()->create();
+    $prayer = seedLibraryPracticePrayer();
+    $sessionId = '0198aa00-0000-7000-8000-000000000101';
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [practiceOperation(
+            '0198aa00-0000-7000-8000-000000000100',
+            'prayer_sessions',
+            $sessionId,
+            librarySessionData($prayer->id),
+        )],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 1)
+        ->assertJsonPath('rejected', 0);
+
+    $session = PrayerSession::findOrFail($sessionId);
+    expect($session->library_prayer_id)->toBe($prayer->id)
+        ->and($session->personal_prayer_id)->toBeNull()
+        ->and($session->prayer_revision_id)->toBeNull();
+});
+
+it('requires exactly one prayer source for every session', function (string $case) {
+    $user = User::factory()->create();
+    $library = seedLibraryPracticePrayer();
+    [$personalId, $revisionId] = seedPracticePrayer($user, '102');
+    $data = match ($case) {
+        'none' => librarySessionData($library->id, ['library_prayer_id' => null]),
+        'both' => librarySessionData($library->id, [
+            'personal_prayer_id' => $personalId,
+            'prayer_revision_id' => $revisionId,
+        ]),
+        'personal_without_revision' => librarySessionData($library->id, [
+            'library_prayer_id' => null,
+            'personal_prayer_id' => $personalId,
+            'prayer_revision_id' => null,
+        ]),
+        'library_reminder' => librarySessionData($library->id, [
+            'source' => 'reminder',
+            'reminder_id' => '0198aa00-0000-7000-8000-000000000105',
+            'reminder_occurrence_key' => 'occurrence-105',
+        ]),
+    };
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [practiceOperation(
+            '0198aa00-0000-7000-8000-000000000103',
+            'prayer_sessions',
+            '0198aa00-0000-7000-8000-000000000104',
+            $data,
+        )],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('code', 'invalid_data');
+})->with([
+    'no source' => ['none'],
+    'library and personal sources' => ['both'],
+    'personal source without revision' => ['personal_without_revision'],
+    'reminder source cannot use library prayer' => ['library_reminder'],
+]);
+
+it('does not reveal why a library prayer is unavailable', function (string $state) {
+    $user = User::factory()->create();
+    $prayerId = '0198a100-0000-7000-8000-000000000106';
+    if ($state !== 'missing') {
+        seedLibraryPracticePrayer([
+            'id' => $prayerId,
+            'published_at' => $state === 'unpublished'
+                ? null
+                : '2026-08-13T00:00:00.000Z',
+            'archived_at' => $state === 'archived'
+                ? '2026-08-13T06:00:00.000Z'
+                : null,
+        ]);
+    }
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [practiceOperation(
+            '0198aa00-0000-7000-8000-000000000107',
+            'prayer_sessions',
+            '0198aa00-0000-7000-8000-000000000108',
+            librarySessionData($prayerId),
+        )],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 0)
+        ->assertJsonPath('code', 'inaccessible_record');
+})->with(['archived', 'unpublished', 'missing']);
 
 it('accepts a daily reminder and manual exact-revision session', function () {
     $user = User::factory()->create();

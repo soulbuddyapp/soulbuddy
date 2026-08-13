@@ -7,6 +7,7 @@ import 'package:soulbuddy/features/prayers/application/prayer_reminder_coordinat
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_practice_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
 
 void main() {
@@ -537,9 +538,9 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
 
   @override
   Future<PrayerSession> recordSession({
-    required String personalPrayerId,
-    required String revisionId,
+    required PrayerReference prayer,
     required String timezone,
+    String? revisionId,
     String? reminderId,
     String? occurrenceKey,
   }) async {
@@ -548,13 +549,13 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
       recordFailuresRemaining--;
       throw StateError('temporary write failure');
     }
-    sessionRecords.add(
-      _SessionRecord(personalPrayerId, revisionId, occurrenceKey),
-    );
+    expect(prayer.source, PrayerSource.personal);
+    expect(revisionId, isNotNull);
+    sessionRecords.add(_SessionRecord(prayer.id, revisionId!, occurrenceKey));
     return PrayerSession(
       id: 'session-${sessionRecords.length}',
       ownerId: 'owner-1',
-      personalPrayerId: personalPrayerId,
+      prayer: prayer,
       prayerRevisionId: revisionId,
       reminderId: reminderId,
       reminderOccurrenceKey: occurrenceKey,
@@ -578,6 +579,12 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
 
   @override
   Stream<int> watchSessionCount(String revisionId) => const Stream.empty();
+
+  @override
+  Stream<bool> watchSessionForDate(
+    PrayerReference prayer,
+    DateTime localDate,
+  ) => const Stream.empty();
 
   @override
   Future<int> getSessionCount(String revisionId) async => 0;

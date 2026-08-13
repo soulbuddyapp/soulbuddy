@@ -12,6 +12,7 @@ import '../application/prayer_reminder_scheduler_factory.dart';
 import '../data/powersync_prayer_practice_repository.dart';
 import '../data/prayer_practice_repository.dart';
 import '../domain/prayer_reminder.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/prayer_session.dart';
 
 final prayerPracticeClockProvider = Provider<DateTime Function()>(
@@ -134,6 +135,14 @@ final prayerSessionCountProvider = StreamProvider.autoDispose
         prayerPracticeRepositoryProvider.future,
       );
       yield* repository.watchSessionCount(revisionId);
+    });
+
+final prayerSessionForDateProvider = StreamProvider.autoDispose
+    .family<bool, (PrayerReference, DateTime)>((ref, request) async* {
+      final repository = await ref.watch(
+        prayerPracticeRepositoryProvider.future,
+      );
+      yield* repository.watchSessionForDate(request.$1, request.$2);
     });
 
 final duePrayerOccurrencesProvider = StreamProvider<List<DuePrayerOccurrence>>((

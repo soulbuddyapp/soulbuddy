@@ -8,6 +8,7 @@ import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
 import 'package:soulbuddy/features/prayers/presentation/personal_prayer_detail_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
@@ -375,14 +376,16 @@ class _PracticeRepository implements PrayerPracticeRepository {
 
   @override
   Future<PrayerSession> recordSession({
-    required String personalPrayerId,
-    required String revisionId,
+    required PrayerReference prayer,
     required String timezone,
+    String? revisionId,
     String? reminderId,
     String? occurrenceKey,
   }) async {
     recordAttempts++;
-    recordedRevisionIds.add(revisionId);
+    expect(prayer, const PrayerReference.personal('prayer-1'));
+    expect(revisionId, isNotNull);
+    recordedRevisionIds.add(revisionId!);
     if (holdRecord) {
       _recordCompleter = Completer<PrayerSession>();
       return _recordCompleter!.future;
@@ -402,7 +405,7 @@ class _PracticeRepository implements PrayerPracticeRepository {
   PrayerSession _session() => PrayerSession(
     id: 'session-1',
     ownerId: 'owner-1',
-    personalPrayerId: 'prayer-1',
+    prayer: const PrayerReference.personal('prayer-1'),
     prayerRevisionId: 'revision-1',
     source: PrayerSessionSource.manual,
     occurredAt: _date,
@@ -422,6 +425,11 @@ class _PracticeRepository implements PrayerPracticeRepository {
       const Stream.empty();
   @override
   Stream<int> watchSessionCount(String revisionId) => counts;
+  @override
+  Stream<bool> watchSessionForDate(
+    PrayerReference prayer,
+    DateTime localDate,
+  ) => const Stream.empty();
 
   @override
   Future<int> getSessionCount(String revisionId) async => _count;

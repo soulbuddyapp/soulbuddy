@@ -1,4 +1,5 @@
 import '../domain/prayer_reminder.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/prayer_session.dart';
 
 abstract interface class PrayerPracticeRepository {
@@ -6,6 +7,7 @@ abstract interface class PrayerPracticeRepository {
   Stream<PrayerReminderDevice?> watchDevice(String reminderId);
   Stream<List<DuePrayerOccurrence>> watchDue(DateTime atUtc);
   Stream<int> watchSessionCount(String revisionId);
+  Stream<bool> watchSessionForDate(PrayerReference prayer, DateTime localDate);
   Future<int> getSessionCount(String revisionId);
 
   Future<PrayerReminder> saveReminder({
@@ -28,9 +30,9 @@ abstract interface class PrayerPracticeRepository {
   Future<void> dismiss(String reminderId, String occurrenceKey);
 
   Future<PrayerSession> recordSession({
-    required String personalPrayerId,
-    required String revisionId,
+    required PrayerReference prayer,
     required String timezone,
+    String? revisionId,
     String? reminderId,
     String? occurrenceKey,
   });

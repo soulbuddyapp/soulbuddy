@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import '../data/prayer_practice_repository.dart';
 import '../domain/prayer_reminder.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/prayer_session.dart';
 import 'prayer_occurrence_calculator.dart';
 import 'prayer_reminder_scheduler.dart';
@@ -274,7 +275,9 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
           return null;
         case PrayerReminderAction.prayed:
           final session = await _repository.recordSession(
-            personalPrayerId: occurrence.reminder.personalPrayerId,
+            prayer: PrayerReference.personal(
+              occurrence.reminder.personalPrayerId,
+            ),
             revisionId: occurrence.prayerRevisionId,
             timezone: await _timezoneName(),
             reminderId: occurrence.reminder.id,

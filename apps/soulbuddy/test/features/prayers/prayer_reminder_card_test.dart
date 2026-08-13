@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_reminder_card.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
@@ -433,7 +434,7 @@ class _RecordingDriver implements PlatformFeedbackDriver {
 PrayerSession _session() => PrayerSession(
   id: 'session-1',
   ownerId: 'owner-1',
-  personalPrayerId: 'prayer-1',
+  prayer: const PrayerReference.personal('prayer-1'),
   prayerRevisionId: 'revision-1',
   reminderId: 'reminder-1',
   reminderOccurrenceKey: 'reminder-1@2026-08-11T18:00:00.000Z',

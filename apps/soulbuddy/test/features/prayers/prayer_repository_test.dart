@@ -330,6 +330,31 @@ void main() {
     expect(current?.prayer.id, 'prayer-b');
     expect(current?.actionCompleted, isFalse);
   });
+
+  test('retains the immutable revision for a personal Today prayer', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/personal-today.db',
+    );
+    addTearDown(database.close);
+    final repository = PowerSyncPrayerRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      now: () => DateTime(2026, 8, 11, 12),
+    );
+    await _seedPersonalPrayer(database.powersync);
+
+    await repository.selectForToday(
+      const PrayerReference.personal('personal-1'),
+      includeAction: true,
+    );
+
+    final today = await repository.watchToday(DateTime(2026, 8, 11)).first;
+    expect(
+      today?.prayer.reference,
+      const PrayerReference.personal('personal-1'),
+    );
+    expect(today?.prayerRevisionId, 'personal-revision-1');
+  });
 }
 
 Future<void> _seedCanonicalPrayer(
@@ -391,6 +416,45 @@ Future<void> _seedBundledPrayer(
       helpfulCount,
       1,
       archivedAt,
+    ],
+  );
+}
+
+Future<void> _seedPersonalPrayer(PowerSyncDatabase database) async {
+  await database.execute(
+    '''
+    INSERT INTO personal_prayers(
+      id, owner_id, title, style, reach, grounding, purpose,
+      current_revision_id, created_at, updated_at, archived_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ''',
+    [
+      'personal-1',
+      'owner-1',
+      'A personal prayer',
+      'daily',
+      'personal',
+      'general_christian',
+      'daily',
+      'personal-revision-1',
+      '2026-08-11T07:00:00.000Z',
+      '2026-08-11T07:00:00.000Z',
+    ],
+  );
+  await database.execute(
+    '''
+    INSERT INTO personal_prayer_revisions(
+      id, prayer_id, owner_id, body, action, created_at, device_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''',
+    [
+      'personal-revision-1',
+      'personal-1',
+      'owner-1',
+      'Father, lead me today. Amen.',
+      'Act with patience.',
+      '2026-08-11T07:00:00.000Z',
+      'device-1',
     ],
   );
 }

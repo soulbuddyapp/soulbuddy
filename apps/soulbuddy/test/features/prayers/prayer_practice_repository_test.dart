@@ -5,12 +5,14 @@ import 'package:powersync/powersync.dart';
 import 'package:soulbuddy/core/database/app_database.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_practice_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../helpers/powersync_test_database.dart';
 
 const prayerId = '0198a900-0000-7000-8000-000000000001';
 const revisionId = '0198a900-0000-7000-8000-000000000002';
+const libraryPrayerId = '0198a100-0000-7000-8000-000000000001';
 
 void main() {
   late Directory temporaryDirectory;
@@ -204,14 +206,14 @@ void main() {
       const occurrenceKey = '$prayerId@2026-08-11T06:30:00.000Z';
 
       final first = await repository.recordSession(
-        personalPrayerId: prayerId,
+        prayer: const PrayerReference.personal(prayerId),
         revisionId: revisionId,
         timezone: 'Africa/Lagos',
         reminderId: reminder.id,
         occurrenceKey: occurrenceKey,
       );
       final replay = await repository.recordSession(
-        personalPrayerId: prayerId,
+        prayer: const PrayerReference.personal(prayerId),
         revisionId: revisionId,
         timezone: 'Africa/Lagos',
         reminderId: reminder.id,
@@ -228,6 +230,66 @@ void main() {
       );
     },
   );
+
+  test(
+    'records and watches a factual library prayer session by date',
+    () async {
+      final database = await _openSeededDatabase(temporaryDirectory, 'library');
+      addTearDown(database.close);
+      await _seedBundledLibraryPrayer(database.powersync);
+      await _drainCrud(database.powersync);
+      final repository = _repository(database);
+      const reference = PrayerReference.library(libraryPrayerId);
+
+      final session = await repository.recordSession(
+        prayer: reference,
+        timezone: 'Africa/Lagos',
+      );
+
+      expect(session.prayer, reference);
+      expect(session.prayerRevisionId, isNull);
+      expect(
+        await repository
+            .watchSessionForDate(reference, DateTime(2026, 8, 11))
+            .first,
+        isTrue,
+      );
+      expect(
+        await repository
+            .watchSessionForDate(reference, DateTime(2026, 8, 12))
+            .first,
+        isFalse,
+      );
+    },
+  );
+
+  test('enforces revision shape before writing either prayer source', () async {
+    final database = await _openSeededDatabase(temporaryDirectory, 'shape');
+    addTearDown(database.close);
+    await _seedBundledLibraryPrayer(database.powersync);
+    await _drainCrud(database.powersync);
+    final repository = _repository(database);
+
+    expect(
+      () => repository.recordSession(
+        prayer: const PrayerReference.library(libraryPrayerId),
+        revisionId: revisionId,
+        timezone: 'Africa/Lagos',
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => repository.recordSession(
+        prayer: const PrayerReference.personal(prayerId),
+        timezone: 'Africa/Lagos',
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM prayer_sessions'),
+      isEmpty,
+    );
+  });
 
   test('rejects invalid local times in release-safe constructors', () {
     expect(() => PrayerLocalTime(hour: 24, minute: 0), throwsArgumentError);
@@ -252,7 +314,7 @@ void main() {
 
     await expectLater(
       repository.recordSession(
-        personalPrayerId: prayerId,
+        prayer: const PrayerReference.personal(prayerId),
         revisionId: revisionId,
         timezone: 'Africa/Lagos',
       ),
@@ -272,7 +334,7 @@ void main() {
       addTearDown(database.close);
       final repository = _repository(database, now: () => now);
       final session = await repository.recordSession(
-        personalPrayerId: prayerId,
+        prayer: const PrayerReference.personal(prayerId),
         revisionId: revisionId,
         timezone: 'Africa/Lagos',
       );
@@ -295,7 +357,7 @@ void main() {
     addTearDown(database.close);
     final repository = _repository(database, now: () => now);
     final session = await repository.recordSession(
-      personalPrayerId: prayerId,
+      prayer: const PrayerReference.personal(prayerId),
       revisionId: revisionId,
       timezone: 'Africa/Lagos',
     );
@@ -314,7 +376,7 @@ void main() {
     );
 
     final session = await repository.recordSession(
-      personalPrayerId: prayerId,
+      prayer: const PrayerReference.personal(prayerId),
       revisionId: revisionId,
       timezone: 'Africa/Lagos',
     );
@@ -391,6 +453,25 @@ Future<void> _seedPersonalPrayer(PowerSyncDatabase database) async {
       null,
       '2026-08-11T07:00:00.000Z',
       'device-1',
+    ],
+  );
+}
+
+Future<void> _seedBundledLibraryPrayer(PowerSyncDatabase database) {
+  return database.execute(
+    '''
+    INSERT INTO bundled_prayers(
+      id, title, body, grounding, purpose, action, helpful_count,
+      content_version, archived_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 0, 1, NULL)
+    ''',
+    [
+      libraryPrayerId,
+      'For this day',
+      'Father, keep me near you through this day. Amen.',
+      'general_christian',
+      'daily',
+      null,
     ],
   );
 }

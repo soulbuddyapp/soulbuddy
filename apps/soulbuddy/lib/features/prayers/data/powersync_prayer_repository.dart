@@ -189,7 +189,8 @@ class PowerSyncPrayerRepository implements PrayerRepository {
                  ) AS viewer_marked_helpful,
                  today.include_action,
                  today.action_completed,
-                 today.local_date
+                 today.local_date,
+                 NULL AS prayer_revision_id
           FROM today_prayers AS today
           JOIN merged ON merged.id = today.prayer_id
           WHERE today.owner_id = ? AND today.local_date = ?
@@ -198,7 +199,8 @@ class PowerSyncPrayerRepository implements PrayerRepository {
                  revision.body, personal.grounding, personal.purpose,
                  revision.action, 0 AS helpful_count,
                  0 AS viewer_marked_helpful, today.include_action,
-                 today.action_completed, today.local_date
+                 today.action_completed, today.local_date,
+                 revision.id AS prayer_revision_id
           FROM today_prayers AS today
           JOIN personal_prayers AS personal
             ON personal.id = today.personal_prayer_id
@@ -236,6 +238,7 @@ class PowerSyncPrayerRepository implements PrayerRepository {
             localDate: _dateFromKey(row['local_date'] as String),
             includeAction: row['include_action'] == 1,
             actionCompleted: row['action_completed'] == 1,
+            prayerRevisionId: row['prayer_revision_id'] as String?,
           );
         });
   }

@@ -274,6 +274,7 @@ const appSchema = Schema([
     'prayer_sessions',
     [
       Column.text('owner_id'),
+      Column.text('library_prayer_id'),
       Column.text('personal_prayer_id'),
       Column.text('prayer_revision_id'),
       Column.text('reminder_id'),
@@ -289,6 +290,18 @@ const appSchema = Schema([
       Index('prayer_sessions_owner_revision', [
         IndexedColumn('owner_id'),
         IndexedColumn('prayer_revision_id'),
+        IndexedColumn('retracted_at'),
+      ]),
+      Index('prayer_sessions_owner_library_date', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('library_prayer_id'),
+        IndexedColumn('local_date'),
+        IndexedColumn('retracted_at'),
+      ]),
+      Index('prayer_sessions_owner_personal_date', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('personal_prayer_id'),
+        IndexedColumn('local_date'),
         IndexedColumn('retracted_at'),
       ]),
       Index('prayer_sessions_occurrence', [

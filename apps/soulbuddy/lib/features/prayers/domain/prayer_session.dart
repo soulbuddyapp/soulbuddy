@@ -1,3 +1,5 @@
+import 'prayer_reference.dart';
+
 enum PrayerSessionSource {
   reminder('reminder'),
   manual('manual');
@@ -16,7 +18,7 @@ class PrayerSession {
   const PrayerSession({
     required this.id,
     required this.ownerId,
-    required this.personalPrayerId,
+    required this.prayer,
     required this.prayerRevisionId,
     required this.source,
     required this.occurredAt,
@@ -30,8 +32,8 @@ class PrayerSession {
 
   final String id;
   final String ownerId;
-  final String personalPrayerId;
-  final String prayerRevisionId;
+  final PrayerReference prayer;
+  final String? prayerRevisionId;
   final String? reminderId;
   final String? reminderOccurrenceKey;
   final PrayerSessionSource source;
@@ -45,20 +47,42 @@ class PrayerSession {
       retractedAt == null &&
       !at.toUtc().isAfter(occurredAt.toUtc().add(const Duration(minutes: 5)));
 
-  factory PrayerSession.fromRow(Map<String, dynamic> row) => PrayerSession(
-    id: row['id'] as String,
-    ownerId: row['owner_id'] as String,
-    personalPrayerId: row['personal_prayer_id'] as String,
-    prayerRevisionId: row['prayer_revision_id'] as String,
-    reminderId: row['reminder_id'] as String?,
-    reminderOccurrenceKey: row['reminder_occurrence_key'] as String?,
-    source: PrayerSessionSource.fromWire(row['source'] as String),
-    occurredAt: DateTime.parse(row['occurred_at'] as String),
-    localDate: DateTime.parse(row['local_date'] as String),
-    timezone: row['timezone'] as String,
-    deviceId: row['device_id'] as String,
-    retractedAt: row['retracted_at'] == null
-        ? null
-        : DateTime.parse(row['retracted_at'] as String),
-  );
+  String? get personalPrayerId =>
+      prayer.source == PrayerSource.personal ? prayer.id : null;
+
+  factory PrayerSession.fromRow(Map<String, dynamic> row) {
+    final libraryPrayerId = row['library_prayer_id'] as String?;
+    final personalPrayerId = row['personal_prayer_id'] as String?;
+    final revisionId = row['prayer_revision_id'] as String?;
+    final hasLibrarySource =
+        libraryPrayerId != null &&
+        personalPrayerId == null &&
+        revisionId == null;
+    final hasPersonalSource =
+        libraryPrayerId == null &&
+        personalPrayerId != null &&
+        revisionId != null;
+    if (!hasLibrarySource && !hasPersonalSource) {
+      throw const FormatException('Prayer session must have one source');
+    }
+
+    return PrayerSession(
+      id: row['id'] as String,
+      ownerId: row['owner_id'] as String,
+      prayer: hasLibrarySource
+          ? PrayerReference.library(libraryPrayerId)
+          : PrayerReference.personal(personalPrayerId!),
+      prayerRevisionId: revisionId,
+      reminderId: row['reminder_id'] as String?,
+      reminderOccurrenceKey: row['reminder_occurrence_key'] as String?,
+      source: PrayerSessionSource.fromWire(row['source'] as String),
+      occurredAt: DateTime.parse(row['occurred_at'] as String),
+      localDate: DateTime.parse(row['local_date'] as String),
+      timezone: row['timezone'] as String,
+      deviceId: row['device_id'] as String,
+      retractedAt: row['retracted_at'] == null
+          ? null
+          : DateTime.parse(row['retracted_at'] as String),
+    );
+  }
 }

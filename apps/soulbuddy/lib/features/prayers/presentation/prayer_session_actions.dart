@@ -9,6 +9,7 @@ import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/feedback/completion_feedback.dart';
 import '../domain/personal_prayer.dart';
+import '../domain/prayer_reference.dart';
 import '../domain/prayer_session.dart';
 import '../providers/prayer_practice_providers.dart';
 
@@ -109,7 +110,7 @@ class _PrayerSessionActionsState extends ConsumerState<PrayerSessionActions> {
       );
       final timezoneName = await ref.read(prayerDeviceTimezoneProvider)();
       final session = await repository.recordSession(
-        personalPrayerId: displayedPrayer.id,
+        prayer: PrayerReference.personal(displayedPrayer.id),
         revisionId: displayedPrayer.currentRevisionId,
         timezone: timezoneName,
       );

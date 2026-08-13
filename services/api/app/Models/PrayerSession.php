@@ -33,6 +33,11 @@ class PrayerSession extends Model
         return $this->belongsTo(PersonalPrayer::class, 'personal_prayer_id');
     }
 
+    public function libraryPrayer(): BelongsTo
+    {
+        return $this->belongsTo(LibraryPrayer::class, 'library_prayer_id');
+    }
+
     public function revision(): BelongsTo
     {
         return $this->belongsTo(PersonalPrayerRevision::class, 'prayer_revision_id');

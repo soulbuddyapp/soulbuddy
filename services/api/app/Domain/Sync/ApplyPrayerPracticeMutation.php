@@ -2,6 +2,7 @@
 
 namespace App\Domain\Sync;
 
+use App\Models\LibraryPrayer;
 use App\Models\PersonalPrayer;
 use App\Models\PersonalPrayerRevision;
 use App\Models\PrayerReminder;
@@ -48,6 +49,26 @@ final class ApplyPrayerPracticeMutation
     /** @param Collection<int, array<string, mixed>> $operations */
     public function apply(User $user, Collection $operations): ?string
     {
+        $libraryPrayerIds = $operations
+            ->map(fn (array $operation): ?string => $operation['data']['library_prayer_id'] ?? null)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+        $libraryPrayers = LibraryPrayer::query()
+            ->whereIn('id', $libraryPrayerIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        if ($libraryPrayers->count() !== $libraryPrayerIds->count()) {
+            return 'inaccessible_record';
+        }
+        foreach ($libraryPrayers as $prayer) {
+            if ($prayer->published_at === null || $prayer->archived_at !== null) {
+                return 'inaccessible_record';
+            }
+        }
+
         $prayerIds = $operations
             ->map(fn (array $operation): ?string => $operation['data']['personal_prayer_id'] ?? null)
             ->filter()
@@ -179,16 +200,17 @@ final class ApplyPrayerPracticeMutation
             ],
             ['prayer_sessions', 'put'] => [
                 'owner_id' => [],
-                'personal_prayer_id' => ['required', 'uuid'],
-                'prayer_revision_id' => ['required', 'uuid'],
-                'reminder_id' => ['nullable', 'uuid'],
-                'reminder_occurrence_key' => ['nullable', 'string', 'max:160'],
+                'library_prayer_id' => ['sometimes', 'nullable', 'uuid'],
+                'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'],
+                'prayer_revision_id' => ['sometimes', 'nullable', 'uuid'],
+                'reminder_id' => ['present', 'nullable', 'uuid'],
+                'reminder_occurrence_key' => ['present', 'nullable', 'string', 'max:160'],
                 'source' => ['required', 'in:reminder,manual'],
                 'occurred_at' => ['required', 'date'],
                 'local_date' => ['required', 'date_format:Y-m-d'],
                 'timezone' => ['required', 'timezone:all'],
                 'device_id' => ['required', 'string', 'max:120'],
-                'retracted_at' => ['nullable', 'date'],
+                'retracted_at' => ['present', 'nullable', 'date'],
             ],
             ['prayer_sessions', 'patch'] => [
                 'retracted_at' => ['required', 'date'],
@@ -197,6 +219,12 @@ final class ApplyPrayerPracticeMutation
         if ($operation['data'] === []
             || array_diff(array_keys($operation['data']), array_keys($rules)) !== []
             || Validator::make($operation['data'], $rules)->fails()) {
+            return 'invalid_data';
+        }
+
+        if ($operation['table'] === 'prayer_sessions'
+            && $operation['type'] === 'put'
+            && ! $this->validSessionShape($operation['data'])) {
             return 'invalid_data';
         }
 
@@ -280,8 +308,21 @@ final class ApplyPrayerPracticeMutation
         }
 
         $data = $operation['data'];
+        $libraryPrayerId = $data['library_prayer_id'] ?? null;
+        if ($libraryPrayerId !== null) {
+            $available = LibraryPrayer::query()
+                ->whereKey($libraryPrayerId)
+                ->whereNotNull('published_at')
+                ->whereNull('archived_at')
+                ->exists();
+
+            return $available
+                ? $this->validateRetractionWindow($data)
+                : 'inaccessible_record';
+        }
+
         $prayer = PersonalPrayer::query()
-            ->whereKey($data['personal_prayer_id'])
+            ->whereKey($data['personal_prayer_id'] ?? null)
             ->where('user_id', $user->id)
             ->whereNull('archived_at')
             ->first();
@@ -297,13 +338,7 @@ final class ApplyPrayerPracticeMutation
             return 'invalid_revision';
         }
 
-        $isManual = $data['source'] === 'manual';
-        $hasReminder = $data['reminder_id'] !== null
-            && $data['reminder_occurrence_key'] !== null
-            && trim($data['reminder_occurrence_key']) !== '';
-        if ($isManual === $hasReminder) {
-            return 'invalid_data';
-        }
+        $hasReminder = $data['source'] === 'reminder';
         if ($hasReminder) {
             $reminder = PrayerReminder::query()
                 ->whereKey($data['reminder_id'])
@@ -316,16 +351,8 @@ final class ApplyPrayerPracticeMutation
                 return 'inaccessible_record';
             }
         }
-        if ($data['retracted_at'] !== null) {
-            $occurredAt = CarbonImmutable::parse($data['occurred_at']);
-            $retractedAt = CarbonImmutable::parse($data['retracted_at']);
-            if ($retractedAt->lt($occurredAt)
-                || $retractedAt->gt($occurredAt->addMinutes(5))) {
-                return 'retraction_window_closed';
-            }
-        }
 
-        return null;
+        return $this->validateRetractionWindow($data);
     }
 
     private function validReminderShape(array $data): bool
@@ -421,8 +448,9 @@ final class ApplyPrayerPracticeMutation
             $created = PrayerSession::create([
                 'id' => $operation['id'],
                 'user_id' => $user->id,
-                'personal_prayer_id' => $data['personal_prayer_id'],
-                'prayer_revision_id' => $data['prayer_revision_id'],
+                'library_prayer_id' => $data['library_prayer_id'] ?? null,
+                'personal_prayer_id' => $data['personal_prayer_id'] ?? null,
+                'prayer_revision_id' => $data['prayer_revision_id'] ?? null,
                 'reminder_id' => $data['reminder_id'],
                 'reminder_occurrence_key' => $data['reminder_occurrence_key'],
                 'source' => $data['source'],
@@ -440,8 +468,9 @@ final class ApplyPrayerPracticeMutation
 
     private function sessionMatches(PrayerSession $session, array $data): bool
     {
-        return $session->personal_prayer_id === $data['personal_prayer_id']
-            && $session->prayer_revision_id === $data['prayer_revision_id']
+        return $session->library_prayer_id === ($data['library_prayer_id'] ?? null)
+            && $session->personal_prayer_id === ($data['personal_prayer_id'] ?? null)
+            && $session->prayer_revision_id === ($data['prayer_revision_id'] ?? null)
             && $session->reminder_id === $data['reminder_id']
             && $session->reminder_occurrence_key === $data['reminder_occurrence_key']
             && $session->source === $data['source']
@@ -471,5 +500,41 @@ final class ApplyPrayerPracticeMutation
         }
 
         return $stored->equalTo(CarbonImmutable::parse($wireValue));
+    }
+
+    private function validSessionShape(array $data): bool
+    {
+        $hasLibraryPrayer = ($data['library_prayer_id'] ?? null) !== null;
+        $hasPersonalPrayer = ($data['personal_prayer_id'] ?? null) !== null;
+        $hasRevision = ($data['prayer_revision_id'] ?? null) !== null;
+        $hasPersonalSource = $hasPersonalPrayer && $hasRevision;
+        $hasOnePrayerSource = ($hasLibraryPrayer && ! $hasPersonalPrayer && ! $hasRevision)
+            || (! $hasLibraryPrayer && $hasPersonalSource);
+        if (! $hasOnePrayerSource) {
+            return false;
+        }
+
+        $hasReminderId = ($data['reminder_id'] ?? null) !== null;
+        $occurrence = $data['reminder_occurrence_key'] ?? null;
+        $hasOccurrence = is_string($occurrence) && trim($occurrence) !== '';
+
+        return ($data['source'] === 'manual' && ! $hasReminderId && ! $hasOccurrence)
+            || ($data['source'] === 'reminder'
+                && ! $hasLibraryPrayer && $hasReminderId && $hasOccurrence);
+    }
+
+    private function validateRetractionWindow(array $data): ?string
+    {
+        if ($data['retracted_at'] === null) {
+            return null;
+        }
+
+        $occurredAt = CarbonImmutable::parse($data['occurred_at']);
+        $retractedAt = CarbonImmutable::parse($data['retracted_at']);
+
+        return $retractedAt->lt($occurredAt)
+            || $retractedAt->gt($occurredAt->addMinutes(5))
+            ? 'retraction_window_closed'
+            : null;
     }
 }
