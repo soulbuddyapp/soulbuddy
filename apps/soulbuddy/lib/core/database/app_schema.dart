@@ -63,6 +63,26 @@ const appSchema = Schema([
     ],
   ),
   Table.localOnly(
+    'memory_audio_assets',
+    [
+      Column.text('owner_id'),
+      Column.text('encounter_id'),
+      Column.text('encounter_revision_id'),
+      Column.text('storage_key'),
+      Column.text('mime_type'),
+      Column.integer('duration_ms'),
+      Column.integer('byte_size'),
+      Column.text('waveform_json'),
+      Column.text('created_at'),
+    ],
+    indexes: [
+      Index('memory_audio_owner_encounter', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('encounter_id'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
     'daily_memory_occurrences',
     [
       Column.text('owner_id'),
