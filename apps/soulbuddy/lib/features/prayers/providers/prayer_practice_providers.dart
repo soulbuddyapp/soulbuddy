@@ -9,6 +9,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/identity/local_identity_providers.dart';
+import '../../../core/sync/laravel_backend_connector.dart';
 import '../application/prayer_occurrence_calculator.dart';
 import '../application/prayer_audio_environment.dart';
 import '../application/prayer_audio_environment_factory.dart';
@@ -74,6 +75,29 @@ final prepareReminderNarrationProvider =
         required revisionId,
         required autoplay,
       }) async {
+        await ref.read(installationSessionBootstrapProvider.future);
+        final database = await ref.read(appDatabaseProvider.future);
+        final identity = await ref.read(localIdentityProvider.future);
+        final configured = Uri.tryParse(AppConfig.apiBaseUrl);
+        if (configured == null || !configured.hasScheme) {
+          throw const PrayerNarrationException('narration_unavailable');
+        }
+        final syncClient = http.Client();
+        try {
+          await LaravelBackendConnector(
+                apiBaseUri: configured,
+                powerSyncEndpoint: '',
+                installationId: identity.deviceId,
+                accessToken: ref.read(appSessionTokenReaderProvider),
+                client: syncClient,
+              )
+              .flushPending(database.powersync)
+              .timeout(const Duration(seconds: 30));
+        } on Exception {
+          throw const PrayerNarrationException('narration_unavailable');
+        } finally {
+          syncClient.close();
+        }
         final narration = await ref
             .read(prayerNarrationRepositoryProvider)
             .prepare(
