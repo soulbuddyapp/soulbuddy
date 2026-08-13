@@ -66,6 +66,7 @@ dev_dependencies:
   alchemist: ^0.14.0
   accessibility_tools: ^2.7.1
   crypto: ^3.0.6
+  xml: ^6.6.1
   integration_test:
     sdk: flutter
 

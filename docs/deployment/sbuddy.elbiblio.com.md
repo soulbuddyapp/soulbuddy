@@ -12,6 +12,14 @@ The persistent layout is:
 - `/var/www/soulbuddy/shared/storage` — private Laravel files and cached,
   encrypted narration audio
 
+The current host uses the confined Snap distribution of Docker. Snap Docker
+cannot bind-mount `/var/www`, so each immutable release is mirrored under
+`/var/snap/docker/common/soulbuddy/releases/<commit>` for the PHP container.
+Its protected environment and writable storage live under
+`/var/snap/docker/common/soulbuddy/shared`. Nginx continues to serve the
+matching public tree from `/var/www/soulbuddy/current`; both paths must switch
+to the same commit during a deployment or rollback.
+
 Deployments install production Composer dependencies, link `.env` and
 `storage`, run migrations and `PrayerLibrarySeeder`, optimize Laravel, switch
 `current`, then restart `soulbuddy-api`. Rollback switches `current` to the
@@ -26,5 +34,8 @@ Production choices:
 - Deepgram Aura 2 for consented, server-loaded prayer narration with model
   improvement opt-out; encrypted audio remains in private Laravel storage
 - release Flutter builds default to `https://sbuddy.elbiblio.com`
+- Android's main manifest owns `INTERNET`; keeping it only in debug/profile
+  manifests produces a local-only release APK and is covered by a regression
+  test
 - PowerSync remains an optional later service; authenticated mutation flushes
   support current server-authoritative AI and narration flows without it
