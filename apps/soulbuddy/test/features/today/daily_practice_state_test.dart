@@ -120,6 +120,51 @@ void main() {
 
     await expectLater(_nextData(container), throwsStateError);
   });
+
+  test('reprojects every later repository emission', () async {
+    final todayChanges = StreamController<TodayPrayer>();
+    addTearDown(todayChanges.close);
+    final container = ProviderContainer(
+      overrides: [
+        todayPrayerDateProvider.overrideWith(
+          (ref) => Stream.value((year: 2026, month: 8, day: 13)),
+        ),
+        todayPrayerProvider.overrideWith((ref) async* {
+          yield _today();
+          yield* todayChanges.stream;
+        }),
+        dailyMemoryProvider.overrideWith((ref) => Stream.value(null)),
+        prayerSessionForDateProvider.overrideWith(
+          (ref, request) => Stream.value(false),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final updated = Completer<DailyPracticeState>();
+    final subscription = container.listen(dailyPracticeStateProvider, (
+      previous,
+      next,
+    ) {
+      if (next case AsyncData(:final value)
+          when value.completed.contains(DailyPractice.act) &&
+              !updated.isCompleted) {
+        updated.complete(value);
+      }
+    }, fireImmediately: true);
+    addTearDown(subscription.close);
+    await _nextData(container);
+
+    todayChanges.add(_today(actionCompleted: true));
+
+    expect(
+      await updated.future,
+      const DailyPracticeState(
+        available: {DailyPractice.pray, DailyPractice.act},
+        completed: {DailyPractice.act},
+      ),
+    );
+  });
 }
 
 ProviderContainer _container({

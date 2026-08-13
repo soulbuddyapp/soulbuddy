@@ -7,26 +7,62 @@ import '../../remember/domain/daily_memory.dart';
 import '../../remember/providers/daily_memory_providers.dart';
 import '../domain/daily_practice_state.dart';
 
-/// Projects the factual practices attached to the currently displayed day.
+/// Reactively projects the factual practices attached to the displayed day.
+///
+/// This is deliberately a synchronous combination of the underlying
+/// AsyncValues. That preserves loading and failure states while ensuring every
+/// later database emission immediately updates the slab inscriptions.
 final dailyPracticeStateProvider =
-    FutureProvider.autoDispose<DailyPracticeState>((ref) async {
-      final displayedDate = await ref.watch(todayPrayerDateProvider.future);
+    Provider.autoDispose<AsyncValue<DailyPracticeState>>((ref) {
+      final dateValue = ref.watch(todayPrayerDateProvider);
+      if (dateValue case AsyncError(:final error, :final stackTrace)) {
+        return AsyncError(error, stackTrace);
+      }
+      if (!dateValue.hasValue) return const AsyncLoading();
+
+      final displayedDate = dateValue.requireValue;
       final date = DateTime(
         displayedDate.year,
         displayedDate.month,
         displayedDate.day,
       );
-      final observedToday = await ref.watch(todayPrayerProvider.future);
-      final observedMemory = await ref.watch(dailyMemoryProvider.future);
+
+      final todayValue = ref.watch(todayPrayerProvider);
+      if (todayValue case AsyncError(:final error, :final stackTrace)) {
+        return AsyncError(error, stackTrace);
+      }
+      if (!todayValue.hasValue) return const AsyncLoading();
+
+      final memoryValue = ref.watch(dailyMemoryProvider);
+      if (memoryValue case AsyncError(:final error, :final stackTrace)) {
+        return AsyncError(error, stackTrace);
+      }
+      if (!memoryValue.hasValue) return const AsyncLoading();
+
+      final observedToday = todayValue.value;
+      final observedMemory = memoryValue.value;
       final today = observedToday?.localDate == date ? observedToday : null;
       final memory = observedMemory?.localDate == date ? observedMemory : null;
-      var prayed = false;
-      if (today != null) {
-        prayed = await ref.watch(
-          prayerSessionForDateProvider((today.prayer.reference, date)).future,
-        );
+
+      if (today == null) {
+        return AsyncData(_projectDailyPractices(null, memory, prayed: false));
       }
-      return _projectDailyPractices(today, memory, prayed: prayed);
+
+      final sessionValue = ref.watch(
+        prayerSessionForDateProvider((today.prayer.reference, date)),
+      );
+      if (sessionValue case AsyncError(:final error, :final stackTrace)) {
+        return AsyncError(error, stackTrace);
+      }
+      if (!sessionValue.hasValue) return const AsyncLoading();
+
+      return AsyncData(
+        _projectDailyPractices(
+          today,
+          memory,
+          prayed: sessionValue.requireValue,
+        ),
+      );
     });
 
 DailyPracticeState _projectDailyPractices(
