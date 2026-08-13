@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Raw color primitives. Product UI should consume [AppColors] instead.
 abstract final class AppPalette {
-  static const warm50 = Color(0xFFFBFAF7);
+  static const warm50 = Color(0xFFF7F1E5);
   static const white = Color(0xFFFFFFFF);
   static const sage50 = Color(0xFFF2F5F2);
   static const forest950 = Color(0xFF1C2620);
@@ -15,7 +15,7 @@ abstract final class AppPalette {
   static const stone500 = Color(0xFF8B8375);
   static const sage200 = Color(0xFFDDE3DE);
   static const red700 = Color(0xFFB3261E);
-  static const warm950 = Color(0xFF111713);
+  static const warm950 = Color(0xFF171B18);
   static const forest900 = Color(0xFF17211B);
   static const forest800 = Color(0xFF223129);
   static const sage100 = Color(0xFFE8EEE9);
