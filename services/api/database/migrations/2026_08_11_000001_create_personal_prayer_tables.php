@@ -155,7 +155,55 @@ return new class extends Migration
             return;
         }
 
-        throw new LogicException('Personal prayer integrity checks require SQLite or PostgreSQL.');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            $this->createMariaDbIntegrityChecks();
+
+            return;
+        }
+
+        throw new LogicException('Unsupported database for personal prayer integrity checks.');
+    }
+
+    private function createMariaDbIntegrityChecks(): void
+    {
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER today_prayers_exactly_one_source_insert
+            BEFORE INSERT ON today_prayers FOR EACH ROW
+            BEGIN
+                IF (NEW.prayer_id IS NULL) = (NEW.personal_prayer_id IS NULL) THEN
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'today_prayers requires exactly one source';
+                END IF;
+            END
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER today_prayers_exactly_one_source_update
+            BEFORE UPDATE ON today_prayers FOR EACH ROW
+            BEGIN
+                IF (NEW.prayer_id IS NULL) = (NEW.personal_prayer_id IS NULL) THEN
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'today_prayers requires exactly one source';
+                END IF;
+            END
+        SQL);
+        foreach (['insert' => 'INSERT', 'update' => 'UPDATE'] as $suffix => $event) {
+            DB::unprepared(<<<SQL
+                CREATE TRIGGER personal_prayer_links_shape_{$suffix}
+                BEFORE {$event} ON personal_prayer_links FOR EACH ROW
+                BEGIN
+                    IF NOT (
+                        (NEW.link_type = 'encounter' AND NEW.encounter_id IS NOT NULL
+                         AND NEW.translation IS NULL AND NEW.book IS NULL
+                         AND NEW.chapter IS NULL AND NEW.first_verse IS NULL AND NEW.last_verse IS NULL)
+                        OR
+                        (NEW.link_type = 'scripture' AND NEW.encounter_id IS NULL
+                         AND NEW.translation IS NOT NULL AND NEW.book IS NOT NULL
+                         AND NEW.chapter IS NOT NULL AND NEW.first_verse IS NOT NULL
+                         AND NEW.last_verse IS NOT NULL AND NEW.last_verse >= NEW.first_verse)
+                    ) THEN
+                        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'invalid personal prayer link';
+                    END IF;
+                END
+            SQL);
+        }
     }
 
     private function dropIntegrityChecks(): void
@@ -171,6 +219,15 @@ return new class extends Migration
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE today_prayers DROP CONSTRAINT IF EXISTS today_prayers_exactly_one_source');
             DB::statement('ALTER TABLE personal_prayer_links DROP CONSTRAINT IF EXISTS personal_prayer_links_shape');
+
+            return;
+        }
+
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::unprepared('DROP TRIGGER IF EXISTS today_prayers_exactly_one_source_insert');
+            DB::unprepared('DROP TRIGGER IF EXISTS today_prayers_exactly_one_source_update');
+            DB::unprepared('DROP TRIGGER IF EXISTS personal_prayer_links_shape_insert');
+            DB::unprepared('DROP TRIGGER IF EXISTS personal_prayer_links_shape_update');
         }
     }
 };

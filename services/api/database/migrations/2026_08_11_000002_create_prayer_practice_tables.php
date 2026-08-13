@@ -130,7 +130,49 @@ return new class extends Migration
             return;
         }
 
-        throw new LogicException('Prayer practice integrity checks require SQLite or PostgreSQL.');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            $this->createMariaDbIntegrityChecks();
+
+            return;
+        }
+
+        throw new LogicException('Unsupported database for prayer practice integrity checks.');
+    }
+
+    private function createMariaDbIntegrityChecks(): void
+    {
+        foreach (['insert' => 'INSERT', 'update' => 'UPDATE'] as $suffix => $event) {
+            DB::unprepared(<<<SQL
+                CREATE TRIGGER prayer_reminders_shape_{$suffix}
+                BEFORE {$event} ON prayer_reminders FOR EACH ROW
+                BEGIN
+                    IF NOT (
+                        (NEW.schedule_type = 'once' AND NEW.once_at IS NOT NULL AND NEW.weekdays_mask IS NULL)
+                        OR (NEW.schedule_type = 'daily' AND NEW.once_at IS NULL AND NEW.weekdays_mask IS NULL)
+                        OR (NEW.schedule_type = 'weekdays' AND NEW.once_at IS NULL
+                            AND NEW.weekdays_mask BETWEEN 1 AND 127)
+                    ) THEN
+                        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'invalid prayer reminder schedule';
+                    END IF;
+                END
+            SQL);
+        }
+        foreach (['insert' => 'INSERT', 'update' => 'UPDATE'] as $suffix => $event) {
+            DB::unprepared(<<<SQL
+                CREATE TRIGGER prayer_sessions_shape_{$suffix}
+                BEFORE {$event} ON prayer_sessions FOR EACH ROW
+                BEGIN
+                    IF NOT (
+                        (NEW.source = 'manual' AND NEW.reminder_id IS NULL
+                            AND NEW.reminder_occurrence_key IS NULL)
+                        OR (NEW.source = 'reminder' AND NEW.reminder_id IS NOT NULL
+                            AND NEW.reminder_occurrence_key IS NOT NULL)
+                    ) THEN
+                        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'invalid prayer session source';
+                    END IF;
+                END
+            SQL);
+        }
     }
 
     private function dropIntegrityChecks(): void
@@ -146,6 +188,15 @@ return new class extends Migration
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE prayer_sessions DROP CONSTRAINT IF EXISTS prayer_sessions_shape');
             DB::statement('ALTER TABLE prayer_reminders DROP CONSTRAINT IF EXISTS prayer_reminders_shape');
+
+            return;
+        }
+
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_reminders_shape_insert');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_reminders_shape_update');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_sessions_shape_insert');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_sessions_shape_update');
         }
     }
 };

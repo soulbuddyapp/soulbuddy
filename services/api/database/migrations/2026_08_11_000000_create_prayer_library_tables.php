@@ -71,8 +71,41 @@ return new class extends Migration
         match (DB::getDriverName()) {
             'sqlite' => $this->createSqliteVoteCountTriggers(),
             'pgsql' => $this->createPostgresVoteCountTriggers(),
-            default => throw new LogicException('Prayer vote count triggers require SQLite or PostgreSQL.'),
+            'mysql', 'mariadb' => $this->createMariaDbVoteCountTriggers(),
+            default => throw new LogicException('Unsupported database for prayer vote count triggers.'),
         };
+    }
+
+    private function createMariaDbVoteCountTriggers(): void
+    {
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER prayer_votes_helpful_count_after_insert
+            AFTER INSERT ON prayer_votes FOR EACH ROW
+            UPDATE library_prayers
+            SET helpful_count = helpful_count + 1
+            WHERE id = NEW.prayer_id
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER prayer_votes_helpful_count_after_delete
+            AFTER DELETE ON prayer_votes FOR EACH ROW
+            UPDATE library_prayers
+            SET helpful_count = GREATEST(helpful_count - 1, 0)
+            WHERE id = OLD.prayer_id
+        SQL);
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER prayer_votes_helpful_count_after_update
+            AFTER UPDATE ON prayer_votes FOR EACH ROW
+            BEGIN
+                IF OLD.prayer_id <> NEW.prayer_id THEN
+                    UPDATE library_prayers
+                    SET helpful_count = GREATEST(helpful_count - 1, 0)
+                    WHERE id = OLD.prayer_id;
+                    UPDATE library_prayers
+                    SET helpful_count = helpful_count + 1
+                    WHERE id = NEW.prayer_id;
+                END IF;
+            END
+        SQL);
     }
 
     private function createSqliteVoteCountTriggers(): void
@@ -234,6 +267,14 @@ return new class extends Migration
             DB::unprepared('DROP FUNCTION IF EXISTS refresh_prayer_helpful_counts_after_vote_insert()');
             DB::unprepared('DROP FUNCTION IF EXISTS refresh_prayer_helpful_counts_after_vote_delete()');
             DB::unprepared('DROP FUNCTION IF EXISTS refresh_prayer_helpful_counts_after_vote_update()');
+
+            return;
+        }
+
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_insert');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_delete');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_votes_helpful_count_after_update');
         }
     }
 };

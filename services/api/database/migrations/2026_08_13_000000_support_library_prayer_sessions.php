@@ -84,7 +84,13 @@ return new class extends Migration
             return;
         }
 
-        throw new LogicException('Prayer session integrity checks require SQLite or PostgreSQL.');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            $this->createMariaDbIntegrityChecks($this->sessionShape('NEW.'));
+
+            return;
+        }
+
+        throw new LogicException('Unsupported database for prayer session integrity checks.');
     }
 
     private function createLegacyIntegrityChecks(): void
@@ -114,7 +120,40 @@ return new class extends Migration
             return;
         }
 
-        throw new LogicException('Prayer session integrity checks require SQLite or PostgreSQL.');
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            $this->createMariaDbIntegrityChecks(
+                $this->legacySessionShape('NEW.'),
+                includeUpdate: false,
+            );
+
+            return;
+        }
+
+        throw new LogicException('Unsupported database for prayer session integrity checks.');
+    }
+
+    private function createMariaDbIntegrityChecks(string $shape, bool $includeUpdate = true): void
+    {
+        DB::unprepared(<<<SQL
+            CREATE TRIGGER prayer_sessions_shape_insert
+            BEFORE INSERT ON prayer_sessions FOR EACH ROW
+            BEGIN
+                IF NOT ({$shape}) THEN
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'invalid prayer session source';
+                END IF;
+            END
+        SQL);
+        if ($includeUpdate) {
+            DB::unprepared(<<<SQL
+                CREATE TRIGGER prayer_sessions_shape_update
+                BEFORE UPDATE ON prayer_sessions FOR EACH ROW
+                BEGIN
+                    IF NOT ({$shape}) THEN
+                        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'invalid prayer session source';
+                    END IF;
+                END
+            SQL);
+        }
     }
 
     private function dropIntegrityChecks(): void
@@ -128,6 +167,13 @@ return new class extends Migration
 
         if (DB::getDriverName() === 'pgsql') {
             DB::statement('ALTER TABLE prayer_sessions DROP CONSTRAINT IF EXISTS prayer_sessions_shape');
+
+            return;
+        }
+
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_sessions_shape_insert');
+            DB::unprepared('DROP TRIGGER IF EXISTS prayer_sessions_shape_update');
         }
     }
 
