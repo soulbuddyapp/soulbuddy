@@ -43,6 +43,7 @@ abstract interface class AudioAssetStore {
     required String mimeType,
   });
 
+  Future<void> discardTemporary(String locator);
   Future<AudioPlaybackSource?> open(String storageKey);
   Future<void> delete(String storageKey);
 

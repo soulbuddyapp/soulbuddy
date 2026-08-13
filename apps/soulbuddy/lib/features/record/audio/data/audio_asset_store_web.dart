@@ -84,6 +84,14 @@ class WebAudioAssetStore implements AudioAssetStore {
   }
 
   @override
+  Future<void> discardTemporary(String locator) async {
+    if (!locator.startsWith('blob:') || locator.length > 4096) {
+      throw ArgumentError.value(locator, 'locator');
+    }
+    await _releaseTemporary(locator);
+  }
+
+  @override
   Future<AudioPlaybackSource?> open(String storageKey) async {
     _validateStorageKey(storageKey);
     final database = await _openDatabase();

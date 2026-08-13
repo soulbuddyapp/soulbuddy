@@ -112,6 +112,18 @@ void main() {
         store.allocateTemporary(takeId: '../escape', extension: 'm4a'),
         throwsArgumentError,
       );
+
+      final take = await store.allocateTemporary(
+        takeId: 'discard-me',
+        extension: 'm4a',
+      );
+      await File(take.locator).writeAsBytes([1]);
+      await store.discardTemporary(take.locator);
+      expect(await File(take.locator).exists(), isFalse);
+      await expectLater(
+        store.discardTemporary('${root.path}/outside.m4a'),
+        throwsArgumentError,
+      );
     },
   );
 
@@ -276,6 +288,10 @@ void main() {
         ),
         throwsArgumentError,
       );
+
+      await store.discardTemporary('blob:first');
+      expect(released, ['blob:first']);
+      expect(temporaryBytes.containsKey('blob:first'), isFalse);
     });
   });
 }

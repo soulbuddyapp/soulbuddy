@@ -82,6 +82,15 @@ class IoAudioAssetStore implements AudioAssetStore {
   }
 
   @override
+  Future<void> discardTemporary(String locator) async {
+    _requireLexicallyWithin(_temporaryAudio.path, locator, 'temporary audio');
+    final file = File(locator);
+    if (!await file.exists()) return;
+    await _requireExistingWithin(_temporaryAudio, file, 'temporary audio');
+    await file.delete();
+  }
+
+  @override
   Future<AudioPlaybackSource?> open(String storageKey) async {
     final file = File(_durablePath(storageKey));
     if (!await file.exists()) return null;
