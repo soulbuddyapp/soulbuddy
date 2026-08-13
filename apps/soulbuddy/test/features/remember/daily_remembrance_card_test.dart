@@ -40,6 +40,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Remember today'), findsOneWidget);
+    expect(find.byKey(const Key('daily-memory-incised-mark')), findsOneWidget);
     expect(find.text('A promise before God'), findsOneWidget);
     expect(find.text('Return to this'), findsOneWidget);
     expect(find.text('Remembered'), findsOneWidget);

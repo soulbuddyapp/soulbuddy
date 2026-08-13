@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/design/app_spacing.dart';
-import '../../../core/presentation/living_vine.dart';
-
 class PrayerLibraryIntro extends StatelessWidget {
   const PrayerLibraryIntro({required this.onPersonalized, super.key});
 
@@ -10,67 +7,41 @@ class PrayerLibraryIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.primaryContainer,
-        borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 76,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: 0.72),
-                  borderRadius: BorderRadius.circular(
-                    AppSpacing.componentRadius,
-                  ),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-                  child: LivingVine(
-                    key: Key('prayers-living-vine'),
-                    variant: LivingVineVariant.leaf,
-                    height: 56,
-                  ),
-                ),
-              ),
+    final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<_PrayerPath>(
+        showSelectedIcon: false,
+        segments: [
+          ButtonSegment(
+            value: _PrayerPath.library,
+            icon: largeText ? null : const Icon(Icons.menu_book_outlined),
+            label: const SizedBox(
+              key: Key('library-choice'),
+              height: 48,
+              child: Center(child: Text('Library')),
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Prayer is communion',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'Choose words that help you turn toward God, surrender '
-                    'your desires, and carry faith into action.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  TextButton.icon(
-                    key: const Key('personalized-choice'),
-                    onPressed: onPersonalized,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Create personalized'),
-                  ),
-                ],
-              ),
+          ),
+          ButtonSegment(
+            value: _PrayerPath.personalized,
+            icon: largeText ? null : const Icon(Icons.edit_outlined),
+            label: const SizedBox(
+              key: Key('personalized-choice'),
+              height: 48,
+              child: Center(child: Text('Personalized')),
             ),
-          ],
+          ),
+        ],
+        selected: const {_PrayerPath.library},
+        onSelectionChanged: (selection) {
+          if (selection.contains(_PrayerPath.personalized)) onPersonalized();
+        },
+        style: const ButtonStyle(
+          minimumSize: WidgetStatePropertyAll(Size(0, 48)),
         ),
       ),
     );
   }
 }
+
+enum _PrayerPath { library, personalized }

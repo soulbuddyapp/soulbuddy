@@ -60,7 +60,7 @@ void main() {
 
     await tester.tap(find.text('Prayers').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Create personalized'));
+    await tester.tap(find.byKey(const Key('personalized-choice')));
     await tester.pumpAndSettle();
 
     expect(find.text('Choose a prayer style'), findsOneWidget);

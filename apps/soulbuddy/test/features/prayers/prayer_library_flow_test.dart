@@ -32,16 +32,18 @@ void main() {
     await _pumpFlow(tester, repository: repository);
 
     expect(find.text('Prayers'), findsOneWidget);
-    expect(find.byKey(const Key('prayers-living-vine')), findsOneWidget);
-    expect(find.text('Prayer is communion'), findsOneWidget);
-    expect(
-      find.text(
-        'Choose words that help you turn toward God, surrender your desires, and carry faith into action.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Create personalized'), findsOneWidget);
+    expect(find.byKey(const Key('prayers-living-vine')), findsNothing);
+    expect(find.text('Prayer is communion'), findsNothing);
+    expect(find.text('Library'), findsOneWidget);
+    expect(find.text('Personalized'), findsOneWidget);
+    expect(find.byKey(const Key('personalized-choice')), findsOneWidget);
     expect(find.byKey(const Key('prayer-filter-disclosure')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Library')).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('prayer-filter-disclosure'))).dy,
+      ),
+    );
     expect(find.text('Refine the library'), findsOneWidget);
     expect(find.byKey(const Key('grounding-general-christian')), findsNothing);
     await tester.scrollUntilVisible(
@@ -50,6 +52,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('For my family'), findsOneWidget);
+    _expectNoRejectedVisualLanguage(tester);
 
     await tester.ensureVisible(
       find.byKey(const Key('prayer-filter-disclosure')),
@@ -314,6 +317,27 @@ void main() {
     );
     expect(find.text('For my family'), findsOneWidget);
   });
+}
+
+void _expectNoRejectedVisualLanguage(WidgetTester tester) {
+  final copy = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((widget) => widget.data ?? '')
+      .join(' ')
+      .toLowerCase();
+  for (final word in [
+    'vine',
+    'branch',
+    'blossom',
+    'fruit',
+    'olive tree',
+    'memorial stone',
+    'score',
+    'streak',
+    'leaderboard',
+  ]) {
+    expect(copy, isNot(contains(word)));
+  }
 }
 
 GoRouter _prayersOnlyRouter() {

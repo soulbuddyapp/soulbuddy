@@ -19,7 +19,11 @@ void main() {
     await _pumpCircles(tester, repository: repository);
 
     expect(find.text('Circles'), findsOneWidget);
-    expect(find.byKey(const Key('circles-living-vine')), findsOneWidget);
+    expect(find.byKey(const Key('circles-living-vine')), findsNothing);
+    expect(
+      find.byKey(const Key('circles-gathered-inscription')),
+      findsOneWidget,
+    );
     expect(find.text('A private place to begin'), findsOneWidget);
     expect(find.text('Only you · saved on this device'), findsOneWidget);
     expect(find.text('Create a Circle'), findsOneWidget);
@@ -27,6 +31,14 @@ void main() {
       find.byKey(const Key('create-circle')).hitTestable(),
       findsOneWidget,
     );
+    final copy = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((widget) => widget.data ?? '')
+        .join(' ')
+        .toLowerCase();
+    for (final word in ['vine', 'branch', 'blossom', 'fruit', 'olive tree']) {
+      expect(copy, isNot(contains(word)));
+    }
     final viewportHeight =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
     expect(

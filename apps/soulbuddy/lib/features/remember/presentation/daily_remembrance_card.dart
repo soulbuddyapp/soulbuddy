@@ -8,6 +8,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
+import '../../../core/presentation/covenant_marks.dart';
 import '../../record/domain/encounter.dart';
 import '../domain/daily_memory.dart';
 import '../providers/daily_memory_providers.dart';
@@ -66,7 +67,11 @@ class _DailyRemembranceCardState extends ConsumerState<DailyRemembranceCard> {
                 daily.memory.title,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
+              const CovenantIncisedDivider(
+                key: Key('daily-memory-incised-mark'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
               if (daily.status == DailyMemoryStatus.active)
                 Wrap(
                   spacing: AppSpacing.sm,

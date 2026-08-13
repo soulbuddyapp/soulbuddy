@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
+import '../../../core/presentation/covenant_marks.dart';
 import '../../record/domain/encounter.dart';
 
 class EncounterListTile extends StatelessWidget {
@@ -30,6 +31,12 @@ class EncounterListTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
+                  if (encounter.memoryType == MemoryType.promise) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    const CovenantPairedSlabMark(
+                      key: Key('promise-paired-slab-mark'),
+                    ),
+                  ],
                   if (encounter.isAltar) ...[
                     const SizedBox(width: AppSpacing.sm),
                     DecoratedBox(
@@ -59,6 +66,7 @@ class EncounterListTile extends StatelessWidget {
                   context,
                 ).textTheme.labelMedium?.copyWith(color: AppColors.inkMuted),
               ),
+              const CovenantIncisedDivider(),
               if (encounter.sensitive) ...[
                 const SizedBox(height: AppSpacing.sm),
                 const Text('Sensitive memory'),

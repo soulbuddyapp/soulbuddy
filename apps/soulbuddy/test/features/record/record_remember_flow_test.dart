@@ -13,7 +13,7 @@ import 'package:soulbuddy/features/remember/presentation/memory_detail_screen.da
 import '../../helpers/in_memory_encounter_repository.dart';
 
 void main() {
-  testWidgets('gives an empty Remember screen a memorial visual', (
+  testWidgets('gives an empty Remember screen one quiet incised mark', (
     tester,
   ) async {
     final repository = InMemoryEncounterRepository();
@@ -28,8 +28,52 @@ void main() {
     );
     await _settle(tester);
 
-    expect(find.byKey(const Key('remember-living-vine')), findsOneWidget);
+    expect(find.byKey(const Key('remember-living-vine')), findsNothing);
+    expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
     expect(find.text('Record something'), findsOneWidget);
+  });
+
+  testWidgets('empty Remember action fits above shell navigation', (
+    tester,
+  ) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: const RememberScreen(),
+            bottomNavigationBar: NavigationBar(
+              key: const Key('test-shell-navigation'),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.history_outlined),
+                  label: 'Remember',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  label: 'Settings',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    expect(
+      tester.getBottomLeft(find.text('Record something')).dy,
+      lessThanOrEqualTo(
+        tester.getTopLeft(find.byKey(const Key('test-shell-navigation'))).dy,
+      ),
+    );
+    expect(find.text('Record something').hitTestable(), findsOneWidget);
   });
 
   testWidgets('records an encounter and shows it in Remember immediately', (
@@ -204,7 +248,9 @@ void main() {
     await _settle(tester);
 
     expect(find.text('Sensitive memory'), findsOneWidget);
-    expect(find.byKey(const Key('remember-living-vine')), findsOneWidget);
+    expect(find.byKey(const Key('remember-living-vine')), findsNothing);
+    expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
+    expect(find.byKey(const Key('promise-paired-slab-mark')), findsOneWidget);
     expect(find.text('A sensitive detail'), findsNothing);
     await tester.enterText(find.byKey(const Key('remember-search')), 'promise');
     await _settle(tester);

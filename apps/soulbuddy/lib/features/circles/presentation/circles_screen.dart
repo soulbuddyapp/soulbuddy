@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
-import '../../../core/presentation/living_vine.dart';
+import '../../../core/presentation/covenant_marks.dart';
 import '../domain/circle.dart';
 import '../providers/circle_providers.dart';
 import 'create_circle_sheet.dart';
@@ -73,56 +73,45 @@ class _CirclesStartGuide extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const GatheredInscriptionMark(
+          key: Key('circles-gathered-inscription'),
+          height: 64,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'A private place to begin',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        const Text(
+          'Keep a prayer need, encouragement, or Scripture here.',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              children: [
-                const SizedBox(
-                  width: 80,
-                  child: LivingVine(
-                    key: Key('circles-living-vine'),
-                    variant: LivingVineVariant.intertwined,
-                    height: 48,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    'A private place to begin',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            const Text('Keep a prayer need, encouragement, or Scripture here.'),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.lock_outline, size: 18, color: colors.primary),
-                const SizedBox(width: AppSpacing.xs),
-                const Flexible(child: Text('Only you · saved on this device')),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            FilledButton.icon(
-              key: const Key('create-circle'),
-              onPressed: onCreate,
-              icon: const Icon(Icons.add),
-              label: const Text('Create a Circle'),
-            ),
-            const SizedBox(
-              key: Key('circles-start-guide-end'),
-              height: AppSpacing.xs,
-            ),
+            Icon(Icons.lock_outline, size: 18, color: colors.primary),
+            const SizedBox(width: AppSpacing.xs),
+            const Flexible(child: Text('Only you · saved on this device')),
           ],
         ),
-      ),
+        const SizedBox(height: AppSpacing.md),
+        FilledButton.icon(
+          key: const Key('create-circle'),
+          onPressed: onCreate,
+          icon: const Icon(Icons.add),
+          label: const Text('Create a Circle'),
+        ),
+        const SizedBox(
+          key: Key('circles-start-guide-end'),
+          height: AppSpacing.xs,
+        ),
+      ],
     );
   }
 }
