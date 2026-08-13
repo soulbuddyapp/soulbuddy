@@ -84,6 +84,7 @@ final personalPrayerProvider = StreamProvider.autoDispose
 final prayerGenerationWorkerProvider = FutureProvider<PrayerGenerationWorker>((
   ref,
 ) async {
+  await ref.watch(installationSessionBootstrapProvider.future);
   final worker = PrayerGenerationWorker(
     repository: await ref.watch(prayerGenerationRepositoryProvider.future),
     dispatcher: await ref.watch(prayerGenerationDispatcherProvider.future),

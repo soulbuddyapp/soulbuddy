@@ -517,6 +517,16 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
   }
 
   @override
+  Future<void> saveNarrationPreference({
+    required String reminderId,
+    required bool consentAccepted,
+    required bool autoplayWhenOpened,
+    String? revisionId,
+    List<int>? bytes,
+    String? contentType,
+  }) async {}
+
+  @override
   Future<void> updateDeviceSchedule({
     required String reminderId,
     required DateTime? nextOccurrenceAt,

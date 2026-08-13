@@ -280,6 +280,11 @@ const appSchema = Schema([
       Column.text('scheduled_timezone'),
       Column.text('snoozed_until'),
       Column.text('dismissed_occurrence_key'),
+      Column.integer('narration_consent_accepted'),
+      Column.integer('autoplay_when_opened'),
+      Column.text('narration_revision_id'),
+      Column.text('narration_bytes'),
+      Column.text('narration_content_type'),
       Column.text('updated_at'),
     ],
     indexes: [

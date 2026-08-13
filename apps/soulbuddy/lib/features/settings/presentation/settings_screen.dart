@@ -184,8 +184,9 @@ class _SoundTouchSettings extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Prayer narration is separate and never starts automatically. '
-          'Notification sound is controlled by your device.',
+          'Prayer narration is separate from feedback sounds. It can play only '
+          'after you opt in for a saved prayer and open its reminder; system '
+          'notifications remain silent.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),

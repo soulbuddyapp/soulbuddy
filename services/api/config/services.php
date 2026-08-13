@@ -39,6 +39,15 @@ return [
         'disclosure_version' => env('PRAYER_DRAFT_DISCLOSURE_VERSION', 'deepseek-1'),
     ],
 
+    'deepgram' => [
+        'key' => env('DEEPGRAM_API_KEY'),
+        'base_url' => env('DEEPGRAM_BASE_URL', 'https://api.deepgram.com'),
+        'model' => env('DEEPGRAM_TTS_MODEL', 'aura-2-thalia-en'),
+        'encoding' => env('DEEPGRAM_TTS_ENCODING', 'mp3'),
+        'bit_rate' => (int) env('DEEPGRAM_TTS_BIT_RATE', 32000),
+        'disclosure_version' => env('PRAYER_NARRATION_DISCLOSURE_VERSION', 'deepgram-aura2-1'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

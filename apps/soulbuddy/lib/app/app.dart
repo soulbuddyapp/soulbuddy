@@ -8,6 +8,7 @@ import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
 import '../features/record/audio/providers/memory_audio_providers.dart';
+import '../core/identity/local_identity_providers.dart';
 import 'router.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
@@ -18,6 +19,7 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(prayerGenerationWorkerProvider);
     ref.watch(prayerReminderCoordinatorProvider);
     ref.watch(memoryAudioStartupCleanupProvider);
+    ref.watch(installationSessionBootstrapProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         appRouter.go('/prayers/saved/${occurrence!.reminder.personalPrayerId}');

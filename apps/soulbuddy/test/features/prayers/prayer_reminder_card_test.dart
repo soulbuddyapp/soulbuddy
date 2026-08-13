@@ -61,6 +61,51 @@ void main() {
     expect(find.text('2 prayer reminders due'), findsOneWidget);
   });
 
+  testWidgets('plays cached narration without writing a prayer session', (
+    tester,
+  ) async {
+    var playbackCalls = 0;
+    var actionCalls = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          duePrayerOccurrencesProvider.overrideWith((ref) async* {
+            yield [_occurrence(1, true)];
+          }),
+          playReminderNarrationProvider.overrideWithValue((
+            occurrence, {
+            required explicit,
+          }) async {
+            expect(explicit, isTrue);
+            playbackCalls++;
+          }),
+          prayerReminderActionProvider.overrideWithValue((
+            occurrence,
+            action,
+          ) async {
+            actionCalls++;
+            return null;
+          }),
+          appFeedbackPreferencesProvider.overrideWith(
+            (ref) => Stream.value(AppFeedbackPreferences.defaults),
+          ),
+          appFeedbackServiceProvider.overrideWithValue(
+            AppFeedbackService(driver: _RecordingDriver()),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: PrayerReminderCardHost()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Play prayer'), findsOneWidget);
+    await tester.tap(find.text('Play prayer'));
+    await tester.pumpAndSettle();
+    expect(playbackCalls, 1);
+    expect(actionCalls, 0);
+  });
+
   testWidgets('dismiss is kept in the overflow menu', (tester) async {
     final actions = <PrayerReminderAction>[];
     await tester.pumpWidget(
@@ -388,7 +433,10 @@ Widget _compactApp(
   ),
 );
 
-DuePrayerOccurrence _occurrence([int sequence = 1]) {
+DuePrayerOccurrence _occurrence([
+  int sequence = 1,
+  bool withNarration = false,
+]) {
   final at = DateTime.utc(2026, 8, 11, 18);
   return DuePrayerOccurrence(
     reminder: PrayerReminder(
@@ -412,6 +460,11 @@ DuePrayerOccurrence _occurrence([int sequence = 1]) {
       platformNotificationId: 77,
       scheduledTimezone: 'Africa/Lagos',
       updatedAt: at,
+      narrationConsentAccepted: withNarration,
+      autoplayWhenOpened: withNarration,
+      narrationRevisionId: withNarration ? 'revision-1' : null,
+      narrationBytes: withNarration ? const [1, 2, 3] : null,
+      narrationContentType: withNarration ? 'audio/mpeg' : null,
     ),
     prayerTitle: 'Evening prayer',
     prayerBody: 'Father, keep this private body hidden.',

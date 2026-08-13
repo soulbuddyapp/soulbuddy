@@ -1,10 +1,16 @@
 <?php
 
+use App\Http\Controllers\Api\InstallationSessionController;
 use App\Http\Controllers\Api\PowerSyncTokenController;
 use App\Http\Controllers\Api\PrayerDraftAttemptController;
 use App\Http\Controllers\Api\PrayerDraftController;
+use App\Http\Controllers\Api\PrayerNarrationController;
+use App\Http\Controllers\Api\PrayerNarrationPlaybackController;
 use App\Http\Controllers\Api\SyncMutationController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/installations/session', InstallationSessionController::class)
+    ->middleware('throttle:installation-sessions');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sync/token', PowerSyncTokenController::class);
@@ -12,4 +18,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/prayer-drafts', PrayerDraftController::class)
         ->middleware('throttle:prayer-drafts');
     Route::delete('/prayer-drafts/{attemptId}', PrayerDraftAttemptController::class);
+    Route::post('/prayer-narrations', PrayerNarrationController::class)
+        ->middleware('throttle:prayer-narrations');
+    Route::get('/prayer-narrations/{revision}/{hash}', PrayerNarrationPlaybackController::class)
+        ->middleware('signed')
+        ->name('prayer-narrations.playback');
 });

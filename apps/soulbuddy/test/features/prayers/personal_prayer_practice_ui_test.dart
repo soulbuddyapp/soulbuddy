@@ -86,6 +86,63 @@ void main() {
     expect(find.text('Test reminder'), findsOneWidget);
     expect(find.text('Pause on this device'), findsOneWidget);
     expect(find.text('Remove reminder'), findsOneWidget);
+    expect(find.text('Play prayer when opened'), findsOneWidget);
+  });
+
+  testWidgets('prepares narration before enabling automatic playback', (
+    tester,
+  ) async {
+    final repository = _PracticeRepository();
+    final calls =
+        <
+          ({
+            String reminderId,
+            String personalPrayerId,
+            String revisionId,
+            bool autoplay,
+          })
+        >[];
+    await tester.pumpWidget(
+      _app(
+        repository,
+        reminder: _reminder(
+          PrayerReminderSchedule.daily(
+            localTime: PrayerLocalTime(hour: 7, minute: 30),
+            timezone: 'Africa/Lagos',
+          ),
+        ),
+        prepareNarration:
+            ({
+              required reminderId,
+              required personalPrayerId,
+              required revisionId,
+              required autoplay,
+            }) async {
+              calls.add((
+                reminderId: reminderId,
+                personalPrayerId: personalPrayerId,
+                revisionId: revisionId,
+                autoplay: autoplay,
+              ));
+            },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Every day at 7:30 AM'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Play prayer when opened'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Prayer narration uses Deepgram to create a private cached reading of this saved prayer.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Accept and prepare'));
+    await tester.pumpAndSettle();
+    expect(calls.single.revisionId, 'revision-1');
+    expect(calls.single.autoplay, isTrue);
   });
 
   testWidgets('tests, pauses, and removes an existing reminder safely', (
@@ -272,6 +329,13 @@ Widget _app(
   Future<void> Function()? testReminder,
   Future<void> Function(String)? pauseReminder,
   Future<void> Function(String)? removeReminder,
+  Future<void> Function({
+    required String reminderId,
+    required String personalPrayerId,
+    required String revisionId,
+    required bool autoplay,
+  })?
+  prepareNarration,
 }) {
   final prayer = PersonalPrayer(
     id: 'prayer-1',
@@ -313,6 +377,15 @@ Widget _app(
       ),
       prayerReminderRemoveProvider.overrideWithValue(
         removeReminder ?? (id) async {},
+      ),
+      prepareReminderNarrationProvider.overrideWithValue(
+        prepareNarration ??
+            ({
+              required reminderId,
+              required personalPrayerId,
+              required revisionId,
+              required autoplay,
+            }) async {},
       ),
     ],
     child: MaterialApp(
@@ -440,6 +513,15 @@ class _PracticeRepository implements PrayerPracticeRepository {
   Future<void> setDeviceEnabled(
     String reminderId, {
     required bool enabled,
+  }) async {}
+  @override
+  Future<void> saveNarrationPreference({
+    required String reminderId,
+    required bool consentAccepted,
+    required bool autoplayWhenOpened,
+    String? revisionId,
+    List<int>? bytes,
+    String? contentType,
   }) async {}
   @override
   Future<void> updateDeviceSchedule({

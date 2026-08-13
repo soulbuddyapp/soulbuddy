@@ -35,10 +35,15 @@ Prayer text, Encounter titles/bodies, Scripture selections, and Circle messages 
 
 Docker is not installed in this workspace, so no local PowerSync service is started. The real local database and Laravel contract are tested independently. When remote URLs are present, the app opens its local database first and starts PowerSync with the Laravel connector. The connector batches each local PowerSync transaction into one authenticated Laravel request, preserves retryable writes, and records sanitized local issues for permanent rejections. Laravel issues ten-minute PowerSync JWTs with a configured key ID using the authenticated user's immutable public UUID; no name, email, prayer, or Encounter text is included in the token.
 
-Remote activation still depends on the later application-authentication milestone supplying a Laravel session token. Until then, or whenever either remote URL is empty, SoulBuddy stays fully usable in local-only mode.
+On a configured release, SoulBuddy exchanges the installation's existing local owner/device UUIDs and a 256-bit secret held in secure storage for a scoped Laravel session token. The server hashes the installation secret, never logs it, and will not let another device claim an existing owner identity. When the API is not configured or cannot be reached, SoulBuddy remains usable in local-only mode and retries bootstrap on a later app start.
 
 ## Formation guardrails
 
 Local-first performance serves the spiritual purpose: the app should be easy to reach when a person needs to pray, act, or remember. Features are evaluated by whether they support a response to grace, form character, encourage outward love and responsible action, or preserve spiritual memory for the person, family, and those who come after them.
 
 These are qualitative product guardrails, never calculated accounts. Helpful ordering describes the usefulness of shared prayer copy; it is not spiritual rank. SoulBuddy has no spiritual-capital score, points, streak rewards, leaderboard, or achievement dashboard, and practice completion produces no public state or celebratory reward.
+## Prayer narration
+
+Prayer narration is distinct from user-recorded memory audio. SoulBuddy sends only the authenticated user's exact immutable saved-prayer revision to the Laravel API after an explicit disclosure and consent. Laravel creates one Deepgram Aura MP3 per content and voice configuration, encrypts the cached asset in private storage, and returns short-lived authenticated playback access. The app caches the returned bytes in its local-only reminder-device row for offline replay.
+
+`Play prayer when opened` is off until the disclosure is accepted and the exact revision is ready. System notifications remain silent. An in-app reminder may autoplay once only after an explicit open and only when the platform can affirm an appropriate audio route and interruption state; otherwise the visible `Play prayer` button remains available. Playback never creates a prayer session. Only `I prayed this` does.

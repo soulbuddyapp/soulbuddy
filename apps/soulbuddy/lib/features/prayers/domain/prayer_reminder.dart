@@ -192,6 +192,11 @@ class PrayerReminderDevice {
     this.scheduledTimezone,
     this.snoozedUntil,
     this.dismissedOccurrenceKey,
+    this.narrationConsentAccepted = false,
+    this.autoplayWhenOpened = false,
+    this.narrationRevisionId,
+    this.narrationBytes,
+    this.narrationContentType,
   });
 
   final String id;
@@ -203,6 +208,11 @@ class PrayerReminderDevice {
   final String? scheduledTimezone;
   final DateTime? snoozedUntil;
   final String? dismissedOccurrenceKey;
+  final bool narrationConsentAccepted;
+  final bool autoplayWhenOpened;
+  final String? narrationRevisionId;
+  final List<int>? narrationBytes;
+  final String? narrationContentType;
   final DateTime updatedAt;
 
   factory PrayerReminderDevice.fromRow(Map<String, dynamic> row) =>
@@ -216,6 +226,12 @@ class PrayerReminderDevice {
         scheduledTimezone: row['scheduled_timezone'] as String?,
         snoozedUntil: _optionalDate(row['snoozed_until']),
         dismissedOccurrenceKey: row['dismissed_occurrence_key'] as String?,
+        narrationConsentAccepted:
+            (row['narration_consent_accepted'] as int? ?? 0) == 1,
+        autoplayWhenOpened: (row['autoplay_when_opened'] as int? ?? 0) == 1,
+        narrationRevisionId: row['narration_revision_id'] as String?,
+        narrationBytes: _optionalBytes(row['narration_bytes']),
+        narrationContentType: row['narration_content_type'] as String?,
         updatedAt: DateTime.parse(row['updated_at'] as String),
       );
 }
@@ -248,3 +264,8 @@ class DuePrayerOccurrence {
 
 DateTime? _optionalDate(Object? value) =>
     value == null ? null : DateTime.parse(value as String);
+
+List<int>? _optionalBytes(Object? value) {
+  if (value == null) return null;
+  return Uri.parse('data:;base64,$value').data!.contentAsBytes();
+}

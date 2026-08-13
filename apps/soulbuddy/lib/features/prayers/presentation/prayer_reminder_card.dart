@@ -191,6 +191,12 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
                           icon: const Icon(Icons.open_in_new, size: 18),
                           label: const Text('Open prayer'),
                         ),
+                        if (_narrationReady)
+                          _compactAction(
+                            label: 'Play prayer',
+                            icon: Icons.play_arrow,
+                            onPressed: _playNarration,
+                          ),
                         _compactAction(
                           label: 'I prayed this',
                           icon: Icons.check,
@@ -219,13 +225,21 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
     );
   }
 
+  bool get _narrationReady {
+    final device = widget.occurrence.device;
+    return device.narrationRevisionId == widget.occurrence.prayerRevisionId &&
+        device.narrationContentType == 'audio/mpeg' &&
+        (device.narrationBytes?.isNotEmpty ?? false);
+  }
+
   Widget _compactAction({
     required String label,
     required IconData icon,
-    required PrayerReminderAction action,
+    PrayerReminderAction? action,
+    VoidCallback? onPressed,
   }) => OutlinedButton.icon(
     style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-    onPressed: _busy ? null : () => _perform(action),
+    onPressed: _busy ? null : onPressed ?? () => _perform(action!),
     icon: Icon(icon, size: 18),
     label: Text(label),
   );
@@ -247,6 +261,9 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
         displayedOccurrence,
         action,
       );
+      if (action == PrayerReminderAction.open && _narrationReady) {
+        unawaited(_tryAutoplayNarration(displayedOccurrence));
+      }
       if (mounted) setState(() => _busy = false);
       unawaited(
         _emitActionFeedback(
@@ -282,6 +299,38 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
           content: Text('Could not update this reminder just now.'),
         ),
       );
+    }
+  }
+
+  Future<void> _tryAutoplayNarration(DuePrayerOccurrence occurrence) async {
+    try {
+      await ref.read(playReminderNarrationProvider)(
+        occurrence,
+        explicit: false,
+      );
+    } catch (_) {
+      // The visible Play prayer control remains the recoverable path.
+    }
+  }
+
+  Future<void> _playNarration() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(playReminderNarrationProvider)(
+        widget.occurrence,
+        explicit: true,
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Prayer narration is unavailable just now.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

@@ -38,7 +38,7 @@ Personalized requests and their selected context snapshots remain local-only unt
 
 Saved personal prayers can also have one once, daily, or selected-day reminder at a local wall time. The reminder schedule and quiet prayer-session count sync privately, while notification enablement remains specific to each device. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload. When the app is open—or on web, where native delivery is unavailable—the same persisted occurrence appears as a compact in-app card with `Open prayer`, `I prayed this`, `Snooze 10 minutes`, and `Dismiss`.
 
-Confirming a prayer records the exact displayed prayer revision offline and offers a five-minute Undo. Timezone changes preserve the chosen local wall time and reschedule quietly. This release does not include Web Push, narration, publication, streaks, scores, rankings, or claims about the spiritual value of a recorded count.
+Confirming a prayer records the exact displayed prayer revision offline and offers a five-minute Undo. Timezone changes preserve the chosen local wall time and reschedule quietly. A saved personal prayer may use an opt-in Deepgram Aura narration cached privately on the device; system notifications never play it, and playback never records a prayer session. This release does not include Web Push, publication, streaks, scores, rankings, or claims about the spiritual value of a recorded count.
 
 ## Run Laravel
 

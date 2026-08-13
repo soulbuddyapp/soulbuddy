@@ -1,15 +1,25 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../application/prayer_occurrence_calculator.dart';
+import '../application/prayer_audio_environment.dart';
+import '../application/prayer_audio_environment_factory.dart';
+import '../application/prayer_narration_player.dart';
+import '../application/prayer_narration_playback_policy.dart';
 import '../application/prayer_reminder_coordinator.dart';
 import '../application/prayer_reminder_scheduler.dart';
 import '../application/prayer_reminder_scheduler_factory.dart';
 import '../data/powersync_prayer_practice_repository.dart';
+import '../data/laravel_prayer_narration_repository.dart';
+import '../data/prayer_narration_repository.dart';
 import '../data/prayer_practice_repository.dart';
 import '../domain/prayer_reminder.dart';
 import '../domain/prayer_reference.dart';
@@ -18,6 +28,106 @@ import '../domain/prayer_session.dart';
 final prayerPracticeClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
+
+final prayerNarrationRepositoryProvider = Provider<PrayerNarrationRepository>((
+  ref,
+) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  final configured = Uri.tryParse(AppConfig.apiBaseUrl);
+  return LaravelPrayerNarrationRepository(
+    apiBaseUri: configured != null && configured.hasScheme
+        ? configured
+        : Uri.parse('http://127.0.0.1'),
+    accessToken: ref.watch(appSessionTokenReaderProvider),
+    client: client,
+  );
+});
+
+final prayerAudioEnvironmentProvider = Provider<PrayerAudioEnvironment>(
+  (ref) => createPrayerAudioEnvironment(),
+);
+
+final prayerNarrationPlaybackPolicyProvider =
+    Provider<PrayerNarrationPlaybackPolicy>(
+      (ref) => const PrayerNarrationPlaybackPolicy(),
+    );
+
+final prayerNarrationPlayerProvider = Provider<PrayerNarrationPlayer>((ref) {
+  final player = AudioplayersPrayerNarrationPlayer();
+  ref.onDispose(() => unawaited(player.close()));
+  return player;
+});
+
+final prepareReminderNarrationProvider =
+    Provider<
+      Future<void> Function({
+        required String reminderId,
+        required String personalPrayerId,
+        required String revisionId,
+        required bool autoplay,
+      })
+    >((ref) {
+      return ({
+        required reminderId,
+        required personalPrayerId,
+        required revisionId,
+        required autoplay,
+      }) async {
+        final narration = await ref
+            .read(prayerNarrationRepositoryProvider)
+            .prepare(
+              personalPrayerId: personalPrayerId,
+              prayerRevisionId: revisionId,
+              consent: true,
+            );
+        final repository = await ref.read(
+          prayerPracticeRepositoryProvider.future,
+        );
+        await repository.saveNarrationPreference(
+          reminderId: reminderId,
+          consentAccepted: true,
+          autoplayWhenOpened: autoplay,
+          revisionId: narration.revisionId,
+          bytes: narration.bytes,
+          contentType: narration.contentType,
+        );
+      };
+    });
+
+final playReminderNarrationProvider =
+    Provider<
+      Future<void> Function(DuePrayerOccurrence, {required bool explicit})
+    >((ref) {
+      final attempted = <String>{};
+      return (occurrence, {required explicit}) async {
+        final device = occurrence.device;
+        final cached = device.narrationBytes;
+        if (cached == null ||
+            cached.isEmpty ||
+            device.narrationRevisionId != occurrence.prayerRevisionId ||
+            device.narrationContentType != 'audio/mpeg') {
+          throw const PrayerNarrationException('narration_not_ready');
+        }
+        if (!explicit) {
+          final environment = ref.read(prayerAudioEnvironmentProvider);
+          final decision = ref
+              .read(prayerNarrationPlaybackPolicyProvider)
+              .decide(
+                explicitInAppOpen: true,
+                autoplayEnabled: device.autoplayWhenOpened,
+                narrationReady: true,
+                audioRoute: await environment.currentRoute(),
+                interruptionsAllowed: await environment.interruptionsAllowed(),
+                alreadyAttempted: !attempted.add(occurrence.occurrenceKey),
+              );
+          if (decision != PrayerNarrationPlaybackDecision.autoplay) return;
+        }
+        await ref
+            .read(prayerNarrationPlayerProvider)
+            .play(Uint8List.fromList(cached));
+      };
+    });
 
 final prayerDeviceTimezoneProvider = Provider<Future<String> Function()>(
   (ref) =>

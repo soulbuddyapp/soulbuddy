@@ -22,6 +22,14 @@ abstract interface class PrayerPracticeRepository {
 
   Future<void> archiveReminder(String reminderId);
   Future<void> setDeviceEnabled(String reminderId, {required bool enabled});
+  Future<void> saveNarrationPreference({
+    required String reminderId,
+    required bool consentAccepted,
+    required bool autoplayWhenOpened,
+    String? revisionId,
+    List<int>? bytes,
+    String? contentType,
+  });
 
   Future<void> updateDeviceSchedule({
     required String reminderId,

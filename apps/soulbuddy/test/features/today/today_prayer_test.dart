@@ -825,6 +825,15 @@ class _TodayPracticeRepository implements PrayerPracticeRepository {
     required bool enabled,
   }) async {}
   @override
+  Future<void> saveNarrationPreference({
+    required String reminderId,
+    required bool consentAccepted,
+    required bool autoplayWhenOpened,
+    String? revisionId,
+    List<int>? bytes,
+    String? contentType,
+  }) async {}
+  @override
   Future<void> updateDeviceSchedule({
     required String reminderId,
     required DateTime? nextOccurrenceAt,

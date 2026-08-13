@@ -3,6 +3,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
 
 import 'local_identity.dart';
+import '../config/app_config.dart';
+import 'installation_session.dart';
+import 'package:http/http.dart' as http;
 
 const localOwnerIdStorageKey = 'soulbuddy.local_owner_id';
 const deviceIdStorageKey = 'soulbuddy.device_id';
@@ -36,4 +39,19 @@ final localIdentityProvider = FutureProvider<LocalIdentity>((ref) async {
 final appSessionTokenReaderProvider = Provider<AppSessionTokenReader>((ref) {
   final storage = ref.watch(secureStorageProvider);
   return () => storage.read(key: appSessionTokenStorageKey);
+});
+
+final installationSessionBootstrapProvider = FutureProvider<void>((ref) async {
+  final configured = Uri.tryParse(AppConfig.apiBaseUrl);
+  if (configured == null || !configured.hasScheme) return;
+  final storage = ref.watch(secureStorageProvider);
+  final client = http.Client();
+  ref.onDispose(client.close);
+  final bootstrap = InstallationSessionBootstrap(
+    apiBaseUri: configured,
+    read: (key) => storage.read(key: key),
+    write: (key, value) => storage.write(key: key, value: value),
+    client: client,
+  );
+  await bootstrap.ensure(await ref.watch(localIdentityProvider.future));
 });

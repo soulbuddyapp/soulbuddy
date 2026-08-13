@@ -81,6 +81,7 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
   late Set<int> _weekdays;
   bool _saving = false;
   String? _validation;
+  bool? _autoplayOverride;
 
   @override
   void initState() {
@@ -112,6 +113,17 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
     final permissionStatus = ref.watch(
       prayerNotificationPermissionStatusProvider,
     );
+    final reminderDevice = widget.existing == null
+        ? const AsyncValue<PrayerReminderDevice?>.data(null)
+        : ref.watch(prayerReminderDeviceProvider(widget.existing!.id));
+    final device = reminderDevice.value;
+    final readyForDisplayedRevision =
+        device?.narrationRevisionId == widget.prayer.currentRevisionId &&
+        (device?.narrationBytes?.isNotEmpty ?? false) &&
+        device?.narrationContentType == 'audio/mpeg';
+    final autoplay =
+        _autoplayOverride ??
+        ((device?.autoplayWhenOpened ?? false) && readyForDisplayedRevision);
     return PopScope(
       canPop: !_saving,
       child: Padding(
@@ -169,6 +181,23 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                         child: const Text('Remove reminder'),
                       ),
                     ],
+                  ),
+                  const Divider(height: AppSpacing.xl),
+                ],
+                if (widget.existing case final existing?) ...[
+                  SwitchListTile.adaptive(
+                    key: const Key('prayer-reminder-autoplay'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Play prayer when opened'),
+                    subtitle: const Text(
+                      'Uses a private cached narration. System notifications stay silent.',
+                    ),
+                    value: autoplay,
+                    onChanged: _saving
+                        ? null
+                        : (value) => value
+                              ? _acceptNarration(existing)
+                              : _disableNarration(existing, device),
                   ),
                   const Divider(height: AppSpacing.xl),
                 ],
@@ -302,6 +331,87 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
           _validation = 'Could not save this reminder just now.';
         });
       }
+    }
+  }
+
+  Future<void> _acceptNarration(PrayerReminder reminder) async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Prepare prayer narration?'),
+        content: const Text(
+          'Prayer narration uses Deepgram to create a private cached reading of this saved prayer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Accept and prepare'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted) return;
+    setState(() {
+      _saving = true;
+      _validation = null;
+    });
+    try {
+      await ref.read(prepareReminderNarrationProvider)(
+        reminderId: reminder.id,
+        personalPrayerId: widget.prayer.id,
+        revisionId: widget.prayer.currentRevisionId,
+        autoplay: true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _autoplayOverride = true;
+        _saving = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _validation =
+            'Narration could not be prepared just now. The reminder remains available.';
+      });
+    }
+  }
+
+  Future<void> _disableNarration(
+    PrayerReminder reminder,
+    PrayerReminderDevice? device,
+  ) async {
+    setState(() {
+      _saving = true;
+      _validation = null;
+    });
+    try {
+      final repository = await ref.read(
+        prayerPracticeRepositoryProvider.future,
+      );
+      await repository.saveNarrationPreference(
+        reminderId: reminder.id,
+        consentAccepted: device?.narrationConsentAccepted ?? false,
+        autoplayWhenOpened: false,
+        revisionId: device?.narrationRevisionId,
+        bytes: device?.narrationBytes,
+        contentType: device?.narrationContentType,
+      );
+      if (!mounted) return;
+      setState(() {
+        _autoplayOverride = false;
+        _saving = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _validation = 'Could not update narration on this device just now.';
+      });
     }
   }
 

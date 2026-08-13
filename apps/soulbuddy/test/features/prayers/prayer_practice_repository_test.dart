@@ -114,6 +114,76 @@ void main() {
   });
 
   test(
+    'keeps narration consent cache and autoplay local to one device',
+    () async {
+      final database = await _openSeededDatabase(
+        temporaryDirectory,
+        'narration',
+      );
+      addTearDown(database.close);
+      final first = _repository(database);
+      final reminder = await first.saveReminder(
+        personalPrayerId: prayerId,
+        schedule: PrayerReminderSchedule.daily(
+          localTime: PrayerLocalTime(hour: 8, minute: 0),
+          timezone: 'Africa/Lagos',
+        ),
+        enableOnThisDevice: true,
+      );
+
+      await first.saveNarrationPreference(
+        reminderId: reminder.id,
+        consentAccepted: true,
+        autoplayWhenOpened: true,
+        revisionId: revisionId,
+        bytes: [1, 2, 3],
+        contentType: 'audio/mpeg',
+      );
+
+      final saved = await first.watchDevice(reminder.id).first;
+      expect(saved?.narrationConsentAccepted, isTrue);
+      expect(saved?.autoplayWhenOpened, isTrue);
+      expect(saved?.narrationRevisionId, revisionId);
+      expect(saved?.narrationBytes, [1, 2, 3]);
+      final second = _repository(database, deviceId: 'device-2');
+      await second.setDeviceEnabled(reminder.id, enabled: true);
+      expect(
+        (await second.watchDevice(reminder.id).first)?.autoplayWhenOpened,
+        isFalse,
+      );
+      await _drainCrud(database.powersync);
+      expect(await database.powersync.getNextCrudTransaction(), isNull);
+    },
+  );
+
+  test('refuses autoplay without consent and exact cached narration', () async {
+    final database = await _openSeededDatabase(
+      temporaryDirectory,
+      'narration-invalid',
+    );
+    addTearDown(database.close);
+    final repository = _repository(database);
+    final reminder = await repository.saveReminder(
+      personalPrayerId: prayerId,
+      schedule: PrayerReminderSchedule.daily(
+        localTime: PrayerLocalTime(hour: 8, minute: 0),
+        timezone: 'Africa/Lagos',
+      ),
+      enableOnThisDevice: true,
+    );
+    await _drainCrud(database.powersync);
+
+    expect(
+      () => repository.saveNarrationPreference(
+        reminderId: reminder.id,
+        consentAccepted: false,
+        autoplayWhenOpened: true,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test(
     'updates and archives the existing reminder without adding rows',
     () async {
       final database = await _openSeededDatabase(temporaryDirectory, 'replace');

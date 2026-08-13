@@ -3,6 +3,7 @@ import 'package:powersync/sqlite_async.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
 import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
 import '../domain/prayer_reminder.dart';
 import '../domain/prayer_reference.dart';
@@ -92,6 +93,11 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
             device.scheduled_timezone,
             device.snoozed_until,
             device.dismissed_occurrence_key,
+            device.narration_consent_accepted,
+            device.autoplay_when_opened,
+            device.narration_revision_id,
+            device.narration_bytes,
+            device.narration_content_type,
             device.updated_at AS device_updated_at,
             prayer.title AS prayer_title,
             revision.body AS prayer_body,
@@ -302,6 +308,53 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
         reminderId: reminderId,
         enabled: enabled,
         now: _now().toUtc().toIso8601String(),
+      );
+    });
+  }
+
+  @override
+  Future<void> saveNarrationPreference({
+    required String reminderId,
+    required bool consentAccepted,
+    required bool autoplayWhenOpened,
+    String? revisionId,
+    List<int>? bytes,
+    String? contentType,
+  }) {
+    if (autoplayWhenOpened &&
+        (!consentAccepted ||
+            revisionId == null ||
+            bytes == null ||
+            bytes.isEmpty ||
+            contentType != 'audio/mpeg')) {
+      throw ArgumentError('Autoplay requires a consented ready narration');
+    }
+    return database.writeTransaction((transaction) async {
+      await _requireReminder(transaction, reminderId);
+      await _upsertDevice(
+        transaction,
+        reminderId: reminderId,
+        enabled: true,
+        now: _now().toUtc().toIso8601String(),
+      );
+      await transaction.execute(
+        '''
+        UPDATE prayer_reminder_devices
+        SET narration_consent_accepted = ?, autoplay_when_opened = ?,
+            narration_revision_id = ?, narration_bytes = ?,
+            narration_content_type = ?, updated_at = ?
+        WHERE reminder_id = ? AND device_id = ?
+        ''',
+        [
+          consentAccepted ? 1 : 0,
+          autoplayWhenOpened ? 1 : 0,
+          revisionId,
+          bytes == null ? null : base64Encode(bytes),
+          contentType,
+          _now().toUtc().toIso8601String(),
+          reminderId,
+          deviceId,
+        ],
       );
     });
   }
@@ -645,6 +698,11 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
       'scheduled_timezone': row['scheduled_timezone'],
       'snoozed_until': row['snoozed_until'],
       'dismissed_occurrence_key': row['dismissed_occurrence_key'],
+      'narration_consent_accepted': row['narration_consent_accepted'],
+      'autoplay_when_opened': row['autoplay_when_opened'],
+      'narration_revision_id': row['narration_revision_id'],
+      'narration_bytes': row['narration_bytes'],
+      'narration_content_type': row['narration_content_type'],
       'updated_at': row['device_updated_at'],
     });
     return DuePrayerOccurrence(
