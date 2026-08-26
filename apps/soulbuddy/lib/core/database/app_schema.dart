@@ -528,6 +528,18 @@ const appSchema = Schema([
     Column.text('resolved_at'),
   ]),
   Table.localOnly('app_preferences', [Column.integer('bool_value')]),
+  Table.localOnly('first_prayer_progress', [
+    Column.text('stage'),
+    Column.text('purpose'),
+    Column.text('frequency'),
+    Column.text('audience'),
+    Column.text('language_preference'),
+    Column.text('detail'),
+    Column.text('request_id'),
+    Column.text('selected_prayer_type'),
+    Column.text('selected_prayer_id'),
+    Column.text('updated_at'),
+  ]),
   Table.localOnly(
     'circles',
     [
