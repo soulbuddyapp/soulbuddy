@@ -115,6 +115,32 @@ void main() {
     expect(controller.state.review!.duration, const Duration(minutes: 15));
   });
 
+  test('a prayer refrain stops at its configured ceiling', () async {
+    await controller.close();
+    recorder = _FakeAudioRecorder();
+    clock = _FakeElapsedClock();
+    tickers = _FakeTickerFactory();
+    controller = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async =>
+          const TemporaryAudio(key: 'refrain-1', locator: '/tmp/refrain.m4a'),
+      maximumDuration: const Duration(seconds: 25),
+      elapsedClock: clock,
+      tickerFactory: tickers.call,
+    );
+
+    await controller.start();
+    clock.advance(const Duration(seconds: 25));
+
+    tickers.fire();
+    tickers.fire();
+    await _flushEvents();
+
+    expect(recorder.stopCalls, 1);
+    expect(controller.state.phase, AudioCapturePhase.review);
+    expect(controller.state.review!.duration, const Duration(seconds: 25));
+  });
+
   test('a failed stop keeps the active take cancellable', () async {
     await controller.start();
     recorder.stopError = StateError('platform stop failed');

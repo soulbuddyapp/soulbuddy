@@ -73,6 +73,35 @@ void main() {
     expect(find.text('Try microphone again'), findsOneWidget);
   });
 
+  testWidgets('accepts focused prayer recording copy without duplicating UI', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AudioCapturePanel(
+            controller: controller,
+            introHeading: 'Record this prayer',
+            introDescription: 'Your recording stays private on this device.',
+            startLabel: 'Start prayer recording',
+            alternativeLabel: 'Not now',
+            onWriteInstead: () {},
+            onContinue: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Record this prayer'), findsOneWidget);
+    expect(
+      find.text('Your recording stays private on this device.'),
+      findsOneWidget,
+    );
+    expect(find.text('Start prayer recording'), findsOneWidget);
+    expect(find.text('Not now'), findsOneWidget);
+    expect(find.text('Speak what you do not want to forget.'), findsNothing);
+  });
+
   testWidgets('recording controls are truthful and Continue returns the take', (
     tester,
   ) async {
