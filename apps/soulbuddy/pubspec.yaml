@@ -50,6 +50,7 @@ dependencies:
   audioplayers: 6.7.1
   # 7.x requires Dart 3.12; 6.2.1 is the newest Dart 3.9-compatible release.
   record: 6.2.1
+  speech_to_text: 7.4.0
   # 2.7+ requires Dart 3.10; 2.6.7+1 is the newest Dart 3.9 release.
   idb_shim: 2.6.7+1
 

@@ -98,7 +98,12 @@ class FirstPrayerAnswers {
       : PrayerGrounding.generalChristian;
   PrayerPurpose get prayerPurpose =>
       purpose?.prayerPurpose ?? PrayerPurpose.daily;
-  String get beneficiaryChoice => audience?.wireValue ?? 'me';
+  String get beneficiaryChoice => switch (audience) {
+    FirstPrayerAudience.me || null => 'me',
+    FirstPrayerAudience.someone => 'another_person',
+    FirstPrayerAudience.family => 'household_family',
+    FirstPrayerAudience.others => 'people_affected',
+  };
 
   String get requestText {
     final base = switch (purpose) {

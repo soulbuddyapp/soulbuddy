@@ -32,9 +32,9 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(find.text('Carry prayer into life'), findsOneWidget);
-    expect(find.text('Begin with prayer'), findsOneWidget);
+    expect(find.text('Prepare my first prayer'), findsOneWidget);
 
-    await tester.tap(find.text('Begin with prayer'));
+    await tester.tap(find.text('Prepare my first prayer'));
     await tester.pumpAndSettle();
     expect(beganWithPrayer, isTrue);
     expect(skipped, isFalse);

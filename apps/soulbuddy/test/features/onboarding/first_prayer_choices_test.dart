@@ -50,7 +50,34 @@ void main() {
     expect(answers.reach, PrayerReach.encompassing);
     expect(answers.grounding, PrayerGrounding.catholic);
     expect(answers.prayerPurpose, PrayerPurpose.guidance);
-    expect(answers.beneficiaryChoice, 'family');
+    expect(answers.beneficiaryChoice, 'household_family');
+  });
+
+  test('guided audiences use backend-safe beneficiary choices', () {
+    expect(
+      const FirstPrayerAnswers(
+        audience: FirstPrayerAudience.me,
+      ).beneficiaryChoice,
+      'me',
+    );
+    expect(
+      const FirstPrayerAnswers(
+        audience: FirstPrayerAudience.someone,
+      ).beneficiaryChoice,
+      'another_person',
+    );
+    expect(
+      const FirstPrayerAnswers(
+        audience: FirstPrayerAudience.family,
+      ).beneficiaryChoice,
+      'household_family',
+    );
+    expect(
+      const FirstPrayerAnswers(
+        audience: FirstPrayerAudience.others,
+      ).beneficiaryChoice,
+      'people_affected',
+    );
   });
 
   test('every displayed choice uses the approved short copy', () {

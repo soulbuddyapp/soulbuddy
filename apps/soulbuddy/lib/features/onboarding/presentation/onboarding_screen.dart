@@ -157,7 +157,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       _working
                           ? 'Opening…'
                           : _page == _scenes.length - 1
-                          ? 'Begin with prayer'
+                          ? 'Prepare my first prayer'
                           : 'Continue',
                     ),
                   ),

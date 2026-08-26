@@ -23,10 +23,15 @@ import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
+import '../features/onboarding/presentation/first_prayer_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(
+      path: '/welcome/prayer',
+      builder: (context, state) => const FirstPrayerScreen(),
+    ),
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),

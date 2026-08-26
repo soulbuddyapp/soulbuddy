@@ -40,7 +40,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Begin with prayer'));
+    await tester.tap(find.text('Prepare my first prayer'));
     await tester.pumpAndSettle();
 
     expect(repository.completed, isTrue);
