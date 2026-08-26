@@ -69,3 +69,19 @@ final pendingAltarOpenProvider =
     NotifierProvider<PendingAltarOpenNotifier, String?>(
       PendingAltarOpenNotifier.new,
     );
+
+class AltarAutoplayClaimNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  bool claim(String occurrenceKey) {
+    if (state == occurrenceKey) return false;
+    state = occurrenceKey;
+    return true;
+  }
+}
+
+final altarAutoplayClaimProvider =
+    NotifierProvider<AltarAutoplayClaimNotifier, String?>(
+      AltarAutoplayClaimNotifier.new,
+    );

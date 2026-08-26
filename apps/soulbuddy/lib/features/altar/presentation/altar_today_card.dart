@@ -39,15 +39,13 @@ class AltarTodaySection extends ConsumerWidget {
             final pendingRitual = ref.watch(pendingAltarOpenProvider);
             if (pendingRitual == value.ritual.id) {
               ref.read(pendingAltarOpenProvider.notifier).clear();
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                unawaited(_listen(ref, value, voiceTablet));
-              });
+              _autoplayOnce(ref, value, voiceTablet);
             }
             return AltarTodayCard(
               due: value,
               tablet: voiceTablet,
-              onListen: () => _listen(ref, value, voiceTablet),
-              onPrayed: () => _recordPrayer(ref, value, voiceTablet),
+              onListen: () => _listenToAltar(ref, value, voiceTablet),
+              onPrayed: () => _recordAltarPrayer(ref, value, voiceTablet),
             );
           },
         );
@@ -55,52 +53,103 @@ class AltarTodaySection extends ConsumerWidget {
     );
   }
 
-  Future<void> _listen(
-    WidgetRef ref,
-    DueAltarRitual due,
-    VoiceTablet tablet,
-  ) async {
-    final audio = switch (due.ritual.playbackMode) {
-      AltarPlaybackMode.refrain => tablet.refrainAudio,
-      AltarPlaybackMode.fullPrayer => tablet.fullAudio,
-      AltarPlaybackMode.openQuietly => null,
-    };
-    if (audio == null) return;
-    final coordinator = await ref.read(
-      memoryAudioPlaybackCoordinatorProvider.future,
-    );
-    await coordinator.playTrack(
-      PrivateAudioTrack(
-        id: audio.id,
-        storageKey: audio.storageKey,
-        duration: audio.duration,
+  void _autoplayOnce(WidgetRef ref, DueAltarRitual due, VoiceTablet tablet) {
+    final occurrenceKey =
+        '${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}';
+    if (!ref.read(altarAutoplayClaimProvider.notifier).claim(occurrenceKey)) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_listenToAltar(ref, due, tablet).catchError((_) {}));
+    });
+  }
+}
+
+class AltarReminderOverlayHost extends ConsumerWidget {
+  const AltarReminderOverlayHost({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final due = ref.watch(dueAltarRitualProvider).value;
+    if (due == null || due.localStatus != AltarRitualLocalStatus.due) {
+      return const SizedBox.shrink();
+    }
+    if (due.item.target.type != AltarTargetType.voiceTablet) {
+      return const SizedBox.shrink();
+    }
+    final tablet = ref
+        .watch(voiceTabletProvider(due.item.target.targetId))
+        .value;
+    if (tablet == null) return const SizedBox.shrink();
+    final occurrenceKey =
+        '${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}';
+    if (ref.read(altarAutoplayClaimProvider.notifier).claim(occurrenceKey)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_listenToAltar(ref, due, tablet).catchError((_) {}));
+      });
+    }
+    return Center(
+      heightFactor: 1,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Material(
+          elevation: 8,
+          color: Colors.transparent,
+          child: AltarTodayCard(
+            due: due,
+            tablet: tablet,
+            onListen: () => _listenToAltar(ref, due, tablet),
+            onPrayed: () => _recordAltarPrayer(ref, due, tablet),
+          ),
+        ),
       ),
     );
   }
+}
 
-  Future<void> _recordPrayer(
-    WidgetRef ref,
-    DueAltarRitual due,
-    VoiceTablet tablet,
-  ) async {
-    final repository = await ref.read(prayerPracticeRepositoryProvider.future);
-    final timezone = await ref.read(prayerDeviceTimezoneProvider)();
-    final source = tablet.source;
-    await repository.recordSession(
-      prayer: source.type == VoiceTabletSourceType.personalPrayer
-          ? PrayerReference.personal(source.prayerId)
-          : PrayerReference.library(source.prayerId),
-      revisionId: source.revisionId,
-      timezone: timezone,
-    );
-    final altarRepository = await ref.read(
-      altarRitualRepositoryProvider.future,
-    );
-    await altarRepository.advance(
-      due.ritual.id,
-      afterUtc: due.occurrenceAt.toUtc(),
-    );
-  }
+Future<void> _listenToAltar(
+  WidgetRef ref,
+  DueAltarRitual due,
+  VoiceTablet tablet,
+) async {
+  final audio = switch (due.ritual.playbackMode) {
+    AltarPlaybackMode.refrain => tablet.refrainAudio,
+    AltarPlaybackMode.fullPrayer => tablet.fullAudio,
+    AltarPlaybackMode.openQuietly => null,
+  };
+  if (audio == null) return;
+  final coordinator = await ref.read(
+    memoryAudioPlaybackCoordinatorProvider.future,
+  );
+  await coordinator.playTrack(
+    PrivateAudioTrack(
+      id: audio.id,
+      storageKey: audio.storageKey,
+      duration: audio.duration,
+    ),
+  );
+}
+
+Future<void> _recordAltarPrayer(
+  WidgetRef ref,
+  DueAltarRitual due,
+  VoiceTablet tablet,
+) async {
+  final repository = await ref.read(prayerPracticeRepositoryProvider.future);
+  final timezone = await ref.read(prayerDeviceTimezoneProvider)();
+  final source = tablet.source;
+  await repository.recordSession(
+    prayer: source.type == VoiceTabletSourceType.personalPrayer
+        ? PrayerReference.personal(source.prayerId)
+        : PrayerReference.library(source.prayerId),
+    revisionId: source.revisionId,
+    timezone: timezone,
+  );
+  final altarRepository = await ref.read(altarRitualRepositoryProvider.future);
+  await altarRepository.advance(
+    due.ritual.id,
+    afterUtc: due.occurrenceAt.toUtc(),
+  );
 }
 
 class AltarTodayCard extends StatefulWidget {

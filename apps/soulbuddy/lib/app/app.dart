@@ -11,6 +11,7 @@ import '../features/record/audio/providers/memory_audio_providers.dart';
 import '../core/identity/local_identity_providers.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
 import '../features/altar/providers/altar_ritual_providers.dart';
+import '../features/altar/presentation/altar_today_card.dart';
 import 'router.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
@@ -53,7 +54,14 @@ class SoulBuddyApp extends ConsumerWidget {
               bottom: compactNavigation ? 92 : AppSpacing.md,
               child: const SafeArea(
                 top: false,
-                child: PrayerReminderCardHost(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PrayerReminderCardHost(),
+                    SizedBox(height: AppSpacing.sm),
+                    AltarReminderOverlayHost(),
+                  ],
+                ),
               ),
             ),
           ],
