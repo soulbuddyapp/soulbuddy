@@ -8,7 +8,8 @@ import 'audio_asset_store.dart';
 typedef TemporaryAudioReader = Future<Uint8List> Function(String locator);
 typedef TemporaryAudioReleaser = Future<void> Function(String locator);
 
-class WebAudioAssetStore implements AudioAssetStore {
+class WebAudioAssetStore
+    implements AudioAssetStore, DurableTemporaryAudioStore {
   WebAudioAssetStore({
     required IdbFactory idbFactory,
     required TemporaryAudioReader readTemporary,
@@ -27,6 +28,39 @@ class WebAudioAssetStore implements AudioAssetStore {
   final TemporaryAudioReleaser _releaseTemporary;
   final DateTime Function() _now;
   final String databaseName;
+
+  @override
+  Future<TemporaryAudio> stageTemporary(
+    TemporaryAudio temporary, {
+    required String mimeType,
+  }) async {
+    if (temporary.locator.startsWith('staged:')) {
+      _stagedStorageKey(temporary.locator);
+      return temporary;
+    }
+    final extension = _extensionForMime(mimeType);
+    final storageKey =
+        'audio-temp/${_safeIdentifier(temporary.key, 'temporary.key')}.$extension';
+    final bytes = Uint8List.fromList(await _readTemporary(temporary.locator));
+    if (bytes.isEmpty || bytes.length > maximumMemoryAudioBytes) {
+      throw ArgumentError.value(bytes.length, 'byteSize');
+    }
+    final database = await _openDatabase();
+    try {
+      final transaction = database.transaction(_storeName, idbModeReadWrite);
+      await transaction.objectStore(_storeName).put({
+        'storageKey': storageKey,
+        'mimeType': mimeType,
+        'bytes': bytes,
+        'createdAt': _now().toUtc().toIso8601String(),
+      }, storageKey);
+      await transaction.completed;
+    } finally {
+      database.close();
+    }
+    await _releaseTemporary(temporary.locator);
+    return TemporaryAudio(key: temporary.key, locator: 'staged:$storageKey');
+  }
 
   @override
   Future<TemporaryAudio> allocateTemporary({
@@ -52,7 +86,12 @@ class WebAudioAssetStore implements AudioAssetStore {
     final storageKey = 'audio/$normalizedId.$extension';
     _validateStorageKey(storageKey);
 
-    final bytes = Uint8List.fromList(await _readTemporary(temporary.locator));
+    final stagedStorageKey = temporary.locator.startsWith('staged:')
+        ? _stagedStorageKey(temporary.locator)
+        : null;
+    final bytes = stagedStorageKey == null
+        ? Uint8List.fromList(await _readTemporary(temporary.locator))
+        : await _readStoredBytes(stagedStorageKey);
     if (bytes.isEmpty || bytes.length > maximumMemoryAudioBytes) {
       throw ArgumentError.value(bytes.length, 'byteSize');
     }
@@ -79,12 +118,26 @@ class WebAudioAssetStore implements AudioAssetStore {
       database.close();
     }
 
-    await _releaseTemporary(temporary.locator);
+    if (stagedStorageKey == null) {
+      await _releaseTemporary(temporary.locator);
+    }
     return CommittedAudio(storageKey: storageKey, byteSize: bytes.length);
   }
 
   @override
   Future<void> discardTemporary(String locator) async {
+    if (locator.startsWith('staged:')) {
+      final storageKey = _stagedStorageKey(locator);
+      final database = await _openDatabase();
+      try {
+        final transaction = database.transaction(_storeName, idbModeReadWrite);
+        await transaction.objectStore(_storeName).delete(storageKey);
+        await transaction.completed;
+      } finally {
+        database.close();
+      }
+      return;
+    }
     if (!locator.startsWith('blob:') || locator.length > 4096) {
       throw ArgumentError.value(locator, 'locator');
     }
@@ -127,8 +180,14 @@ class WebAudioAssetStore implements AudioAssetStore {
     Set<String> referencedStorageKeys, {
     required DateTime olderThan,
   }) async {
+    final normalizedReferencedKeys = <String>{};
     for (final key in referencedStorageKeys) {
-      _validateStorageKey(key);
+      if (key.startsWith('staged:')) {
+        normalizedReferencedKeys.add(_stagedStorageKey(key));
+      } else {
+        _validateStorageKey(key);
+        normalizedReferencedKeys.add(key);
+      }
     }
     final database = await _openDatabase();
     try {
@@ -138,7 +197,7 @@ class WebAudioAssetStore implements AudioAssetStore {
       final keysToDelete = <String>[];
       for (final value in values) {
         final record = _parseRecord(value);
-        if (!referencedStorageKeys.contains(record.storageKey) &&
+        if (!normalizedReferencedKeys.contains(record.storageKey) &&
             record.createdAt.isBefore(olderThan)) {
           keysToDelete.add(record.storageKey);
         }
@@ -164,6 +223,21 @@ class WebAudioAssetStore implements AudioAssetStore {
       }
     },
   );
+
+  Future<Uint8List> _readStoredBytes(String storageKey) async {
+    final database = await _openDatabase();
+    try {
+      final transaction = database.transaction(_storeName, idbModeReadOnly);
+      final value = await transaction
+          .objectStore(_storeName)
+          .getObject(storageKey);
+      await transaction.completed;
+      if (value == null) throw StateError('Temporary audio is unavailable.');
+      return _parseRecord(value, expectedStorageKey: storageKey).bytes;
+    } finally {
+      database.close();
+    }
+  }
 }
 
 class _WebAudioRecord {
@@ -192,7 +266,7 @@ _WebAudioRecord _parseRecord(Object value, {String? expectedStorageKey}) {
       rawCreatedAt is! String) {
     throw const FormatException('Invalid audio asset.');
   }
-  _validateStorageKey(storageKey);
+  _validateRecordKey(storageKey);
   if (expectedStorageKey != null && storageKey != expectedStorageKey) {
     throw const FormatException('Invalid audio asset key.');
   }
@@ -242,4 +316,21 @@ void _validateStorageKey(String storageKey) {
   ).hasMatch(storageKey)) {
     throw ArgumentError.value(storageKey, 'storageKey');
   }
+}
+
+void _validateRecordKey(String storageKey) {
+  if (!RegExp(
+    r'^audio(?:-temp)?/[A-Za-z0-9_-]+\.(m4a|wav|webm|ogg)$',
+  ).hasMatch(storageKey)) {
+    throw ArgumentError.value(storageKey, 'storageKey');
+  }
+}
+
+String _stagedStorageKey(String locator) {
+  final storageKey = locator.substring('staged:'.length);
+  if (!storageKey.startsWith('audio-temp/')) {
+    throw ArgumentError.value(locator, 'locator');
+  }
+  _validateRecordKey(storageKey);
+  return storageKey;
 }

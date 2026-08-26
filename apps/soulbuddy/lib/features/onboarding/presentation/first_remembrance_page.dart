@@ -22,9 +22,14 @@ class FirstRemembranceTypePage extends StatelessWidget {
 }
 
 class FirstRemembranceWritePage extends StatefulWidget {
-  const FirstRemembranceWritePage({required this.onSave, super.key});
+  const FirstRemembranceWritePage({
+    required this.onSave,
+    this.initialBody = '',
+    super.key,
+  });
 
-  final Future<void> Function(String body) onSave;
+  final Future<bool> Function(String body) onSave;
+  final String initialBody;
 
   @override
   State<FirstRemembranceWritePage> createState() =>
@@ -32,8 +37,9 @@ class FirstRemembranceWritePage extends StatefulWidget {
 }
 
 class _FirstRemembranceWritePageState extends State<FirstRemembranceWritePage> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialBody);
   var _saving = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -46,7 +52,10 @@ class _FirstRemembranceWritePageState extends State<FirstRemembranceWritePage> {
     if (_saving || body.isEmpty) return;
     setState(() => _saving = true);
     try {
-      await widget.onSave(body);
+      final saved = await widget.onSave(body);
+      if (mounted && !saved) {
+        setState(() => _error = 'Couldn\'t keep this memory. Try again.');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -79,6 +88,10 @@ class _FirstRemembranceWritePageState extends State<FirstRemembranceWritePage> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
+            if (_error case final error?) ...[
+              Text(error, textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.sm),
+            ],
             FilledButton(
               onPressed: _saving ? null : _save,
               child: Text(_saving ? 'Keeping…' : 'Keep this memory'),

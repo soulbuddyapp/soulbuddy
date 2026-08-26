@@ -5,3 +5,10 @@ abstract interface class FirstPrayerProgressRepository {
   Future<void> save(FirstPrayerProgress progress);
   Future<void> clear();
 }
+
+Future<Set<String>> firstPrayerOwnedTemporaryAudioKeys(
+  FirstPrayerProgressRepository repository,
+) async {
+  final storageKey = (await repository.load())?.remembranceAudioTemporaryKey;
+  return storageKey == null ? const {} : {storageKey};
+}

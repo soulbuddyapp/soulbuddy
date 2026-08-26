@@ -41,7 +41,12 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: Scaffold(
-          body: FirstRemembranceWritePage(onSave: (body) async => saved = body),
+          body: FirstRemembranceWritePage(
+            onSave: (body) async {
+              saved = body;
+              return true;
+            },
+          ),
         ),
       ),
     );
@@ -54,5 +59,29 @@ void main() {
     await tester.tap(find.text('Keep this memory'));
     await tester.pump();
     expect(saved, 'God met me here.');
+  });
+
+  testWidgets('keeps written words visible when saving needs a retry', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: FirstRemembranceWritePage(onSave: (_) async => false),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('first-remembrance-text')),
+      'God met me here.',
+    );
+    await tester.tap(find.text('Keep this memory'));
+    await tester.pump();
+
+    expect(find.text('God met me here.'), findsOneWidget);
+    expect(find.text("Couldn't keep this memory. Try again."), findsOneWidget);
+    expect(find.text('Keep this memory'), findsOneWidget);
   });
 }

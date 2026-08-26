@@ -1,12 +1,15 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
+import '../../../core/identity/local_identity_providers.dart';
 import '../../prayers/domain/library_prayer.dart';
 import '../../prayers/domain/prayer_generation_request.dart';
 import '../../prayers/domain/prayer_reference.dart';
@@ -14,6 +17,8 @@ import '../../prayers/providers/personal_prayer_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../record/audio/domain/memory_audio.dart';
+import '../../record/audio/data/audio_asset_store.dart';
+import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/domain/encounter.dart';
 import '../../record/domain/encounter_draft.dart';
 import '../../record/providers/encounter_providers.dart';
@@ -29,6 +34,15 @@ final firstPrayerProgressRepositoryProvider =
         database: database.powersync,
       );
     });
+
+final firstPrayerSavedProgressProvider = FutureProvider<FirstPrayerProgress?>((
+  ref,
+) async {
+  final repository = await ref.watch(
+    firstPrayerProgressRepositoryProvider.future,
+  );
+  return repository.load();
+});
 
 final firstPrayerControllerProvider =
     AsyncNotifierProvider.autoDispose<FirstPrayerController, FirstPrayerState>(
@@ -80,6 +94,7 @@ class FirstPrayerState {
     this.detailByVoice = false,
     this.remembranceType,
     this.remembranceByVoice = false,
+    this.remembranceAudio,
   });
 
   final FirstPrayerProgress progress;
@@ -87,6 +102,7 @@ class FirstPrayerState {
   final bool detailByVoice;
   final MemoryType? remembranceType;
   final bool remembranceByVoice;
+  final MemoryAudioDraft? remembranceAudio;
 
   FirstPrayerState copyWith({
     FirstPrayerProgress? progress,
@@ -95,28 +111,80 @@ class FirstPrayerState {
     bool? detailByVoice,
     MemoryType? remembranceType,
     bool? remembranceByVoice,
+    MemoryAudioDraft? remembranceAudio,
   }) => FirstPrayerState(
     progress: progress ?? this.progress,
     result: clearResult ? null : result ?? this.result,
     detailByVoice: detailByVoice ?? this.detailByVoice,
     remembranceType: remembranceType ?? this.remembranceType,
     remembranceByVoice: remembranceByVoice ?? this.remembranceByVoice,
+    remembranceAudio: remembranceAudio ?? this.remembranceAudio,
   );
 }
 
 class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
+  var _preparationEpoch = 0;
+
   @override
   Future<FirstPrayerState> build() async {
     final progressRepository = await ref.watch(
       firstPrayerProgressRepositoryProvider.future,
     );
-    var progress =
-        await progressRepository.load() ?? const FirstPrayerProgress();
-    if (progress.stage.index > FirstPrayerStage.remembranceType.index) {
-      progress = progress.copyWith(stage: FirstPrayerStage.remembranceType);
+    var progress = await progressRepository.load();
+    if (progress == null) {
+      progress = const FirstPrayerProgress();
+      await progressRepository.save(progress);
     }
-    final result = await _restoreResult(progress);
-    return FirstPrayerState(progress: progress, result: result);
+    var result = await _restoreResult(progress);
+    if (progress.stage == FirstPrayerStage.preparing) {
+      progress = progress.copyWith(
+        stage: result == null
+            ? FirstPrayerStage.detailChoice
+            : FirstPrayerStage.prayer,
+      );
+      await progressRepository.save(progress);
+    } else if (progress.stage.index >= FirstPrayerStage.prayer.index &&
+        result == null) {
+      progress = progress.copyWith(stage: FirstPrayerStage.detailChoice);
+      await progressRepository.save(progress);
+    }
+    MemoryType? remembranceType;
+    try {
+      final savedType = progress.remembranceType;
+      if (savedType != null) {
+        remembranceType = MemoryType.values.byName(savedType);
+      }
+    } on Object {
+      remembranceType = null;
+    }
+    MemoryAudioDraft? remembranceAudio;
+    try {
+      final temporaryKey = progress.remembranceAudioTemporaryKey;
+      final mimeType = progress.remembranceAudioMimeType;
+      final durationMs = progress.remembranceAudioDurationMs;
+      final waveform = progress.remembranceAudioWaveform;
+      if (temporaryKey != null &&
+          mimeType != null &&
+          durationMs != null &&
+          waveform != null) {
+        remembranceAudio = MemoryAudioDraft(
+          temporaryKey: temporaryKey,
+          mimeType: mimeType,
+          duration: Duration(milliseconds: durationMs),
+          waveform: waveform,
+        );
+      }
+    } on Object {
+      remembranceAudio = null;
+    }
+    return FirstPrayerState(
+      progress: progress,
+      result: result,
+      detailByVoice: progress.detailByVoice ?? false,
+      remembranceType: remembranceType,
+      remembranceByVoice: progress.remembranceByVoice ?? false,
+      remembranceAudio: remembranceAudio,
+    );
   }
 
   Future<void> choosePurpose(FirstPrayerPurpose purpose) => _advance(
@@ -141,14 +209,25 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
 
   Future<void> openDetail({required bool speak}) async {
     _emit(AppFeedbackIntent.selection);
-    final progress = _value.progress.copyWith(stage: FirstPrayerStage.detail);
+    final progress = _value.progress.copyWith(
+      stage: FirstPrayerStage.detail,
+      detailByVoice: speak,
+    );
     state = AsyncData(
       _value.copyWith(progress: progress, detailByVoice: speak),
     );
     await _persist(progress);
   }
 
-  Future<void> prepare({String? detail}) async {
+  Future<void> prepare({
+    String? detail,
+    required bool externalProcessingConsent,
+  }) async {
+    if (!externalProcessingConsent) {
+      await usePreparedPrayer();
+      return;
+    }
+    final preparationEpoch = ++_preparationEpoch;
     final answers = _value.progress.answers.copyWith(
       detail: detail,
       clearDetail: detail == null || detail.trim().isEmpty,
@@ -185,7 +264,9 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
         prayerGenerationDispatcherProvider.future,
       );
       await dispatcher.dispatch(request.id);
+      if (preparationEpoch != _preparationEpoch) return;
       final completed = await generationRepository.watch(request.id).first;
+      if (preparationEpoch != _preparationEpoch) return;
       if (completed?.status == PrayerGenerationStatus.ready &&
           completed?.draftBody?.trim().isNotEmpty == true) {
         await _showGenerated(completed!);
@@ -194,10 +275,15 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     } on Object {
       // A prepared prayer is always the quiet offline path.
     }
-    await usePreparedPrayer();
+    if (preparationEpoch == _preparationEpoch) {
+      await _usePreparedPrayer(cancelInFlight: false);
+    }
   }
 
-  Future<void> usePreparedPrayer() async {
+  Future<void> usePreparedPrayer() => _usePreparedPrayer(cancelInFlight: true);
+
+  Future<void> _usePreparedPrayer({required bool cancelInFlight}) async {
+    if (cancelInFlight) _preparationEpoch++;
     try {
       final answers = _value.progress.answers;
       final repository = await ref.read(prayerRepositoryProvider.future);
@@ -219,8 +305,9 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     } on Object {
       // The bundled library is expected to be present; preserve an exit if it
       // is not rather than keeping someone on a loading screen.
+      _retryPrayerRepository();
     }
-    final fallback = _lastResortPrayer(_value.progress.answers);
+    final fallback = _lastResortPrayer();
     final progress = _value.progress.copyWith(
       stage: FirstPrayerStage.prayer,
       selectedPrayerType: 'prepared',
@@ -245,9 +332,9 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     await _saveProgress(current.copyWith(stage: previous));
   }
 
-  Future<void> keepPrayer({required bool recordPractice}) async {
+  Future<bool> keepPrayer({required bool recordPractice}) async {
     var result = _value.result;
-    if (result == null) return;
+    if (result == null) return false;
     try {
       if (result.isGenerated && result.revisionId == null) {
         final repository = await ref.read(
@@ -284,9 +371,18 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
         );
       }
     } on Object {
-      // A failed local write must not keep someone from continuing in prayer.
+      state = AsyncData(_value.copyWith(result: result));
+      _retryPrayerRepository();
+      return false;
     }
-    final progress = _value.progress.copyWith(stage: FirstPrayerStage.practice);
+    final progress = _value.progress.copyWith(
+      stage: FirstPrayerStage.practice,
+      selectedPrayerType: result.reference.source == PrayerSource.personal
+          ? 'personal'
+          : null,
+      selectedPrayerId: result.reference.id,
+      selectedPrayerRevisionId: result.revisionId,
+    );
     state = AsyncData(_value.copyWith(progress: progress, result: result));
     _emit(
       recordPractice
@@ -294,6 +390,7 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
           : AppFeedbackIntent.saved,
     );
     await _persist(progress);
+    return true;
   }
 
   Future<void> continueFromPractice() => _saveProgress(
@@ -304,6 +401,7 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     _emit(AppFeedbackIntent.selection);
     final progress = _value.progress.copyWith(
       stage: FirstPrayerStage.remembranceMode,
+      remembranceType: type.name,
     );
     state = AsyncData(
       _value.copyWith(progress: progress, remembranceType: type),
@@ -315,6 +413,7 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     _emit(AppFeedbackIntent.selection);
     final progress = _value.progress.copyWith(
       stage: FirstPrayerStage.remembrance,
+      remembranceByVoice: speak,
     );
     state = AsyncData(
       _value.copyWith(progress: progress, remembranceByVoice: speak),
@@ -322,12 +421,46 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     await _persist(progress);
   }
 
-  Future<void> saveRemembrance({
+  Future<bool> saveRemembrance({
     String body = '',
     MemoryAudioDraft? audio,
   }) async {
     final type = _value.remembranceType;
-    if (type == null) return;
+    if (type == null) return false;
+    var durableAudio = audio;
+    AudioAssetStore? stagedAssetStore;
+    if (kIsWeb && audio != null) {
+      try {
+        final assetStore = await ref.read(audioAssetStoreProvider.future);
+        if (assetStore is DurableTemporaryAudioStore) {
+          final durableStore = assetStore as DurableTemporaryAudioStore;
+          final staged = await durableStore.stageTemporary(
+            TemporaryAudio(key: const Uuid().v7(), locator: audio.temporaryKey),
+            mimeType: audio.mimeType,
+          );
+          durableAudio = MemoryAudioDraft(
+            temporaryKey: staged.locator,
+            mimeType: audio.mimeType,
+            duration: audio.duration,
+            waveform: audio.waveform,
+          );
+          stagedAssetStore = assetStore;
+        }
+      } on Object {
+        return false;
+      }
+    }
+    final retryProgress = _value.progress.copyWith(
+      remembranceText: body.trim(),
+      remembranceAudioTemporaryKey: durableAudio?.temporaryKey,
+      remembranceAudioMimeType: durableAudio?.mimeType,
+      remembranceAudioDurationMs: durableAudio?.duration.inMilliseconds,
+      remembranceAudioWaveform: durableAudio?.waveform,
+    );
+    await _saveProgress(retryProgress);
+    if (durableAudio != null) {
+      state = AsyncData(_value.copyWith(remembranceAudio: durableAudio));
+    }
     try {
       final now = DateTime.now();
       final repository = await ref.read(encounterRepositoryProvider.future);
@@ -340,15 +473,24 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
           memoryType: type,
           sensitive: false,
           recallEnabled: true,
-          audio: audio,
+          audio: durableAudio,
         ),
       );
       ref.invalidate(encountersProvider);
       _emit(AppFeedbackIntent.saved);
+      if (stagedAssetStore != null &&
+          durableAudio!.temporaryKey.startsWith('staged:')) {
+        try {
+          await stagedAssetStore.discardTemporary(durableAudio.temporaryKey);
+        } on Object {
+          // Old staged bytes are removed by private-audio cleanup if needed.
+        }
+      }
     } on Object {
-      // Completion remains available even if a local write needs later retry.
+      return false;
     }
     await complete();
+    return true;
   }
 
   Future<void> complete() async {
@@ -357,6 +499,7 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
         firstPrayerProgressRepositoryProvider.future,
       );
       await repository.clear();
+      ref.invalidate(firstPrayerSavedProgressProvider);
     } on Object {
       // The welcome flag has already been completed by the gate.
     }
@@ -437,9 +580,9 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
   Future<FirstPrayerResult?> _restoreResult(
     FirstPrayerProgress progress,
   ) async {
-    if (progress.stage != FirstPrayerStage.prayer) return null;
     try {
-      if (progress.selectedPrayerType == 'library' &&
+      if ((progress.selectedPrayerType == 'library' ||
+              progress.selectedPrayerType == 'prepared') &&
           progress.selectedPrayerId != null) {
         final repository = await ref.read(prayerRepositoryProvider.future);
         final prayer = await repository
@@ -447,7 +590,8 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
             .first;
         return prayer == null ? null : _fromLibrary(prayer);
       }
-      if (progress.selectedPrayerType == 'generated' &&
+      if ((progress.selectedPrayerType == 'generated' ||
+              progress.selectedPrayerType == null) &&
           progress.requestId != null) {
         final repository = await ref.read(
           prayerGenerationRepositoryProvider.future,
@@ -465,10 +609,42 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
           );
         }
       }
+      if (progress.selectedPrayerType == 'personal' &&
+          progress.selectedPrayerId != null) {
+        final repository = await ref.read(
+          personalPrayerRepositoryProvider.future,
+        );
+        final prayer = await repository.watch(progress.selectedPrayerId!).first;
+        if (prayer != null) {
+          return FirstPrayerResult(
+            title: prayer.title,
+            body: prayer.body,
+            action: prayer.action,
+            grounding: prayer.grounding,
+            purpose: prayer.purpose,
+            reference: prayer.reference,
+            requestId: progress.requestId,
+            revisionId:
+                progress.selectedPrayerRevisionId ?? prayer.currentRevisionId,
+          );
+        }
+      }
     } on Object {
       return null;
     }
     return null;
+  }
+
+  void _retryPrayerRepository() {
+    final repositoryState = ref.read(prayerRepositoryProvider);
+    if (!repositoryState.hasError) return;
+    if (ref.read(appDatabaseProvider).hasError) {
+      ref.invalidate(appDatabaseProvider);
+    }
+    if (ref.read(localIdentityProvider).hasError) {
+      ref.invalidate(localIdentityProvider);
+    }
+    ref.invalidate(prayerRepositoryProvider);
   }
 }
 
@@ -481,30 +657,16 @@ FirstPrayerResult _fromLibrary(LibraryPrayer prayer) => FirstPrayerResult(
   reference: prayer.reference,
 );
 
-FirstPrayerResult _lastResortPrayer(FirstPrayerAnswers answers) {
-  final body = switch (answers.purpose) {
-    FirstPrayerPurpose.guidance =>
-      'Father, guide me in your truth. Give me wisdom for what is before me, and grace to obey what you show me. Keep me close to Jesus. Amen.',
-    FirstPrayerPurpose.family =>
-      'Father, keep my family in your care. Teach us to love, forgive, and serve one another. Let your peace dwell among us. Amen.',
-    FirstPrayerPurpose.healing =>
-      'Lord Jesus, have mercy on me. Bring healing according to your will, give strength for today, and keep my hope in you. Amen.',
-    FirstPrayerPurpose.forgiveness =>
-      'Father, forgive me and make my heart clean. Help me receive your mercy and extend mercy to others. Lead me in the way of Jesus. Amen.',
-    FirstPrayerPurpose.difficultTime =>
-      'Father, remain with me in this difficult time. Give me courage, patience, and faith for what I must carry today. Amen.',
-    _ =>
-      'Father, keep me close to you today. Teach me to hear your word, obey you with love, and walk in the way of Jesus. Amen.',
-  };
-  return FirstPrayerResult(
-    title: answers.purpose?.label ?? 'Stay close',
-    body: body,
-    action: 'Return to this prayer before the day ends.',
-    grounding: answers.grounding,
-    purpose: answers.prayerPurpose,
-    reference: const PrayerReference.library('guided-offline'),
-  );
-}
+FirstPrayerResult _lastResortPrayer() => const FirstPrayerResult(
+  title: 'For this day',
+  body:
+      'Father, keep me near you through this day. Give me the daily bread I need, a willing heart for your will, and patience with each person I meet. Help me choose faithful action, speak truth with kindness, and love my neighbor in the work before me. In Jesus\' name. Amen.',
+  action:
+      'Complete one needed task, then help one person without seeking notice.',
+  grounding: PrayerGrounding.generalChristian,
+  purpose: PrayerPurpose.daily,
+  reference: PrayerReference.library('0198a100-0000-7000-8000-000000000001'),
+);
 
 String _memoryLabel(MemoryType type) => switch (type) {
   MemoryType.promise => 'Promise',

@@ -52,3 +52,12 @@ abstract interface class AudioAssetStore {
     required DateTime olderThan,
   });
 }
+
+/// Optional browser capability that moves a document-scoped recording into
+/// durable local storage before a multi-step save can be retried.
+abstract interface class DurableTemporaryAudioStore {
+  Future<TemporaryAudio> stageTemporary(
+    TemporaryAudio temporary, {
+    required String mimeType,
+  });
+}

@@ -36,4 +36,16 @@ void main() {
       contains('<key>NSSpeechRecognitionUsageDescription</key>'),
     );
   });
+
+  test('guided speech never starts browser speech recognition', () {
+    final source = File(
+      'lib/features/onboarding/presentation/first_prayer_speech_page.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('if (kIsWeb)'));
+    expect(
+      source.indexOf('if (kIsWeb)'),
+      lessThan(source.indexOf('_speech.initialize')),
+    );
+  });
 }

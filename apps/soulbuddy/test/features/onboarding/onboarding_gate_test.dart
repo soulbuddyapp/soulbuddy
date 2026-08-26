@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/onboarding/data/onboarding_repository.dart';
+import 'package:soulbuddy/features/onboarding/data/first_prayer_progress_repository.dart';
+import 'package:soulbuddy/features/onboarding/domain/first_prayer_progress.dart';
 import 'package:soulbuddy/features/onboarding/presentation/onboarding_gate.dart';
+import 'package:soulbuddy/features/onboarding/providers/first_prayer_providers.dart';
 import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
 
 void main() {
@@ -23,6 +26,22 @@ void main() {
 
     expect(find.text('Routed app'), findsOneWidget);
     expect(find.text('A place to return to God'), findsNothing);
+  });
+
+  testWidgets('completed welcome resumes a saved first prayer', (tester) async {
+    final repository = _MemoryOnboardingRepository(completed: true);
+    var resumed = false;
+    await _pumpGate(
+      tester,
+      repository,
+      progressRepository: _MemoryProgressRepository(
+        const FirstPrayerProgress(stage: FirstPrayerStage.frequency),
+      ),
+      onBeginWithPrayer: () => resumed = true,
+    );
+
+    expect(resumed, isTrue);
+    expect(find.text('Routed app'), findsOneWidget);
   });
 
   testWidgets('final welcome action persists and opens prayer choices', (
@@ -65,10 +84,16 @@ Future<void> _pumpGate(
   WidgetTester tester,
   OnboardingRepository repository, {
   VoidCallback? onBeginWithPrayer,
+  FirstPrayerProgressRepository? progressRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [onboardingRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        onboardingRepositoryProvider.overrideWithValue(repository),
+        firstPrayerProgressRepositoryProvider.overrideWith(
+          (ref) async => progressRepository ?? _MemoryProgressRepository(null),
+        ),
+      ],
       child: MaterialApp(
         theme: AppTheme.light(),
         home: OnboardingGate(
@@ -80,6 +105,21 @@ Future<void> _pumpGate(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _MemoryProgressRepository implements FirstPrayerProgressRepository {
+  _MemoryProgressRepository(this.progress);
+
+  FirstPrayerProgress? progress;
+
+  @override
+  Future<void> clear() async => progress = null;
+
+  @override
+  Future<FirstPrayerProgress?> load() async => progress;
+
+  @override
+  Future<void> save(FirstPrayerProgress value) async => progress = value;
 }
 
 class _MemoryOnboardingRepository extends OnboardingRepository {

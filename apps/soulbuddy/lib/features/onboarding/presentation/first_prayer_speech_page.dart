@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
@@ -46,6 +47,16 @@ class _FirstPrayerSpeechPageState extends ConsumerState<FirstPrayerSpeechPage> {
   }
 
   Future<void> _initialize() async {
+    if (kIsWeb) {
+      if (mounted) {
+        setState(() {
+          _initializing = false;
+          _notice =
+              'Speak is available in the mobile app. You can write instead.';
+        });
+      }
+      return;
+    }
     try {
       final available = await _speech.initialize(
         onStatus: (status) {

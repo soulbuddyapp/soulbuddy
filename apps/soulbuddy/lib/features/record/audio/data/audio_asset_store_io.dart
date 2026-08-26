@@ -112,8 +112,14 @@ class IoAudioAssetStore implements AudioAssetStore {
     required DateTime olderThan,
   }) async {
     final referencedPaths = <String>{};
+    final referencedTemporaryPaths = <String>{};
     for (final key in referencedStorageKeys) {
-      referencedPaths.add(path.normalize(path.absolute(_durablePath(key))));
+      if (key.startsWith('audio/')) {
+        referencedPaths.add(path.normalize(path.absolute(_durablePath(key))));
+      } else {
+        _requireLexicallyWithin(_temporaryAudio.path, key, 'temporary audio');
+        referencedTemporaryPaths.add(path.normalize(path.absolute(key)));
+      }
     }
 
     await _deleteOldFiles(
@@ -121,7 +127,11 @@ class IoAudioAssetStore implements AudioAssetStore {
       olderThan: olderThan,
       keepAbsolutePaths: referencedPaths,
     );
-    await _deleteOldFiles(_temporaryAudio, olderThan: olderThan);
+    await _deleteOldFiles(
+      _temporaryAudio,
+      olderThan: olderThan,
+      keepAbsolutePaths: referencedTemporaryPaths,
+    );
   }
 
   Future<void> _deleteOldFiles(

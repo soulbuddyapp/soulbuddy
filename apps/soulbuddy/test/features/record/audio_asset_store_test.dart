@@ -162,12 +162,22 @@ void main() {
       );
       await File(temporaryTake.locator).writeAsBytes([3]);
       await File(temporaryTake.locator).setLastModified(old);
+      final referencedTemporaryTake = await store.allocateTemporary(
+        takeId: 'referenced-old-take',
+        extension: 'm4a',
+      );
+      await File(referencedTemporaryTake.locator).writeAsBytes([4]);
+      await File(referencedTemporaryTake.locator).setLastModified(old);
 
-      await store.cleanup({kept.storageKey}, olderThan: threshold);
+      await store.cleanup({
+        kept.storageKey,
+        referencedTemporaryTake.locator,
+      }, olderThan: threshold);
 
       expect(await store.open(kept.storageKey), isNotNull);
       expect(await store.open(orphan.storageKey), isNull);
       expect(await File(temporaryTake.locator).exists(), isFalse);
+      expect(await File(referencedTemporaryTake.locator).exists(), isTrue);
     },
   );
 
@@ -223,6 +233,59 @@ void main() {
       expect(await store.open(committed.storageKey), isNull);
     });
 
+    test('staged browser takes survive a store recreation', () async {
+      final store = createStore(databaseName: 'web-staged');
+      final staged = await store.stageTemporary(
+        const TemporaryAudio(key: 'take-retry', locator: 'blob:first'),
+        mimeType: 'audio/webm',
+      );
+
+      expect(staged.locator, 'staged:audio-temp/take-retry.webm');
+      expect(released, ['blob:first']);
+      final reopened = createStore(databaseName: 'web-staged');
+      final committed = await reopened.commitTemporary(
+        staged,
+        assetId: 'saved-after-reload',
+        mimeType: 'audio/webm',
+      );
+
+      final opened = await reopened.open(committed.storageKey);
+      expect((opened! as BytesAudioPlaybackSource).bytes, [4, 3, 2, 1]);
+    });
+
+    test('staged bytes survive a committed asset rollback', () async {
+      final store = createStore(databaseName: 'web-staged-rollback');
+      final staged = await store.stageTemporary(
+        const TemporaryAudio(key: 'take-rollback', locator: 'blob:first'),
+        mimeType: 'audio/webm',
+      );
+      final first = await store.commitTemporary(
+        staged,
+        assetId: 'first-attempt',
+        mimeType: 'audio/webm',
+      );
+      await store.delete(first.storageKey);
+
+      final reopened = createStore(databaseName: 'web-staged-rollback');
+      final retried = await reopened.commitTemporary(
+        staged,
+        assetId: 'retry-attempt',
+        mimeType: 'audio/webm',
+      );
+      final opened = await reopened.open(retried.storageKey);
+      expect((opened! as BytesAudioPlaybackSource).bytes, [4, 3, 2, 1]);
+
+      await reopened.discardTemporary(staged.locator);
+      await expectLater(
+        reopened.commitTemporary(
+          staged,
+          assetId: 'after-discard',
+          mimeType: 'audio/webm',
+        ),
+        throwsStateError,
+      );
+    });
+
     test('a failed or duplicate import keeps the browser take', () async {
       final store = createStore(databaseName: 'web-failure');
       await store.commitTemporary(
@@ -272,6 +335,40 @@ void main() {
         }, olderThan: DateTime.utc(2026, 8, 12));
 
         expect(await store.open(kept.storageKey), isNotNull);
+        expect(await store.open(orphan.storageKey), isNull);
+      },
+    );
+
+    test(
+      'cleanup preserves referenced staged audio while removing old orphans',
+      () async {
+        var clock = DateTime.utc(2026, 8, 10);
+        final store = createStore(
+          databaseName: 'web-staged-cleanup',
+          now: () => clock,
+        );
+        final staged = await store.stageTemporary(
+          const TemporaryAudio(key: 'staged-take', locator: 'blob:first'),
+          mimeType: 'audio/webm',
+        );
+        temporaryBytes['blob:third'] = Uint8List.fromList([7]);
+        final orphan = await store.commitTemporary(
+          const TemporaryAudio(key: 'orphan-take', locator: 'blob:third'),
+          assetId: 'staged-cleanup-orphan',
+          mimeType: 'audio/webm',
+        );
+        clock = DateTime.utc(2026, 8, 13);
+
+        await store.cleanup({
+          staged.locator,
+        }, olderThan: DateTime.utc(2026, 8, 12));
+
+        final committed = await store.commitTemporary(
+          staged,
+          assetId: 'staged-cleanup-retry',
+          mimeType: 'audio/webm',
+        );
+        expect(await store.open(committed.storageKey), isNotNull);
         expect(await store.open(orphan.storageKey), isNull);
       },
     );

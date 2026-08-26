@@ -225,7 +225,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'To prepare this draft, SoulBuddy sends your choices and only the records you selected to DeepSeek. DeepSeek processes this information under its privacy policy.',
+        'To prepare this draft, SoulBuddy sends your choices and only the records you selected to an external prayer-writing service for processing.',
       ),
       findsOneWidget,
     );

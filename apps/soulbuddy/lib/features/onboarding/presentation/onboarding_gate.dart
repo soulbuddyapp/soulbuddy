@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../providers/onboarding_providers.dart';
+import '../providers/first_prayer_providers.dart';
 import 'onboarding_screen.dart';
 
 class OnboardingGate extends ConsumerStatefulWidget {
@@ -23,6 +24,7 @@ class OnboardingGate extends ConsumerStatefulWidget {
 
 class _OnboardingGateState extends ConsumerState<OnboardingGate> {
   var _completedForSession = false;
+  var _resumeScheduled = false;
 
   Future<void> _finish(VoidCallback destination) async {
     try {
@@ -43,8 +45,19 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
     return completed.when(
       loading: () => const _WelcomeLoading(),
       error: (_, _) => _welcome(),
-      data: (isComplete) => isComplete ? widget.child : _welcome(),
+      data: (isComplete) => isComplete ? _completed() : _welcome(),
     );
+  }
+
+  Widget _completed() {
+    final savedProgress = ref.watch(firstPrayerSavedProgressProvider);
+    if (savedProgress case AsyncData(value: != null) when !_resumeScheduled) {
+      _resumeScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onBeginWithPrayer();
+      });
+    }
+    return widget.child;
   }
 
   Widget _welcome() {

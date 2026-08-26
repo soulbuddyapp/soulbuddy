@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../record/audio/application/audio_capture_controller.dart';
+import '../../record/audio/domain/memory_audio.dart';
 import '../../record/audio/presentation/audio_capture_panel.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/domain/encounter.dart';
@@ -126,16 +128,29 @@ class _FirstPrayerScreenState extends State<FirstPrayerScreen> {
     FirstPrayerPreviewStep.detailChoice => FirstPrayerChoicePage(
       question: 'Add anything?',
       choices: const ['Speak', 'Write', 'Not now'],
-      onChoose: (choice) => choice == 'Write'
-          ? _next(FirstPrayerPreviewStep.detail)
-          : _next(FirstPrayerPreviewStep.preparing),
+      onChoose: (choice) {
+        if (choice == 'Write') {
+          _next(FirstPrayerPreviewStep.detail);
+        } else if (choice == 'Speak') {
+          _next(FirstPrayerPreviewStep.preparing);
+        } else {
+          _preparePreview();
+        }
+      },
     ),
     FirstPrayerPreviewStep.detail => FirstPrayerDetailPage(
-      onContinue: (_) => _next(FirstPrayerPreviewStep.preparing),
-      onSkip: () => _next(FirstPrayerPreviewStep.preparing),
+      onContinue: (_) => _preparePreview(),
+      onSkip: _preparePreview,
     ),
     FirstPrayerPreviewStep.preparing => _PreparingPrayer(onPrepared: () {}),
   };
+
+  Future<void> _preparePreview() async {
+    final choice = await _confirmPrayerProcessing(context);
+    if (choice != null && mounted) {
+      _next(FirstPrayerPreviewStep.preparing);
+    }
+  }
 
   void _back() {
     _next(switch (_step) {
@@ -173,10 +188,7 @@ class _LiveFirstPrayer extends ConsumerWidget {
               ),
         actions: [
           TextButton(
-            onPressed: () async {
-              await controller.complete();
-              if (context.mounted) context.go('/today');
-            },
+            onPressed: () => context.go('/today'),
             child: const Text('Go to Today'),
           ),
         ],
@@ -237,7 +249,7 @@ class _LiveFirstPrayer extends ConsumerWidget {
               choices: const ['Speak', 'Write', 'Not now'],
               onChoose: (choice) {
                 if (choice == 'Not now') {
-                  controller.prepare();
+                  _prepareWithConsent(context, controller);
                 } else {
                   controller.openDetail(speak: choice == 'Speak');
                 }
@@ -246,15 +258,21 @@ class _LiveFirstPrayer extends ConsumerWidget {
             FirstPrayerStage.detail =>
               flow.detailByVoice
                   ? FirstPrayerSpeechPage(
-                      onContinue: (detail) =>
-                          controller.prepare(detail: detail),
+                      onContinue: (detail) => _prepareWithConsent(
+                        context,
+                        controller,
+                        detail: detail,
+                      ),
                       onWriteInstead: () => controller.openDetail(speak: false),
-                      onSkip: controller.prepare,
+                      onSkip: () => _prepareWithConsent(context, controller),
                     )
                   : FirstPrayerDetailPage(
-                      onContinue: (detail) =>
-                          controller.prepare(detail: detail),
-                      onSkip: controller.prepare,
+                      onContinue: (detail) => _prepareWithConsent(
+                        context,
+                        controller,
+                        detail: detail,
+                      ),
+                      onSkip: () => _prepareWithConsent(context, controller),
                     ),
             FirstPrayerStage.preparing => _PreparingPrayer(
               onPrepared: controller.usePreparedPrayer,
@@ -297,18 +315,18 @@ class _LiveFirstPrayer extends ConsumerWidget {
                   ? ref
                         .watch(audioCaptureControllerProvider)
                         .when(
-                          data: (audioController) => AudioCapturePanel(
-                            controller: audioController,
-                            introHeading: 'Record it',
-                            introDescription:
-                                'Speak what you would like to remember.',
-                            onWriteInstead: () =>
-                                controller.chooseRemembranceMode(speak: false),
-                            onContinue: (audio) async {
-                              await controller.saveRemembrance(audio: audio);
-                              if (context.mounted) context.go('/today');
-                            },
-                          ),
+                          data: (audioController) =>
+                              _FirstPrayerAudioRemembrance(
+                                controller: audioController,
+                                initialDraft: flow.remembranceAudio,
+                                onWriteInstead: () => controller
+                                    .chooseRemembranceMode(speak: false),
+                                onSave: (audio) =>
+                                    controller.saveRemembrance(audio: audio),
+                                onSaved: () {
+                                  if (context.mounted) context.go('/today');
+                                },
+                              ),
                           loading: () =>
                               const Center(child: CircularProgressIndicator()),
                           error: (_, _) => Center(
@@ -321,12 +339,163 @@ class _LiveFirstPrayer extends ConsumerWidget {
                           ),
                         )
                   : FirstRemembranceWritePage(
+                      initialBody: flow.progress.remembranceText ?? '',
                       onSave: (body) async {
-                        await controller.saveRemembrance(body: body);
-                        if (context.mounted) context.go('/today');
+                        final saved = await controller.saveRemembrance(
+                          body: body,
+                        );
+                        if (saved && context.mounted) context.go('/today');
+                        return saved;
                       },
                     ),
           },
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _prepareWithConsent(
+  BuildContext context,
+  FirstPrayerController controller, {
+  String? detail,
+}) async {
+  final useExternalService = await _confirmPrayerProcessing(context);
+  if (useExternalService == null || !context.mounted) return;
+  if (useExternalService) {
+    await controller.prepare(detail: detail, externalProcessingConsent: true);
+  } else {
+    await controller.usePreparedPrayer();
+  }
+}
+
+Future<bool?> _confirmPrayerProcessing(BuildContext context) {
+  return showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Prepare your prayer',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Text(
+              'SoulBuddy sends your choices and any words you add to an external prayer-writing service. Choose a prepared prayer to keep this step on your device.',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Prepare prayer'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Choose a prepared prayer'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _FirstPrayerAudioRemembrance extends StatefulWidget {
+  const _FirstPrayerAudioRemembrance({
+    required this.controller,
+    required this.initialDraft,
+    required this.onWriteInstead,
+    required this.onSave,
+    required this.onSaved,
+  });
+
+  final AudioCaptureController controller;
+  final MemoryAudioDraft? initialDraft;
+  final VoidCallback onWriteInstead;
+  final Future<bool> Function(MemoryAudioDraft audio) onSave;
+  final VoidCallback onSaved;
+
+  @override
+  State<_FirstPrayerAudioRemembrance> createState() =>
+      _FirstPrayerAudioRemembranceState();
+}
+
+class _FirstPrayerAudioRemembranceState
+    extends State<_FirstPrayerAudioRemembrance> {
+  MemoryAudioDraft? _pending;
+  var _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _pending = widget.initialDraft;
+  }
+
+  @override
+  void didUpdateWidget(covariant _FirstPrayerAudioRemembrance oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = widget.initialDraft;
+    if (next != null && next.temporaryKey != _pending?.temporaryKey) {
+      _pending = next;
+    }
+  }
+
+  Future<void> _save(MemoryAudioDraft audio) async {
+    if (_saving) return;
+    setState(() {
+      _pending = audio;
+      _saving = true;
+      _error = null;
+    });
+    final saved = await widget.onSave(audio);
+    if (!mounted) return;
+    if (saved) {
+      widget.onSaved();
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _error = 'Couldn\'t keep this memory. Try again.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = _pending;
+    if (pending == null) {
+      return AudioCapturePanel(
+        controller: widget.controller,
+        introHeading: 'Record it',
+        introDescription: 'Speak what you would like to remember.',
+        onWriteInstead: widget.onWriteInstead,
+        onContinue: _save,
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_error case final error?)
+                Text(error, textAlign: TextAlign.center)
+              else
+                const Text('Keep this recording', textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.md),
+              FilledButton(
+                onPressed: _saving ? null : () => _save(pending),
+                child: Text(_saving ? 'Keeping…' : 'Try again'),
+              ),
+            ],
+          ),
         ),
       ),
     );
