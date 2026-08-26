@@ -15,7 +15,7 @@ class GeneratePrayerDraftRequest extends FormRequest
 {
     private const TOP_LEVEL_KEYS = [
         'attempt_id', 'disclosure_version', 'consent', 'style', 'reach',
-        'grounding', 'purpose', 'request_text', 'choices', 'contexts',
+        'grounding', 'language_preference', 'purpose', 'request_text', 'choices', 'contexts',
     ];
 
     private const CHOICE_KEYS = [
@@ -46,6 +46,7 @@ class GeneratePrayerDraftRequest extends FormRequest
             'style' => ['required', Rule::in(['daily', 'situational'])],
             'reach' => ['required', Rule::in(['personal', 'encompassing'])],
             'grounding' => ['required', Rule::in(['general_christian', 'catholic'])],
+            'language_preference' => ['sometimes', Rule::in(['christian', 'catholic', 'jesus', 'all'])],
             'purpose' => ['required', Rule::in([
                 'daily', 'gratitude', 'guidance', 'family', 'healing', 'work',
                 'forgiveness', 'difficult_time',

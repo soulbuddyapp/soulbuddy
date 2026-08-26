@@ -293,6 +293,7 @@ const appSchema = Schema([
       Column.text('style'),
       Column.text('reach'),
       Column.text('grounding'),
+      Column.text('language_preference'),
       Column.text('purpose'),
       Column.text('request_text'),
       Column.text('beneficiary_choice'),

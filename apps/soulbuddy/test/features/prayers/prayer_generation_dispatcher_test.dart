@@ -12,6 +12,7 @@ import 'package:soulbuddy/features/prayers/data/prayer_draft_api.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_generation_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:uuid/uuid.dart';
 
 void main() {
@@ -194,11 +195,13 @@ void main() {
           'style',
           'reach',
           'grounding',
+          'language_preference',
           'purpose',
           'request_text',
           'choices',
           'contexts',
         });
+        expect(payload['language_preference'], 'jesus');
         expect(payload, isNot(contains('owner_id')));
       },
     );
@@ -414,6 +417,7 @@ PrayerGenerationRequest _queuedRequest(
     style: PrayerStyle.situational,
     reach: PrayerReach.encompassing,
     grounding: PrayerGrounding.generalChristian,
+    languagePreference: PrayerLanguagePreference.jesus,
     purpose: PrayerPurpose.family,
     requestText: 'Give our family wisdom in this decision.',
     beneficiaryChoice: 'household_family',
@@ -540,6 +544,7 @@ class _MemoryGenerationRepository implements PrayerGenerationRepository {
     style: current.style,
     reach: current.reach,
     grounding: current.grounding,
+    languagePreference: current.languagePreference,
     purpose: current.purpose,
     requestText: current.requestText,
     beneficiaryChoice: current.beneficiaryChoice,
@@ -574,6 +579,7 @@ class _MemoryGenerationRepository implements PrayerGenerationRepository {
     required PrayerReach reach,
     required PrayerGrounding grounding,
     required PrayerPurpose purpose,
+    PrayerLanguagePreference? languagePreference,
     required String requestText,
   }) => throw UnimplementedError();
 

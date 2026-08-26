@@ -1,5 +1,6 @@
 import '../domain/library_prayer.dart';
 import '../domain/prayer_generation_request.dart';
+import '../domain/prayer_language.dart';
 
 abstract interface class PrayerGenerationRepository {
   Stream<PrayerGenerationRequest?> watch(String id);
@@ -10,6 +11,7 @@ abstract interface class PrayerGenerationRepository {
     required PrayerReach reach,
     required PrayerGrounding grounding,
     required PrayerPurpose purpose,
+    PrayerLanguagePreference? languagePreference,
     required String requestText,
   });
 

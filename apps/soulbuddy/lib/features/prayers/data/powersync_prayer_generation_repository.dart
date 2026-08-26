@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/library_prayer.dart';
 import '../domain/prayer_generation_request.dart';
+import '../domain/prayer_language.dart';
 import 'prayer_generation_repository.dart';
 
 class PowerSyncPrayerGenerationRepository
@@ -76,6 +77,7 @@ class PowerSyncPrayerGenerationRepository
     required PrayerReach reach,
     required PrayerGrounding grounding,
     required PrayerPurpose purpose,
+    PrayerLanguagePreference? languagePreference,
     required String requestText,
   }) async {
     final normalizedText = _validatedRequestText(requestText);
@@ -85,7 +87,7 @@ class PowerSyncPrayerGenerationRepository
     await database.execute(
       '''
       INSERT INTO prayer_generation_requests(
-        id, owner_id, style, reach, grounding, purpose, request_text,
+        id, owner_id, style, reach, grounding, language_preference, purpose, request_text,
         beneficiary_choice, surrender_choice, responsibility_choice,
         alignment_choice, status, draft_title, draft_body, draft_action,
         generated_title, generated_body, generated_action, prompt_version,
@@ -94,7 +96,7 @@ class PowerSyncPrayerGenerationRepository
         next_attempt_at, attempt_count, last_attempt_at, failure_code,
         created_at, updated_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, NULL, NULL, NULL,
+        ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, NULL, NULL, NULL,
         NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0,
         NULL, NULL, ?, ?
       )
@@ -105,6 +107,11 @@ class PowerSyncPrayerGenerationRepository
         style.wireValue,
         reach.wireValue,
         grounding.wireValue,
+        (languagePreference ??
+                (grounding == PrayerGrounding.catholic
+                    ? PrayerLanguagePreference.catholic
+                    : PrayerLanguagePreference.christian))
+            .wireValue,
         purpose.wireValue,
         normalizedText,
         PrayerGenerationStatus.editing.wireValue,
@@ -121,7 +128,7 @@ class PowerSyncPrayerGenerationRepository
     await database.execute(
       '''
       UPDATE prayer_generation_requests
-      SET style = ?, reach = ?, grounding = ?, purpose = ?, request_text = ?,
+      SET style = ?, reach = ?, grounding = ?, language_preference = ?, purpose = ?, request_text = ?,
           beneficiary_choice = ?, surrender_choice = ?,
           responsibility_choice = ?, alignment_choice = ?, draft_title = ?,
           draft_body = ?, draft_action = ?, updated_at = ?
@@ -131,6 +138,7 @@ class PowerSyncPrayerGenerationRepository
         request.style.wireValue,
         request.reach.wireValue,
         request.grounding.wireValue,
+        request.languagePreference.wireValue,
         request.purpose.wireValue,
         normalizedText,
         _trimmedOrNull(request.beneficiaryChoice),

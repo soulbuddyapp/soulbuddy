@@ -9,6 +9,7 @@ import 'package:soulbuddy/features/prayers/data/prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_draft_screen.dart';
@@ -229,6 +230,7 @@ class _DraftGenerationRepository implements PrayerGenerationRepository {
     required PrayerReach reach,
     required PrayerGrounding grounding,
     required PrayerPurpose purpose,
+    PrayerLanguagePreference? languagePreference,
     required String requestText,
   }) => throw UnimplementedError();
 

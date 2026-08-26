@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_generation_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../helpers/powersync_test_database.dart';
@@ -40,6 +41,7 @@ void main() {
         reach: PrayerReach.encompassing,
         grounding: PrayerGrounding.generalChristian,
         purpose: PrayerPurpose.family,
+        languagePreference: PrayerLanguagePreference.jesus,
         requestText: '  Give us wisdom as we care for our family.  ',
       );
       await repository.replaceContexts(request.id, const [
@@ -52,6 +54,7 @@ void main() {
 
       final saved = await repository.watch(request.id).first;
       expect(saved?.status, PrayerGenerationStatus.editing);
+      expect(saved?.languagePreference, PrayerLanguagePreference.jesus);
       expect(saved?.requestText, 'Give us wisdom as we care for our family.');
       expect(saved?.contexts, hasLength(1));
       expect(saved?.contexts.single.type, PrayerContextType.encounter);

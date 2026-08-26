@@ -9,6 +9,7 @@ import 'package:soulbuddy/features/prayers/application/prayer_generation_dispatc
 import 'package:soulbuddy/features/prayers/data/prayer_draft_api.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/presentation/personalized_prayer_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
@@ -343,6 +344,7 @@ class _InMemoryGenerationRepository implements PrayerGenerationRepository {
     required PrayerReach reach,
     required PrayerGrounding grounding,
     required PrayerPurpose purpose,
+    PrayerLanguagePreference? languagePreference,
     required String requestText,
   }) async {
     final now = DateTime.utc(2026, 8, 11, 8);
@@ -352,6 +354,7 @@ class _InMemoryGenerationRepository implements PrayerGenerationRepository {
       style: style,
       reach: reach,
       grounding: grounding,
+      languagePreference: languagePreference,
       purpose: purpose,
       requestText: requestText,
       status: PrayerGenerationStatus.editing,

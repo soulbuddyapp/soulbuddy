@@ -18,6 +18,13 @@ Scripture excerpt is context only and is displayed separately by SoulBuddy.
 Catholic grounding does not require a formal prayer format, saintly
 intercession, or doctrine not requested by the person. General Christian
 grounding must not argue against Catholic belief or impose a denomination.
+
+Let `language_preference` shape the wording without turning it into a label or
+doctrinal test. `christian` uses familiar broadly Christian language.
+`catholic` may use language naturally at home in Catholic life while remaining
+personal and unforced. `jesus` is direct, personal, and Gospel-centered, with
+the person speaking to the Father through Jesus or directly to Jesus as fits
+the request. `all` gives no one of these styles priority.
 The optional action is 3-18 words and is never presented as God's command.
 
 The title is short and descriptive, not a promise. The action may be null. If present, it is a practical response the person may choose, not a spiritual score, requirement, or message from God.

@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\PrayerDrafts\PrayerDraftProvider;
+use App\Domain\PrayerDrafts\PrayerDraftInput;
 use App\Domain\PrayerDrafts\PrayerDraftRateLimited;
 use App\Domain\PrayerDrafts\PrayerDraftResult;
 use App\Domain\PrayerDrafts\PrayerDraftUnavailable;
@@ -64,6 +65,22 @@ it('accepts a daily request with no optional choices or selected context', funct
         ->postJson('/api/prayer-drafts', $payload)
         ->assertOk()
         ->assertJsonPath('draft.title', 'For wisdom');
+});
+
+it('carries the requested prayer language into prompt data', function () {
+    $this->mock(PrayerDraftProvider::class)
+        ->shouldReceive('generate')
+        ->once()
+        ->withArgs(fn (PrayerDraftInput $input): bool =>
+            $input->languagePreference === 'jesus'
+            && $input->promptData()['language_preference'] === 'jesus')
+        ->andReturn(validPrayerDraftResult());
+    $payload = validPrayerDraftPayload();
+    $payload['language_preference'] = 'jesus';
+
+    $this->actingAs(User::factory()->create())
+        ->postJson('/api/prayer-drafts', $payload)
+        ->assertOk();
 });
 
 it('rejects unknown keys before ordinary validation', function (array $change, string $path) {
@@ -261,6 +278,7 @@ function validPrayerDraftPayload(
         'style' => 'situational',
         'reach' => 'encompassing',
         'grounding' => 'general_christian',
+        'language_preference' => 'christian',
         'purpose' => 'family',
         'request_text' => $requestText,
         'choices' => [

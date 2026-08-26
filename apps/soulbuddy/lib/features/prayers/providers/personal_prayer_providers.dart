@@ -20,6 +20,7 @@ import '../data/prayer_draft_api.dart';
 import '../data/prayer_generation_repository.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_generation_request.dart';
+import '../domain/prayer_language.dart';
 import '../domain/personal_prayer.dart';
 
 final prayerGenerationRepositoryProvider =
@@ -220,6 +221,9 @@ class PersonalizedPrayerController
               reach: current.reach!,
               grounding: current.grounding!,
               purpose: current.purpose!,
+              languagePreference: current.grounding == PrayerGrounding.catholic
+                  ? PrayerLanguagePreference.catholic
+                  : PrayerLanguagePreference.christian,
               requestText: requestText,
             )
           : current.request!.copyWith(requestText: requestText);

@@ -41,6 +41,7 @@ class LaravelPrayerDraftApi implements PrayerDraftApi {
           'style': request.style.wireValue,
           'reach': request.reach.wireValue,
           'grounding': request.grounding.wireValue,
+          'language_preference': request.languagePreference.wireValue,
           'purpose': request.purpose.wireValue,
           'request_text': request.requestText,
           'choices': {

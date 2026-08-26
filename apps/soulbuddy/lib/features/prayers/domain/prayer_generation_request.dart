@@ -1,4 +1,5 @@
 import 'library_prayer.dart';
+import 'prayer_language.dart';
 
 enum PrayerStyle {
   daily('daily'),
@@ -158,6 +159,7 @@ class PrayerGenerationRequest {
     required this.contexts,
     required this.createdAt,
     required this.updatedAt,
+    PrayerLanguagePreference? languagePreference,
     this.beneficiaryChoice,
     this.surrenderChoice,
     this.responsibilityChoice,
@@ -177,13 +179,19 @@ class PrayerGenerationRequest {
     this.nextAttemptAt,
     this.lastAttemptAt,
     this.failureCode,
-  });
+  }) : _languagePreference = languagePreference;
 
   final String id;
   final String ownerId;
   final PrayerStyle style;
   final PrayerReach reach;
   final PrayerGrounding grounding;
+  final PrayerLanguagePreference? _languagePreference;
+  PrayerLanguagePreference get languagePreference =>
+      _languagePreference ??
+      (grounding == PrayerGrounding.catholic
+          ? PrayerLanguagePreference.catholic
+          : PrayerLanguagePreference.christian);
   final PrayerPurpose purpose;
   final String requestText;
   final String? beneficiaryChoice;
@@ -221,6 +229,7 @@ class PrayerGenerationRequest {
     PrayerStyle? style,
     PrayerReach? reach,
     PrayerGrounding? grounding,
+    PrayerLanguagePreference? languagePreference,
     PrayerPurpose? purpose,
     String? requestText,
     String? beneficiaryChoice,
@@ -243,6 +252,7 @@ class PrayerGenerationRequest {
       style: style ?? this.style,
       reach: reach ?? this.reach,
       grounding: grounding ?? this.grounding,
+      languagePreference: languagePreference ?? this.languagePreference,
       purpose: purpose ?? this.purpose,
       requestText: requestText ?? this.requestText,
       beneficiaryChoice: clearBeneficiaryChoice
@@ -290,6 +300,9 @@ class PrayerGenerationRequest {
       style: PrayerStyle.fromWire(row['style'] as String),
       reach: PrayerReach.fromWire(row['reach'] as String),
       grounding: PrayerGrounding.fromWire(row['grounding'] as String),
+      languagePreference: PrayerLanguagePreference.tryFromWire(
+        row['language_preference'] as String?,
+      ),
       purpose: PrayerPurpose.fromWire(row['purpose'] as String),
       requestText: row['request_text'] as String,
       beneficiaryChoice: row['beneficiary_choice'] as String?,
