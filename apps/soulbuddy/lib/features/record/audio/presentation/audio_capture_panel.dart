@@ -18,6 +18,7 @@ class AudioCapturePanel extends StatefulWidget {
     this.introDescription,
     this.startLabel = 'Start recording',
     this.alternativeLabel = 'Write instead',
+    this.introContent,
     super.key,
   });
 
@@ -29,6 +30,7 @@ class AudioCapturePanel extends StatefulWidget {
   final String? introDescription;
   final String startLabel;
   final String alternativeLabel;
+  final Widget? introContent;
 
   @override
   State<AudioCapturePanel> createState() => _AudioCapturePanelState();
@@ -116,6 +118,10 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                         introDescription: widget.introDescription,
                       ),
                     ),
+                    if (widget.introContent case final content?) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      content,
+                    ],
                     const SizedBox(height: AppSpacing.lg),
                     if (state.notice case final notice?) ...[
                       _QuietNotice(text: notice),

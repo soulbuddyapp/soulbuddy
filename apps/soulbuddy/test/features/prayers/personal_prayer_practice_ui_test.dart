@@ -13,6 +13,7 @@ import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
 import 'package:soulbuddy/features/prayers/presentation/personal_prayer_detail_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
 
 void main() {
   for (final size in [const Size(390, 844), const Size(1024, 768)]) {
@@ -362,6 +363,9 @@ Widget _app(
       prayerSessionCountProvider(
         prayer.currentRevisionId,
       ).overrideWith((ref) => repository.counts),
+      voiceTabletForSourceProvider.overrideWith(
+        (ref, source) => Stream.value(null),
+      ),
       prayerDeviceTimezoneProvider.overrideWithValue(
         () async => 'Africa/Lagos',
       ),
