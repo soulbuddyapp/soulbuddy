@@ -175,7 +175,7 @@ class AltarReminderCoordinator {
     timezone_data.initializeTimeZones();
     final location = timezone.getLocation(schedule.timezone);
     final localNow = timezone.TZDateTime.from(nowUtc, location);
-    var civilDate = DateTime(
+    var civilDate = DateTime.utc(
       localNow.year,
       localNow.month,
       localNow.day,
