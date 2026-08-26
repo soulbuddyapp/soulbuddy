@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../altar/presentation/altar_ritual_sheet.dart';
 import '../providers/personal_prayer_providers.dart';
 import 'prayer_reminder_sheet.dart';
 import 'prayer_session_actions.dart';
@@ -72,6 +73,8 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       ),
                       title: value.title,
                       prayerBody: value.body,
+                      onKeepOnAltar: (tablet) =>
+                          showAltarRitualSheet(context, ref, tablet: tablet),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     PrayerReminderControl(prayer: value),

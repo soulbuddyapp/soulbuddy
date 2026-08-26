@@ -32,6 +32,12 @@ final voiceTabletForSourceProvider = StreamProvider.autoDispose
       yield* repository.watchForSource(source);
     });
 
+final voiceTabletProvider = StreamProvider.autoDispose
+    .family<VoiceTablet?, String>((ref, id) async* {
+      final repository = await ref.watch(voiceTabletRepositoryProvider.future);
+      yield* repository.watch(id);
+    });
+
 final voiceTabletAudioCaptureControllerProvider = FutureProvider.autoDispose
     .family<AudioCaptureController, VoiceTabletAudioKind>((ref, kind) async {
       final assetStore = await ref.watch(audioAssetStoreProvider.future);

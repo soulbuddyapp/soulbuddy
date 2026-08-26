@@ -7,6 +7,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../../core/presentation/covenant_slabs.dart';
+import '../../altar/presentation/altar_today_card.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../../prayers/presentation/prayer_library_tile.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
@@ -81,6 +82,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
+              const AltarTodaySection(),
+              SizedBox(height: showStartGuide ? AppSpacing.sm : AppSpacing.md),
               if (showStartGuide)
                 TodayStartGuide(
                   onChoosePrayer: () => context.go('/prayers'),

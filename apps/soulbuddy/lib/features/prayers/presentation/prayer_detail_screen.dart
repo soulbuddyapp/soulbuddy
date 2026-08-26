@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
+import '../../altar/presentation/altar_ritual_sheet.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
@@ -142,6 +143,8 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                 source: VoiceTabletSource.library(prayerId: prayer.id),
                 title: prayer.title,
                 prayerBody: prayer.body,
+                onKeepOnAltar: (tablet) =>
+                    showAltarRitualSheet(context, ref, tablet: tablet),
               ),
             ],
           ),
