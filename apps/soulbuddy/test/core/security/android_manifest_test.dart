@@ -11,7 +11,7 @@ void main() {
     expect(manifest, contains('android:allowBackup="false"'));
   });
 
-  test('declares microphone permission for explicit voice memories', () async {
+  test('declares permissions for explicit voice input', () async {
     final manifest = await File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsString();
@@ -27,8 +27,13 @@ void main() {
     expect(
       infoPlist,
       contains(
-        '<string>SoulBuddy uses the microphone only when you choose to record a private memory.</string>',
+        '<string>SoulBuddy uses the microphone only when you choose to speak a prayer detail or record a private memory.</string>',
       ),
+    );
+    expect(manifest, contains('android.speech.RecognitionService'));
+    expect(
+      infoPlist,
+      contains('<key>NSSpeechRecognitionUsageDescription</key>'),
     );
   });
 }
