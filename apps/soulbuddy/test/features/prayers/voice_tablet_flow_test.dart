@@ -65,7 +65,7 @@ void main() {
     'real capture handoff remains available until Voice Tablet save',
     (tester) async {
       final store = _CommittingAudioStore();
-      final recorder = _CaptureRecorder();
+      final recorder = _CaptureRecorder(['temporary/full.m4a']);
       final repository = _VoiceTabletRepository();
 
       await tester.pumpWidget(
@@ -116,6 +116,64 @@ void main() {
       expect(recorder.discarded, isEmpty);
     },
   );
+
+  testWidgets('record again after failed save replaces committed audio', (
+    tester,
+  ) async {
+    final store = _CommittingAudioStore();
+    final recorder = _CaptureRecorder([
+      'temporary/first.m4a',
+      'temporary/second.m4a',
+    ]);
+    final repository = _VoiceTabletRepository()..failuresRemaining = 1;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          voiceTabletRepositoryProvider.overrideWith((ref) async => repository),
+          voiceTabletAudioCaptureControllerProvider.overrideWith((ref, kind) {
+            return AudioCaptureController(
+              recorder: recorder,
+              allocateTemporary: () async => const TemporaryAudio(
+                key: 'temporary/allocated.m4a',
+                locator: 'temporary/allocated.m4a',
+              ),
+            );
+          }),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: VoiceTabletSheet(
+              source: VoiceTabletSourceTest.personal,
+              title: 'Morning surrender',
+              prayerBody: 'Father, keep me in your truth today.',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    for (var take = 0; take < 2; take++) {
+      await _settle(tester);
+      await tester.tap(find.text('Begin recording'));
+      await tester.pump();
+      await tester.tap(find.text('Stop'));
+      await _settle(tester);
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+      await tester.tap(find.text('Save without a refrain'));
+      await _settle(tester);
+      if (take == 0) await tester.tap(find.text('Record again'));
+    }
+
+    expect(store.committedTemporaryKeys, [
+      'temporary/first.m4a',
+      'temporary/second.m4a',
+    ]);
+    expect(store.deletedStorageKeys, hasLength(1));
+    expect(repository.created, hasLength(1));
+  });
 
   testWidgets('listening never records prayer without I prayed', (
     tester,
@@ -279,6 +337,9 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
 }
 
 class _CaptureRecorder implements AudioRecorderGateway {
+  _CaptureRecorder(this.results);
+
+  final List<String> results;
   final amplitudesController = StreamController<double>.broadcast();
   final discarded = <String>[];
 
@@ -312,14 +373,13 @@ class _CaptureRecorder implements AudioRecorderGateway {
   Future<void> start(TemporaryAudio temporary) async {}
 
   @override
-  Future<AudioRecorderResult> stop() async => const AudioRecorderResult(
-    locator: 'temporary/full.m4a',
-    mimeType: 'audio/mp4',
-  );
+  Future<AudioRecorderResult> stop() async =>
+      AudioRecorderResult(locator: results.removeAt(0), mimeType: 'audio/mp4');
 }
 
 class _CommittingAudioStore extends _FakeAudioStore {
   final committedTemporaryKeys = <String>[];
+  final deletedStorageKeys = <String>[];
 
   @override
   Future<CommittedAudio> commitTemporary(
@@ -328,18 +388,25 @@ class _CommittingAudioStore extends _FakeAudioStore {
     required String mimeType,
   }) async {
     committedTemporaryKeys.add(temporary.key);
-    return CommittedAudio(
-      storageKey: 'voice/$assetId.m4a',
-      byteSize: 64,
-    );
+    return CommittedAudio(storageKey: 'voice/$assetId.m4a', byteSize: 64);
+  }
+
+  @override
+  Future<void> delete(String storageKey) async {
+    deletedStorageKeys.add(storageKey);
   }
 }
 
 class _VoiceTabletRepository implements VoiceTabletRepository {
   final created = <VoiceTabletCreateRequest>[];
+  var failuresRemaining = 0;
 
   @override
   Future<VoiceTablet> create(VoiceTabletCreateRequest request) async {
+    if (failuresRemaining > 0) {
+      failuresRemaining--;
+      throw StateError('metadata unavailable');
+    }
     created.add(request);
     final attachment = request.fullRecording;
     return VoiceTablet(

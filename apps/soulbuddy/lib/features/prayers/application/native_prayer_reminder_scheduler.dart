@@ -40,6 +40,7 @@ class NativeNotificationRequest {
     required this.startsAudio,
     required this.actions,
     this.recurrence = ReminderNotificationRecurrence.once,
+    this.timeZoneName,
   });
 
   final int platformNotificationId;
@@ -51,6 +52,7 @@ class NativeNotificationRequest {
   final bool startsAudio;
   final List<NativeNotificationActionData> actions;
   final ReminderNotificationRecurrence recurrence;
+  final String? timeZoneName;
 }
 
 class NativeNotificationResponseData {
@@ -163,6 +165,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                 ),
               ],
         recurrence: notification.recurrence,
+        timeZoneName: notification.timeZoneName,
       ),
     );
   }
@@ -376,7 +379,9 @@ class FlutterLocalNotificationsPrayerClient
       body: request.body,
       scheduledDate: timezone.TZDateTime.from(
         request.scheduledAtUtc,
-        timezone.local,
+        request.timeZoneName == null
+            ? timezone.local
+            : timezone.getLocation(request.timeZoneName!),
       ),
       notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

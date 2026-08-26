@@ -391,6 +391,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
         occurrenceKey:
             '${occurrence.reminder.id}@${expectedAt.toUtc().toIso8601String()}',
         scheduledAtUtc: expectedAt.toUtc(),
+        timeZoneName: timezoneName,
       ),
     );
   }

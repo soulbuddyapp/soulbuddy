@@ -101,6 +101,38 @@ void main() {
     },
   );
 
+  test('selected-day reminders honor the ritual IANA timezone', () async {
+    final repository = _Repository();
+    final scheduler = _Scheduler();
+    final coordinator = AltarReminderCoordinator(
+      repository: repository,
+      scheduler: scheduler,
+      clock: () => DateTime.utc(2026, 8, 26, 12),
+    );
+    addTearDown(coordinator.dispose);
+
+    await coordinator.start();
+    repository.deliveries.add([
+      AltarReminderDelivery(
+        ritualId: 'ritual-new-york',
+        platformNotificationId: 61,
+        nextOccurrenceAt: DateTime.utc(2026, 8, 31, 11),
+        enabledOnDevice: true,
+        schedule: AltarRitualSchedule.weekdays(
+          localTime: PrayerLocalTime(hour: 7, minute: 0),
+          timezone: 'America/New_York',
+          weekdaysMask: 1 << (DateTime.monday - 1),
+        ),
+      ),
+    ]);
+    await pumpEventQueue();
+
+    expect(
+      scheduler.scheduled.single.scheduledAtUtc,
+      DateTime.utc(2026, 8, 31, 11),
+    );
+  });
+
   test('cancels platform reminders when a ritual is disabled', () async {
     final repository = _Repository();
     final scheduler = _Scheduler();
@@ -156,6 +188,20 @@ class _Repository implements AltarRitualRepository {
 
   @override
   Future<void> archive(String ritualId) => throw UnimplementedError();
+
+  @override
+  Future<void> markPrayed({
+    required String ritualId,
+    required DateTime occurrenceAt,
+    required DateTime localDate,
+    required String prayerSessionId,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> retractPrayer({
+    required String ritualId,
+    required DateTime occurrenceAt,
+  }) => throw UnimplementedError();
 
   @override
   Future<AltarRitual> save(AltarRitualDraft draft) =>

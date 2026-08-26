@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -98,11 +100,7 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
           'Choose one short line you can return to during the day. Up to 25 seconds.',
       startLabel: 'Record the refrain',
       onContinue: (draft) {
-        setState(() {
-          _refrainDraft = draft;
-          _error = null;
-        });
-        _save();
+        unawaited(_replaceRefrainAndSave(draft));
       },
       onBack: () => setState(() {
         _error = null;
@@ -231,8 +229,15 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
 
   Future<void> _recordFullPrayerAgain() async {
     final draft = _fullDraft;
-    if (draft != null && _fullAttachment == null) {
-      final store = await ref.read(audioAssetStoreProvider.future);
+    final attachment = _fullAttachment;
+    final store = await ref.read(audioAssetStoreProvider.future);
+    if (attachment != null) {
+      try {
+        await store.delete(attachment.committed.storageKey);
+      } catch (_) {
+        // Startup orphan cleanup retries without exposing the private key.
+      }
+    } else if (draft != null) {
       try {
         await store.discardTemporary(draft.temporaryKey);
       } catch (_) {
@@ -242,9 +247,29 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
     if (!mounted) return;
     setState(() {
       _fullDraft = null;
+      _fullAttachment = null;
       _error = null;
       _step = VoiceTabletSheetStep.fullPrayer;
     });
+  }
+
+  Future<void> _replaceRefrainAndSave(RecordedAudioDraft draft) async {
+    final attachment = _refrainAttachment;
+    if (attachment != null) {
+      final store = await ref.read(audioAssetStoreProvider.future);
+      try {
+        await store.delete(attachment.committed.storageKey);
+      } catch (_) {
+        // Startup orphan cleanup retries without exposing the private key.
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _refrainAttachment = null;
+      _refrainDraft = draft;
+      _error = null;
+    });
+    await _save();
   }
 
   Future<void> _discardUncommittedDrafts() async {

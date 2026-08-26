@@ -185,6 +185,7 @@ const appSchema = Schema([
       Column.text('scheduled_timezone'),
       Column.text('snoozed_until'),
       Column.text('dismissed_occurrence_key'),
+      Column.integer('autoplay_when_opened'),
       Column.text('updated_at'),
     ],
     indexes: [
@@ -192,6 +193,25 @@ const appSchema = Schema([
         IndexedColumn('device_id'),
         IndexedColumn('enabled_on_device'),
         IndexedColumn('next_occurrence_at'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'altar_ritual_occurrences',
+    [
+      Column.text('owner_id'),
+      Column.text('ritual_id'),
+      Column.text('local_date'),
+      Column.text('occurrence_at'),
+      Column.text('status'),
+      Column.text('prayer_session_id'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('altar_occurrences_owner_date', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('local_date'),
+        IndexedColumn('status'),
       ]),
     ],
   ),

@@ -94,6 +94,48 @@ void main() {
   );
 
   test(
+    'persists and retracts the prayed state for one Altar occurrence',
+    () async {
+      final ritual = await repository.save(_dailyAt(7, 'tablet-1'));
+      final occurrence = DateTime.utc(2026, 8, 26, 6);
+
+      await repository.markPrayed(
+        ritualId: ritual.id,
+        occurrenceAt: occurrence,
+        localDate: DateTime(2026, 8, 26),
+        prayerSessionId: 'session-1',
+      );
+
+      expect(
+        await repository
+            .watchNextForDate(
+              DateTime(2026, 8, 26),
+              now: DateTime.utc(2026, 8, 26, 6, 5),
+            )
+            .first,
+        isNull,
+      );
+
+      await repository.retractPrayer(
+        ritualId: ritual.id,
+        occurrenceAt: occurrence,
+      );
+
+      expect(
+        (await repository
+                .watchNextForDate(
+                  DateTime(2026, 8, 26),
+                  now: DateTime.utc(2026, 8, 26, 6, 5),
+                )
+                .first)
+            ?.ritual
+            .id,
+        ritual.id,
+      );
+    },
+  );
+
+  test(
     'pause, snooze, and archive stay local-first and owner scoped',
     () async {
       final first = await repository.save(_dailyAt(7, 'tablet-1'));
@@ -156,6 +198,7 @@ AltarRitualDraft _dailyAt(int hour, String tabletId) => AltarRitualDraft(
   ),
   playbackMode: AltarPlaybackMode.fullPrayer,
   enableOnThisDevice: true,
+  autoplayWhenOpened: false,
 );
 
 Future<void> _seedVoiceTablet(

@@ -74,6 +74,7 @@ class _AltarRitualSheetState extends State<AltarRitualSheet> {
   late TimeOfDay _time;
   late Set<int> _weekdays;
   late AltarPlaybackMode _playbackMode;
+  var _autoplayWhenOpened = false;
   var _saving = false;
   String? _error;
 
@@ -147,6 +148,22 @@ class _AltarRitualSheetState extends State<AltarRitualSheet> {
                     _dayChip('Selected days', _AltarDayChoice.selectedDays),
                   ],
                 ),
+                if (_playbackMode != AltarPlaybackMode.openQuietly)
+                  SwitchListTile(
+                    key: const Key('altar-autoplay-on-open'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Play when I open the reminder'),
+                    subtitle: const Text(
+                      'Off by default. Your recording may use this device’s speaker.',
+                    ),
+                    value: _autoplayWhenOpened,
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() {
+                            _autoplayWhenOpened = value;
+                            _error = null;
+                          }),
+                  ),
                 if (_dayChoice == _AltarDayChoice.selectedDays) ...[
                   const SizedBox(height: AppSpacing.md),
                   Wrap(
@@ -290,6 +307,9 @@ class _AltarRitualSheetState extends State<AltarRitualSheet> {
           schedule: schedule,
           playbackMode: _playbackMode,
           enableOnThisDevice: true,
+          autoplayWhenOpened:
+              _playbackMode != AltarPlaybackMode.openQuietly &&
+              _autoplayWhenOpened,
         ),
       );
       if (!mounted) return;

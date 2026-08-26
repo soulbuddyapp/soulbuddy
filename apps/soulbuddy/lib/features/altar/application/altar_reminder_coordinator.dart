@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:timezone/data/latest.dart' as timezone_data;
+import 'package:timezone/timezone.dart' as timezone;
+
 import '../../prayers/application/prayer_reminder_scheduler.dart';
 import '../data/altar_ritual_repository.dart';
 import '../domain/altar_ritual.dart';
@@ -21,7 +24,9 @@ class AltarReminderCoordinator {
     DateTime Function()? clock,
   }) : _repository = repository,
        _scheduler = scheduler,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now {
+    timezone_data.initializeTimeZones();
+  }
 
   final AltarRitualRepository _repository;
   final PrayerReminderScheduler _scheduler;
@@ -159,6 +164,7 @@ class AltarReminderCoordinator {
     scheduledAtUtc: atUtc,
     kind: ReminderNotificationKind.altar,
     recurrence: recurrence,
+    timeZoneName: delivery.schedule.timezone,
   );
 
   DateTime _nextWeekdayOccurrence(
@@ -166,8 +172,11 @@ class AltarReminderCoordinator {
     int weekday,
     DateTime nowUtc,
   ) {
-    final localNow = nowUtc.toLocal();
-    var candidate = DateTime(
+    timezone_data.initializeTimeZones();
+    final location = timezone.getLocation(schedule.timezone);
+    final localNow = timezone.TZDateTime.from(nowUtc, location);
+    var candidate = timezone.TZDateTime(
+      location,
       localNow.year,
       localNow.month,
       localNow.day,
@@ -193,12 +202,16 @@ class AltarReminderCoordinator {
       ((base * 31) + weekday) & 0x7fffffff;
 
   String _scheduleSignature(PrayerScheduledNotification notification) {
-    final local = notification.scheduledAtUtc.toLocal();
+    final local = timezone.TZDateTime.from(
+      notification.scheduledAtUtc,
+      timezone.getLocation(notification.timeZoneName!),
+    );
     final weekday =
         notification.recurrence == ReminderNotificationRecurrence.weekly
         ? ':${local.weekday}'
         : '';
-    return '${notification.recurrence.name}$weekday:${local.hour}:${local.minute}';
+    return '${notification.recurrence.name}:${notification.timeZoneName}'
+        '$weekday:${local.hour}:${local.minute}';
   }
 
   void _handleResponse(PrayerReminderResponse response) {

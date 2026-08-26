@@ -39,13 +39,16 @@ class AltarTodaySection extends ConsumerWidget {
             final pendingRitual = ref.watch(pendingAltarOpenProvider);
             if (pendingRitual == value.ritual.id) {
               ref.read(pendingAltarOpenProvider.notifier).clear();
-              _autoplayOnce(ref, value, voiceTablet);
+              if (value.autoplayWhenOpened) {
+                _autoplayOnce(ref, value, voiceTablet);
+              }
             }
             return AltarTodayCard(
               due: value,
               tablet: voiceTablet,
               onListen: () => _listenToAltar(ref, value, voiceTablet),
               onPrayed: () => _recordAltarPrayer(ref, value, voiceTablet),
+              onUndo: (sessionId) => _undoAltarPrayer(ref, value, sessionId),
             );
           },
         );
@@ -93,6 +96,7 @@ class AltarReminderOverlayHost extends ConsumerWidget {
             tablet: tablet,
             onListen: () => _listenToAltar(ref, due, tablet),
             onPrayed: () => _recordAltarPrayer(ref, due, tablet),
+            onUndo: (sessionId) => _undoAltarPrayer(ref, due, sessionId),
           ),
         ),
       ),
@@ -123,7 +127,7 @@ Future<void> _listenToAltar(
   );
 }
 
-Future<void> _recordAltarPrayer(
+Future<String> _recordAltarPrayer(
   WidgetRef ref,
   DueAltarRitual due,
   VoiceTablet tablet,
@@ -131,7 +135,7 @@ Future<void> _recordAltarPrayer(
   final repository = await ref.read(prayerPracticeRepositoryProvider.future);
   final timezone = await ref.read(prayerDeviceTimezoneProvider)();
   final source = tablet.source;
-  await repository.recordSession(
+  final session = await repository.recordSession(
     prayer: source.type == VoiceTabletSourceType.personalPrayer
         ? PrayerReference.personal(source.prayerId)
         : PrayerReference.library(source.prayerId),
@@ -141,9 +145,30 @@ Future<void> _recordAltarPrayer(
         '${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}',
   );
   final altarRepository = await ref.read(altarRitualRepositoryProvider.future);
+  await altarRepository.markPrayed(
+    ritualId: due.ritual.id,
+    occurrenceAt: due.occurrenceAt,
+    localDate: session.localDate,
+    prayerSessionId: session.id,
+  );
   await altarRepository.advance(
     due.ritual.id,
     afterUtc: due.occurrenceAt.toUtc(),
+  );
+  return session.id;
+}
+
+Future<void> _undoAltarPrayer(
+  WidgetRef ref,
+  DueAltarRitual due,
+  String sessionId,
+) async {
+  final repository = await ref.read(prayerPracticeRepositoryProvider.future);
+  await repository.retractSession(sessionId);
+  final altarRepository = await ref.read(altarRitualRepositoryProvider.future);
+  await altarRepository.retractPrayer(
+    ritualId: due.ritual.id,
+    occurrenceAt: due.occurrenceAt,
   );
 }
 
@@ -153,13 +178,15 @@ class AltarTodayCard extends StatefulWidget {
     required this.tablet,
     required this.onListen,
     required this.onPrayed,
+    this.onUndo,
     super.key,
   });
 
   final DueAltarRitual due;
   final VoiceTablet tablet;
   final FutureOr<void> Function() onListen;
-  final FutureOr<void> Function() onPrayed;
+  final FutureOr<String?> Function() onPrayed;
+  final FutureOr<void> Function(String sessionId)? onUndo;
 
   @override
   State<AltarTodayCard> createState() => _AltarTodayCardState();
@@ -284,14 +311,36 @@ class _AltarTodayCardState extends State<AltarTodayCard> {
       _error = null;
     });
     try {
-      await widget.onPrayed();
-      if (mounted) setState(() => _prayed = true);
+      final sessionId = await widget.onPrayed();
+      if (mounted) {
+        setState(() => _prayed = true);
+        if (sessionId != null && widget.onUndo != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Prayer recorded.'),
+              action: SnackBarAction(
+                label: 'Undo',
+                onPressed: () => unawaited(_undo(sessionId)),
+              ),
+            ),
+          );
+        }
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Could not record this prayer just now.');
       }
     } finally {
       if (mounted) setState(() => _recording = false);
+    }
+  }
+
+  Future<void> _undo(String sessionId) async {
+    try {
+      await widget.onUndo?.call(sessionId);
+      if (mounted) setState(() => _prayed = false);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not undo this record.');
     }
   }
 }

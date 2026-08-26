@@ -165,6 +165,7 @@ class AltarRitualDraft {
     required this.schedule,
     required this.playbackMode,
     required this.enableOnThisDevice,
+    required this.autoplayWhenOpened,
   }) {
     _requiredText(target.targetId, 'targetId', 128);
   }
@@ -173,6 +174,7 @@ class AltarRitualDraft {
   final AltarRitualSchedule schedule;
   final AltarPlaybackMode playbackMode;
   final bool enableOnThisDevice;
+  final bool autoplayWhenOpened;
 }
 
 class AltarReminderDelivery {
@@ -200,6 +202,7 @@ class DueAltarRitual {
     required this.occurrenceAt,
     required this.localStatus,
     required this.hasLocalAudio,
+    required this.autoplayWhenOpened,
     this.audioStorageKey,
   });
 
@@ -208,6 +211,7 @@ class DueAltarRitual {
   final DateTime occurrenceAt;
   final AltarRitualLocalStatus localStatus;
   final bool hasLocalAudio;
+  final bool autoplayWhenOpened;
   final String? audioStorageKey;
 }
 

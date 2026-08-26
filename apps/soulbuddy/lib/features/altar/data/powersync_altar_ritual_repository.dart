@@ -88,6 +88,9 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
             ritual.archived_at AS ritual_archived_at,
             device.next_occurrence_at,
             device.snoozed_until,
+            device.autoplay_when_opened,
+            occurrence.status AS occurrence_status,
+            occurrence.prayer_session_id AS occurrence_session_id,
             full.storage_key AS full_storage_key,
             refrain.storage_key AS refrain_storage_key
           FROM altar_rituals AS ritual
@@ -97,6 +100,10 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
           JOIN altar_ritual_devices AS device
             ON device.ritual_id = ritual.id
            AND device.device_id = ?
+          LEFT JOIN altar_ritual_occurrences AS occurrence
+            ON occurrence.ritual_id = ritual.id
+           AND occurrence.owner_id = ritual.owner_id
+           AND occurrence.local_date = ?
           LEFT JOIN voice_tablets AS tablet
             ON tablet.id = item.voice_tablet_id
            AND tablet.owner_id = item.owner_id
@@ -112,7 +119,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
             AND device.enabled_on_device = 1
           ORDER BY ritual.local_time, ritual.id
           ''',
-          parameters: [deviceId, ownerId],
+          parameters: [deviceId, _dateWire(localDate), ownerId],
         )
         .map((rows) => _nextDue(rows, localDate, (now ?? _now()).toUtc()));
   }
@@ -269,6 +276,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
         transaction,
         ritualId: ritualId,
         enabled: draft.enableOnThisDevice,
+        autoplayWhenOpened: draft.autoplayWhenOpened,
         nextOccurrenceAt: _nextOccurrence(draft.schedule, now),
         scheduledTimezone: draft.schedule.timezone,
         now: nowWire,
@@ -349,6 +357,78 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
   }
 
   @override
+  Future<void> markPrayed({
+    required String ritualId,
+    required DateTime occurrenceAt,
+    required DateTime localDate,
+    required String prayerSessionId,
+  }) {
+    return database.writeTransaction((transaction) async {
+      await _requireRitual(transaction, ritualId);
+      final occurrenceWire = occurrenceAt.toUtc().toIso8601String();
+      final id = _uuid.v5(
+        Namespace.url.value,
+        'soulbuddy:altar-occurrence:$ritualId:$occurrenceWire',
+      );
+      final now = _now().toUtc().toIso8601String();
+      final existing = await transaction.getOptional(
+        'SELECT id FROM altar_ritual_occurrences WHERE id = ? AND owner_id = ?',
+        [id, ownerId],
+      );
+      if (existing == null) {
+        await transaction.execute(
+          '''
+          INSERT INTO altar_ritual_occurrences(
+            id, owner_id, ritual_id, local_date, occurrence_at, status,
+            prayer_session_id, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'prayed', ?, ?)
+          ''',
+          [
+            id,
+            ownerId,
+            ritualId,
+            _dateWire(localDate),
+            occurrenceWire,
+            prayerSessionId,
+            now,
+          ],
+        );
+      } else {
+        await transaction.execute(
+          '''
+          UPDATE altar_ritual_occurrences
+          SET status = 'prayed', prayer_session_id = ?, updated_at = ?
+          WHERE id = ? AND owner_id = ?
+          ''',
+          [prayerSessionId, now, id, ownerId],
+        );
+      }
+    });
+  }
+
+  @override
+  Future<void> retractPrayer({
+    required String ritualId,
+    required DateTime occurrenceAt,
+  }) {
+    return database.writeTransaction((transaction) async {
+      await _requireRitual(transaction, ritualId);
+      final id = _uuid.v5(
+        Namespace.url.value,
+        'soulbuddy:altar-occurrence:$ritualId:${occurrenceAt.toUtc().toIso8601String()}',
+      );
+      await transaction.execute(
+        '''
+        UPDATE altar_ritual_occurrences
+        SET status = 'retracted', updated_at = ?
+        WHERE id = ? AND owner_id = ? AND ritual_id = ?
+        ''',
+        [_now().toUtc().toIso8601String(), id, ownerId, ritualId],
+      );
+    });
+  }
+
+  @override
   Future<void> archive(String ritualId) {
     return database.writeTransaction((transaction) async {
       final ritual = await _requireRitual(transaction, ritualId);
@@ -380,6 +460,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
   ) {
     final candidates = <DueAltarRitual>[];
     for (final row in rows) {
+      if (row['occurrence_status'] == 'prayed') continue;
       final ritual = _ritualFromAliasedRow(row);
       final scheduled = _occurrenceForDate(ritual.schedule, localDate);
       if (scheduled == null) continue;
@@ -413,6 +494,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
           occurrenceAt: occurrence,
           localStatus: status,
           hasLocalAudio: hasAudio,
+          autoplayWhenOpened: row['autoplay_when_opened'] == 1,
           audioStorageKey: storageKey,
         ),
       );
@@ -538,6 +620,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
     SqliteWriteContext transaction, {
     required String ritualId,
     required bool enabled,
+    required bool autoplayWhenOpened,
     required DateTime? nextOccurrenceAt,
     required String scheduledTimezone,
     required String now,
@@ -558,6 +641,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
       nextOccurrenceAt?.toUtc().toIso8601String(),
       notificationId,
       scheduledTimezone,
+      autoplayWhenOpened ? 1 : 0,
       now,
     ];
     if (existing == null) {
@@ -566,8 +650,8 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
         INSERT INTO altar_ritual_devices(
           id, ritual_id, device_id, enabled_on_device, next_occurrence_at,
           platform_notification_id, scheduled_timezone, snoozed_until,
-          dismissed_occurrence_key, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)
+          dismissed_occurrence_key, autoplay_when_opened, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
         ''',
         [id, ritualId, deviceId, ...values],
       );
@@ -579,7 +663,7 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
       SET enabled_on_device = ?, next_occurrence_at = ?,
           platform_notification_id = ?, scheduled_timezone = ?,
           snoozed_until = NULL, dismissed_occurrence_key = NULL,
-          updated_at = ?
+          autoplay_when_opened = ?, updated_at = ?
       WHERE id = ? AND device_id = ?
       ''',
       [...values, id, deviceId],
@@ -639,6 +723,11 @@ String _targetColumn(AltarTargetType type) => switch (type) {
 
 DateTime? _optionalDate(Object? value) =>
     value == null ? null : DateTime.parse(value as String);
+
+String _dateWire(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-'
+    '${value.month.toString().padLeft(2, '0')}-'
+    '${value.day.toString().padLeft(2, '0')}';
 
 String _identifier(String value, String name) {
   final normalized = value.trim();

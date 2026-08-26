@@ -28,6 +28,7 @@ class PrayerScheduledNotification {
     required this.scheduledAtUtc,
     this.kind = ReminderNotificationKind.prayer,
     this.recurrence = ReminderNotificationRecurrence.once,
+    this.timeZoneName,
   });
 
   final int platformNotificationId;
@@ -36,6 +37,7 @@ class PrayerScheduledNotification {
   final DateTime scheduledAtUtc;
   final ReminderNotificationKind kind;
   final ReminderNotificationRecurrence recurrence;
+  final String? timeZoneName;
 }
 
 abstract interface class PrayerReminderScheduler {

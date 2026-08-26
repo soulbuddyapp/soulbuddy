@@ -29,6 +29,7 @@ void main() {
     expect(find.text('Every day'), findsOneWidget);
     expect(find.text('Prayer Refrain'), findsOneWidget);
 
+    await tester.ensureVisible(find.byKey(const Key('save-altar-ritual')));
     await tester.tap(find.byKey(const Key('save-altar-ritual')));
     await tester.pumpAndSettle();
 
@@ -37,6 +38,7 @@ void main() {
     expect(saved!.schedule.type, AltarScheduleType.daily);
     expect(saved!.playbackMode, AltarPlaybackMode.refrain);
     expect(saved!.enableOnThisDevice, isTrue);
+    expect(saved!.autoplayWhenOpened, isFalse);
   });
 
   testWidgets('requires at least one selected day', (tester) async {
@@ -89,7 +91,10 @@ void main() {
           due: _due(),
           tablet: _tablet(withRefrain: true),
           onListen: () async => listens += 1,
-          onPrayed: () async => prayers += 1,
+          onPrayed: () async {
+            prayers += 1;
+            return 'session-1';
+          },
         ),
       ),
     );
@@ -182,5 +187,6 @@ DueAltarRitual _due() => DueAltarRitual(
   occurrenceAt: DateTime.utc(2026, 8, 26, 6, 30),
   localStatus: AltarRitualLocalStatus.due,
   hasLocalAudio: true,
+  autoplayWhenOpened: false,
   audioStorageKey: 'private/refrain.m4a',
 );

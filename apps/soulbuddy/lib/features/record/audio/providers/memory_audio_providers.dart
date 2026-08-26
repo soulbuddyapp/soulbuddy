@@ -39,7 +39,7 @@ final memoryAudioForEncounterProvider = StreamProvider.autoDispose
     });
 
 final memoryAudioPlaybackCoordinatorProvider =
-    FutureProvider.autoDispose<MemoryAudioPlaybackCoordinator>((ref) async {
+    FutureProvider<MemoryAudioPlaybackCoordinator>((ref) async {
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
       final coordinator = MemoryAudioPlaybackCoordinator(
         assetStore: assetStore,
