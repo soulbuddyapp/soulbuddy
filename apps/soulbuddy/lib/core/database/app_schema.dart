@@ -82,6 +82,52 @@ const appSchema = Schema([
       ]),
     ],
   ),
+  Table(
+    'voice_tablets',
+    [
+      Column.text('owner_id'),
+      Column.text('source_type'),
+      Column.text('personal_prayer_id'),
+      Column.text('library_prayer_id'),
+      Column.text('prayer_revision_id'),
+      Column.text('title'),
+      Column.text('full_audio_id'),
+      Column.text('refrain_audio_id'),
+      Column.text('recording_device_id'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('voice_tablets_owner_source', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('source_type'),
+        IndexedColumn('personal_prayer_id'),
+        IndexedColumn('library_prayer_id'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'voice_tablet_audio_assets',
+    [
+      Column.text('owner_id'),
+      Column.text('voice_tablet_id'),
+      Column.text('audio_kind'),
+      Column.text('storage_key'),
+      Column.text('mime_type'),
+      Column.integer('duration_ms'),
+      Column.integer('byte_size'),
+      Column.text('waveform_json'),
+      Column.text('created_at'),
+    ],
+    indexes: [
+      Index('voice_tablet_audio_owner_tablet_kind', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('voice_tablet_id'),
+        IndexedColumn('audio_kind'),
+      ]),
+    ],
+  ),
   Table.localOnly(
     'daily_memory_occurrences',
     [
