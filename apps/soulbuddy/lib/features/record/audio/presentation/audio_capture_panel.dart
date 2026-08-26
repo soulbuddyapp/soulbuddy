@@ -276,7 +276,8 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         icon: Icons.arrow_forward,
         onPressed: () {
           unawaited(_reviewPlayer.stop());
-          widget.onContinue(review);
+          final transferred = widget.controller.takeReview();
+          if (transferred != null) widget.onContinue(transferred);
         },
       ),
       const SizedBox(height: AppSpacing.sm),

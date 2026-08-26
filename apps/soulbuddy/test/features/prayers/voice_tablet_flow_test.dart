@@ -5,8 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
+import 'package:soulbuddy/features/prayers/data/voice_tablet_repository.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_player.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_sheet.dart';
+import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
 import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
@@ -56,6 +60,62 @@ void main() {
     expect(find.text('Save without a refrain'), findsOneWidget);
     expect(find.textContaining('Prayer Refrain'), findsOneWidget);
   });
+
+  testWidgets(
+    'real capture handoff remains available until Voice Tablet save',
+    (tester) async {
+      final store = _CommittingAudioStore();
+      final recorder = _CaptureRecorder();
+      final repository = _VoiceTabletRepository();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            audioAssetStoreProvider.overrideWith((ref) async => store),
+            voiceTabletRepositoryProvider.overrideWith(
+              (ref) async => repository,
+            ),
+            voiceTabletAudioCaptureControllerProvider.overrideWith((ref, kind) {
+              return AudioCaptureController(
+                recorder: recorder,
+                allocateTemporary: () async => const TemporaryAudio(
+                  key: 'temporary/full.m4a',
+                  locator: 'temporary/full.m4a',
+                ),
+                maximumDuration: kind == VoiceTabletAudioKind.refrain
+                    ? maximumPrayerRefrainDuration
+                    : maximumMemoryAudioDuration,
+              );
+            }),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: VoiceTabletSheet(
+                source: VoiceTabletSourceTest.personal,
+                title: 'Morning surrender',
+                prayerBody: 'Father, keep me in your truth today.',
+              ),
+            ),
+          ),
+        ),
+      );
+      await _settle(tester);
+      await tester.tap(find.text('Begin recording'));
+      await tester.pump();
+      await tester.tap(find.text('Stop'));
+      await _settle(tester);
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+
+      expect(recorder.discarded, isEmpty);
+      await tester.tap(find.text('Save without a refrain'));
+      await _settle(tester);
+
+      expect(store.committedTemporaryKeys, ['temporary/full.m4a']);
+      expect(repository.created, hasLength(1));
+      expect(recorder.discarded, isEmpty);
+    },
+  );
 
   testWidgets('listening never records prayer without I prayed', (
     tester,
@@ -216,4 +276,108 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
     await durations.close();
     await statuses.close();
   }
+}
+
+class _CaptureRecorder implements AudioRecorderGateway {
+  final amplitudesController = StreamController<double>.broadcast();
+  final discarded = <String>[];
+
+  @override
+  Stream<double> get amplitudes => amplitudesController.stream;
+
+  @override
+  bool get canPause => true;
+
+  @override
+  Future<void> cancel() async {}
+
+  @override
+  Future<void> discard(AudioRecorderResult result) async {
+    discarded.add(result.locator);
+  }
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> resume() async {}
+
+  @override
+  Future<void> start(TemporaryAudio temporary) async {}
+
+  @override
+  Future<AudioRecorderResult> stop() async => const AudioRecorderResult(
+    locator: 'temporary/full.m4a',
+    mimeType: 'audio/mp4',
+  );
+}
+
+class _CommittingAudioStore extends _FakeAudioStore {
+  final committedTemporaryKeys = <String>[];
+
+  @override
+  Future<CommittedAudio> commitTemporary(
+    TemporaryAudio temporary, {
+    required String assetId,
+    required String mimeType,
+  }) async {
+    committedTemporaryKeys.add(temporary.key);
+    return CommittedAudio(
+      storageKey: 'voice/$assetId.m4a',
+      byteSize: 64,
+    );
+  }
+}
+
+class _VoiceTabletRepository implements VoiceTabletRepository {
+  final created = <VoiceTabletCreateRequest>[];
+
+  @override
+  Future<VoiceTablet> create(VoiceTabletCreateRequest request) async {
+    created.add(request);
+    final attachment = request.fullRecording;
+    return VoiceTablet(
+      id: 'tablet-created',
+      ownerId: 'owner-1',
+      source: request.source,
+      title: request.title,
+      fullAudio: VoiceTabletAudio(
+        id: attachment.id,
+        kind: attachment.kind,
+        storageKey: attachment.committed.storageKey,
+        mimeType: attachment.draft.mimeType,
+        duration: attachment.draft.duration,
+        byteSize: attachment.committed.byteSize,
+        waveform: attachment.draft.waveform,
+        createdAt: DateTime.utc(2026, 8, 26),
+      ),
+      createdAt: DateTime.utc(2026, 8, 26),
+      updatedAt: DateTime.utc(2026, 8, 26),
+    );
+  }
+
+  @override
+  Future<Set<String>> archive(String tabletId) async => {};
+
+  @override
+  Future<Set<String>> ownedStorageKeys() async => {};
+
+  @override
+  Future<VoiceTabletReplacement> replaceAudio(
+    String tabletId,
+    VoiceTabletAudioAttachment replacement,
+  ) => throw UnimplementedError();
+
+  @override
+  Stream<VoiceTablet?> watch(String id) => const Stream.empty();
+
+  @override
+  Stream<VoiceTablet?> watchForSource(VoiceTabletSource source) =>
+      const Stream.empty();
 }

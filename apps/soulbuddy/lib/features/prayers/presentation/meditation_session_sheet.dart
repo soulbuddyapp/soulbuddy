@@ -8,7 +8,7 @@ import '../../record/audio/application/memory_audio_player.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../domain/meditation_session.dart';
 import '../domain/voice_tablet.dart';
-import '../providers/meditation_providers.dart';
+import '../application/meditation_sound_bed_player.dart';
 
 Future<void> showMeditationSessionSheet(
   BuildContext context,
@@ -16,35 +16,39 @@ Future<void> showMeditationSessionSheet(
   required VoiceTablet tablet,
   required VoiceTabletAudio selectedAudio,
 }) async {
-  final soundPlayer = ref.read(meditationSoundBedPlayerProvider);
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (context) => MeditationSessionSheet(
-      tablet: tablet,
-      selectedAudio: selectedAudio,
-      onStart: (request) async {
-        if (request.soundBed case final bed?) {
-          await soundPlayer.start(bed, volume: request.soundVolume);
-        }
-        if (request.includeVoice) {
-          if (request.voiceAudio case final audio?) {
-            await _playVoice(ref, audio);
+  final soundPlayer = AudioplayersMeditationSoundBedPlayer();
+  try {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => MeditationSessionSheet(
+        tablet: tablet,
+        selectedAudio: selectedAudio,
+        onStart: (request) async {
+          if (request.soundBed case final bed?) {
+            await soundPlayer.start(bed, volume: request.soundVolume);
           }
-        }
-      },
-      onRepeatVoice: (audio) => _playVoice(ref, audio),
-      onSoundVolume: soundPlayer.setVolume,
-      onStop: () async {
-        await soundPlayer.stop();
-        final coordinator = await ref.read(
-          memoryAudioPlaybackCoordinatorProvider.future,
-        );
-        await coordinator.stop();
-      },
-    ),
-  );
+          if (request.includeVoice) {
+            if (request.voiceAudio case final audio?) {
+              await _playVoice(ref, audio);
+            }
+          }
+        },
+        onRepeatVoice: (audio) => _playVoice(ref, audio),
+        onSoundVolume: soundPlayer.setVolume,
+        onStop: () async {
+          await soundPlayer.stop();
+          final coordinator = await ref.read(
+            memoryAudioPlaybackCoordinatorProvider.future,
+          );
+          await coordinator.stop();
+        },
+      ),
+    );
+  } finally {
+    await soundPlayer.dispose();
+  }
 }
 
 Future<void> _playVoice(WidgetRef ref, VoiceTabletAudio audio) async {
@@ -203,7 +207,7 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
         Wrap(
           spacing: AppSpacing.sm,
           children: [
-            for (final minutes in const [3, 5, 10])
+            for (final minutes in const [3, 5, 10, 20])
               ChoiceChip(
                 label: Text('$minutes min'),
                 selected: _duration == Duration(minutes: minutes),

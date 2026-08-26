@@ -247,6 +247,19 @@ class AudioCaptureController extends ChangeNotifier {
     }
   });
 
+  /// Hands the reviewed temporary recording to the caller without deleting it.
+  ///
+  /// After this call the caller owns the draft and must either commit or
+  /// discard it. Closing this controller will no longer remove the take.
+  RecordedAudioDraft? takeReview() {
+    if (_closed || _state.phase != AudioCapturePhase.review) return null;
+    final draft = _state.review;
+    if (draft == null || _reviewResult == null) return null;
+    _reviewResult = null;
+    _resetToExplaining();
+    return draft;
+  }
+
   Future<void> recordAgain() => _runCommand(() async {
     final result = _reviewResult;
     if (_state.phase != AudioCapturePhase.review || result == null) return;

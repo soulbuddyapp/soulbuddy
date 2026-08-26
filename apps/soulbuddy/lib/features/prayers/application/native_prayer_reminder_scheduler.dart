@@ -13,6 +13,7 @@ const _prayedActionId = 'PRAYED';
 const _snoozeActionId = 'SNOOZE_10';
 const _dismissActionId = 'DISMISS';
 const _darwinCategoryId = 'PRAYER_REMINDER';
+const _darwinAltarCategoryId = 'ALTAR_REMINDER';
 
 enum NativePrayerScheduleMode { inexactAllowWhileIdle }
 
@@ -38,6 +39,7 @@ class NativeNotificationRequest {
     required this.scheduleMode,
     required this.startsAudio,
     required this.actions,
+    this.recurrence = ReminderNotificationRecurrence.once,
   });
 
   final int platformNotificationId;
@@ -48,6 +50,7 @@ class NativeNotificationRequest {
   final NativePrayerScheduleMode scheduleMode;
   final bool startsAudio;
   final List<NativeNotificationActionData> actions;
+  final ReminderNotificationRecurrence recurrence;
 }
 
 class NativeNotificationResponseData {
@@ -159,6 +162,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                   showsUserInterface: true,
                 ),
               ],
+        recurrence: notification.recurrence,
       ),
     );
   }
@@ -257,6 +261,7 @@ class FlutterLocalNotificationsPrayerClient
               ),
             ],
           ),
+          DarwinNotificationCategory(_darwinAltarCategoryId),
         ],
       ),
     );
@@ -359,8 +364,10 @@ class FlutterLocalNotificationsPrayerClient
         visibility: NotificationVisibility.private,
         actions: androidActions,
       ),
-      iOS: const DarwinNotificationDetails(
-        categoryIdentifier: _darwinCategoryId,
+      iOS: DarwinNotificationDetails(
+        categoryIdentifier: request.actions.isEmpty
+            ? _darwinAltarCategoryId
+            : _darwinCategoryId,
       ),
     );
     await _plugin.zonedSchedule(
@@ -373,6 +380,12 @@ class FlutterLocalNotificationsPrayerClient
       ),
       notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: switch (request.recurrence) {
+        ReminderNotificationRecurrence.once => null,
+        ReminderNotificationRecurrence.daily => DateTimeComponents.time,
+        ReminderNotificationRecurrence.weekly =>
+          DateTimeComponents.dayOfWeekAndTime,
+      },
       payload: request.payload,
     );
   }

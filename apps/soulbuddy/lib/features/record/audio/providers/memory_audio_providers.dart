@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database_provider.dart';
 import '../../../../core/identity/local_identity_providers.dart';
-import '../application/memory_audio_orphan_cleanup.dart';
 import '../application/audioplayers_memory_audio_player.dart';
 import '../application/memory_audio_deletion.dart';
 import '../application/memory_audio_player.dart';
@@ -31,15 +30,6 @@ final memoryAudioRepositoryProvider = FutureProvider<MemoryAudioRepository>((
     database: database.powersync,
     ownerId: identity.ownerId,
   );
-});
-
-final memoryAudioStartupCleanupProvider = FutureProvider<void>((ref) async {
-  final repository = await ref.watch(memoryAudioRepositoryProvider.future);
-  final assetStore = await ref.watch(audioAssetStoreProvider.future);
-  await MemoryAudioOrphanCleanup(
-    repository: repository,
-    assetStore: assetStore,
-  ).run();
 });
 
 final memoryAudioForEncounterProvider = StreamProvider.autoDispose

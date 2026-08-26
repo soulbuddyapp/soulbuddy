@@ -458,6 +458,7 @@ class _PracticeRepository implements PrayerPracticeRepository {
     String? revisionId,
     String? reminderId,
     String? occurrenceKey,
+    String? idempotencyKey,
   }) async {
     recordAttempts++;
     expect(prayer, const PrayerReference.personal('prayer-1'));

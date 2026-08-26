@@ -181,12 +181,14 @@ class AltarReminderDelivery {
     required this.platformNotificationId,
     required this.nextOccurrenceAt,
     required this.enabledOnDevice,
+    required this.schedule,
   });
 
   final String ritualId;
   final int platformNotificationId;
   final DateTime? nextOccurrenceAt;
   final bool enabledOnDevice;
+  final AltarRitualSchedule schedule;
 }
 
 enum AltarRitualLocalStatus { upcoming, due, snoozed, missingAudio }

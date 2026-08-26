@@ -81,13 +81,6 @@ class AltarReminderOverlayHost extends ConsumerWidget {
         .watch(voiceTabletProvider(due.item.target.targetId))
         .value;
     if (tablet == null) return const SizedBox.shrink();
-    final occurrenceKey =
-        '${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}';
-    if (ref.read(altarAutoplayClaimProvider.notifier).claim(occurrenceKey)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_listenToAltar(ref, due, tablet).catchError((_) {}));
-      });
-    }
     return Center(
       heightFactor: 1,
       child: ConstrainedBox(
@@ -144,6 +137,8 @@ Future<void> _recordAltarPrayer(
         : PrayerReference.library(source.prayerId),
     revisionId: source.revisionId,
     timezone: timezone,
+    idempotencyKey:
+        '${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}',
   );
   final altarRepository = await ref.read(altarRitualRepositoryProvider.future);
   await altarRepository.advance(

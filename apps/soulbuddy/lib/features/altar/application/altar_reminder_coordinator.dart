@@ -29,7 +29,7 @@ class AltarReminderCoordinator {
   late final StreamController<AltarReminderOpened> _events =
       StreamController<AltarReminderOpened>.broadcast(onListen: _flushEvents);
   final _eventBacklog = <AltarReminderOpened>[];
-  final _scheduled = <String, DateTime>{};
+  final _scheduled = <String, Map<int, String>>{};
   StreamSubscription<List<AltarReminderDelivery>>? _deliveriesSubscription;
   StreamSubscription<PrayerReminderResponse>? _responsesSubscription;
   List<AltarReminderDelivery> _deliveries = const [];
@@ -71,27 +71,134 @@ class AltarReminderCoordinator {
       return;
     }
     final now = _clock().toUtc();
-    final active = <String>{};
+    final observed = <String>{};
     for (final delivery in _deliveries) {
-      final next = delivery.nextOccurrenceAt?.toUtc();
-      if (!delivery.enabledOnDevice || next == null || !next.isAfter(now)) {
-        continue;
+      observed.add(delivery.ritualId);
+      final previous = _scheduled[delivery.ritualId];
+      final desired = _desiredNotifications(delivery, now);
+      final desiredById = {
+        for (final notification in desired)
+          notification.platformNotificationId: _scheduleSignature(notification),
+      };
+
+      if (previous == null) {
+        // Reconcile every deterministic slot on first observation so disabled,
+        // archived, or edited rituals cannot leave an old OS reminder behind.
+        for (final id in _allPlatformIds(delivery)) {
+          await _scheduler.cancel(id);
+        }
+      } else {
+        for (final entry in previous.entries) {
+          if (desiredById[entry.key] != entry.value) {
+            await _scheduler.cancel(entry.key);
+          }
+        }
       }
-      active.add(delivery.ritualId);
-      if (_scheduled[delivery.ritualId] == next) continue;
-      await _scheduler.cancel(delivery.platformNotificationId);
-      await _scheduler.schedule(
-        PrayerScheduledNotification(
-          platformNotificationId: delivery.platformNotificationId,
-          reminderId: delivery.ritualId,
-          occurrenceKey: '${delivery.ritualId}@${next.toIso8601String()}',
-          scheduledAtUtc: next,
-          kind: ReminderNotificationKind.altar,
-        ),
-      );
-      _scheduled[delivery.ritualId] = next;
+
+      for (final notification in desired) {
+        final signature = desiredById[notification.platformNotificationId]!;
+        if (previous?[notification.platformNotificationId] == signature) {
+          continue;
+        }
+        await _scheduler.schedule(notification);
+      }
+      _scheduled[delivery.ritualId] = desiredById;
     }
-    _scheduled.removeWhere((ritualId, _) => !active.contains(ritualId));
+    for (final ritualId in _scheduled.keys.toList(growable: false)) {
+      if (observed.contains(ritualId)) continue;
+      for (final id in _scheduled[ritualId]!.keys) {
+        await _scheduler.cancel(id);
+      }
+      _scheduled.remove(ritualId);
+    }
+  }
+
+  List<PrayerScheduledNotification> _desiredNotifications(
+    AltarReminderDelivery delivery,
+    DateTime nowUtc,
+  ) {
+    if (!delivery.enabledOnDevice) return const [];
+    final schedule = delivery.schedule;
+    if (schedule.type == AltarScheduleType.daily) {
+      final next = delivery.nextOccurrenceAt?.toUtc();
+      if (next == null) return const [];
+      return [
+        _notification(
+          delivery,
+          id: delivery.platformNotificationId,
+          atUtc: next,
+          recurrence: ReminderNotificationRecurrence.daily,
+        ),
+      ];
+    }
+
+    return [
+      for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++)
+        if ((schedule.weekdaysMask! & (1 << (weekday - 1))) != 0)
+          _notification(
+            delivery,
+            id: _weekdayNotificationId(
+              delivery.platformNotificationId,
+              weekday,
+            ),
+            atUtc: _nextWeekdayOccurrence(schedule, weekday, nowUtc),
+            recurrence: ReminderNotificationRecurrence.weekly,
+          ),
+    ];
+  }
+
+  PrayerScheduledNotification _notification(
+    AltarReminderDelivery delivery, {
+    required int id,
+    required DateTime atUtc,
+    required ReminderNotificationRecurrence recurrence,
+  }) => PrayerScheduledNotification(
+    platformNotificationId: id,
+    reminderId: delivery.ritualId,
+    occurrenceKey: '${delivery.ritualId}@${atUtc.toIso8601String()}',
+    scheduledAtUtc: atUtc,
+    kind: ReminderNotificationKind.altar,
+    recurrence: recurrence,
+  );
+
+  DateTime _nextWeekdayOccurrence(
+    AltarRitualSchedule schedule,
+    int weekday,
+    DateTime nowUtc,
+  ) {
+    final localNow = nowUtc.toLocal();
+    var candidate = DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day,
+      schedule.localTime.hour,
+      schedule.localTime.minute,
+    );
+    candidate = candidate.add(
+      Duration(days: (weekday - candidate.weekday + 7) % 7),
+    );
+    if (!candidate.isAfter(localNow)) {
+      candidate = candidate.add(const Duration(days: 7));
+    }
+    return candidate.toUtc();
+  }
+
+  Set<int> _allPlatformIds(AltarReminderDelivery delivery) => {
+    delivery.platformNotificationId,
+    for (var weekday = DateTime.monday; weekday <= DateTime.sunday; weekday++)
+      _weekdayNotificationId(delivery.platformNotificationId, weekday),
+  };
+
+  int _weekdayNotificationId(int base, int weekday) =>
+      ((base * 31) + weekday) & 0x7fffffff;
+
+  String _scheduleSignature(PrayerScheduledNotification notification) {
+    final local = notification.scheduledAtUtc.toLocal();
+    final weekday =
+        notification.recurrence == ReminderNotificationRecurrence.weekly
+        ? ':${local.weekday}'
+        : '';
+    return '${notification.recurrence.name}$weekday:${local.hour}:${local.minute}';
   }
 
   void _handleResponse(PrayerReminderResponse response) {

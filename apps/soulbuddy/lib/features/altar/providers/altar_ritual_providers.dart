@@ -29,13 +29,23 @@ final altarRitualForTargetProvider = StreamProvider.autoDispose
       yield* repository.watchForTarget(target);
     });
 
+final altarClockProvider = StreamProvider<DateTime>((ref) async* {
+  yield DateTime.now();
+  yield* Stream<DateTime>.periodic(
+    const Duration(seconds: 30),
+    (_) => DateTime.now(),
+  );
+});
+
 final dueAltarRitualProvider = StreamProvider.autoDispose<DueAltarRitual?>((
   ref,
 ) async* {
   final displayedDate = await ref.watch(todayPrayerDateProvider.future);
   final repository = await ref.watch(altarRitualRepositoryProvider.future);
+  final now = ref.watch(altarClockProvider).value ?? DateTime.now();
   yield* repository.watchNextForDate(
     DateTime(displayedDate.year, displayedDate.month, displayedDate.day),
+    now: now,
   );
 });
 

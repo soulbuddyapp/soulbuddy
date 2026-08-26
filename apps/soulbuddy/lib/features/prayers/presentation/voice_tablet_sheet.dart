@@ -89,10 +89,7 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
         _step = VoiceTabletSheetStep.refrain;
       }),
       onSave: _save,
-      onBack: () => setState(() {
-        _error = null;
-        _step = VoiceTabletSheetStep.fullPrayer;
-      }),
+      onBack: _recordFullPrayerAgain,
     ),
     VoiceTabletSheetStep.refrain => _capture(
       kind: VoiceTabletAudioKind.refrain,
@@ -228,7 +225,44 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
       voiceTabletAudioCaptureControllerProvider(kind),
     );
     if (controller.hasValue) await controller.requireValue.handleInterruption();
+    await _discardUncommittedDrafts();
     if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _recordFullPrayerAgain() async {
+    final draft = _fullDraft;
+    if (draft != null && _fullAttachment == null) {
+      final store = await ref.read(audioAssetStoreProvider.future);
+      try {
+        await store.discardTemporary(draft.temporaryKey);
+      } catch (_) {
+        // Startup orphan cleanup retries without exposing the private key.
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _fullDraft = null;
+      _error = null;
+      _step = VoiceTabletSheetStep.fullPrayer;
+    });
+  }
+
+  Future<void> _discardUncommittedDrafts() async {
+    final keys = <String>{
+      if (_fullAttachment == null && _fullDraft != null)
+        _fullDraft!.temporaryKey,
+      if (_refrainAttachment == null && _refrainDraft != null)
+        _refrainDraft!.temporaryKey,
+    };
+    if (keys.isEmpty) return;
+    final store = await ref.read(audioAssetStoreProvider.future);
+    for (final key in keys) {
+      try {
+        await store.discardTemporary(key);
+      } catch (_) {
+        // Startup orphan cleanup retries without exposing the private key.
+      }
+    }
   }
 }
 

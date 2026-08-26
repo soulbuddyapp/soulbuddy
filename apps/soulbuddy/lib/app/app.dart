@@ -7,7 +7,7 @@ import '../features/prayers/providers/personal_prayer_providers.dart';
 import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
-import '../features/record/audio/providers/memory_audio_providers.dart';
+import '../features/record/audio/providers/private_audio_cleanup_provider.dart';
 import '../core/identity/local_identity_providers.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
 import '../features/altar/providers/altar_ritual_providers.dart';
@@ -22,7 +22,7 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(prayerGenerationWorkerProvider);
     ref.watch(prayerReminderCoordinatorProvider);
     ref.watch(altarReminderCoordinatorProvider);
-    ref.watch(memoryAudioStartupCleanupProvider);
+    ref.watch(privateAudioStartupCleanupProvider);
     ref.watch(installationSessionBootstrapProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {

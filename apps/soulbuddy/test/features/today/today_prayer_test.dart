@@ -776,6 +776,7 @@ class _TodayPracticeRepository implements PrayerPracticeRepository {
     String? revisionId,
     String? reminderId,
     String? occurrenceKey,
+    String? idempotencyKey,
   }) async {
     recordAttempts++;
     if (!recordStarted.isCompleted) recordStarted.complete();

@@ -123,12 +123,15 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
         .watch(
           '''
           SELECT device.ritual_id, device.platform_notification_id,
-                 device.next_occurrence_at, device.enabled_on_device
+                 device.next_occurrence_at, device.enabled_on_device,
+                 ritual.schedule_type, ritual.local_time, ritual.timezone,
+                 ritual.weekdays_mask, ritual.enabled AS ritual_enabled,
+                 ritual.archived_at AS ritual_archived_at,
+                 item.archived_at AS item_archived_at
           FROM altar_ritual_devices AS device
           JOIN altar_rituals AS ritual ON ritual.id = device.ritual_id
+          JOIN altar_items AS item ON item.id = ritual.altar_item_id
           WHERE ritual.owner_id = ? AND device.device_id = ?
-            AND ritual.enabled = 1 AND ritual.archived_at IS NULL
-            AND device.enabled_on_device = 1
           ORDER BY device.next_occurrence_at, device.ritual_id
           ''',
           parameters: [ownerId, deviceId],
@@ -141,7 +144,12 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
                   platformNotificationId:
                       row['platform_notification_id'] as int,
                   nextOccurrenceAt: _optionalDate(row['next_occurrence_at']),
-                  enabledOnDevice: row['enabled_on_device'] == 1,
+                  enabledOnDevice:
+                      row['enabled_on_device'] == 1 &&
+                      row['ritual_enabled'] == 1 &&
+                      row['ritual_archived_at'] == null &&
+                      row['item_archived_at'] == null,
+                  schedule: AltarRitualSchedule.fromRow(row),
                 ),
               )
               .toList(growable: false),

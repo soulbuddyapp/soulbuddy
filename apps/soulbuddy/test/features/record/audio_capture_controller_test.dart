@@ -204,6 +204,23 @@ void main() {
     expect(recorder.disposeCalls, 1);
   });
 
+  test(
+    'taking a reviewed draft transfers cleanup ownership to caller',
+    () async {
+      await controller.start();
+      clock.advance(const Duration(seconds: 1));
+      await controller.stop();
+
+      final draft = controller.takeReview();
+      expect(draft?.temporaryKey, 'blob:recording');
+      expect(controller.state.phase, AudioCapturePhase.explaining);
+
+      await controller.close();
+
+      expect(recorder.discardedLocators, isEmpty);
+    },
+  );
+
   test('discard and record again remove the unsaved take', () async {
     await controller.start();
     clock.advance(const Duration(seconds: 1));

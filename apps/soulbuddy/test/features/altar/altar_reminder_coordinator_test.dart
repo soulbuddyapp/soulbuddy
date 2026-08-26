@@ -5,6 +5,7 @@ import 'package:soulbuddy/features/altar/application/altar_reminder_coordinator.
 import 'package:soulbuddy/features/altar/data/altar_ritual_repository.dart';
 import 'package:soulbuddy/features/altar/domain/altar_ritual.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 
 void main() {
   test('schedules a private Altar notification and reports its open', () async {
@@ -24,12 +25,20 @@ void main() {
         platformNotificationId: 41,
         nextOccurrenceAt: DateTime.utc(2026, 8, 26, 7),
         enabledOnDevice: true,
+        schedule: AltarRitualSchedule.daily(
+          localTime: PrayerLocalTime(hour: 7, minute: 0),
+          timezone: 'UTC',
+        ),
       ),
     ]);
     await pumpEventQueue();
 
     expect(scheduler.scheduled.single.kind, ReminderNotificationKind.altar);
     expect(scheduler.scheduled.single.reminderId, 'ritual-1');
+    expect(
+      scheduler.scheduled.single.recurrence,
+      ReminderNotificationRecurrence.daily,
+    );
 
     final opened = expectLater(
       coordinator.events,
@@ -50,6 +59,87 @@ void main() {
       ),
     );
     await opened;
+  });
+
+  test(
+    'selected days repeat weekly even when an occurrence is ignored',
+    () async {
+      final repository = _Repository();
+      final scheduler = _Scheduler();
+      final coordinator = AltarReminderCoordinator(
+        repository: repository,
+        scheduler: scheduler,
+        clock: () => DateTime.utc(2026, 8, 26, 6),
+      );
+      addTearDown(coordinator.dispose);
+
+      await coordinator.start();
+      repository.deliveries.add([
+        AltarReminderDelivery(
+          ritualId: 'ritual-weekdays',
+          platformNotificationId: 52,
+          nextOccurrenceAt: DateTime.utc(2026, 8, 28, 7),
+          enabledOnDevice: true,
+          schedule: AltarRitualSchedule.weekdays(
+            localTime: PrayerLocalTime(hour: 7, minute: 0),
+            timezone: 'UTC',
+            weekdaysMask: (1 << 0) | (1 << 4),
+          ),
+        ),
+      ]);
+      await pumpEventQueue();
+
+      expect(scheduler.scheduled, hasLength(2));
+      expect(
+        scheduler.scheduled.map((item) => item.recurrence),
+        everyElement(ReminderNotificationRecurrence.weekly),
+      );
+      expect(
+        scheduler.scheduled.map((item) => item.scheduledAtUtc.weekday).toSet(),
+        {DateTime.monday, DateTime.friday},
+      );
+    },
+  );
+
+  test('cancels platform reminders when a ritual is disabled', () async {
+    final repository = _Repository();
+    final scheduler = _Scheduler();
+    final coordinator = AltarReminderCoordinator(
+      repository: repository,
+      scheduler: scheduler,
+      clock: () => DateTime.utc(2026, 8, 26, 6),
+    );
+    addTearDown(coordinator.dispose);
+    final schedule = AltarRitualSchedule.daily(
+      localTime: PrayerLocalTime(hour: 7, minute: 0),
+      timezone: 'UTC',
+    );
+
+    await coordinator.start();
+    repository.deliveries.add([
+      AltarReminderDelivery(
+        ritualId: 'ritual-1',
+        platformNotificationId: 41,
+        nextOccurrenceAt: DateTime.utc(2026, 8, 26, 7),
+        enabledOnDevice: true,
+        schedule: schedule,
+      ),
+    ]);
+    await pumpEventQueue();
+    scheduler.cancelled.clear();
+
+    repository.deliveries.add([
+      AltarReminderDelivery(
+        ritualId: 'ritual-1',
+        platformNotificationId: 41,
+        nextOccurrenceAt: DateTime.utc(2026, 8, 26, 7),
+        enabledOnDevice: false,
+        schedule: schedule,
+      ),
+    ]);
+    await pumpEventQueue();
+
+    expect(scheduler.cancelled, contains(41));
   });
 }
 
@@ -94,6 +184,7 @@ class _Scheduler implements PrayerReminderScheduler {
   final responseController =
       StreamController<PrayerReminderResponse>.broadcast();
   final scheduled = <PrayerScheduledNotification>[];
+  final cancelled = <int>[];
 
   @override
   Stream<PrayerReminderResponse> get responses => responseController.stream;
@@ -102,7 +193,9 @@ class _Scheduler implements PrayerReminderScheduler {
   bool get supportsSystemNotifications => true;
 
   @override
-  Future<void> cancel(int platformNotificationId) async {}
+  Future<void> cancel(int platformNotificationId) async {
+    cancelled.add(platformNotificationId);
+  }
 
   @override
   Future<void> initialize() async {}

@@ -11,7 +11,7 @@ void main() {
       final repository = _FakeMemoryAudioRepository({'audio/kept.m4a'});
       final assets = _CleanupAssetStore();
       final cleanup = MemoryAudioOrphanCleanup(
-        repository: repository,
+        ownedStorageKeyLoaders: [repository.ownedStorageKeys],
         assetStore: assets,
         now: () => DateTime.utc(2026, 8, 13, 12),
       );
@@ -27,7 +27,7 @@ void main() {
     final repository = _FakeMemoryAudioRepository({'audio/kept.m4a'});
     final assets = _CleanupAssetStore()..failure = StateError('storage');
     final cleanup = MemoryAudioOrphanCleanup(
-      repository: repository,
+      ownedStorageKeyLoaders: [repository.ownedStorageKeys],
       assetStore: assets,
       now: () => DateTime.utc(2026, 8, 13),
     );
@@ -37,6 +37,23 @@ void main() {
     await cleanup.run();
 
     expect(assets.calls, 2);
+  });
+
+  test('preserves references owned by memories and Voice Tablets', () async {
+    final memories = _FakeMemoryAudioRepository({'memory/kept.m4a'});
+    final voiceTablets = _FakeMemoryAudioRepository({'voice/kept.m4a'});
+    final assets = _CleanupAssetStore();
+
+    await MemoryAudioOrphanCleanup(
+      ownedStorageKeyLoaders: [
+        memories.ownedStorageKeys,
+        voiceTablets.ownedStorageKeys,
+      ],
+      assetStore: assets,
+      now: () => DateTime.utc(2026, 8, 26),
+    ).run();
+
+    expect(assets.referenced, {'memory/kept.m4a', 'voice/kept.m4a'});
   });
 }
 
