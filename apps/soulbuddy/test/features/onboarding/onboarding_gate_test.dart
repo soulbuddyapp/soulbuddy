@@ -54,7 +54,7 @@ void main() {
     final repository = _MemoryOnboardingRepository(failWrite: true);
     await _pumpGate(tester, repository);
 
-    await tester.tap(find.text('Skip for now'));
+    await tester.tap(find.text('Go to Today'));
     await tester.pumpAndSettle();
 
     expect(find.text('Routed app'), findsOneWidget);

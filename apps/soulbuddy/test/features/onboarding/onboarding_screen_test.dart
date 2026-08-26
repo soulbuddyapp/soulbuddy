@@ -22,7 +22,7 @@ void main() {
     expect(find.text('A place to return to God'), findsOneWidget);
     expect(find.text('SoulBuddy'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
-    expect(find.text('Skip for now'), findsOneWidget);
+    expect(find.text('Go to Today'), findsOneWidget);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
@@ -40,7 +40,7 @@ void main() {
     expect(skipped, isFalse);
   });
 
-  testWidgets('skip is a quiet way into Today', (tester) async {
+  testWidgets('top action is a quiet way into Today', (tester) async {
     var skipped = false;
     await tester.pumpWidget(
       MaterialApp(
@@ -52,7 +52,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Skip for now'));
+    await tester.tap(find.text('Go to Today'));
     await tester.pumpAndSettle();
 
     expect(skipped, isTrue);

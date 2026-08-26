@@ -112,7 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       TextButton(
                         key: const Key('onboarding-skip'),
                         onPressed: _working ? null : () => _run(widget.onSkip),
-                        child: const Text('Skip for now'),
+                        child: const Text('Go to Today'),
                       ),
                     ],
                   ),

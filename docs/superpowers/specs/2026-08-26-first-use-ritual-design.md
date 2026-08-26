@@ -16,7 +16,7 @@ Three brief scenes appear only on first use:
 
 Each scene uses the existing limestone, warm-light, and covenant-gold visual language. The natural slabs gain one illuminated inscription at a time, making the daily rhythm visible without points, streaks, or competitive language.
 
-The final primary action is **Begin with prayer**. It completes the welcome once and opens the prayer library. A small **Skip for now** action remains available throughout so the experience respects the person's agency; skipping also completes the welcome and opens Today.
+The final primary action is **Begin with prayer**. It completes the welcome once and opens the prayer library. A small **Go to Today** action remains available throughout so the experience respects the person's agency; it also completes the welcome and opens Today.
 
 ## Daily handoff
 
