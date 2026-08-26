@@ -128,6 +128,73 @@ const appSchema = Schema([
       ]),
     ],
   ),
+  Table(
+    'altar_items',
+    [
+      Column.text('owner_id'),
+      Column.text('target_type'),
+      Column.text('encounter_id'),
+      Column.text('personal_prayer_id'),
+      Column.text('library_prayer_id'),
+      Column.text('voice_tablet_id'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('altar_items_owner_target', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('target_type'),
+        IndexedColumn('encounter_id'),
+        IndexedColumn('personal_prayer_id'),
+        IndexedColumn('library_prayer_id'),
+        IndexedColumn('voice_tablet_id'),
+      ]),
+    ],
+  ),
+  Table(
+    'altar_rituals',
+    [
+      Column.text('owner_id'),
+      Column.text('altar_item_id'),
+      Column.text('schedule_type'),
+      Column.text('local_time'),
+      Column.text('timezone'),
+      Column.integer('weekdays_mask'),
+      Column.text('playback_mode'),
+      Column.integer('enabled'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('altar_rituals_owner_item', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('altar_item_id'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'altar_ritual_devices',
+    [
+      Column.text('ritual_id'),
+      Column.text('device_id'),
+      Column.integer('enabled_on_device'),
+      Column.text('next_occurrence_at'),
+      Column.integer('platform_notification_id'),
+      Column.text('scheduled_timezone'),
+      Column.text('snoozed_until'),
+      Column.text('dismissed_occurrence_key'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('altar_ritual_devices_due', [
+        IndexedColumn('device_id'),
+        IndexedColumn('enabled_on_device'),
+        IndexedColumn('next_occurrence_at'),
+      ]),
+    ],
+  ),
   Table.localOnly(
     'daily_memory_occurrences',
     [
