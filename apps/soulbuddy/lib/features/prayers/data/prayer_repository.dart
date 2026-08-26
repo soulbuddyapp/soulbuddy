@@ -1,11 +1,13 @@
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
+import '../domain/prayer_language.dart';
 import '../domain/today_prayer.dart';
 
 abstract interface class PrayerRepository {
   Stream<List<LibraryPrayer>> watchLibrary({
     PrayerGrounding? grounding,
     PrayerPurpose? purpose,
+    PrayerLanguagePreference? languagePreference,
   });
 
   Stream<LibraryPrayer?> watchPrayer(String id);

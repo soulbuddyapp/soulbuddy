@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/bundled_prayer_importer.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 
 import '../../helpers/powersync_test_database.dart';
 
@@ -55,7 +56,7 @@ void main() {
 
     final rows = await database.powersync.getAll('''
       SELECT id, title, body, grounding, purpose, action, helpful_count,
-             content_version, archived_at
+             language_style, content_version, archived_at
       FROM bundled_prayers
       ORDER BY purpose
       ''');
@@ -63,6 +64,9 @@ void main() {
         .map((value) => value.wireValue)
         .toSet();
     final approvedPurposes = PrayerPurpose.values
+        .map((value) => value.wireValue)
+        .toSet();
+    final approvedLanguageStyles = PrayerLanguageStyle.values
         .map((value) => value.wireValue)
         .toSet();
     final uuidPattern = RegExp(
@@ -85,8 +89,9 @@ void main() {
       expect((row['action'] as String).trim(), isNotEmpty);
       expect(approvedGroundings, contains(row['grounding']));
       expect(approvedPurposes, contains(row['purpose']));
+      expect(approvedLanguageStyles, contains(row['language_style']));
       expect(row['helpful_count'], 0);
-      expect(row['content_version'], 1);
+      expect(row['content_version'], 2);
       expect(row['archived_at'], isNull);
       expect(_wordCount(row['body'] as String), lessThanOrEqualTo(110));
     }
@@ -259,8 +264,8 @@ void main() {
     ),
     _InvalidPayloadCase(
       name: 'unsupported content version',
-      mutate: (payload) => payload['version'] = 2,
-      diagnostic: 'Unsupported bundled prayer content version: 2',
+      mutate: (payload) => payload['version'] = 3,
+      diagnostic: 'Unsupported bundled prayer content version: 3',
     ),
   ];
 
@@ -314,7 +319,7 @@ Map<String, Object?> _validPayload() {
     'difficult_time',
   ];
   return {
-    'version': 1,
+    'version': 2,
     'prayers': List.generate(purposes.length, (index) {
       final suffix = (index + 1).toString().padLeft(12, '0');
       return <String, Object?>{
@@ -322,6 +327,7 @@ Map<String, Object?> _validPayload() {
         'title': 'Prayer ${index + 1}',
         'body': 'Father, help me love my neighbor today. Amen.',
         'grounding': index.isEven ? 'general_christian' : 'catholic',
+        'language_style': index.isEven ? 'christian' : 'catholic',
         'purpose': purposes[index],
         'action': 'Help one person with a practical need.',
         'helpful_count': 0,

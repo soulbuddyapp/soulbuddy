@@ -1,4 +1,5 @@
 import 'prayer_reference.dart';
+import 'prayer_language.dart';
 
 enum PrayerGrounding {
   generalChristian('general_christian'),
@@ -91,6 +92,7 @@ class LibraryPrayer implements PrayerDisplay {
     required this.purpose,
     required this.helpfulCount,
     required this.viewerMarkedHelpful,
+    this.languageStyle = PrayerLanguageStyle.christian,
     this.action,
   });
 
@@ -108,6 +110,7 @@ class LibraryPrayer implements PrayerDisplay {
   final int helpfulCount;
   @override
   final bool viewerMarkedHelpful;
+  final PrayerLanguageStyle languageStyle;
   @override
   final String? action;
 

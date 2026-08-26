@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
+import '../domain/prayer_language.dart';
 import '../domain/today_prayer.dart';
 import 'prayer_repository.dart';
 
@@ -21,11 +22,12 @@ class PowerSyncPrayerRepository implements PrayerRepository {
   final Uuid _uuid;
 
   static const _mergedPrayers = '''
-    SELECT id, title, body, grounding, purpose, action, helpful_count
+    SELECT id, title, body, grounding, language_style, purpose, action, helpful_count
     FROM library_prayers
     WHERE published_at IS NOT NULL AND archived_at IS NULL
     UNION ALL
     SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
+           bundled.language_style,
            bundled.purpose, bundled.action, bundled.helpful_count
     FROM bundled_prayers AS bundled
     WHERE bundled.archived_at IS NULL
@@ -39,6 +41,7 @@ class PowerSyncPrayerRepository implements PrayerRepository {
   Stream<List<LibraryPrayer>> watchLibrary({
     PrayerGrounding? grounding,
     PrayerPurpose? purpose,
+    PrayerLanguagePreference? languagePreference,
   }) {
     return database
         .watch(
@@ -64,12 +67,27 @@ class PowerSyncPrayerRepository implements PrayerRepository {
             purpose?.wireValue,
           ],
         )
-        .map(
-          (rows) => rows
+        .map((rows) {
+          final prayers = rows
               .map<Map<String, dynamic>>((row) => row)
               .map(_prayerFromRow)
-              .toList(growable: false),
-        );
+              .toList();
+          if (languagePreference != null) {
+            prayers.sort((left, right) {
+              final rank = languagePreference
+                  .rankOf(left.languageStyle)
+                  .compareTo(languagePreference.rankOf(right.languageStyle));
+              if (rank != 0) return rank;
+              final helpful = right.helpfulCount.compareTo(left.helpfulCount);
+              if (helpful != 0) return helpful;
+              final title = left.title.toLowerCase().compareTo(
+                right.title.toLowerCase(),
+              );
+              return title != 0 ? title : left.id.compareTo(right.id);
+            });
+          }
+          return List.unmodifiable(prayers);
+        });
   }
 
   @override
@@ -279,6 +297,9 @@ class PowerSyncPrayerRepository implements PrayerRepository {
       body: row['body'] as String,
       grounding: PrayerGrounding.fromWire(row['grounding'] as String),
       purpose: PrayerPurpose.fromWire(row['purpose'] as String),
+      languageStyle: PrayerLanguageStyle.fromWire(
+        row['language_style'] as String?,
+      ),
       helpfulCount: row['helpful_count'] as int? ?? 0,
       viewerMarkedHelpful: row['viewer_marked_helpful'] == 1,
       action: row['action'] as String?,

@@ -332,6 +332,7 @@ class _TodayRepository implements PrayerRepository {
   Stream<List<LibraryPrayer>> watchLibrary({
     PrayerGrounding? grounding,
     PrayerPurpose? purpose,
+    PrayerLanguagePreference? languagePreference,
   }) => const Stream.empty();
 
   @override

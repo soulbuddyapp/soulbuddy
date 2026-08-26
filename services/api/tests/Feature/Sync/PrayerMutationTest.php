@@ -65,7 +65,7 @@ it('seeds the exact canonical editorial library from the Flutter asset', functio
         ->all();
     $actual = LibraryPrayer::query()
         ->orderBy('id')
-        ->get(['id', 'title', 'body', 'grounding', 'purpose', 'action', 'helpful_count'])
+        ->get(['id', 'title', 'body', 'grounding', 'language_style', 'purpose', 'action', 'helpful_count'])
         ->map(fn (LibraryPrayer $prayer) => $prayer->attributesToArray())
         ->all();
 

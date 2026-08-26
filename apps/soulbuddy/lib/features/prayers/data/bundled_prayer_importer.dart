@@ -4,13 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:powersync/powersync.dart';
 
 import '../domain/library_prayer.dart';
+import '../domain/prayer_language.dart';
 
 class BundledPrayerImporter {
   BundledPrayerImporter({AssetBundle? assetBundle})
     : _assetBundle = assetBundle ?? rootBundle;
 
   static const assetPath = 'assets/content/prayer_library.json';
-  static const supportedContentVersion = 1;
+  static const supportedContentVersion = 2;
 
   final AssetBundle _assetBundle;
 
@@ -39,15 +40,16 @@ class BundledPrayerImporter {
           await transaction.execute(
             '''
             INSERT INTO bundled_prayers(
-              id, title, body, grounding, purpose, action, helpful_count,
+              id, title, body, grounding, language_style, purpose, action, helpful_count,
               content_version, archived_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
             ''',
             [
               prayer.id,
               prayer.title,
               prayer.body,
               prayer.grounding,
+              prayer.languageStyle,
               prayer.purpose,
               prayer.action,
               prayer.helpfulCount,
@@ -60,7 +62,7 @@ class BundledPrayerImporter {
         await transaction.execute(
           '''
           UPDATE bundled_prayers
-          SET title = ?, body = ?, grounding = ?, purpose = ?, action = ?,
+          SET title = ?, body = ?, grounding = ?, language_style = ?, purpose = ?, action = ?,
               helpful_count = ?, content_version = ?, archived_at = NULL
           WHERE id = ?
           ''',
@@ -68,6 +70,7 @@ class BundledPrayerImporter {
             prayer.title,
             prayer.body,
             prayer.grounding,
+            prayer.languageStyle,
             prayer.purpose,
             prayer.action,
             prayer.helpfulCount,
@@ -144,6 +147,7 @@ class _BundledPrayer {
     required this.title,
     required this.body,
     required this.grounding,
+    required this.languageStyle,
     required this.purpose,
     required this.action,
     required this.helpfulCount,
@@ -163,6 +167,7 @@ class _BundledPrayer {
     final title = _requiredString(value, 'title');
     final body = _requiredString(value, 'body');
     final grounding = _requiredString(value, 'grounding');
+    final languageStyle = _requiredString(value, 'language_style');
     final purpose = _requiredString(value, 'purpose');
     final action = _optionalString(value, 'action');
     final helpfulCount = value['helpful_count'];
@@ -171,6 +176,11 @@ class _BundledPrayer {
       throw FormatException('Bundled prayer "$id" does not have a valid UUID.');
     }
     PrayerGrounding.fromWire(grounding);
+    if (!PrayerLanguageStyle.values.any(
+      (value) => value.wireValue == languageStyle,
+    )) {
+      throw FormatException('Unknown prayer language style: $languageStyle');
+    }
     PrayerPurpose.fromWire(purpose);
     if (_wordCount(body) > 110) {
       throw FormatException('Bundled prayer "$id" exceeds 110 words.');
@@ -191,6 +201,7 @@ class _BundledPrayer {
       title: title,
       body: body,
       grounding: grounding,
+      languageStyle: languageStyle,
       purpose: purpose,
       action: action,
       helpfulCount: helpfulCount,
@@ -201,6 +212,7 @@ class _BundledPrayer {
   final String title;
   final String body;
   final String grounding;
+  final String languageStyle;
   final String purpose;
   final String? action;
   final int helpfulCount;
@@ -216,6 +228,7 @@ const _allowedPrayerKeys = {
   'title',
   'body',
   'grounding',
+  'language_style',
   'purpose',
   'action',
   'helpful_count',

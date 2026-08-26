@@ -5,6 +5,7 @@ import 'package:powersync/powersync.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 
 import '../../helpers/powersync_test_database.dart';
 
@@ -104,6 +105,45 @@ void main() {
       expect(await repository.watchPrayer('unpublished').first, isNull);
     },
   );
+
+  test('Jesus preference ranks Jesus, Christian, then Catholic', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/language-order.db',
+    );
+    addTearDown(database.close);
+    final repository = PowerSyncPrayerRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+    );
+    await _seedBundledPrayer(
+      database.powersync,
+      id: 'catholic',
+      title: 'Catholic',
+      languageStyle: PrayerLanguageStyle.catholic,
+    );
+    await _seedBundledPrayer(
+      database.powersync,
+      id: 'christian',
+      title: 'Christian',
+      languageStyle: PrayerLanguageStyle.christian,
+    );
+    await _seedBundledPrayer(
+      database.powersync,
+      id: 'jesus',
+      title: 'Jesus',
+      languageStyle: PrayerLanguageStyle.jesus,
+    );
+
+    final prayers = await repository
+        .watchLibrary(languagePreference: PrayerLanguagePreference.jesus)
+        .first;
+
+    expect(prayers.map((prayer) => prayer.languageStyle), [
+      PrayerLanguageStyle.jesus,
+      PrayerLanguageStyle.christian,
+      PrayerLanguageStyle.catholic,
+    ]);
+  });
 
   test('filters the merged library by grounding and purpose', () async {
     final database = await openTestDatabase(
@@ -396,25 +436,27 @@ Future<void> _seedBundledPrayer(
   int helpfulCount = 0,
   PrayerGrounding grounding = PrayerGrounding.generalChristian,
   PrayerPurpose purpose = PrayerPurpose.daily,
+  PrayerLanguageStyle languageStyle = PrayerLanguageStyle.christian,
   String? action,
   String? archivedAt,
 }) async {
   await database.execute(
     '''
     INSERT INTO bundled_prayers(
-      id, title, body, grounding, purpose, action, helpful_count,
+      id, title, body, grounding, language_style, purpose, action, helpful_count,
       content_version, archived_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''',
     [
       id,
       title,
       '$title body',
       grounding.wireValue,
+      languageStyle.wireValue,
       purpose.wireValue,
       action,
       helpfulCount,
-      1,
+      2,
       archivedAt,
     ],
   );

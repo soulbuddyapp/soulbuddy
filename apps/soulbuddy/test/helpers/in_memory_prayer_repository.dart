@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:soulbuddy/features/prayers/data/prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 
 class InMemoryPrayerRepository implements PrayerRepository {
@@ -27,10 +28,19 @@ class InMemoryPrayerRepository implements PrayerRepository {
   Stream<List<LibraryPrayer>> watchLibrary({
     PrayerGrounding? grounding,
     PrayerPurpose? purpose,
+    PrayerLanguagePreference? languagePreference,
   }) async* {
-    yield _filtered(grounding: grounding, purpose: purpose);
+    yield _filtered(
+      grounding: grounding,
+      purpose: purpose,
+      languagePreference: languagePreference,
+    );
     await for (final _ in _changes.stream) {
-      yield _filtered(grounding: grounding, purpose: purpose);
+      yield _filtered(
+        grounding: grounding,
+        purpose: purpose,
+        languagePreference: languagePreference,
+      );
     }
   }
 
@@ -55,6 +65,7 @@ class InMemoryPrayerRepository implements PrayerRepository {
       purpose: current.purpose,
       helpfulCount: current.helpfulCount,
       viewerMarkedHelpful: value,
+      languageStyle: current.languageStyle,
       action: current.action,
     );
     _changes.add(null);
@@ -103,14 +114,23 @@ class InMemoryPrayerRepository implements PrayerRepository {
   List<LibraryPrayer> _filtered({
     PrayerGrounding? grounding,
     PrayerPurpose? purpose,
+    PrayerLanguagePreference? languagePreference,
   }) {
-    return _prayers
+    final prayers = _prayers
         .where(
           (prayer) =>
               (grounding == null || prayer.grounding == grounding) &&
               (purpose == null || prayer.purpose == purpose),
         )
-        .toList(growable: false);
+        .toList();
+    if (languagePreference != null) {
+      prayers.sort(
+        (left, right) => languagePreference
+            .rankOf(left.languageStyle)
+            .compareTo(languagePreference.rankOf(right.languageStyle)),
+      );
+    }
+    return List.unmodifiable(prayers);
   }
 
   LibraryPrayer? _find(String id) {
