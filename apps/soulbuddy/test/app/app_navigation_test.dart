@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/app/app.dart';
 import 'package:soulbuddy/app/router.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_coordinator.dart';
+import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
@@ -24,6 +25,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
           encounterRepositoryProvider.overrideWith((ref) async => repository),
         ],
         child: const SoulBuddyApp(),
@@ -51,6 +53,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
           encounterRepositoryProvider.overrideWith((ref) async => encounters),
           prayerRepositoryProvider.overrideWith((ref) async => prayers),
         ],
@@ -76,6 +79,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
           prayerReminderEventsProvider.overrideWith((ref) => events.stream),
           duePrayerOccurrencesProvider.overrideWith(
             (ref) => Stream.value(const []),

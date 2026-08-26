@@ -37,9 +37,12 @@ void main() {
     expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
     expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
     expect(find.byType(CovenantSlabs), findsOneWidget);
-    expect(find.text('Remember what God has done.'), findsOneWidget);
+    expect(find.text('Begin today\'s communion.'), findsOneWidget);
     expect(
-      find.text('Begin with prayer, then carry what you receive into action.'),
+      find.text(
+        'Pray with attention. Carry one faithful step. Keep what God gives '
+        'you.',
+      ),
       findsOneWidget,
     );
     expect(find.text('Choose a prayer'), findsOneWidget);

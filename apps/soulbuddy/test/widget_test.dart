@@ -1,11 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/app/app.dart';
+import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
 
 void main() {
-  testWidgets('starts with the Today guide', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: SoulBuddyApp()));
+  testWidgets('starts with the first-use welcome', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [onboardingCompleteProvider.overrideWith((ref) => false)],
+        child: const SoulBuddyApp(),
+      ),
+    );
 
-    expect(find.text('Pray. Act. Remember.'), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('A place to return to God'), findsOneWidget);
+    expect(find.text('Pray. Act. Remember.'), findsNothing);
   });
 }

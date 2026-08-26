@@ -7,6 +7,7 @@ import '../features/prayers/providers/personal_prayer_providers.dart';
 import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
+import '../features/onboarding/presentation/onboarding_gate.dart';
 import '../features/record/audio/providers/private_audio_cleanup_provider.dart';
 import '../core/identity/local_identity_providers.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
@@ -44,27 +45,31 @@ class SoulBuddyApp extends ConsumerWidget {
       routerConfig: appRouter,
       builder: (context, child) {
         final compactNavigation = MediaQuery.sizeOf(context).width < 840;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            child ?? const SizedBox.shrink(),
-            Positioned(
-              left: AppSpacing.md,
-              right: AppSpacing.md,
-              bottom: compactNavigation ? 92 : AppSpacing.md,
-              child: const SafeArea(
-                top: false,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PrayerReminderCardHost(),
-                    SizedBox(height: AppSpacing.sm),
-                    AltarReminderOverlayHost(),
-                  ],
+        return OnboardingGate(
+          onBeginWithPrayer: () => appRouter.go('/prayers'),
+          onSkip: () => appRouter.go('/today'),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              child ?? const SizedBox.shrink(),
+              Positioned(
+                left: AppSpacing.md,
+                right: AppSpacing.md,
+                bottom: compactNavigation ? 92 : AppSpacing.md,
+                child: const SafeArea(
+                  top: false,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PrayerReminderCardHost(),
+                      SizedBox(height: AppSpacing.sm),
+                      AltarReminderOverlayHost(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

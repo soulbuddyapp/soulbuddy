@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/app/app.dart';
+import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/record/presentation/record_screen.dart';
 import 'package:soulbuddy/features/record/presentation/encounter_form.dart';
@@ -215,6 +216,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
           encounterRepositoryProvider.overrideWith((ref) async => repository),
         ],
         child: const SoulBuddyApp(),

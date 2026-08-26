@@ -23,13 +23,14 @@ class TodayStartGuide extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Remember what God has done.',
+          'Begin today\'s communion.',
           style: theme.textTheme.titleLarge,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Begin with prayer, then carry what you receive into action.',
+          'Pray with attention. Carry one faithful step. Keep what God gives '
+          'you.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             height: 1.35,
