@@ -306,25 +306,24 @@ class _AltarTodayCardState extends State<AltarTodayCard> {
   }
 
   Future<void> _pray() async {
+    final messenger = ScaffoldMessenger.of(context);
     setState(() {
       _recording = true;
       _error = null;
     });
     try {
       final sessionId = await widget.onPrayed();
-      if (mounted) {
-        setState(() => _prayed = true);
-        if (sessionId != null && widget.onUndo != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Prayer recorded.'),
-              action: SnackBarAction(
-                label: 'Undo',
-                onPressed: () => unawaited(_undo(sessionId)),
-              ),
+      if (mounted) setState(() => _prayed = true);
+      if (sessionId != null && widget.onUndo != null) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('Prayer recorded.'),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => unawaited(_undo(sessionId)),
             ),
-          );
-        }
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {

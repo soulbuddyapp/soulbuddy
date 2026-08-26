@@ -133,6 +133,38 @@ void main() {
     );
   });
 
+  test('selected-day wall time remains stable across DST', () async {
+    final repository = _Repository();
+    final scheduler = _Scheduler();
+    final coordinator = AltarReminderCoordinator(
+      repository: repository,
+      scheduler: scheduler,
+      clock: () => DateTime.utc(2026, 10, 31, 12),
+    );
+    addTearDown(coordinator.dispose);
+
+    await coordinator.start();
+    repository.deliveries.add([
+      AltarReminderDelivery(
+        ritualId: 'ritual-dst',
+        platformNotificationId: 62,
+        nextOccurrenceAt: DateTime.utc(2026, 11, 2, 12),
+        enabledOnDevice: true,
+        schedule: AltarRitualSchedule.weekdays(
+          localTime: PrayerLocalTime(hour: 7, minute: 0),
+          timezone: 'America/New_York',
+          weekdaysMask: 1 << (DateTime.monday - 1),
+        ),
+      ),
+    ]);
+    await pumpEventQueue();
+
+    expect(
+      scheduler.scheduled.single.scheduledAtUtc,
+      DateTime.utc(2026, 11, 2, 12),
+    );
+  });
+
   test('cancels platform reminders when a ritual is disabled', () async {
     final repository = _Repository();
     final scheduler = _Scheduler();

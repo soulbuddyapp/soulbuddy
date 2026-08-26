@@ -521,6 +521,37 @@ void main() {
   });
 
   test(
+    'reconfirming an undone Altar occurrence restores its session',
+    () async {
+      final database = await _openSeededDatabase(
+        temporaryDirectory,
+        'altar-reconfirm',
+      );
+      addTearDown(database.close);
+      final repository = _repository(database);
+      const key = 'ritual-1@2026-08-26T07:00:00.000Z';
+
+      final first = await repository.recordSession(
+        prayer: const PrayerReference.personal(prayerId),
+        revisionId: revisionId,
+        timezone: 'Africa/Lagos',
+        idempotencyKey: key,
+      );
+      await repository.retractSession(first.id);
+      final restored = await repository.recordSession(
+        prayer: const PrayerReference.personal(prayerId),
+        revisionId: revisionId,
+        timezone: 'Africa/Lagos',
+        idempotencyKey: key,
+      );
+
+      expect(restored.id, first.id);
+      expect(restored.retractedAt, isNull);
+      expect(await repository.watchSessionCount(revisionId).first, 1);
+    },
+  );
+
+  test(
     'retracts within five minutes and excludes the session from count',
     () async {
       var now = DateTime(2026, 8, 11, 8, 0);

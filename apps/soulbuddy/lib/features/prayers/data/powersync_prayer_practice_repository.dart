@@ -545,6 +545,18 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
             session.reminderOccurrenceKey != occurrenceKey) {
           throw StateError('Prayer session identity conflict');
         }
+        if (session.retractedAt != null) {
+          await transaction.execute(
+            'UPDATE prayer_sessions SET retracted_at = NULL WHERE id = ? AND owner_id = ?',
+            [id, ownerId],
+          );
+          return PrayerSession.fromRow(
+            await transaction.get(
+              'SELECT * FROM prayer_sessions WHERE id = ? AND owner_id = ?',
+              [id, ownerId],
+            ),
+          );
+        }
         return session;
       }
 

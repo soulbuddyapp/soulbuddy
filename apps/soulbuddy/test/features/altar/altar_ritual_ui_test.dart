@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/altar/domain/altar_ritual.dart';
@@ -109,6 +111,45 @@ void main() {
     await tester.tap(find.byKey(const Key('altar-prayed')));
     await tester.pump();
     expect(prayers, 1);
+  });
+
+  testWidgets('Undo remains available after the completed card unmounts', (
+    tester,
+  ) async {
+    final completion = Completer<String?>();
+    final showCard = ValueNotifier(true);
+    addTearDown(showCard.dispose);
+    var undid = false;
+
+    await tester.pumpWidget(
+      _app(
+        ValueListenableBuilder<bool>(
+          valueListenable: showCard,
+          builder: (context, visible, _) => visible
+              ? AltarTodayCard(
+                  due: _due(),
+                  tablet: _tablet(withRefrain: true),
+                  onListen: () async {},
+                  onPrayed: () => completion.future,
+                  onUndo: (_) async => undid = true,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('altar-prayed')));
+    await tester.pump();
+    showCard.value = false;
+    await tester.pump();
+    completion.complete('session-1');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Undo'), findsOneWidget);
+    await tester.tap(find.text('Undo'));
+    await tester.pump();
+    expect(undid, isTrue);
   });
 
   testWidgets('empty Altar stays compact and grounded', (tester) async {

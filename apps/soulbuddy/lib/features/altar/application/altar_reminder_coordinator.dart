@@ -175,19 +175,29 @@ class AltarReminderCoordinator {
     timezone_data.initializeTimeZones();
     final location = timezone.getLocation(schedule.timezone);
     final localNow = timezone.TZDateTime.from(nowUtc, location);
-    var candidate = timezone.TZDateTime(
-      location,
+    var civilDate = DateTime(
       localNow.year,
       localNow.month,
       localNow.day,
+    ).add(Duration(days: (weekday - localNow.weekday + 7) % 7));
+    var candidate = timezone.TZDateTime(
+      location,
+      civilDate.year,
+      civilDate.month,
+      civilDate.day,
       schedule.localTime.hour,
       schedule.localTime.minute,
     );
-    candidate = candidate.add(
-      Duration(days: (weekday - candidate.weekday + 7) % 7),
-    );
     if (!candidate.isAfter(localNow)) {
-      candidate = candidate.add(const Duration(days: 7));
+      civilDate = civilDate.add(const Duration(days: 7));
+      candidate = timezone.TZDateTime(
+        location,
+        civilDate.year,
+        civilDate.month,
+        civilDate.day,
+        schedule.localTime.hour,
+        schedule.localTime.minute,
+      );
     }
     return candidate.toUtc();
   }
