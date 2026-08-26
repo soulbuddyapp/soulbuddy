@@ -75,6 +75,25 @@ void main() {
   });
 
   test(
+    'persists reminder delivery and advances after explicit prayer',
+    () async {
+      final ritual = await repository.save(_dailyAt(7, 'tablet-1'));
+
+      final delivery =
+          (await repository.watchReminderDeliveries().first).single;
+      expect(delivery.ritualId, ritual.id);
+      expect(delivery.platformNotificationId, greaterThan(0));
+      expect(delivery.nextOccurrenceAt, DateTime.utc(2026, 8, 27, 6));
+
+      final next = await repository.advance(
+        ritual.id,
+        afterUtc: DateTime.utc(2026, 8, 27, 6),
+      );
+      expect(next, DateTime.utc(2026, 8, 28, 6));
+    },
+  );
+
+  test(
     'pause, snooze, and archive stay local-first and owner scoped',
     () async {
       final first = await repository.save(_dailyAt(7, 'tablet-1'));

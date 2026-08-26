@@ -175,6 +175,20 @@ class AltarRitualDraft {
   final bool enableOnThisDevice;
 }
 
+class AltarReminderDelivery {
+  const AltarReminderDelivery({
+    required this.ritualId,
+    required this.platformNotificationId,
+    required this.nextOccurrenceAt,
+    required this.enabledOnDevice,
+  });
+
+  final String ritualId;
+  final int platformNotificationId;
+  final DateTime? nextOccurrenceAt;
+  final bool enabledOnDevice;
+}
+
 enum AltarRitualLocalStatus { upcoming, due, snoozed, missingAudio }
 
 class DueAltarRitual {

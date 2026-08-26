@@ -118,6 +118,37 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
   }
 
   @override
+  Stream<List<AltarReminderDelivery>> watchReminderDeliveries() {
+    return database
+        .watch(
+          '''
+          SELECT device.ritual_id, device.platform_notification_id,
+                 device.next_occurrence_at, device.enabled_on_device
+          FROM altar_ritual_devices AS device
+          JOIN altar_rituals AS ritual ON ritual.id = device.ritual_id
+          WHERE ritual.owner_id = ? AND device.device_id = ?
+            AND ritual.enabled = 1 AND ritual.archived_at IS NULL
+            AND device.enabled_on_device = 1
+          ORDER BY device.next_occurrence_at, device.ritual_id
+          ''',
+          parameters: [ownerId, deviceId],
+        )
+        .map(
+          (rows) => rows
+              .map(
+                (row) => AltarReminderDelivery(
+                  ritualId: row['ritual_id'] as String,
+                  platformNotificationId:
+                      row['platform_notification_id'] as int,
+                  nextOccurrenceAt: _optionalDate(row['next_occurrence_at']),
+                  enabledOnDevice: row['enabled_on_device'] == 1,
+                ),
+              )
+              .toList(growable: false),
+        );
+  }
+
+  @override
   Future<AltarRitual> save(AltarRitualDraft draft) {
     if (draft.target.type != AltarTargetType.voiceTablet &&
         draft.playbackMode != AltarPlaybackMode.openQuietly) {
@@ -282,6 +313,30 @@ class PowerSyncAltarRitualRepository implements AltarRitualRepository {
           deviceId,
         ],
       );
+    });
+  }
+
+  @override
+  Future<DateTime?> advance(String ritualId, {required DateTime afterUtc}) {
+    return database.writeTransaction((transaction) async {
+      final row = await _requireRitual(transaction, ritualId);
+      final ritual = _ritualFromRow(row);
+      final next = _nextOccurrence(ritual.schedule, afterUtc.toUtc());
+      await transaction.execute(
+        '''
+        UPDATE altar_ritual_devices
+        SET next_occurrence_at = ?, snoozed_until = NULL,
+            dismissed_occurrence_key = NULL, updated_at = ?
+        WHERE ritual_id = ? AND device_id = ? AND enabled_on_device = 1
+        ''',
+        [
+          next?.toUtc().toIso8601String(),
+          _now().toUtc().toIso8601String(),
+          ritualId,
+          deviceId,
+        ],
+      );
+      return next;
     });
   }
 

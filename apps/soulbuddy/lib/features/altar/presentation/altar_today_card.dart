@@ -34,14 +34,22 @@ class AltarTodaySection extends ConsumerWidget {
         return tablet.when(
           loading: () => const SizedBox.shrink(),
           error: (_, _) => const _AltarUnavailableCard(),
-          data: (voiceTablet) => voiceTablet == null
-              ? const _AltarUnavailableCard()
-              : AltarTodayCard(
-                  due: value,
-                  tablet: voiceTablet,
-                  onListen: () => _listen(ref, value, voiceTablet),
-                  onPrayed: () => _recordPrayer(ref, voiceTablet),
-                ),
+          data: (voiceTablet) {
+            if (voiceTablet == null) return const _AltarUnavailableCard();
+            final pendingRitual = ref.watch(pendingAltarOpenProvider);
+            if (pendingRitual == value.ritual.id) {
+              ref.read(pendingAltarOpenProvider.notifier).clear();
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                unawaited(_listen(ref, value, voiceTablet));
+              });
+            }
+            return AltarTodayCard(
+              due: value,
+              tablet: voiceTablet,
+              onListen: () => _listen(ref, value, voiceTablet),
+              onPrayed: () => _recordPrayer(ref, value, voiceTablet),
+            );
+          },
         );
       },
     );
@@ -70,7 +78,11 @@ class AltarTodaySection extends ConsumerWidget {
     );
   }
 
-  Future<void> _recordPrayer(WidgetRef ref, VoiceTablet tablet) async {
+  Future<void> _recordPrayer(
+    WidgetRef ref,
+    DueAltarRitual due,
+    VoiceTablet tablet,
+  ) async {
     final repository = await ref.read(prayerPracticeRepositoryProvider.future);
     final timezone = await ref.read(prayerDeviceTimezoneProvider)();
     final source = tablet.source;
@@ -80,6 +92,13 @@ class AltarTodaySection extends ConsumerWidget {
           : PrayerReference.library(source.prayerId),
       revisionId: source.revisionId,
       timezone: timezone,
+    );
+    final altarRepository = await ref.read(
+      altarRitualRepositoryProvider.future,
+    );
+    await altarRepository.advance(
+      due.ritual.id,
+      afterUtc: due.occurrenceAt.toUtc(),
     );
   }
 }

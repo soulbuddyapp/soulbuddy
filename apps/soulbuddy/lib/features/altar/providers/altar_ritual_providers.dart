@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
+import '../../prayers/providers/prayer_practice_providers.dart';
+import '../application/altar_reminder_coordinator.dart';
 import '../data/altar_ritual_repository.dart';
 import '../data/powersync_altar_ritual_repository.dart';
 import '../domain/altar_ritual.dart';
@@ -34,3 +38,34 @@ final dueAltarRitualProvider = StreamProvider.autoDispose<DueAltarRitual?>((
     DateTime(displayedDate.year, displayedDate.month, displayedDate.day),
   );
 });
+
+final altarReminderCoordinatorProvider =
+    FutureProvider<AltarReminderCoordinator>((ref) async {
+      final coordinator = AltarReminderCoordinator(
+        repository: await ref.watch(altarRitualRepositoryProvider.future),
+        scheduler: ref.watch(prayerReminderSchedulerProvider),
+      );
+      ref.onDispose(() => unawaited(coordinator.dispose()));
+      await coordinator.start();
+      return coordinator;
+    });
+
+final altarReminderEventsProvider = StreamProvider<AltarReminderOpened>((
+  ref,
+) async* {
+  final coordinator = await ref.watch(altarReminderCoordinatorProvider.future);
+  yield* coordinator.events;
+});
+
+class PendingAltarOpenNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String ritualId) => state = ritualId;
+  void clear() => state = null;
+}
+
+final pendingAltarOpenProvider =
+    NotifierProvider<PendingAltarOpenNotifier, String?>(
+      PendingAltarOpenNotifier.new,
+    );

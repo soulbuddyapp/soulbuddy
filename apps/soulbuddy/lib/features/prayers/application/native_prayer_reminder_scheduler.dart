@@ -94,6 +94,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   final NativePrayerNotificationClient _client;
   Stream<PrayerReminderResponse>? _responses;
+  Future<void>? _initialization;
 
   @override
   bool get supportsSystemNotifications => true;
@@ -103,7 +104,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
       _responses ??= _client.responses.map(_decodeResponse);
 
   @override
-  Future<void> initialize() => _client.initialize();
+  Future<void> initialize() => _initialization ??= _client.initialize();
 
   @override
   Future<bool> requestPermission() => _client.requestPermission();
@@ -123,35 +124,41 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   @override
   Future<void> schedule(PrayerScheduledNotification notification) {
+    final altar = notification.kind == ReminderNotificationKind.altar;
     return _client.schedule(
       NativeNotificationRequest(
         platformNotificationId: notification.platformNotificationId,
         scheduledAtUtc: notification.scheduledAtUtc,
-        title: 'Prayer reminder',
-        body: 'Time set aside for prayer',
+        title: altar ? 'At your Altar' : 'Prayer reminder',
+        body: altar
+            ? 'Time set aside to pray and remember'
+            : 'Time set aside for prayer',
         payload: jsonEncode({
           'reminder_id': notification.reminderId,
           'occurrence_key': notification.occurrenceKey,
+          'kind': notification.kind.name,
         }),
         scheduleMode: NativePrayerScheduleMode.inexactAllowWhileIdle,
         startsAudio: false,
-        actions: const [
-          NativeNotificationActionData(
-            id: _prayedActionId,
-            label: 'I prayed this',
-            showsUserInterface: true,
-          ),
-          NativeNotificationActionData(
-            id: _snoozeActionId,
-            label: 'In 10 minutes',
-            showsUserInterface: true,
-          ),
-          NativeNotificationActionData(
-            id: _dismissActionId,
-            label: 'Dismiss',
-            showsUserInterface: true,
-          ),
-        ],
+        actions: altar
+            ? const []
+            : const [
+                NativeNotificationActionData(
+                  id: _prayedActionId,
+                  label: 'I prayed this',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _snoozeActionId,
+                  label: 'In 10 minutes',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _dismissActionId,
+                  label: 'Dismiss',
+                  showsUserInterface: true,
+                ),
+              ],
       ),
     );
   }
@@ -169,20 +176,30 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
     }
     final decoded = jsonDecode(payload);
     if (decoded is! Map<String, dynamic> ||
-        decoded.length != 2 ||
+        (decoded.length != 2 && decoded.length != 3) ||
         !decoded.containsKey('reminder_id') ||
-        !decoded.containsKey('occurrence_key')) {
+        !decoded.containsKey('occurrence_key') ||
+        (decoded.length == 3 && !decoded.containsKey('kind'))) {
       throw const FormatException('Invalid prayer reminder payload.');
     }
     final reminderId = decoded['reminder_id'];
     final occurrenceKey = decoded['occurrence_key'];
+    final kindWire = decoded['kind'] ?? ReminderNotificationKind.prayer.name;
     if (!_isSafeIdentifier(reminderId) || !_isSafeIdentifier(occurrenceKey)) {
       throw const FormatException('Invalid prayer reminder identifiers.');
+    }
+
+    final kind = ReminderNotificationKind.values
+        .cast<ReminderNotificationKind?>()
+        .firstWhere((value) => value?.name == kindWire, orElse: () => null);
+    if (kind == null) {
+      throw const FormatException('Invalid prayer reminder kind.');
     }
 
     return PrayerReminderResponse(
       reminderId: reminderId as String,
       occurrenceKey: occurrenceKey as String,
+      kind: kind,
       action: switch (response.actionId) {
         null || '' => PrayerReminderAction.open,
         _prayedActionId => PrayerReminderAction.prayed,

@@ -34,7 +34,11 @@ Future<void> showAltarRitualSheet(
           final repository = await ref.read(
             altarRitualRepositoryProvider.future,
           );
-          await repository.save(draft);
+          final ritual = await repository.save(draft);
+          final coordinator = await ref.read(
+            altarReminderCoordinatorProvider.future,
+          );
+          await coordinator.enableOnThisDevice(ritual.id);
         },
       ),
     );

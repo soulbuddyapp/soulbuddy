@@ -43,6 +43,7 @@ void main() {
         'reminder_id': '0198aa00-0000-7000-8000-000000000001',
         'occurrence_key':
             '0198aa00-0000-7000-8000-000000000001@2026-08-12T06:30:00.000Z',
+        'kind': 'prayer',
       });
       expect(request.actions.map((action) => action.id), [
         'PRAYED',
@@ -59,6 +60,30 @@ void main() {
       expect(testRequest.body, 'Your reminders are ready on this device');
       expect(testRequest.startsAudio, isFalse);
       expect(testRequest.payload, isNull);
+    },
+  );
+
+  test(
+    'schedules an Altar reminder with private copy and open action',
+    () async {
+      final client = _FakeNativeNotificationClient();
+      final scheduler = NativePrayerReminderScheduler(client: client);
+
+      await scheduler.schedule(
+        PrayerScheduledNotification(
+          platformNotificationId: 321,
+          reminderId: 'altar-ritual-1',
+          occurrenceKey: 'altar-ritual-1@2026-08-27T06:30:00.000Z',
+          scheduledAtUtc: DateTime.utc(2026, 8, 27, 6, 30),
+          kind: ReminderNotificationKind.altar,
+        ),
+      );
+
+      final request = client.requests.single;
+      expect(request.title, 'At your Altar');
+      expect(request.body, 'Time set aside to pray and remember');
+      expect(request.actions, isEmpty);
+      expect(jsonDecode(request.payload)['kind'], 'altar');
     },
   );
 
