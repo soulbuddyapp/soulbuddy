@@ -90,6 +90,7 @@ flutter:
     - assets/content/prayer_library.json
     - assets/scripture/rsvce.db
     - assets/audio/feedback/
+    - assets/audio/meditation/
 
   fonts:
     - family: Source Serif 4 Display

@@ -13,6 +13,7 @@ import '../domain/voice_tablet.dart';
 import '../providers/prayer_practice_providers.dart';
 import '../providers/voice_tablet_providers.dart';
 import 'voice_tablet_sheet.dart';
+import 'meditation_session_sheet.dart';
 
 class VoiceTabletSection extends ConsumerWidget {
   const VoiceTabletSection({
@@ -196,6 +197,22 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                   'This recording is not on this device.',
                   textAlign: TextAlign.center,
                 ),
+              if (_selectedAudio case final selectedAudio?) ...[
+                const SizedBox(height: AppSpacing.xs),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
+                  ),
+                  onPressed: () => showMeditationSessionSheet(
+                    context,
+                    ref,
+                    tablet: widget.tablet,
+                    selectedAudio: selectedAudio,
+                  ),
+                  icon: const Icon(Icons.self_improvement_outlined),
+                  label: const Text('Pray and remain'),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               FilledButton.tonalIcon(
                 style: FilledButton.styleFrom(
