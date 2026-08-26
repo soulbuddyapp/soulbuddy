@@ -85,13 +85,21 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
   final Queue<_PendingAudioCommand> _pendingCommands = Queue();
   Future<void> _commandTail = Future.value();
 
-  Future<bool> prepare(MemoryAudio audio) {
+  Future<bool> prepare(MemoryAudio audio) => prepareTrack(
+    PrivateAudioTrack(
+      id: audio.id,
+      storageKey: audio.storageKey,
+      duration: audio.duration,
+    ),
+  );
+
+  Future<bool> prepareTrack(PrivateAudioTrack audio) {
     if (_closed) return Future.value(false);
     if (_touchPrepared(audio.id)) return Future.value(true);
     return _preparations.putIfAbsent(audio.id, () => _prepare(audio));
   }
 
-  Future<bool> _prepare(MemoryAudio audio) async {
+  Future<bool> _prepare(PrivateAudioTrack audio) async {
     try {
       var prepared = false;
       final operation = Future<void>.sync(() async {
@@ -148,7 +156,15 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
     }
   }
 
-  Future<void> play(MemoryAudio audio) => _serialize(() async {
+  Future<void> play(MemoryAudio audio) => playTrack(
+    PrivateAudioTrack(
+      id: audio.id,
+      storageKey: audio.storageKey,
+      duration: audio.duration,
+    ),
+  );
+
+  Future<void> playTrack(PrivateAudioTrack audio) => _serialize(() async {
     if (_closed) return;
     if (_state.assetId == audio.id &&
         _state.status == MemoryAudioPlaybackStatus.paused) {
@@ -352,6 +368,19 @@ class MemoryAudioPlaybackCoordinator extends ChangeNotifier {
     _state = value;
     notifyListeners();
   }
+}
+
+@immutable
+class PrivateAudioTrack {
+  const PrivateAudioTrack({
+    required this.id,
+    required this.storageKey,
+    required this.duration,
+  });
+
+  final String id;
+  final String storageKey;
+  final Duration duration;
 }
 
 class _PendingAudioCommand {

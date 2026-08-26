@@ -433,6 +433,7 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
     String? revisionId,
     String? reminderId,
     String? occurrenceKey,
+    String? idempotencyKey,
   }) {
     final isReminder = reminderId != null || occurrenceKey != null;
     if (prayer.id.trim().isEmpty) {
@@ -457,6 +458,13 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
     }
     if (timezone.trim().isEmpty || timezone.length > 64) {
       throw ArgumentError.value(timezone, 'timezone');
+    }
+    if (idempotencyKey != null &&
+        (idempotencyKey.trim().isEmpty || idempotencyKey.length > 160)) {
+      throw ArgumentError.value(idempotencyKey, 'idempotencyKey');
+    }
+    if (isReminder && idempotencyKey != null) {
+      throw ArgumentError('Reminder occurrence already supplies idempotency');
     }
 
     return database.writeTransaction((transaction) async {
@@ -484,15 +492,19 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
       } else {
         final available = await transaction.getOptional(
           '''
-          SELECT id, current_revision_id FROM personal_prayers
-          WHERE id = ? AND owner_id = ? AND archived_at IS NULL
+          SELECT prayer.id
+          FROM personal_prayers AS prayer
+          JOIN personal_prayer_revisions AS revision
+            ON revision.id = ? AND revision.prayer_id = prayer.id
+           AND revision.owner_id = prayer.owner_id
+          WHERE prayer.id = ? AND prayer.owner_id = ?
+            AND prayer.archived_at IS NULL
           LIMIT 1
           ''',
-          [prayer.id, ownerId],
+          [revisionId, prayer.id, ownerId],
         );
-        if (available == null ||
-            available['current_revision_id'] != revisionId) {
-          throw StateError('Displayed prayer revision is no longer current');
+        if (available == null) {
+          throw StateError('Displayed prayer revision is unavailable');
         }
       }
       if (isReminder) {
@@ -515,6 +527,11 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
               Namespace.url.value,
               'soulbuddy:prayer-session:$reminderId:$occurrenceKey',
             )
+          : idempotencyKey != null
+          ? _uuid.v5(
+              Namespace.url.value,
+              'soulbuddy:manual-prayer-session:$idempotencyKey',
+            )
           : _uuid.v7();
       final existing = await transaction.getOptional(
         'SELECT * FROM prayer_sessions WHERE id = ? AND owner_id = ?',
@@ -527,6 +544,18 @@ class PowerSyncPrayerPracticeRepository implements PrayerPracticeRepository {
             session.reminderId != reminderId ||
             session.reminderOccurrenceKey != occurrenceKey) {
           throw StateError('Prayer session identity conflict');
+        }
+        if (session.retractedAt != null) {
+          await transaction.execute(
+            'UPDATE prayer_sessions SET retracted_at = NULL WHERE id = ? AND owner_id = ?',
+            [id, ownerId],
+          );
+          return PrayerSession.fromRow(
+            await transaction.get(
+              'SELECT * FROM prayer_sessions WHERE id = ? AND owner_id = ?',
+              [id, ownerId],
+            ),
+          );
         }
         return session;
       }

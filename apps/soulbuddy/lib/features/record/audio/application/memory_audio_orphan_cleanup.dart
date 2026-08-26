@@ -1,22 +1,24 @@
 import '../data/audio_asset_store.dart';
-import '../data/memory_audio_repository.dart';
 
 class MemoryAudioOrphanCleanup {
   MemoryAudioOrphanCleanup({
-    required MemoryAudioRepository repository,
+    required Iterable<Future<Set<String>> Function()> ownedStorageKeyLoaders,
     required AudioAssetStore assetStore,
     DateTime Function()? now,
-  }) : _repository = repository,
+  }) : _ownedStorageKeyLoaders = List.unmodifiable(ownedStorageKeyLoaders),
        _assetStore = assetStore,
        _now = now ?? DateTime.now;
 
-  final MemoryAudioRepository _repository;
+  final List<Future<Set<String>> Function()> _ownedStorageKeyLoaders;
   final AudioAssetStore _assetStore;
   final DateTime Function() _now;
 
   Future<void> run() async {
     try {
-      final referencedKeys = await _repository.ownedStorageKeys();
+      final referencedKeys = <String>{};
+      for (final load in _ownedStorageKeyLoaders) {
+        referencedKeys.addAll(await load());
+      }
       await _assetStore.cleanup(
         referencedKeys,
         olderThan: _now().subtract(const Duration(hours: 24)),

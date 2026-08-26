@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database_provider.dart';
 import '../../../../core/identity/local_identity_providers.dart';
-import '../application/memory_audio_orphan_cleanup.dart';
 import '../application/audioplayers_memory_audio_player.dart';
 import '../application/memory_audio_deletion.dart';
 import '../application/memory_audio_player.dart';
@@ -33,15 +32,6 @@ final memoryAudioRepositoryProvider = FutureProvider<MemoryAudioRepository>((
   );
 });
 
-final memoryAudioStartupCleanupProvider = FutureProvider<void>((ref) async {
-  final repository = await ref.watch(memoryAudioRepositoryProvider.future);
-  final assetStore = await ref.watch(audioAssetStoreProvider.future);
-  await MemoryAudioOrphanCleanup(
-    repository: repository,
-    assetStore: assetStore,
-  ).run();
-});
-
 final memoryAudioForEncounterProvider = StreamProvider.autoDispose
     .family<MemoryAudio?, String>((ref, encounterId) async* {
       final repository = await ref.watch(memoryAudioRepositoryProvider.future);
@@ -49,7 +39,7 @@ final memoryAudioForEncounterProvider = StreamProvider.autoDispose
     });
 
 final memoryAudioPlaybackCoordinatorProvider =
-    FutureProvider.autoDispose<MemoryAudioPlaybackCoordinator>((ref) async {
+    FutureProvider<MemoryAudioPlaybackCoordinator>((ref) async {
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
       final coordinator = MemoryAudioPlaybackCoordinator(
         assetStore: assetStore,

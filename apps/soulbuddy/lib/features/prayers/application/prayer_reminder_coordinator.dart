@@ -244,6 +244,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     if (_disposed) {
       return null;
     }
+    if (response.kind != ReminderNotificationKind.prayer) return null;
     final occurrence = _occurrences.cast<DuePrayerOccurrence?>().firstWhere(
       (candidate) =>
           candidate?.reminder.id == response.reminderId &&
@@ -390,6 +391,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
         occurrenceKey:
             '${occurrence.reminder.id}@${expectedAt.toUtc().toIso8601String()}',
         scheduledAtUtc: expectedAt.toUtc(),
+        timeZoneName: timezoneName,
       ),
     );
   }

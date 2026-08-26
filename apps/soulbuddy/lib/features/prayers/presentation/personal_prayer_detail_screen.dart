@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../altar/presentation/altar_ritual_sheet.dart';
 import '../providers/personal_prayer_providers.dart';
 import 'prayer_reminder_sheet.dart';
 import 'prayer_session_actions.dart';
+import 'voice_tablet_player.dart';
+import '../domain/voice_tablet.dart';
 
 class PersonalPrayerDetailScreen extends ConsumerWidget {
   const PersonalPrayerDetailScreen({required this.prayerId, super.key});
@@ -63,6 +66,17 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       Text(value.action!),
                     ],
                     const SizedBox(height: AppSpacing.xl),
+                    VoiceTabletSection(
+                      source: VoiceTabletSource.personal(
+                        prayerId: value.id,
+                        revisionId: value.currentRevisionId,
+                      ),
+                      title: value.title,
+                      prayerBody: value.body,
+                      onKeepOnAltar: (tablet) =>
+                          showAltarRitualSheet(context, ref, tablet: tablet),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
                     PrayerReminderControl(prayer: value),
                     const SizedBox(height: AppSpacing.sm),
                     PrayerSessionActions(prayer: value),

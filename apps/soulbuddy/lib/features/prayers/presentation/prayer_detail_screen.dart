@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
+import '../../altar/presentation/altar_ritual_sheet.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
 import 'prayer_library_tile.dart';
 import 'use_today_confirmation_sheet.dart';
+import 'voice_tablet_player.dart';
+import '../domain/voice_tablet.dart';
 
 class PrayerDetailScreen extends ConsumerStatefulWidget {
   const PrayerDetailScreen({required this.prayerId, super.key});
@@ -134,6 +137,14 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                     child: const Text('Use today'),
                   ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              VoiceTabletSection(
+                source: VoiceTabletSource.library(prayerId: prayer.id),
+                title: prayer.title,
+                prayerBody: prayer.body,
+                onKeepOnAltar: (tablet) =>
+                    showAltarRitualSheet(context, ref, tablet: tablet),
               ),
             ],
           ),

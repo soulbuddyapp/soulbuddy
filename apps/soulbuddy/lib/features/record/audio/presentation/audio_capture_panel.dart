@@ -14,13 +14,23 @@ class AudioCapturePanel extends StatefulWidget {
     required this.onWriteInstead,
     required this.onContinue,
     this.onBack,
+    this.introHeading,
+    this.introDescription,
+    this.startLabel = 'Start recording',
+    this.alternativeLabel = 'Write instead',
+    this.introContent,
     super.key,
   });
 
   final AudioCaptureController controller;
   final VoidCallback onWriteInstead;
-  final ValueChanged<MemoryAudioDraft> onContinue;
+  final ValueChanged<RecordedAudioDraft> onContinue;
   final VoidCallback? onBack;
+  final String? introHeading;
+  final String? introDescription;
+  final String startLabel;
+  final String alternativeLabel;
+  final Widget? introContent;
 
   @override
   State<AudioCapturePanel> createState() => _AudioCapturePanelState();
@@ -97,12 +107,21 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                     Semantics(
                       header: true,
                       child: Text(
-                        _heading(state),
+                        _heading(state, introHeading: widget.introHeading),
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text(_description(state)),
+                    Text(
+                      _description(
+                        state,
+                        introDescription: widget.introDescription,
+                      ),
+                    ),
+                    if (widget.introContent case final content?) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      content,
+                    ],
                     const SizedBox(height: AppSpacing.lg),
                     if (state.notice case final notice?) ...[
                       _QuietNotice(text: notice),
@@ -123,13 +142,13 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     AudioCapturePhase.idle || AudioCapturePhase.explaining => [
       _PrimaryControl(
         semanticLabel: 'Start audio recording',
-        label: 'Start recording',
+        label: widget.startLabel,
         icon: Icons.mic_none,
         onPressed: widget.controller.start,
       ),
       const SizedBox(height: AppSpacing.sm),
       _SecondaryControl(
-        label: 'Write instead',
+        label: widget.alternativeLabel,
         icon: Icons.edit_outlined,
         onPressed: widget.onWriteInstead,
       ),
@@ -194,7 +213,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
       const SizedBox(height: AppSpacing.md),
       if (state.canWriteInstead) ...[
         _PrimaryControl(
-          label: 'Write instead',
+          label: widget.alternativeLabel,
           icon: Icons.edit_outlined,
           onPressed: widget.onWriteInstead,
         ),
@@ -257,7 +276,8 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         icon: Icons.arrow_forward,
         onPressed: () {
           unawaited(_reviewPlayer.stop());
-          widget.onContinue(review);
+          final transferred = widget.controller.takeReview();
+          if (transferred != null) widget.onContinue(transferred);
         },
       ),
       const SizedBox(height: AppSpacing.sm),
@@ -448,15 +468,19 @@ class _QuietNotice extends StatelessWidget {
   );
 }
 
-String _heading(AudioCaptureState state) => switch (state.phase) {
-  AudioCapturePhase.recording => 'Recording',
-  AudioCapturePhase.paused => 'Recording paused',
-  AudioCapturePhase.review => 'Review your recording',
-  AudioCapturePhase.failure => 'Speak is unavailable',
-  _ => 'Speak what you do not want to forget.',
-};
+String _heading(AudioCaptureState state, {String? introHeading}) =>
+    switch (state.phase) {
+      AudioCapturePhase.recording => 'Recording',
+      AudioCapturePhase.paused => 'Recording paused',
+      AudioCapturePhase.review => 'Review your recording',
+      AudioCapturePhase.failure => 'Speak is unavailable',
+      _ => introHeading ?? 'Speak what you do not want to forget.',
+    };
 
-String _description(AudioCaptureState state) => switch (state.phase) {
+String _description(
+  AudioCaptureState state, {
+  String? introDescription,
+}) => switch (state.phase) {
   AudioCapturePhase.recording =>
     'Speak at your own pace. This stays on this device.',
   AudioCapturePhase.paused => 'Nothing is being added until you resume.',
@@ -464,7 +488,8 @@ String _description(AudioCaptureState state) => switch (state.phase) {
     'Listen once, record again, or continue to describe the memory.',
   AudioCapturePhase.failure => 'You can keep the memory by writing instead.',
   _ =>
-    'You choose when recording begins. SoulBuddy will not upload your voice.',
+    introDescription ??
+        'You choose when recording begins. SoulBuddy will not upload your voice.',
 };
 
 String _failureText(AudioCaptureFailure? failure) => switch (failure) {

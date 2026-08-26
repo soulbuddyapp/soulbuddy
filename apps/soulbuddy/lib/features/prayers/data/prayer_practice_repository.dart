@@ -47,6 +47,7 @@ abstract interface class PrayerPracticeRepository {
     String? revisionId,
     String? reminderId,
     String? occurrenceKey,
+    String? idempotencyKey,
   });
 
   Future<void> retractSession(String sessionId);

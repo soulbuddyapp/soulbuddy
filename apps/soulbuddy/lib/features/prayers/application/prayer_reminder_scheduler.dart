@@ -1,5 +1,9 @@
 enum PrayerReminderAction { open, prayed, snoozeTenMinutes, dismiss }
 
+enum ReminderNotificationKind { prayer, altar }
+
+enum ReminderNotificationRecurrence { once, daily, weekly }
+
 enum NotificationPermissionStatus { granted, denied, unsupported }
 
 class PrayerReminderResponse {
@@ -7,11 +11,13 @@ class PrayerReminderResponse {
     required this.reminderId,
     required this.occurrenceKey,
     required this.action,
+    this.kind = ReminderNotificationKind.prayer,
   });
 
   final String reminderId;
   final String occurrenceKey;
   final PrayerReminderAction action;
+  final ReminderNotificationKind kind;
 }
 
 class PrayerScheduledNotification {
@@ -20,12 +26,18 @@ class PrayerScheduledNotification {
     required this.reminderId,
     required this.occurrenceKey,
     required this.scheduledAtUtc,
+    this.kind = ReminderNotificationKind.prayer,
+    this.recurrence = ReminderNotificationRecurrence.once,
+    this.timeZoneName,
   });
 
   final int platformNotificationId;
   final String reminderId;
   final String occurrenceKey;
   final DateTime scheduledAtUtc;
+  final ReminderNotificationKind kind;
+  final ReminderNotificationRecurrence recurrence;
+  final String? timeZoneName;
 }
 
 abstract interface class PrayerReminderScheduler {

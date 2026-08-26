@@ -474,7 +474,7 @@ void main() {
     );
   });
 
-  test('binds manual sessions to the currently displayed revision', () async {
+  test('keeps an immutable recorded Voice Tablet revision usable', () async {
     final database = await _openSeededDatabase(temporaryDirectory, 'stale');
     addTearDown(database.close);
     final repository = _repository(database);
@@ -483,19 +483,73 @@ void main() {
       ['0198a900-0000-7000-8000-000000000099', prayerId],
     );
 
-    await expectLater(
-      repository.recordSession(
+    final session = await repository.recordSession(
+      prayer: const PrayerReference.personal(prayerId),
+      revisionId: revisionId,
+      timezone: 'Africa/Lagos',
+    );
+
+    expect(session.prayerRevisionId, revisionId);
+  });
+
+  test('records an Altar occurrence only once across retries', () async {
+    final database = await _openSeededDatabase(
+      temporaryDirectory,
+      'altar-idempotent',
+    );
+    addTearDown(database.close);
+    final repository = _repository(database);
+
+    final first = await repository.recordSession(
+      prayer: const PrayerReference.personal(prayerId),
+      revisionId: revisionId,
+      timezone: 'Africa/Lagos',
+      idempotencyKey: 'ritual-1@2026-08-26T07:00:00.000Z',
+    );
+    final replay = await repository.recordSession(
+      prayer: const PrayerReference.personal(prayerId),
+      revisionId: revisionId,
+      timezone: 'Africa/Lagos',
+      idempotencyKey: 'ritual-1@2026-08-26T07:00:00.000Z',
+    );
+
+    expect(replay.id, first.id);
+    expect(
+      await database.powersync.getAll('SELECT id FROM prayer_sessions'),
+      hasLength(1),
+    );
+  });
+
+  test(
+    'reconfirming an undone Altar occurrence restores its session',
+    () async {
+      final database = await _openSeededDatabase(
+        temporaryDirectory,
+        'altar-reconfirm',
+      );
+      addTearDown(database.close);
+      final repository = _repository(database);
+      const key = 'ritual-1@2026-08-26T07:00:00.000Z';
+
+      final first = await repository.recordSession(
         prayer: const PrayerReference.personal(prayerId),
         revisionId: revisionId,
         timezone: 'Africa/Lagos',
-      ),
-      throwsStateError,
-    );
-    expect(
-      await database.powersync.getAll('SELECT id FROM prayer_sessions'),
-      isEmpty,
-    );
-  });
+        idempotencyKey: key,
+      );
+      await repository.retractSession(first.id);
+      final restored = await repository.recordSession(
+        prayer: const PrayerReference.personal(prayerId),
+        revisionId: revisionId,
+        timezone: 'Africa/Lagos',
+        idempotencyKey: key,
+      );
+
+      expect(restored.id, first.id);
+      expect(restored.retractedAt, isNull);
+      expect(await repository.watchSessionCount(revisionId).first, 1);
+    },
+  );
 
   test(
     'retracts within five minutes and excludes the session from count',

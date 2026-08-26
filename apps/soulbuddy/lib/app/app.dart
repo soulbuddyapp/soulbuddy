@@ -7,8 +7,11 @@ import '../features/prayers/providers/personal_prayer_providers.dart';
 import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
-import '../features/record/audio/providers/memory_audio_providers.dart';
+import '../features/record/audio/providers/private_audio_cleanup_provider.dart';
 import '../core/identity/local_identity_providers.dart';
+import '../features/altar/application/altar_reminder_coordinator.dart';
+import '../features/altar/providers/altar_ritual_providers.dart';
+import '../features/altar/presentation/altar_today_card.dart';
 import 'router.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
@@ -18,11 +21,18 @@ class SoulBuddyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(prayerGenerationWorkerProvider);
     ref.watch(prayerReminderCoordinatorProvider);
-    ref.watch(memoryAudioStartupCleanupProvider);
+    ref.watch(altarReminderCoordinatorProvider);
+    ref.watch(privateAudioStartupCleanupProvider);
     ref.watch(installationSessionBootstrapProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         appRouter.go('/prayers/saved/${occurrence!.reminder.personalPrayerId}');
+      }
+    });
+    ref.listen(altarReminderEventsProvider, (previous, next) {
+      if (next case AsyncData(value: AltarReminderOpened(:final ritualId))) {
+        ref.read(pendingAltarOpenProvider.notifier).set(ritualId);
+        appRouter.go('/today');
       }
     });
     return MaterialApp.router(
@@ -44,7 +54,14 @@ class SoulBuddyApp extends ConsumerWidget {
               bottom: compactNavigation ? 92 : AppSpacing.md,
               child: const SafeArea(
                 top: false,
-                child: PrayerReminderCardHost(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PrayerReminderCardHost(),
+                    SizedBox(height: AppSpacing.sm),
+                    AltarReminderOverlayHost(),
+                  ],
+                ),
               ),
             ),
           ],

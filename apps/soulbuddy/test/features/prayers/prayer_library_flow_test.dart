@@ -12,6 +12,7 @@ import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_detail_screen.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayers_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
 
 import '../../helpers/in_memory_prayer_repository.dart';
 
@@ -403,6 +404,9 @@ Future<void> _pumpFlow(
     ProviderScope(
       overrides: [
         prayerRepositoryProvider.overrideWith((ref) async => repository),
+        voiceTabletForSourceProvider.overrideWith(
+          (ref, source) => Stream.value(null),
+        ),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

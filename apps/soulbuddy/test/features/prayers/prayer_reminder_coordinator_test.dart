@@ -553,6 +553,7 @@ class _FakePrayerPracticeRepository implements PrayerPracticeRepository {
     String? revisionId,
     String? reminderId,
     String? occurrenceKey,
+    String? idempotencyKey,
   }) async {
     recordAttempts++;
     if (recordFailuresRemaining > 0) {

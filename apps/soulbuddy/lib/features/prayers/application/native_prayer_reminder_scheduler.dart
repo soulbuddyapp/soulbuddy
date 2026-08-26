@@ -13,6 +13,7 @@ const _prayedActionId = 'PRAYED';
 const _snoozeActionId = 'SNOOZE_10';
 const _dismissActionId = 'DISMISS';
 const _darwinCategoryId = 'PRAYER_REMINDER';
+const _darwinAltarCategoryId = 'ALTAR_REMINDER';
 
 enum NativePrayerScheduleMode { inexactAllowWhileIdle }
 
@@ -38,6 +39,8 @@ class NativeNotificationRequest {
     required this.scheduleMode,
     required this.startsAudio,
     required this.actions,
+    this.recurrence = ReminderNotificationRecurrence.once,
+    this.timeZoneName,
   });
 
   final int platformNotificationId;
@@ -48,6 +51,8 @@ class NativeNotificationRequest {
   final NativePrayerScheduleMode scheduleMode;
   final bool startsAudio;
   final List<NativeNotificationActionData> actions;
+  final ReminderNotificationRecurrence recurrence;
+  final String? timeZoneName;
 }
 
 class NativeNotificationResponseData {
@@ -94,6 +99,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   final NativePrayerNotificationClient _client;
   Stream<PrayerReminderResponse>? _responses;
+  Future<void>? _initialization;
 
   @override
   bool get supportsSystemNotifications => true;
@@ -103,7 +109,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
       _responses ??= _client.responses.map(_decodeResponse);
 
   @override
-  Future<void> initialize() => _client.initialize();
+  Future<void> initialize() => _initialization ??= _client.initialize();
 
   @override
   Future<bool> requestPermission() => _client.requestPermission();
@@ -123,35 +129,43 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   @override
   Future<void> schedule(PrayerScheduledNotification notification) {
+    final altar = notification.kind == ReminderNotificationKind.altar;
     return _client.schedule(
       NativeNotificationRequest(
         platformNotificationId: notification.platformNotificationId,
         scheduledAtUtc: notification.scheduledAtUtc,
-        title: 'Prayer reminder',
-        body: 'Time set aside for prayer',
+        title: altar ? 'At your Altar' : 'Prayer reminder',
+        body: altar
+            ? 'Time set aside to pray and remember'
+            : 'Time set aside for prayer',
         payload: jsonEncode({
           'reminder_id': notification.reminderId,
           'occurrence_key': notification.occurrenceKey,
+          'kind': notification.kind.name,
         }),
         scheduleMode: NativePrayerScheduleMode.inexactAllowWhileIdle,
         startsAudio: false,
-        actions: const [
-          NativeNotificationActionData(
-            id: _prayedActionId,
-            label: 'I prayed this',
-            showsUserInterface: true,
-          ),
-          NativeNotificationActionData(
-            id: _snoozeActionId,
-            label: 'In 10 minutes',
-            showsUserInterface: true,
-          ),
-          NativeNotificationActionData(
-            id: _dismissActionId,
-            label: 'Dismiss',
-            showsUserInterface: true,
-          ),
-        ],
+        actions: altar
+            ? const []
+            : const [
+                NativeNotificationActionData(
+                  id: _prayedActionId,
+                  label: 'I prayed this',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _snoozeActionId,
+                  label: 'In 10 minutes',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _dismissActionId,
+                  label: 'Dismiss',
+                  showsUserInterface: true,
+                ),
+              ],
+        recurrence: notification.recurrence,
+        timeZoneName: notification.timeZoneName,
       ),
     );
   }
@@ -169,20 +183,30 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
     }
     final decoded = jsonDecode(payload);
     if (decoded is! Map<String, dynamic> ||
-        decoded.length != 2 ||
+        (decoded.length != 2 && decoded.length != 3) ||
         !decoded.containsKey('reminder_id') ||
-        !decoded.containsKey('occurrence_key')) {
+        !decoded.containsKey('occurrence_key') ||
+        (decoded.length == 3 && !decoded.containsKey('kind'))) {
       throw const FormatException('Invalid prayer reminder payload.');
     }
     final reminderId = decoded['reminder_id'];
     final occurrenceKey = decoded['occurrence_key'];
+    final kindWire = decoded['kind'] ?? ReminderNotificationKind.prayer.name;
     if (!_isSafeIdentifier(reminderId) || !_isSafeIdentifier(occurrenceKey)) {
       throw const FormatException('Invalid prayer reminder identifiers.');
+    }
+
+    final kind = ReminderNotificationKind.values
+        .cast<ReminderNotificationKind?>()
+        .firstWhere((value) => value?.name == kindWire, orElse: () => null);
+    if (kind == null) {
+      throw const FormatException('Invalid prayer reminder kind.');
     }
 
     return PrayerReminderResponse(
       reminderId: reminderId as String,
       occurrenceKey: occurrenceKey as String,
+      kind: kind,
       action: switch (response.actionId) {
         null || '' => PrayerReminderAction.open,
         _prayedActionId => PrayerReminderAction.prayed,
@@ -240,6 +264,7 @@ class FlutterLocalNotificationsPrayerClient
               ),
             ],
           ),
+          DarwinNotificationCategory(_darwinAltarCategoryId),
         ],
       ),
     );
@@ -342,8 +367,10 @@ class FlutterLocalNotificationsPrayerClient
         visibility: NotificationVisibility.private,
         actions: androidActions,
       ),
-      iOS: const DarwinNotificationDetails(
-        categoryIdentifier: _darwinCategoryId,
+      iOS: DarwinNotificationDetails(
+        categoryIdentifier: request.actions.isEmpty
+            ? _darwinAltarCategoryId
+            : _darwinCategoryId,
       ),
     );
     await _plugin.zonedSchedule(
@@ -352,10 +379,18 @@ class FlutterLocalNotificationsPrayerClient
       body: request.body,
       scheduledDate: timezone.TZDateTime.from(
         request.scheduledAtUtc,
-        timezone.local,
+        request.timeZoneName == null
+            ? timezone.local
+            : timezone.getLocation(request.timeZoneName!),
       ),
       notificationDetails: details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: switch (request.recurrence) {
+        ReminderNotificationRecurrence.once => null,
+        ReminderNotificationRecurrence.daily => DateTimeComponents.time,
+        ReminderNotificationRecurrence.weekly =>
+          DateTimeComponents.dayOfWeekAndTime,
+      },
       payload: request.payload,
     );
   }

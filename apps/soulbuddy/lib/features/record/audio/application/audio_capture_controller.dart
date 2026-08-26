@@ -38,7 +38,7 @@ class AudioCaptureState {
   final AudioCapturePhase phase;
   final Duration elapsed;
   final List<double> liveWaveform;
-  final MemoryAudioDraft? review;
+  final RecordedAudioDraft? review;
   final AudioCaptureFailure? failure;
   final String? notice;
 
@@ -56,12 +56,17 @@ class AudioCaptureController extends ChangeNotifier {
   AudioCaptureController({
     required AudioRecorderGateway recorder,
     required Future<TemporaryAudio> Function() allocateTemporary,
+    this.maximumDuration = maximumMemoryAudioDuration,
     AudioElapsedClock? elapsedClock,
     AudioCaptureTickerFactory? tickerFactory,
   }) : _recorder = recorder,
        _allocateTemporary = allocateTemporary,
        _elapsedClock = elapsedClock ?? StopwatchAudioElapsedClock(),
        _tickerFactory = tickerFactory ?? _createTimerTicker {
+    if (maximumDuration <= Duration.zero ||
+        maximumDuration > maximumMemoryAudioDuration) {
+      throw ArgumentError.value(maximumDuration, 'maximumDuration');
+    }
     _amplitudeSubscription = _recorder.amplitudes.listen(_onAmplitude);
   }
 
@@ -71,6 +76,7 @@ class AudioCaptureController extends ChangeNotifier {
 
   final AudioRecorderGateway _recorder;
   final Future<TemporaryAudio> Function() _allocateTemporary;
+  final Duration maximumDuration;
   final AudioElapsedClock _elapsedClock;
   final AudioCaptureTickerFactory _tickerFactory;
   late final StreamSubscription<double> _amplitudeSubscription;
@@ -186,7 +192,7 @@ class AudioCaptureController extends ChangeNotifier {
       _recordingSessionActive = false;
       _ticker?.cancel();
       _reviewResult = result;
-      final review = MemoryAudioDraft(
+      final review = RecordedAudioDraft(
         temporaryKey: result.locator,
         mimeType: result.mimeType,
         duration: elapsed,
@@ -240,6 +246,19 @@ class AudioCaptureController extends ChangeNotifier {
       _emit(_failureState(elapsed: _state.elapsed));
     }
   });
+
+  /// Hands the reviewed temporary recording to the caller without deleting it.
+  ///
+  /// After this call the caller owns the draft and must either commit or
+  /// discard it. Closing this controller will no longer remove the take.
+  RecordedAudioDraft? takeReview() {
+    if (_closed || _state.phase != AudioCapturePhase.review) return null;
+    final draft = _state.review;
+    if (draft == null || _reviewResult == null) return null;
+    _reviewResult = null;
+    _resetToExplaining();
+    return draft;
+  }
 
   Future<void> recordAgain() => _runCommand(() async {
     final result = _reviewResult;
@@ -327,7 +346,7 @@ class AudioCaptureController extends ChangeNotifier {
     if (_closed || _state.phase != AudioCapturePhase.recording) return;
     final elapsed = _boundedElapsed();
     _emit(_captureState(AudioCapturePhase.recording));
-    if (elapsed >= maximumMemoryAudioDuration) {
+    if (elapsed >= maximumDuration) {
       unawaited(stop());
     }
   }
@@ -348,8 +367,8 @@ class AudioCaptureController extends ChangeNotifier {
 
   Duration _boundedElapsed() {
     final elapsed = _elapsedClock.elapsed;
-    if (elapsed >= maximumMemoryAudioDuration) {
-      return maximumMemoryAudioDuration;
+    if (elapsed >= maximumDuration) {
+      return maximumDuration;
     }
     return elapsed < const Duration(milliseconds: 1)
         ? const Duration(milliseconds: 1)
