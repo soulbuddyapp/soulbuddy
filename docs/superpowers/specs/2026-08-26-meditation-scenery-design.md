@@ -18,12 +18,25 @@ Bundle four license-verified still photographs as compressed WebP assets and ren
 
 The first scene set is:
 
-1. `Dawn lake` — quiet water and a broad, uncluttered horizon.
-2. `Flowing waterfall` — gentle flowing water without people or dramatic danger.
-3. `Forest path` — a welcoming, well-lit path with open visual depth.
-4. `Mountain meadow` — a spacious landscape without buildings, crowds, or promotional associations.
+1. `Dawn lake` — quiet open water beneath a broad blue-and-gold sunrise, with no people, boats, buildings, or dramatic danger.
+2. `Flowing waterfall` — a small real cascade entering a calm forest pool, with no people or visually aggressive drop.
+3. `Forest path` — a welcoming, well-lit and visibly walkable woodland path with open visual depth.
+4. `Mountain meadow` — a portrait alpine meadow and lake beneath an open mountain sky, without people, buildings, or crowds.
 
 Images must be realistic photography with restrained color and contrast. Reject images containing recognizable people, faces, text, logos, religious symbols, private property as the focal subject, dangerous terrain, disaster imagery, heavy compositing, or visually aggressive saturation. Nature photography is meditation content only; it does not reinstate the rejected tree, vine, flower, fruit, or botanical brand motifs documented in the Covenant and Grace design.
+
+### Approved source photographs
+
+The following exact photographs were selected after visual review of their full source-page previews. They are genuine camera photographs rather than AI-generated media, depict the promised scene directly, contain no recognizable people, and leave usable space for a portrait crop and prayer-text overlay.
+
+| Scene | Pixabay source and contributor | Source record |
+| --- | --- | --- |
+| `Dawn lake` | [Sunrise, Lake, Nature](https://pixabay.com/photos/sunrise-lake-nature-dawn-water-7353034/) by `Purgin_Alexandr` | 5901 × 3841 JPG, published 2022-07-31 |
+| `Flowing waterfall` | [Forest, Waterfall, Water](https://pixabay.com/photos/forest-waterfall-water-nature-869716/) by `Derek8978` | 3174 × 4791 JPG, Pentax K-5 II S, published 2015-08-04 |
+| `Forest path` | [Forest path, In the morning, Trees](https://pixabay.com/photos/forest-path-in-the-morning-trees-5094362/) by `LPArt` | 5228 × 3477 JPG, Canon EOS 6D, published 2020-04-27 |
+| `Mountain meadow` | [Meadow, Lake, Mountains](https://pixabay.com/photos/meadow-lake-mountains-nature-6766789/) by `Aldo810` | 3000 × 4000 JPG, OnePlus AC2003, published 2021-11-04 |
+
+Each source page marks the photograph free for use under the [Pixabay Content License](https://pixabay.com/service/license-summary/), which permits free use and modification subject to its prohibited uses. SoulBuddy will crop, compress, overlay interface and prayer content, and distribute the photographs only as integrated meditation assets—not as standalone downloadable stock files. Credit every contributor in the asset manifest even though the Pixabay license does not require attribution.
 
 ## Asset requirements and provenance
 
@@ -37,7 +50,7 @@ Each image must have a complete, independently reviewable provenance record befo
 - transformation recipe;
 - final dimensions, byte size, and SHA-256 checksum.
 
-Prefer public-domain sources or CC0. A permissive source requiring attribution may be used only if the application exposes the required attribution in a durable, discoverable place. A search-results thumbnail, repost, social-media copy, wallpaper aggregator, or page without a verifiable license is not acceptable.
+Use only the approved original Pixabay source pages above for this slice. A search-results thumbnail, sponsored iStock result, repost, social-media copy, wallpaper aggregator, AI-generated substitute, or page without a verifiable license is not acceptable.
 
 Prepare one portrait-oriented WebP master per scene at 1440 × 1920 pixels. Crop with the primary subject away from the central prayer-text safe area, preserve enough edge content for wide screens, remove metadata, and target 200–400 KB per file without visible banding or blocking. The full initial scenery bundle should remain at or below 1.6 MB. Store the images below `assets/images/meditation/` with an `ASSETS.md` provenance manifest and include the directory in `pubspec.yaml`.
 
