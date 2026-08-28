@@ -347,12 +347,13 @@ class PowerSyncGoalRepository implements GoalRepository {
     final now = _now();
     final onceAt = switch (action.scheduleType) {
       GoalScheduleType.today => action.onceAt ?? now,
-      GoalScheduleType.once => action.onceAt ??
-          (throw ArgumentError.value(
-            action.onceAt,
-            'onceAt',
-            'is required for a once action',
-          )),
+      GoalScheduleType.once =>
+        action.onceAt ??
+            (throw ArgumentError.value(
+              action.onceAt,
+              'onceAt',
+              'is required for a once action',
+            )),
       _ => action.onceAt,
     };
     if (action.scheduleType != GoalScheduleType.today &&
@@ -575,12 +576,12 @@ class PowerSyncGoalRepository implements GoalRepository {
           'SELECT id FROM library_prayers WHERE id = ? LIMIT 1',
           [link.libraryPrayerId],
         );
-        final bundled = remote == null
-            ? await database.getOptional(
-                'SELECT id FROM bundled_prayers WHERE id = ? LIMIT 1',
-                [link.libraryPrayerId],
-              )
-            : remote;
+        final bundled =
+            remote ??
+            await database.getOptional(
+              'SELECT id FROM bundled_prayers WHERE id = ? LIMIT 1',
+              [link.libraryPrayerId],
+            );
         if (bundled == null) throw StateError('Prayer is not available');
         return;
       case GoalLinkType.encounter:
