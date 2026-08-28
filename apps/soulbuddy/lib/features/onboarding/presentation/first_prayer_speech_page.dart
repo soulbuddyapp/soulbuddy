@@ -19,12 +19,22 @@ class FirstPrayerSpeechPage extends ConsumerStatefulWidget {
     required this.onContinue,
     required this.onWriteInstead,
     required this.onSkip,
+    this.heading = 'Speak',
+    this.description = 'Say a name, need, or a few words.',
+    this.continueLabel = 'Prepare prayer',
+    this.hintText = 'Your words will appear here',
+    this.fieldKey = const Key('first-prayer-spoken-detail'),
     super.key,
   });
 
   final ValueChanged<String> onContinue;
   final VoidCallback onWriteInstead;
   final VoidCallback onSkip;
+  final String heading;
+  final String description;
+  final String continueLabel;
+  final String hintText;
+  final Key fieldKey;
 
   @override
   ConsumerState<FirstPrayerSpeechPage> createState() =>
@@ -134,9 +144,9 @@ class _FirstPrayerSpeechPageState extends ConsumerState<FirstPrayerSpeechPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Speak', style: Theme.of(context).textTheme.headlineMedium),
+            Text(widget.heading, style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: AppSpacing.sm),
-            const Text('Say a name, need, or a few words.'),
+            Text(widget.description),
             const SizedBox(height: AppSpacing.lg),
             if (_initializing)
               const Center(child: CircularProgressIndicator())
@@ -158,14 +168,12 @@ class _FirstPrayerSpeechPageState extends ConsumerState<FirstPrayerSpeechPage> {
             ],
             const SizedBox(height: AppSpacing.lg),
             TextField(
-              key: const Key('first-prayer-spoken-detail'),
+              key: widget.fieldKey,
               controller: _words,
               minLines: 2,
               maxLines: 4,
               maxLength: 500,
-              decoration: const InputDecoration(
-                hintText: 'Your words will appear here',
-              ),
+              decoration: InputDecoration(hintText: widget.hintText),
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
@@ -173,7 +181,7 @@ class _FirstPrayerSpeechPageState extends ConsumerState<FirstPrayerSpeechPage> {
                 final words = _words.text.trim();
                 if (words.isNotEmpty) widget.onContinue(words);
               },
-              child: const Text('Prepare prayer'),
+              child: Text(widget.continueLabel),
             ),
             TextButton(onPressed: widget.onSkip, child: const Text('Not now')),
           ],
