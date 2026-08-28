@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../goals/providers/goal_providers.dart';
 import '../providers/onboarding_providers.dart';
 import '../providers/first_prayer_providers.dart';
 import 'onboarding_screen.dart';
@@ -9,13 +10,15 @@ import 'onboarding_screen.dart';
 class OnboardingGate extends ConsumerStatefulWidget {
   const OnboardingGate({
     required this.child,
-    required this.onBeginWithPrayer,
+    required this.onBeginWithGoal,
+    required this.onResumeFirstPrayer,
     required this.onSkip,
     super.key,
   });
 
   final Widget child;
-  final VoidCallback onBeginWithPrayer;
+  final VoidCallback onBeginWithGoal;
+  final VoidCallback onResumeFirstPrayer;
   final VoidCallback onSkip;
 
   @override
@@ -50,19 +53,37 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
   }
 
   Widget _completed() {
-    final savedProgress = ref.watch(firstPrayerSavedProgressProvider);
-    if (savedProgress case AsyncData(value: != null) when !_resumeScheduled) {
-      _resumeScheduled = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onBeginWithPrayer();
-      });
+    final legacyPrayer = ref.watch(firstPrayerSavedProgressProvider);
+    final goalProgress = ref.watch(goalOnboardingProgressProvider);
+    if (!_resumeScheduled) {
+      VoidCallback? destination;
+      if (legacyPrayer case AsyncData(value: != null)) {
+        // A partially completed legacy flow is resumed once rather than silently
+        // discarded during the Goal migration.
+        destination = widget.onResumeFirstPrayer;
+      } else if (legacyPrayer case AsyncData(value: null)) {
+        if (goalProgress case AsyncData(value: != null)) {
+          destination = widget.onBeginWithGoal;
+        }
+      } else if (legacyPrayer case AsyncError()) {
+        if (goalProgress case AsyncData(value: != null)) {
+          destination = widget.onBeginWithGoal;
+        }
+      }
+
+      if (destination != null) {
+        _resumeScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) destination!();
+        });
+      }
     }
     return widget.child;
   }
 
   Widget _welcome() {
     return OnboardingScreen(
-      onBeginWithPrayer: () => _finish(widget.onBeginWithPrayer),
+      onBeginWithGoal: () => _finish(widget.onBeginWithGoal),
       onSkip: () => _finish(widget.onSkip),
     );
   }
