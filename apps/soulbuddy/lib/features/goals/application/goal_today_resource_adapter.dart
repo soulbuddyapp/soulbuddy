@@ -9,11 +9,13 @@ class GoalTodayResourceProjection {
   const GoalTodayResourceProjection({
     required this.candidates,
     required this.handlesByStableKey,
+    this.dueRemindersOutsideActiveGoals = const [],
     this.legacyTodayOutsideActiveGoals,
   });
 
   final List<GoalTodayResourceCandidate> candidates;
   final Map<String, GoalTodayResourceHandle> handlesByStableKey;
+  final List<DuePrayerOccurrence> dueRemindersOutsideActiveGoals;
   final TodayPrayer? legacyTodayOutsideActiveGoals;
 
   GoalTodayResourceHandle? handleFor(GoalTodayResourceItem item) =>
@@ -61,6 +63,7 @@ class GoalTodayResourceAdapter {
         .toList(growable: false);
     final candidates = <GoalTodayResourceCandidate>[];
     final handles = <String, GoalTodayResourceHandle>{};
+    final dueOutsideActiveGoals = <DuePrayerOccurrence>[];
 
     void add(
       GoalTodayResourceCandidate candidate,
@@ -72,15 +75,22 @@ class GoalTodayResourceAdapter {
 
     // Due reminders are added before their generic prayer resources. The
     // composer gives reminders a higher explicit rank, while the shared prayer
-    // dedupe key guarantees one visible representation per Goal.
+    // dedupe key guarantees one visible representation per Goal. Reminders that
+    // are not yet linked to an active Goal remain explicit migration content.
     for (final occurrence in duePrayerOccurrences) {
       final occurrenceAt = occurrence.occurrenceAt;
       if (occurrenceAt == null) continue;
       final prayer = PrayerReference.personal(
         occurrence.reminder.personalPrayerId,
       );
-      for (final link in links) {
-        if (!_matchesPrayer(link, prayer)) continue;
+      final matchingLinks = links
+          .where((link) => _matchesPrayer(link, prayer))
+          .toList(growable: false);
+      if (matchingLinks.isEmpty) {
+        dueOutsideActiveGoals.add(occurrence);
+        continue;
+      }
+      for (final link in matchingLinks) {
         final stableKey = '${link.goalId}:reminder:${occurrence.occurrenceKey}';
         add(
           GoalTodayResourceCandidate(
@@ -165,6 +175,7 @@ class GoalTodayResourceAdapter {
     return GoalTodayResourceProjection(
       candidates: List.unmodifiable(candidates),
       handlesByStableKey: Map.unmodifiable(handles),
+      dueRemindersOutsideActiveGoals: List.unmodifiable(dueOutsideActiveGoals),
       legacyTodayOutsideActiveGoals: legacyOutsideActiveGoals,
     );
   }

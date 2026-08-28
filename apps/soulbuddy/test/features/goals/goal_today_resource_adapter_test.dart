@@ -73,6 +73,7 @@ void main() {
           .prayerRevisionId,
       'revision-1',
     );
+    expect(projection.dueRemindersOutsideActiveGoals, isEmpty);
   });
 
   test(
@@ -124,6 +125,24 @@ void main() {
     );
   });
 
+  test('due reminder outside active Goal links remains explicit', () {
+    final reminder = _dueReminder('prayer-1');
+    final projection = adapter.project(
+      activeGoalLinks: [
+        _personalPrayerLink('other-link', 'goal-1', 'different-prayer'),
+      ],
+      duePrayerOccurrences: [reminder],
+    );
+
+    expect(projection.dueRemindersOutsideActiveGoals, [same(reminder)]);
+    expect(
+      projection.candidates.where(
+        (candidate) => candidate.kind == GoalTodayResourceKind.reminder,
+      ),
+      isEmpty,
+    );
+  });
+
   test(
     'unscheduled due reminder is ignored instead of reading occurrenceKey',
     () {
@@ -145,6 +164,7 @@ void main() {
         ),
         hasLength(1),
       );
+      expect(projection.dueRemindersOutsideActiveGoals, isEmpty);
     },
   );
 }

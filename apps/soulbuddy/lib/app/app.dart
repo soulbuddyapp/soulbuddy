@@ -13,6 +13,7 @@ import '../core/identity/local_identity_providers.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
 import '../features/altar/providers/altar_ritual_providers.dart';
 import '../features/altar/presentation/altar_today_card.dart';
+import '../features/goals/providers/goal_today_providers.dart';
 import 'router.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
@@ -62,7 +63,7 @@ class SoulBuddyApp extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      PrayerReminderCardHost(),
+                      _PrayerReminderOverlayHost(),
                       SizedBox(height: AppSpacing.sm),
                       AltarReminderOverlayHost(),
                     ],
@@ -72,6 +73,30 @@ class SoulBuddyApp extends ConsumerWidget {
             ],
           ),
         );
+      },
+    );
+  }
+}
+
+class _PrayerReminderOverlayHost extends ConsumerWidget {
+  const _PrayerReminderOverlayHost();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goalToday = ref.watch(goalTodaySnapshotProvider);
+    final dueReminders = ref.watch(duePrayerOccurrencesProvider);
+    return ListenableBuilder(
+      listenable: appRouter.routerDelegate,
+      builder: (context, child) {
+        final onToday =
+            appRouter.routerDelegate.currentConfiguration.uri.path == '/today';
+        final todayOwnsReminders =
+            onToday &&
+            goalToday is AsyncData<GoalTodaySnapshot> &&
+            dueReminders is AsyncData;
+        return todayOwnsReminders
+            ? const SizedBox.shrink()
+            : const PrayerReminderCardHost();
       },
     );
   }

@@ -15,11 +15,13 @@ import 'goal_providers.dart';
 class GoalTodaySnapshot {
   const GoalTodaySnapshot({
     required this.localDate,
+    required this.activeGoalCount,
     required this.sections,
     required this.resources,
   });
 
   final DateTime localDate;
+  final int activeGoalCount;
   final List<GoalTodaySection> sections;
   final GoalTodayResourceProjection resources;
 }
@@ -90,10 +92,6 @@ final goalTodaySnapshotProvider =
           return const AsyncLoading();
       }
 
-      // Reminder coordination and legacy Today selection are migration inputs,
-      // not prerequisites for local Goal actions. If either is still loading or
-      // temporarily unavailable, Today can render the Goal work immediately and
-      // enrich the snapshot when those sources recover.
       final reminders = switch (ref.watch(duePrayerOccurrencesProvider)) {
         AsyncData(:final value) => value,
         _ => const <DuePrayerOccurrence>[],
@@ -116,6 +114,7 @@ final goalTodaySnapshotProvider =
       return AsyncData(
         GoalTodaySnapshot(
           localDate: localDate,
+          activeGoalCount: goals.length,
           sections: sections,
           resources: resources,
         ),
