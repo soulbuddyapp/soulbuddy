@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
+import '../../prayers/domain/prayer_reference.dart';
 import '../data/goal_onboarding_progress_repository.dart';
+import '../data/goal_prayer_migration.dart';
 import '../data/goal_repository.dart';
 import '../data/powersync_goal_onboarding_progress_repository.dart';
 import '../data/powersync_goal_repository.dart';
@@ -19,6 +21,24 @@ final goalRepositoryProvider = FutureProvider<GoalRepository>((ref) async {
     deviceId: identity.deviceId,
   );
 });
+
+final goalPrayerMigrationProvider = FutureProvider<GoalPrayerMigration>((
+  ref,
+) async {
+  final database = await ref.watch(appDatabaseProvider.future);
+  final identity = await ref.watch(localIdentityProvider.future);
+  return PowerSyncGoalPrayerMigration(
+    database: database.powersync,
+    ownerId: identity.ownerId,
+    deviceId: identity.deviceId,
+  );
+});
+
+final prayerLinkedToGoalProvider = StreamProvider.autoDispose
+    .family<bool, PrayerReference>((ref, prayer) async* {
+      final migration = await ref.watch(goalPrayerMigrationProvider.future);
+      yield* migration.watchLinked(prayer);
+    });
 
 final goalOnboardingProgressRepositoryProvider =
     FutureProvider<GoalOnboardingProgressRepository>((ref) async {
