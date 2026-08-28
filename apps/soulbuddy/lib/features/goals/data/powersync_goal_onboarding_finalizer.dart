@@ -141,6 +141,7 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
           );
           linkType = GoalLinkType.personalPrayer;
           linkRole = GoalLinkRole.primaryPrayer;
+          break;
         case GoalOnboardingPrayerSource.personalPrayer:
           personalPrayerId = _requiredText(
             checked.prayerResourceId,
@@ -158,6 +159,7 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
           if (prayer == null) throw StateError('Prayer is not available.');
           linkType = GoalLinkType.personalPrayer;
           linkRole = GoalLinkRole.primaryPrayer;
+          break;
         case GoalOnboardingPrayerSource.libraryPrayer:
           libraryPrayerId = _requiredText(
             checked.prayerResourceId,
@@ -184,6 +186,7 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
           if (bundled == null) throw StateError('Prayer is not available.');
           linkType = GoalLinkType.libraryPrayer;
           linkRole = GoalLinkRole.primaryPrayer;
+          break;
         case GoalOnboardingPrayerSource.scripture:
           translation = _requiredText(
             checked.scriptureTranslation,
@@ -209,6 +212,7 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
           }
           linkType = GoalLinkType.scripture;
           linkRole = GoalLinkRole.reference;
+          break;
       }
 
       final maximumRow = await transaction.getOptional(
