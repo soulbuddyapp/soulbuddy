@@ -1,5 +1,4 @@
 import 'package:powersync/powersync.dart';
-import 'package:sqlite_async/sqlite_async.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../prayers/domain/prayer_reference.dart';
@@ -70,6 +69,41 @@ class PowerSyncGoalPrayerMigration implements GoalPrayerMigration {
     String? existingGoalId;
 
     await database.writeTransaction((transaction) async {
+      Future<void> requirePrayerTarget() async {
+        switch (prayer.source) {
+          case PrayerSource.personal:
+            final row = await transaction.getOptional(
+              '''
+              SELECT id FROM personal_prayers
+              WHERE id = ? AND owner_id = ? AND archived_at IS NULL
+              LIMIT 1
+              ''',
+              [prayer.id, normalizedOwnerId],
+            );
+            if (row == null) throw StateError('Prayer is not available.');
+          case PrayerSource.library:
+            final remote = await transaction.getOptional(
+              '''
+              SELECT id FROM library_prayers
+              WHERE id = ? AND archived_at IS NULL
+              LIMIT 1
+              ''',
+              [prayer.id],
+            );
+            final bundled =
+                remote ??
+                await transaction.getOptional(
+                  '''
+                  SELECT id FROM bundled_prayers
+                  WHERE id = ? AND archived_at IS NULL
+                  LIMIT 1
+                  ''',
+                  [prayer.id],
+                );
+            if (bundled == null) throw StateError('Prayer is not available.');
+        }
+      }
+
       final existing = await transaction.getOptional(
         '''
         SELECT goal.id AS goal_id
@@ -91,11 +125,7 @@ class PowerSyncGoalPrayerMigration implements GoalPrayerMigration {
         return;
       }
 
-      await _requirePrayerTarget(
-        transaction,
-        prayer,
-        normalizedOwnerId,
-      );
+      await requirePrayerTarget();
 
       final maximumRow = await transaction.getOptional(
         'SELECT MAX(position) AS maximum FROM goals '
@@ -162,45 +192,6 @@ class PowerSyncGoalPrayerMigration implements GoalPrayerMigration {
     });
 
     return existingGoalId ?? candidateGoalId;
-  }
-}
-
-Future<void> _requirePrayerTarget(
-  SqliteWriteContext transaction,
-  PrayerReference prayer,
-  String ownerId,
-) async {
-  switch (prayer.source) {
-    case PrayerSource.personal:
-      final row = await transaction.getOptional(
-        '''
-        SELECT id FROM personal_prayers
-        WHERE id = ? AND owner_id = ? AND archived_at IS NULL
-        LIMIT 1
-        ''',
-        [prayer.id, ownerId],
-      );
-      if (row == null) throw StateError('Prayer is not available.');
-    case PrayerSource.library:
-      final remote = await transaction.getOptional(
-        '''
-        SELECT id FROM library_prayers
-        WHERE id = ? AND archived_at IS NULL
-        LIMIT 1
-        ''',
-        [prayer.id],
-      );
-      final bundled =
-          remote ??
-          await transaction.getOptional(
-            '''
-            SELECT id FROM bundled_prayers
-            WHERE id = ? AND archived_at IS NULL
-            LIMIT 1
-            ''',
-            [prayer.id],
-          );
-      if (bundled == null) throw StateError('Prayer is not available.');
   }
 }
 
