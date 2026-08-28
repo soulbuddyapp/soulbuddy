@@ -132,13 +132,6 @@ jobs:
       - name: Run focused onboarding / Goals tests
         run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
 
-      - name: Preserve Flutter SDK cache after diagnostics
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: C:\hostedtoolcache\windows\flutter\stable-3.35.7-x64
-          key: flutter-windows-stable-3.35.7-x64-adc901062556672b4138e18a4dc62a4be8f4b3c2
-
       - name: Fail on committed formatting drift
         if: always() && steps.dart-format.outcome == 'failure'
         shell: pwsh
