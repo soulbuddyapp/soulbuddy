@@ -46,7 +46,8 @@ class SoulBuddyApp extends ConsumerWidget {
       builder: (context, child) {
         final compactNavigation = MediaQuery.sizeOf(context).width < 840;
         return OnboardingGate(
-          onBeginWithPrayer: () => appRouter.go('/welcome/prayer'),
+          onBeginWithGoal: () => appRouter.go('/welcome/goal'),
+          onResumeFirstPrayer: () => appRouter.go('/welcome/prayer'),
           onSkip: () => appRouter.go('/today'),
           child: Stack(
             fit: StackFit.expand,
