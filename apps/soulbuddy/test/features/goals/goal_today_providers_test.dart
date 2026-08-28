@@ -15,91 +15,102 @@ import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.d
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 
 void main() {
-  test('optional reminder and legacy failures never hide local Goal actions', () async {
-    final goal = _goal('goal-1');
-    final container = ProviderContainer(
-      overrides: [
-        todayPrayerDateProvider.overrideWith(
-          (ref) => Stream.value((year: 2026, month: 8, day: 28)),
-        ),
-        activeGoalsProvider.overrideWith((ref) => Stream.value([goal])),
-        activeGoalTodayLinksProvider.overrideWith(
-          (ref) => Stream.value(const <GoalLink>[]),
-        ),
-        dueGoalActionsProvider.overrideWith(
-          (ref, localDate) => Stream.value([
-            _occurrence(_action('action-1', goal.id), localDate),
-          ]),
-        ),
-        duePrayerOccurrencesProvider.overrideWith(
-          (ref) => Stream.error(StateError('reminders unavailable')),
-        ),
-        todayPrayerProvider.overrideWith(
-          (ref) => Stream.error(StateError('legacy Today unavailable')),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'optional reminder and legacy failures never hide local Goal actions',
+    () async {
+      final goal = _goal('goal-1');
+      final container = ProviderContainer(
+        overrides: [
+          todayPrayerDateProvider.overrideWith(
+            (ref) => Stream.value((year: 2026, month: 8, day: 28)),
+          ),
+          activeGoalsProvider.overrideWith((ref) => Stream.value([goal])),
+          activeGoalTodayLinksProvider.overrideWith(
+            (ref) => Stream.value(const <GoalLink>[]),
+          ),
+          dueGoalActionsProvider.overrideWith(
+            (ref, localDate) => Stream.value([
+              _occurrence(_action('action-1', goal.id), localDate),
+            ]),
+          ),
+          duePrayerOccurrencesProvider.overrideWith(
+            (ref) => Stream.error(StateError('reminders unavailable')),
+          ),
+          todayPrayerProvider.overrideWith(
+            (ref) => Stream.error(StateError('legacy Today unavailable')),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final snapshot = await _nextSnapshot(container);
+      final snapshot = await _nextSnapshot(container);
 
-    expect(snapshot.localDate, DateTime(2026, 8, 28));
-    expect(snapshot.sections, hasLength(1));
-    expect(snapshot.sections.single.goal.id, goal.id);
-    expect(snapshot.sections.single.items, hasLength(1));
-    expect(snapshot.sections.single.items.single, isA<GoalTodayActionItem>());
-    expect(snapshot.resources.candidates, isEmpty);
-  });
+      expect(snapshot.localDate, DateTime(2026, 8, 28));
+      expect(snapshot.sections, hasLength(1));
+      expect(snapshot.sections.single.goal.id, goal.id);
+      expect(snapshot.sections.single.items, hasLength(1));
+      expect(snapshot.sections.single.items.single, isA<GoalTodayActionItem>());
+      expect(snapshot.resources.candidates, isEmpty);
+    },
+  );
 
-  test('legacy Today stays explicit when it is not linked to an active Goal', () async {
-    final goal = _goal('goal-1');
-    final today = _today(const PrayerReference.library('library-1'));
-    final container = ProviderContainer(
-      overrides: [
-        todayPrayerDateProvider.overrideWith(
-          (ref) => Stream.value((year: 2026, month: 8, day: 28)),
-        ),
-        activeGoalsProvider.overrideWith((ref) => Stream.value([goal])),
-        activeGoalTodayLinksProvider.overrideWith(
-          (ref) => Stream.value(const <GoalLink>[]),
-        ),
-        dueGoalActionsProvider.overrideWith(
-          (ref, localDate) => Stream.value(const <GoalActionOccurrence>[]),
-        ),
-        duePrayerOccurrencesProvider.overrideWith(
-          (ref) => Stream.value(const []),
-        ),
-        todayPrayerProvider.overrideWith((ref) => Stream.value(today)),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'legacy Today stays explicit when it is not linked to an active Goal',
+    () async {
+      final goal = _goal('goal-1');
+      final today = _today(const PrayerReference.library('library-1'));
+      final container = ProviderContainer(
+        overrides: [
+          todayPrayerDateProvider.overrideWith(
+            (ref) => Stream.value((year: 2026, month: 8, day: 28)),
+          ),
+          activeGoalsProvider.overrideWith((ref) => Stream.value([goal])),
+          activeGoalTodayLinksProvider.overrideWith(
+            (ref) => Stream.value(const <GoalLink>[]),
+          ),
+          dueGoalActionsProvider.overrideWith(
+            (ref, localDate) => Stream.value(const <GoalActionOccurrence>[]),
+          ),
+          duePrayerOccurrencesProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+          todayPrayerProvider.overrideWith((ref) => Stream.value(today)),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final snapshot = await _nextSnapshot(container);
+      final snapshot = await _nextSnapshot(container);
 
-    expect(snapshot.sections, isEmpty);
-    expect(snapshot.resources.legacyTodayOutsideActiveGoals, same(today));
-  });
+      expect(snapshot.sections, isEmpty);
+      expect(snapshot.resources.legacyTodayOutsideActiveGoals, same(today));
+    },
+  );
 
-  test('core active-link failure is surfaced instead of silently dropping data', () async {
-    final container = ProviderContainer(
-      overrides: [
-        todayPrayerDateProvider.overrideWith(
-          (ref) => Stream.value((year: 2026, month: 8, day: 28)),
-        ),
-        activeGoalsProvider.overrideWith((ref) => Stream.value([_goal('goal-1')])),
-        activeGoalTodayLinksProvider.overrideWith(
-          (ref) => Stream.error(StateError('links unavailable')),
-        ),
-        duePrayerOccurrencesProvider.overrideWith(
-          (ref) => Stream.value(const []),
-        ),
-        todayPrayerProvider.overrideWith((ref) => Stream.value(null)),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'core active-link failure is surfaced instead of silently dropping data',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          todayPrayerDateProvider.overrideWith(
+            (ref) => Stream.value((year: 2026, month: 8, day: 28)),
+          ),
+          activeGoalsProvider.overrideWith(
+            (ref) => Stream.value([_goal('goal-1')]),
+          ),
+          activeGoalTodayLinksProvider.overrideWith(
+            (ref) => Stream.error(StateError('links unavailable')),
+          ),
+          duePrayerOccurrencesProvider.overrideWith(
+            (ref) => Stream.value(const []),
+          ),
+          todayPrayerProvider.overrideWith((ref) => Stream.value(null)),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    await expectLater(_nextSnapshot(container), throwsStateError);
-  });
+      await expectLater(_nextSnapshot(container), throwsStateError);
+    },
+  );
 }
 
 Future<GoalTodaySnapshot> _nextSnapshot(ProviderContainer container) async {
