@@ -7,12 +7,12 @@ typedef OnboardingAction = Future<void> Function();
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
-    required this.onBeginWithPrayer,
+    required this.onBeginWithGoal,
     required this.onSkip,
     super.key,
   });
 
-  final OnboardingAction onBeginWithPrayer;
+  final OnboardingAction onBeginWithGoal;
   final OnboardingAction onSkip;
 
   @override
@@ -22,23 +22,19 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _scenes = [
     _OnboardingScene(
-      title: 'A place to return to God',
+      title: 'Bring what matters',
       body:
-          'SoulBuddy helps you prepare a personal daily prayer and return to '
-          'God with attention.',
+          'Start with something you want help with. Prayer, Scripture, and the next faithful step can gather around it.',
     ),
     _OnboardingScene(
       title: 'Remember what God has done',
       body:
-          'Abraham built altars where God met him. Keep your encounters, '
-          'promises, Scripture, people, and lessons close.',
+          'Keep encounters, promises, Scripture, people, and lessons close instead of letting them disappear into yesterday.',
     ),
     _OnboardingScene(
-      title: 'Carry prayer into life',
+      title: 'Walk it today',
       body:
-          'Pray. Take one faithful step. Keep what you receive. SoulBuddy is '
-          'a quiet aid as God forms your character and makes your life a '
-          'blessing.',
+          'Keep only what deserves attention now. Return, act, pray, and remember without scores or shame.',
     ),
   ];
 
@@ -66,7 +62,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
       return;
     }
-    await _run(widget.onBeginWithPrayer);
+    await _run(widget.onBeginWithGoal);
   }
 
   Future<void> _run(OnboardingAction action) async {
@@ -157,7 +153,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       _working
                           ? 'Opening…'
                           : _page == _scenes.length - 1
-                          ? 'Prepare my first prayer'
+                          ? 'Begin'
                           : 'Continue',
                     ),
                   ),
