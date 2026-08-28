@@ -107,6 +107,35 @@ Current Circles are intentionally legacy, device-local pseudo-chat. Do not exten
 
 Tranche 0 removes none of this data. Tranche 7 / #8 must first offer the explicit `Keep messages as a private Record`, copy, or discard migration before the local composer/history/table model is removed. Old message bodies must never be uploaded automatically into Telegram or WhatsApp.
 
-## 6. Change rule until the migrations land
+## 6. Goal-first onboarding migration
+
+New users now enter the resumable first-Goal path at `/welcome/goal`. The reviewed first question and shortcuts are:
+
+**What would you like help with?**
+
+- Grow closer to God
+- Stop something fighting to control me
+- Find direction
+- Get through a difficult time
+- Something else
+
+Committed first-Goal decisions are stored locally in `goal_onboarding_progress` and the final Goal/prayer/link/actions are committed atomically. A partially completed legacy first-prayer flow takes resume precedence so existing work is not silently discarded.
+
+External trusted-person/Circle accountability is intentionally not collected in the new path until that choice can create a real durable relationship. The underlying state model remains ready for it.
+
+## 7. Focused onboarding / Goals CI
+
+`.github/workflows/onboarding-goals.yml` is the narrow migration gate. It triggers only when onboarding/Goal client code, the reused onboarding speech/choice components, Goal persistence/sync boundaries, their tests, or the workflow itself changes.
+
+The workflow runs:
+
+- Flutter 3.35.7 on Windows, matching the repository toolchain and the existing PowerSync test helper;
+- focused Dart formatting and analyzer checks for onboarding, Goals, shell/database boundaries, and the reused speech/choice components;
+- onboarding/Goal architecture and feature tests;
+- Laravel PHP 8.4, focused Pint including Goal migrations and the sync entrypoint, authoritative Goal sync tests, and the synthetic-content/kill-switch regressions.
+
+This is intentionally not the complete public-release CI matrix tracked in #13.
+
+## 8. Change rule until the migrations land
 
 Before adding code that touches prayer generation or Circle chat, ask whether it expands one of the frozen boundaries above. If yes, implement against the target reviewed-content or external-Circle architecture instead. Existing legacy behavior may receive only compatibility, migration, security, or shutdown fixes.
