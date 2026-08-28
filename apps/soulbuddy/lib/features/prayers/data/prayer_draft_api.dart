@@ -41,6 +41,11 @@ final class PrayerDraftUnavailable extends PrayerDraftApiException {
     : super('Prayer drafting is temporarily unavailable.');
 }
 
+final class PrayerDraftGenerationDisabled extends PrayerDraftApiException {
+  const PrayerDraftGenerationDisabled()
+    : super('Personalized prayer drafting is unavailable.');
+}
+
 final class PrayerDraftNeedsAttention extends PrayerDraftApiException {
   const PrayerDraftNeedsAttention()
     : super('This prayer draft needs attention before it can be shown.');

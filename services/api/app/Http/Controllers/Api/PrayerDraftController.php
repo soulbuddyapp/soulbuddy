@@ -25,6 +25,11 @@ class PrayerDraftController extends Controller
     ): JsonResponse {
         $user = $request->user();
         abort_unless($user instanceof User, 401);
+
+        if (! (bool) config('services.deepseek.prayer_generation_enabled', true)) {
+            return response()->json(['code' => 'generation_disabled'], 503);
+        }
+
         $input = $request->toDomain($user);
         $cacheKey = $this->cacheKey($user, $input->attemptId);
 

@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 
+import '../../../core/config/app_config.dart';
 import '../data/prayer_draft_api.dart';
 import '../data/prayer_generation_repository.dart';
 import '../domain/prayer_generation_request.dart';
@@ -10,8 +11,11 @@ class PrayerGenerationDispatcher {
     required this.api,
     DateTime Function()? now,
     Uuid? uuid,
+    bool? generationEnabled,
   }) : _now = now ?? DateTime.now,
-       _uuid = uuid ?? const Uuid();
+       _uuid = uuid ?? const Uuid(),
+       _generationEnabled =
+           generationEnabled ?? AppConfig.prayerGenerationEnabled;
 
   static const retryDelays = [
     Duration(seconds: 5),
@@ -24,6 +28,7 @@ class PrayerGenerationDispatcher {
   final PrayerDraftApi api;
   final DateTime Function() _now;
   final Uuid _uuid;
+  final bool _generationEnabled;
 
   Future<void> dispatch(String requestId) async {
     final request = await repository.watch(requestId).first;
@@ -31,6 +36,15 @@ class PrayerGenerationDispatcher {
     final attemptId = _uuid.v7();
     final claimedAt = _now().toUtc();
     if (!await repository.claim(requestId, attemptId, claimedAt)) return;
+
+    if (!_generationEnabled) {
+      await repository.requireAttention(
+        requestId,
+        attemptId,
+        'generation_disabled',
+      );
+      return;
+    }
 
     try {
       final draft = await api.generate(request, request.contexts, attemptId);
@@ -52,6 +66,12 @@ class PrayerGenerationDispatcher {
         requestId,
         attemptId,
         'request_invalid',
+      );
+    } on PrayerDraftGenerationDisabled {
+      await repository.requireAttention(
+        requestId,
+        attemptId,
+        'generation_disabled',
       );
     } on PrayerDraftNeedsAttention {
       await repository.requireAttention(

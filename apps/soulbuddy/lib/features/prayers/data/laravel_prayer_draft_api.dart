@@ -129,8 +129,11 @@ class LaravelPrayerDraftApi implements PrayerDraftApi {
         bounded == null ? null : Duration(seconds: bounded),
       );
     }
-    if (response.statusCode == 502 &&
-        _responseCode(response.body) == 'draft_needs_attention') {
+    final responseCode = _responseCode(response.body);
+    if (response.statusCode == 503 && responseCode == 'generation_disabled') {
+      throw const PrayerDraftGenerationDisabled();
+    }
+    if (response.statusCode == 502 && responseCode == 'draft_needs_attention') {
       throw const PrayerDraftNeedsAttention();
     }
     if (response.statusCode >= 500) {

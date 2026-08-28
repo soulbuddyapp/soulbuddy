@@ -37,6 +37,7 @@ return [
         'model' => env('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
         'prompt_version' => env('PRAYER_DRAFT_PROMPT_VERSION', '1'),
         'disclosure_version' => env('PRAYER_DRAFT_DISCLOSURE_VERSION', 'deepseek-1'),
+        'prayer_generation_enabled' => env('PRAYER_GENERATION_ENABLED', true),
     ],
 
     'deepgram' => [
