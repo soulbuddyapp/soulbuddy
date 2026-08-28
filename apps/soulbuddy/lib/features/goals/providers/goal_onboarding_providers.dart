@@ -1,9 +1,39 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/database/app_database_provider.dart';
+import '../../../core/identity/local_identity_providers.dart';
+import '../../prayers/domain/library_prayer.dart';
+import '../../prayers/providers/prayer_providers.dart';
 import '../application/goal_onboarding_flow.dart';
+import '../application/goal_starter_content.dart';
+import '../data/goal_onboarding_finalizer.dart';
+import '../data/powersync_goal_onboarding_finalizer.dart';
 import '../domain/goal.dart';
 import '../domain/goal_onboarding_progress.dart';
 import 'goal_providers.dart';
+
+final goalOnboardingFinalizerProvider =
+    FutureProvider<GoalOnboardingFinalizer>((ref) async {
+      final database = await ref.watch(appDatabaseProvider.future);
+      final identity = await ref.watch(localIdentityProvider.future);
+      return PowerSyncGoalOnboardingFinalizer(
+        database: database.powersync,
+        ownerId: identity.ownerId,
+        deviceId: identity.deviceId,
+      );
+    });
+
+final firstGoalPrayerOptionsProvider = FutureProvider.autoDispose
+    .family<List<LibraryPrayer>, GoalStarterKey>((ref, starterKey) async {
+      final repository = await ref.watch(prayerRepositoryProvider.future);
+      var prayers = await repository
+          .watchLibrary(purpose: prayerPurposeForGoalStarter(starterKey))
+          .first;
+      if (prayers.isEmpty) {
+        prayers = await repository.watchLibrary().first;
+      }
+      return List.unmodifiable(prayers.take(3));
+    });
 
 final goalOnboardingControllerProvider = AsyncNotifierProvider.autoDispose<
   GoalOnboardingController,
@@ -46,11 +76,25 @@ class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
   Future<void> chooseAgency(GoalAgencyChoice choice) =>
       _persist(GoalOnboardingFlow.chooseAgency(_value, choice));
 
-  Future<void> setTodayAction(String? action) =>
-      _persist(GoalOnboardingFlow.setTodayAction(_value, action));
+  Future<void> setTodayAction(String? action) async {
+    var next = GoalOnboardingFlow.setTodayAction(_value, action);
+    if (next.stage == GoalOnboardingStage.accountability) {
+      next = GoalOnboardingFlow.chooseAccountability(
+        next,
+        GoalAccountabilityChoice.notNow,
+      );
+    }
+    await _persist(next);
+  }
 
-  Future<void> setGuardNote(String? guardNote) =>
-      _persist(GoalOnboardingFlow.setGuardNote(_value, guardNote));
+  Future<void> setGuardNote(String? guardNote) async {
+    var next = GoalOnboardingFlow.setGuardNote(_value, guardNote);
+    next = GoalOnboardingFlow.chooseAccountability(
+      next,
+      GoalAccountabilityChoice.notNow,
+    );
+    await _persist(next);
+  }
 
   Future<void> chooseAccountability(GoalAccountabilityChoice choice) =>
       _persist(GoalOnboardingFlow.chooseAccountability(_value, choice));
@@ -84,7 +128,23 @@ class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
   Future<void> beginSaving() =>
       _persist(GoalOnboardingFlow.beginSaving(_value));
 
-  Future<void> goBack() => _persist(GoalOnboardingFlow.goBack(_value));
+  Future<GoalOnboardingFinalizationResult> finalize() async {
+    final finalizer = await ref.read(goalOnboardingFinalizerProvider.future);
+    final result = await finalizer.finalize(_value);
+    ref.invalidate(goalOnboardingProgressProvider);
+    ref.invalidate(activeGoalsProvider);
+    state = const AsyncData(GoalOnboardingProgress());
+    return result;
+  }
+
+  Future<void> goBack() async {
+    var next = GoalOnboardingFlow.goBack(_value);
+    if (next.stage == GoalOnboardingStage.accountability &&
+        next.accountabilityChoice == GoalAccountabilityChoice.notNow) {
+      next = GoalOnboardingFlow.goBack(next);
+    }
+    await _persist(next);
+  }
 
   Future<void> restart() => _persist(const GoalOnboardingProgress());
 
