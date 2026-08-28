@@ -1,0 +1,148 @@
+name: Onboarding and Goals
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/onboarding-goals.yml'
+      - 'apps/soulbuddy/lib/app/**'
+      - 'apps/soulbuddy/lib/core/database/**'
+      - 'apps/soulbuddy/lib/features/onboarding/**'
+      - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/test/architecture/product_invariants_test.dart'
+      - 'apps/soulbuddy/test/features/onboarding/**'
+      - 'apps/soulbuddy/test/features/goals/**'
+      - 'apps/soulbuddy/test/features/prayers/prayer_generation_kill_switch_test.dart'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+      - 'services/api/app/Domain/Sync/ApplyCompositeSyncMutation.php'
+      - 'services/api/app/Domain/Sync/*Goal*'
+      - 'services/api/app/Domain/Sync/SyncOperationIdentity.php'
+      - 'services/api/app/Models/Goal*.php'
+      - 'services/api/app/Policies/GoalPolicy.php'
+      - 'services/api/database/migrations/*goal*'
+      - 'services/api/tests/Feature/Goals/**'
+      - 'services/api/tests/Feature/Sync/GoalMutationTest.php'
+      - 'services/api/tests/Architecture/SyntheticSpiritualContentTest.php'
+      - 'services/api/tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php'
+      - 'services/api/composer.json'
+      - 'services/api/composer.lock'
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - '.github/workflows/onboarding-goals.yml'
+      - 'apps/soulbuddy/lib/app/**'
+      - 'apps/soulbuddy/lib/core/database/**'
+      - 'apps/soulbuddy/lib/features/onboarding/**'
+      - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/test/architecture/product_invariants_test.dart'
+      - 'apps/soulbuddy/test/features/onboarding/**'
+      - 'apps/soulbuddy/test/features/goals/**'
+      - 'apps/soulbuddy/test/features/prayers/prayer_generation_kill_switch_test.dart'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+      - 'services/api/app/Domain/Sync/ApplyCompositeSyncMutation.php'
+      - 'services/api/app/Domain/Sync/*Goal*'
+      - 'services/api/app/Domain/Sync/SyncOperationIdentity.php'
+      - 'services/api/app/Models/Goal*.php'
+      - 'services/api/app/Policies/GoalPolicy.php'
+      - 'services/api/database/migrations/*goal*'
+      - 'services/api/tests/Feature/Goals/**'
+      - 'services/api/tests/Feature/Sync/GoalMutationTest.php'
+      - 'services/api/tests/Architecture/SyntheticSpiritualContentTest.php'
+      - 'services/api/tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php'
+      - 'services/api/composer.json'
+      - 'services/api/composer.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onboarding-goals-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-onboarding:
+    name: Flutter onboarding / Goals
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.35.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Check focused formatting
+        run: dart format --output=none --set-exit-if-changed lib/app lib/core/database lib/features/onboarding lib/features/goals test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+
+      - name: Analyze onboarding
+        run: flutter analyze --fatal-infos lib/features/onboarding
+
+      - name: Analyze Goals
+        run: flutter analyze --fatal-infos lib/features/goals
+
+      - name: Analyze shell and database boundaries
+        run: flutter analyze --fatal-infos lib/app lib/core/database
+
+      - name: Run focused onboarding / Goals tests
+        run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+
+  laravel-goals:
+    name: Laravel Goal sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php84-${{ hashFiles('services/api/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php84-
+
+      - name: Install Laravel dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Check focused PHP style
+        run: ./vendor/bin/pint --test app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php
+
+      - name: Run Goal and invariant tests
+        run: php artisan test tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php
