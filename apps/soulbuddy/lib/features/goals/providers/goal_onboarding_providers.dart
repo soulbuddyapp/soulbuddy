@@ -1,0 +1,105 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../application/goal_onboarding_flow.dart';
+import '../domain/goal.dart';
+import '../domain/goal_onboarding_progress.dart';
+import 'goal_providers.dart';
+
+final goalOnboardingControllerProvider = AsyncNotifierProvider.autoDispose<
+  GoalOnboardingController,
+  GoalOnboardingProgress
+>(GoalOnboardingController.new);
+
+class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
+  @override
+  Future<GoalOnboardingProgress> build() async {
+    final repository = await ref.watch(
+      goalOnboardingProgressRepositoryProvider.future,
+    );
+    final saved = await repository.load();
+    if (saved != null) return saved;
+
+    const initial = GoalOnboardingProgress();
+    await repository.save(initial);
+    return initial;
+  }
+
+  GoalOnboardingProgress get _value => state.requireValue;
+
+  GoalMode get inferredMode => GoalOnboardingFlow.inferredMode(_value);
+
+  Future<void> chooseStarter(GoalStarterKey starterKey) =>
+      _persist(GoalOnboardingFlow.chooseStarter(starterKey));
+
+  Future<void> setTitle(String title) =>
+      _persist(GoalOnboardingFlow.setTitle(_value, title));
+
+  Future<void> setSituation({String? situation, required bool byVoice}) =>
+      _persist(
+        GoalOnboardingFlow.setSituation(
+          _value,
+          situation: situation,
+          byVoice: byVoice,
+        ),
+      );
+
+  Future<void> chooseAgency(GoalAgencyChoice choice) =>
+      _persist(GoalOnboardingFlow.chooseAgency(_value, choice));
+
+  Future<void> setTodayAction(String? action) =>
+      _persist(GoalOnboardingFlow.setTodayAction(_value, action));
+
+  Future<void> setGuardNote(String? guardNote) =>
+      _persist(GoalOnboardingFlow.setGuardNote(_value, guardNote));
+
+  Future<void> chooseAccountability(GoalAccountabilityChoice choice) =>
+      _persist(GoalOnboardingFlow.chooseAccountability(_value, choice));
+
+  Future<void> chooseLibraryPrayer(String prayerId) =>
+      _persist(GoalOnboardingFlow.chooseLibraryPrayer(_value, prayerId));
+
+  Future<void> choosePersonalPrayer(String prayerId) =>
+      _persist(GoalOnboardingFlow.choosePersonalPrayer(_value, prayerId));
+
+  Future<void> chooseScripture({
+    required String translation,
+    required String book,
+    required int chapter,
+    required int firstVerse,
+    required int lastVerse,
+  }) => _persist(
+    GoalOnboardingFlow.chooseScripture(
+      _value,
+      translation: translation,
+      book: book,
+      chapter: chapter,
+      firstVerse: firstVerse,
+      lastVerse: lastVerse,
+    ),
+  );
+
+  Future<void> useOwnWords(String prayer) =>
+      _persist(GoalOnboardingFlow.useOwnWords(_value, prayer));
+
+  Future<void> beginSaving() =>
+      _persist(GoalOnboardingFlow.beginSaving(_value));
+
+  Future<void> goBack() => _persist(GoalOnboardingFlow.goBack(_value));
+
+  Future<void> restart() => _persist(const GoalOnboardingProgress());
+
+  Future<void> _persist(GoalOnboardingProgress next) async {
+    final previous = _value;
+    state = AsyncData(next);
+    try {
+      final repository = await ref.read(
+        goalOnboardingProgressRepositoryProvider.future,
+      );
+      await repository.save(next);
+      ref.invalidate(goalOnboardingProgressProvider);
+    } on Object catch (error, stackTrace) {
+      state = AsyncData(previous);
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+}
