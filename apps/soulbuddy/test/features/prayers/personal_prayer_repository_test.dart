@@ -24,6 +24,47 @@ void main() {
     await temporaryDirectory.delete(recursive: true);
   });
 
+  test('creates user-authored prayer without a generation request', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/own-words.db',
+    );
+    addTearDown(database.close);
+    final repository = PowerSyncPersonalPrayerRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      deviceId: 'device-1',
+      now: () => DateTime.utc(2026, 8, 28, 4),
+      uuid: const Uuid(),
+    );
+
+    final prayer = await repository.createOwnWords(
+      title: 'Find direction',
+      body: 'Father, give me wisdom for the next faithful step.',
+      grounding: PrayerGrounding.generalChristian,
+      purpose: PrayerPurpose.guidance,
+    );
+
+    expect(prayer.body, 'Father, give me wisdom for the next faithful step.');
+    expect(prayer.purpose, PrayerPurpose.guidance);
+    expect(prayer.style, PrayerStyle.situational.wireValue);
+    expect(prayer.reach, PrayerReach.personal.wireValue);
+    expect(
+      await database.powersync.getAll('SELECT id FROM prayer_generation_requests'),
+      isEmpty,
+    );
+    final rows = await database.powersync.getAll(
+      'SELECT id, current_revision_id FROM personal_prayers',
+    );
+    final revisions = await database.powersync.getAll(
+      'SELECT id, prayer_id, body FROM personal_prayer_revisions',
+    );
+    expect(rows, hasLength(1));
+    expect(revisions, hasLength(1));
+    expect(rows.single['current_revision_id'], revisions.single['id']);
+    expect(revisions.single['prayer_id'], rows.single['id']);
+    expect(revisions.single['body'], prayer.body);
+  });
+
   test(
     'accepts one draft as prayer revision and explicit links atomically',
     () async {

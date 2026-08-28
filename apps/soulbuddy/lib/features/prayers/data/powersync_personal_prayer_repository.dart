@@ -62,6 +62,77 @@ class PowerSyncPersonalPrayerRepository implements PersonalPrayerRepository {
   }
 
   @override
+  Future<PersonalPrayer> createOwnWords({
+    required String title,
+    required String body,
+    String? action,
+    PrayerGrounding grounding = PrayerGrounding.generalChristian,
+    PrayerPurpose purpose = PrayerPurpose.daily,
+  }) async {
+    final normalizedTitle = _requiredText(title, 'title', 120);
+    final normalizedBody = _requiredText(body, 'body', 4000);
+    final normalizedAction = _optionalText(action, 'action', 1000);
+    final normalizedDeviceId = _requiredText(deviceId, 'deviceId', 120);
+
+    return database.writeTransaction((transaction) async {
+      final prayerId = _uuid.v7();
+      final revisionId = _uuid.v7();
+      final timestamp = _now().toUtc().toIso8601String();
+      await transaction.execute(
+        '''
+        INSERT INTO personal_prayers(
+          id, owner_id, title, style, reach, grounding, purpose,
+          current_revision_id, created_at, updated_at, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        ''',
+        [
+          prayerId,
+          ownerId,
+          normalizedTitle,
+          PrayerStyle.situational.wireValue,
+          PrayerReach.personal.wireValue,
+          grounding.wireValue,
+          purpose.wireValue,
+          revisionId,
+          timestamp,
+          timestamp,
+        ],
+      );
+      await transaction.execute(
+        '''
+        INSERT INTO personal_prayer_revisions(
+          id, prayer_id, owner_id, body, action, created_at, device_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          revisionId,
+          prayerId,
+          ownerId,
+          normalizedBody,
+          normalizedAction,
+          timestamp,
+          normalizedDeviceId,
+        ],
+      );
+
+      return PersonalPrayer(
+        id: prayerId,
+        ownerId: ownerId,
+        title: normalizedTitle,
+        style: PrayerStyle.situational.wireValue,
+        reach: PrayerReach.personal.wireValue,
+        grounding: grounding,
+        purpose: purpose,
+        currentRevisionId: revisionId,
+        body: normalizedBody,
+        action: normalizedAction,
+        createdAt: DateTime.parse(timestamp),
+        updatedAt: DateTime.parse(timestamp),
+      );
+    });
+  }
+
+  @override
   Future<PersonalPrayer> accept({
     required String requestId,
     required String title,
