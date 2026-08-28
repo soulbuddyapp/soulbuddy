@@ -57,7 +57,9 @@ class _TodayPrayerGoalMigrationCardState
                       FilledButton(
                         key: const Key('keep-prayer-under-goal'),
                         onPressed: _working ? null : _keep,
-                        child: Text(_working ? 'Keeping…' : 'Keep this under a Goal'),
+                        child: Text(
+                          _working ? 'Keeping…' : 'Keep this under a Goal',
+                        ),
                       ),
                       TextButton(
                         key: const Key('dismiss-prayer-goal-migration'),
@@ -107,7 +109,9 @@ class _TodayPrayerGoalMigrationCardState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('This prayer could not be kept under a Goal just now.'),
+            content: Text(
+              'This prayer could not be kept under a Goal just now.',
+            ),
           ),
         );
       }
@@ -156,9 +160,7 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
         ),
         FilledButton(
           key: const Key('confirm-prayer-goal-migration'),
-          onPressed: title.isEmpty
-              ? null
-              : () => Navigator.pop(context, title),
+          onPressed: title.isEmpty ? null : () => Navigator.pop(context, title),
           child: const Text('Keep'),
         ),
       ],
