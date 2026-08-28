@@ -7,6 +7,10 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
+it('keeps prayer generation disabled by default', function () {
+    expect(config('services.deepseek.prayer_generation_enabled'))->toBeFalse();
+});
+
 it('blocks provider calls when prayer generation is disabled', function () {
     config()->set('services.deepseek.prayer_generation_enabled', false);
     config()->set('services.deepseek.disclosure_version', 'deepseek-1');
