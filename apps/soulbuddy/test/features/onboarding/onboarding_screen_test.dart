@@ -7,19 +7,19 @@ void main() {
   testWidgets('guides a new person through the three SoulBuddy scenes', (
     tester,
   ) async {
-    var beganWithPrayer = false;
+    var beganWithGoal = false;
     var skipped = false;
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
         home: OnboardingScreen(
-          onBeginWithPrayer: () async => beganWithPrayer = true,
+          onBeginWithGoal: () async => beganWithGoal = true,
           onSkip: () async => skipped = true,
         ),
       ),
     );
 
-    expect(find.text('A place to return to God'), findsOneWidget);
+    expect(find.text('Bring what matters'), findsOneWidget);
     expect(find.text('SoulBuddy'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
     expect(find.text('Go to Today'), findsOneWidget);
@@ -27,16 +27,16 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(find.text('Remember what God has done'), findsOneWidget);
-    expect(find.textContaining('Abraham built altars'), findsOneWidget);
+    expect(find.textContaining('Keep encounters'), findsOneWidget);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(find.text('Carry prayer into life'), findsOneWidget);
-    expect(find.text('Prepare my first prayer'), findsOneWidget);
+    expect(find.text('Walk it today'), findsOneWidget);
+    expect(find.text('Begin'), findsOneWidget);
 
-    await tester.tap(find.text('Prepare my first prayer'));
+    await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
-    expect(beganWithPrayer, isTrue);
+    expect(beganWithGoal, isTrue);
     expect(skipped, isFalse);
   });
 
@@ -46,7 +46,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: OnboardingScreen(
-          onBeginWithPrayer: () async {},
+          onBeginWithGoal: () async {},
           onSkip: () async => skipped = true,
         ),
       ),
@@ -72,7 +72,7 @@ void main() {
             textScaler: TextScaler.linear(2),
           ),
           child: OnboardingScreen(
-            onBeginWithPrayer: () async {},
+            onBeginWithGoal: () async {},
             onSkip: () async {},
           ),
         ),
