@@ -1,4 +1,5 @@
 import 'package:powersync/powersync.dart';
+import 'package:sqlite_async/sqlite_async.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../prayers/domain/prayer_reference.dart';
@@ -165,7 +166,7 @@ class PowerSyncGoalPrayerMigration implements GoalPrayerMigration {
 }
 
 Future<void> _requirePrayerTarget(
-  SqliteWriteTransaction transaction,
+  SqliteWriteContext transaction,
   PrayerReference prayer,
   String ownerId,
 ) async {
