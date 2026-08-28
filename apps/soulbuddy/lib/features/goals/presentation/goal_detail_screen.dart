@@ -22,15 +22,13 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   Widget build(BuildContext context) {
     final goal = ref.watch(goalProvider(widget.goalId));
     return goal.when(
-      loading: () => const SafeArea(
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const SafeArea(child: Center(child: CircularProgressIndicator())),
       error: (_, _) => _GoalUnavailable(
         onRetry: () => ref.invalidate(goalProvider(widget.goalId)),
       ),
-      data: (value) => value == null
-          ? const _GoalUnavailable()
-          : _buildGoal(context, value),
+      data: (value) =>
+          value == null ? const _GoalUnavailable() : _buildGoal(context, value),
     );
   }
 
@@ -289,10 +287,8 @@ class _SectionLabel extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: Theme.of(context).textTheme.labelLarge,
-  );
+  Widget build(BuildContext context) =>
+      Text(text, style: Theme.of(context).textTheme.labelLarge);
 }
 
 class _GoalUnavailable extends StatelessWidget {
@@ -311,7 +307,10 @@ class _GoalUnavailable extends StatelessWidget {
             const Text('This Goal could not be opened just now.'),
             if (onRetry != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+              OutlinedButton(
+                onPressed: onRetry,
+                child: const Text('Try again'),
+              ),
             ],
           ],
         ),
@@ -389,10 +388,7 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
         onPressed: () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
-      FilledButton(
-        onPressed: _save,
-        child: const Text('Save'),
-      ),
+      FilledButton(onPressed: _save, child: const Text('Save')),
     ],
   );
 
