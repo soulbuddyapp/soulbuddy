@@ -10,7 +10,7 @@ abstract final class AppConfig {
   static const powerSyncUrl = String.fromEnvironment('SOULBUDDY_POWERSYNC_URL');
   static const prayerGenerationEnabled = bool.fromEnvironment(
     'SOULBUDDY_PRAYER_GENERATION_ENABLED',
-    defaultValue: true,
+    defaultValue: false,
   );
   static const prayerDraftProvider = String.fromEnvironment(
     'SOULBUDDY_PRAYER_DRAFT_PROVIDER',
