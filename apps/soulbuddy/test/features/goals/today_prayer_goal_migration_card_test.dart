@@ -112,7 +112,7 @@ Future<void> _pump(
   GoalPrayerMigration migration, {
   MediaQueryData? mediaQuery,
 }) async {
-  Widget child = const Scaffold(
+  Widget child = Scaffold(
     body: SingleChildScrollView(
       child: TodayPrayerGoalMigrationCard(today: _today),
     ),
@@ -162,8 +162,8 @@ class _FakeGoalPrayerMigration implements GoalPrayerMigration {
   Future<void> close() => _changes.close();
 }
 
-const _today = TodayPrayer(
-  prayer: PrayerDisplayValue(
+final _today = TodayPrayer(
+  prayer: const PrayerDisplayValue(
     reference: PrayerReference.library('prayer-1'),
     title: 'Prayer for guidance',
     body: 'Lord, guide me.',
