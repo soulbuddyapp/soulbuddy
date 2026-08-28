@@ -47,6 +47,33 @@ void main() {
     expect(find.text("I'm not sure"), findsOneWidget);
   });
 
+  testWidgets('required Goal title cannot continue blank', (tester) async {
+    final repository = _MemoryGoalProgressRepository();
+    await _pump(tester, repository);
+
+    await tester.tap(find.text('Stop something fighting to control me'));
+    await tester.pumpAndSettle();
+
+    FilledButton continueButton() => tester.widget<FilledButton>(
+      find.byKey(const Key('first-goal-text-continue')),
+    );
+
+    expect(continueButton().onPressed, isNull);
+    await tester.enterText(
+      find.byKey(const Key('first-goal-text-field')),
+      '   ',
+    );
+    await tester.pump();
+    expect(continueButton().onPressed, isNull);
+
+    await tester.enterText(
+      find.byKey(const Key('first-goal-text-field')),
+      'Stop watching pornography',
+    );
+    await tester.pump();
+    expect(continueButton().onPressed, isNotNull);
+  });
+
   testWidgets('reopens the last committed Goal decision', (tester) async {
     final repository = _MemoryGoalProgressRepository(
       const GoalOnboardingProgress(
