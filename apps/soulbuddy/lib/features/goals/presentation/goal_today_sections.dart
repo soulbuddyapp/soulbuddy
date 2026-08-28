@@ -328,7 +328,7 @@ class _ResourceRow extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.check, size: 18),
-                  label: const Text('Prayed'),
+                  label: const Text('I prayed this'),
                 ),
         ),
       ],
