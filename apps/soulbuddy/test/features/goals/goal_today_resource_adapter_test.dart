@@ -40,11 +40,13 @@ void main() {
     );
     expect(projection.candidates.last.label, 'James 1:5-6');
     expect(
-      projection.handlesByStableKey.values.whereType<GoalTodayLinkedPrayerHandle>(),
+      projection.handlesByStableKey.values
+          .whereType<GoalTodayLinkedPrayerHandle>(),
       hasLength(2),
     );
     expect(
-      projection.handlesByStableKey.values.whereType<GoalTodayScriptureHandle>(),
+      projection.handlesByStableKey.values
+          .whereType<GoalTodayScriptureHandle>(),
       hasLength(1),
     );
   });
@@ -124,7 +126,7 @@ void main() {
     final link = _personalPrayerLink('link-1', 'goal-1', 'prayer-1');
     final projection = adapter.project(
       activeGoalLinks: [link],
-      duePrayerOccurrences: [_dueReminder('prayer-1', occurrenceAt: null)],
+      duePrayerOccurrences: [_dueReminder('prayer-1', scheduled: false)],
     );
 
     expect(
@@ -203,13 +205,8 @@ GoalLink _scriptureLink(
   createdAt: DateTime.utc(2026, 8, 28, 8),
 );
 
-DuePrayerOccurrence _dueReminder(
-  String prayerId, {
-  DateTime? occurrenceAt = const _DefaultOccurrenceDate(),
-}) {
-  final actualOccurrence = occurrenceAt is _DefaultOccurrenceDate
-      ? DateTime.utc(2026, 8, 28, 8)
-      : occurrenceAt;
+DuePrayerOccurrence _dueReminder(String prayerId, {bool scheduled = true}) {
+  final occurrenceAt = scheduled ? DateTime.utc(2026, 8, 28, 8) : null;
   final schedule = PrayerReminderSchedule.daily(
     localTime: PrayerLocalTime(hour: 9, minute: 0),
     timezone: 'Africa/Lagos',
@@ -229,14 +226,14 @@ DuePrayerOccurrence _dueReminder(
       reminderId: 'reminder-1',
       deviceId: 'device-1',
       enabledOnDevice: true,
-      nextOccurrenceAt: actualOccurrence,
+      nextOccurrenceAt: occurrenceAt,
       platformNotificationId: 1,
       updatedAt: DateTime.utc(2026, 8, 28),
     ),
     prayerTitle: 'Morning prayer',
     prayerBody: 'Lord, guide me.',
     prayerRevisionId: 'revision-1',
-    occurrenceAt: actualOccurrence,
+    occurrenceAt: occurrenceAt,
   );
 }
 
@@ -252,7 +249,3 @@ TodayPrayer _legacyToday(PrayerReference reference) => TodayPrayer(
   includeAction: false,
   actionCompleted: false,
 );
-
-class _DefaultOccurrenceDate extends DateTime {
-  const _DefaultOccurrenceDate() : super(0);
-}
