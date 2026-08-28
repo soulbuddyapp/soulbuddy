@@ -8,6 +8,8 @@ on:
       - 'apps/soulbuddy/lib/core/database/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/first_prayer_choice_page.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/first_prayer_speech_page.dart'
       - 'apps/soulbuddy/test/architecture/product_invariants_test.dart'
       - 'apps/soulbuddy/test/features/onboarding/**'
       - 'apps/soulbuddy/test/features/goals/**'
@@ -36,6 +38,8 @@ on:
       - 'apps/soulbuddy/lib/core/database/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/first_prayer_choice_page.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/first_prayer_speech_page.dart'
       - 'apps/soulbuddy/test/architecture/product_invariants_test.dart'
       - 'apps/soulbuddy/test/features/onboarding/**'
       - 'apps/soulbuddy/test/features/goals/**'
@@ -87,13 +91,10 @@ jobs:
         run: flutter pub get
 
       - name: Check focused formatting
-        run: dart format --output=none --set-exit-if-changed lib/app lib/core/database lib/features/onboarding lib/features/goals test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+        run: dart format --output=none --set-exit-if-changed lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/prayers/presentation/first_prayer_choice_page.dart lib/features/prayers/presentation/first_prayer_speech_page.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
 
       - name: Analyze onboarding
-        run: flutter analyze --fatal-infos lib/features/onboarding
-
-      - name: Analyze Goals
-        run: flutter analyze --fatal-infos lib/features/goals
+        run: flutter analyze --fatal-infos lib/features/onboarding lib/features/goals lib/features/prayers/presentation/first_prayer_choice_page.dart lib/features/prayers/presentation/first_prayer_speech_page.dart
 
       - name: Analyze shell and database boundaries
         run: flutter analyze --fatal-infos lib/app lib/core/database
