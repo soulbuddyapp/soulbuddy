@@ -36,12 +36,16 @@ final goalOnboardingProgressProvider =
       return repository.load();
     });
 
-final activeGoalsProvider = StreamProvider.autoDispose<List<Goal>>((ref) async* {
+final activeGoalsProvider = StreamProvider.autoDispose<List<Goal>>((
+  ref,
+) async* {
   final repository = await ref.watch(goalRepositoryProvider.future);
   yield* repository.watchActive();
 });
 
-final visibleGoalsProvider = StreamProvider.autoDispose<List<Goal>>((ref) async* {
+final visibleGoalsProvider = StreamProvider.autoDispose<List<Goal>>((
+  ref,
+) async* {
   final database = await ref.watch(appDatabaseProvider.future);
   final identity = await ref.watch(localIdentityProvider.future);
   yield* database.powersync
