@@ -8,9 +8,11 @@ on:
       - 'apps/soulbuddy/lib/core/database/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/lib/features/today/presentation/today_screen.dart'
       - 'apps/soulbuddy/test/architecture/product_invariants_test.dart'
       - 'apps/soulbuddy/test/features/onboarding/**'
       - 'apps/soulbuddy/test/features/goals/**'
+      - 'apps/soulbuddy/test/features/today/today_prayer_test.dart'
       - 'apps/soulbuddy/test/features/prayers/prayer_generation_kill_switch_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
@@ -37,9 +39,11 @@ on:
       - 'apps/soulbuddy/lib/core/database/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/lib/features/today/presentation/today_screen.dart'
       - 'apps/soulbuddy/test/architecture/product_invariants_test.dart'
       - 'apps/soulbuddy/test/features/onboarding/**'
       - 'apps/soulbuddy/test/features/goals/**'
+      - 'apps/soulbuddy/test/features/today/today_prayer_test.dart'
       - 'apps/soulbuddy/test/features/prayers/prayer_generation_kill_switch_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
@@ -105,18 +109,21 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dart format lib/app lib/core/database lib/features/onboarding lib/features/goals test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+          dart format lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/today/today_prayer_test.dart test/features/prayers/prayer_generation_kill_switch_test.dart
           git diff --check
-          git diff --exit-code -- lib/app lib/core/database lib/features/onboarding lib/features/goals test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+          git diff --exit-code -- lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/today/today_prayer_test.dart test/features/prayers/prayer_generation_kill_switch_test.dart
 
       - name: Analyze onboarding
         run: flutter analyze --fatal-infos lib/features/onboarding lib/features/goals
+
+      - name: Analyze Goal-linked Today integration
+        run: flutter analyze --fatal-infos lib/features/today/presentation/today_screen.dart
 
       - name: Analyze shell and database boundaries
         run: flutter analyze --fatal-infos lib/app lib/core/database
 
       - name: Run focused onboarding / Goals tests
-        run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+        run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/today/today_prayer_test.dart test/features/prayers/prayer_generation_kill_switch_test.dart
 
       - name: Fail on committed formatting drift
         if: always() && steps.dart-format.outcome == 'failure'
