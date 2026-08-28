@@ -37,7 +37,7 @@ return [
         'model' => env('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
         'prompt_version' => env('PRAYER_DRAFT_PROMPT_VERSION', '1'),
         'disclosure_version' => env('PRAYER_DRAFT_DISCLOSURE_VERSION', 'deepseek-1'),
-        'prayer_generation_enabled' => env('PRAYER_GENERATION_ENABLED', true),
+        'prayer_generation_enabled' => env('PRAYER_GENERATION_ENABLED', false),
     ],
 
     'deepgram' => [
@@ -57,7 +57,7 @@ return [
 
     'slack' => [
         'notifications' => [
-            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
+            'bot_user_oauth_token' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
