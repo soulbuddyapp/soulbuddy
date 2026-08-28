@@ -50,12 +50,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       AsyncData(:final value) => value,
       _ => null,
     };
+    final goalsKnownEmpty = switch (goalToday) {
+      AsyncData(:final value) => value.activeGoalCount == 0,
+      _ => false,
+    };
     final showStartGuide =
         todayPrayer is AsyncData<TodayPrayer?> &&
         dailyMemory is AsyncData &&
         todayPrayer.value == null &&
         dailyMemory.value == null &&
-        (goalSnapshot == null || goalSnapshot.activeGoalCount == 0);
+        goalsKnownEmpty;
 
     return SafeArea(
       child: Align(
@@ -337,7 +341,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             _showPrayerRecorded(session.id);
           }
         case GoalTodayLegacyPrayerHandle(:final today):
-          final sessionId = await _recordPrayerSession(today);
+          final sessionId = await _recordPrayerSession(
+            today,
+            idempotencyKey: _goalTodayPrayerIdempotencyKey(today),
+          );
           if (mounted) _showPrayerRecorded(sessionId);
         case GoalTodayLinkedPrayerHandle() || GoalTodayScriptureHandle():
           throw StateError('Resource completion is not supported');
@@ -357,6 +364,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ),
       );
     }
+  }
+
+  String _goalTodayPrayerIdempotencyKey(TodayPrayer today) {
+    final prayer = today.prayer.reference;
+    final date = today.localDate;
+    final localDate =
+        '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    return 'goal-today:$localDate:${prayer.source.name}:${prayer.id}';
   }
 
   Future<void> _completeAction(TodayPrayer displayedToday, bool value) async {
@@ -408,7 +425,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
   }
 
-  Future<String> _recordPrayerSession(TodayPrayer displayedToday) async {
+  Future<String> _recordPrayerSession(
+    TodayPrayer displayedToday, {
+    String? idempotencyKey,
+  }) async {
     final displayedDate = DateUtils.dateOnly(displayedToday.localDate);
     final currentDate = DateUtils.dateOnly(
       ref.read(prayerPracticeClockProvider)().toLocal(),
@@ -424,6 +444,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       prayer: displayedToday.prayer.reference,
       revisionId: displayedToday.prayerRevisionId,
       timezone: timezone,
+      idempotencyKey: idempotencyKey,
     );
     return session.id;
   }
