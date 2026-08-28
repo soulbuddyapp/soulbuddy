@@ -88,7 +88,9 @@ jobs:
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
-      - name: Check focused formatting
+      - name: Normalize and check focused formatting
+        id: dart-format
+        continue-on-error: true
         shell: pwsh
         run: |
           dart format lib/app lib/core/database lib/features/onboarding lib/features/goals test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
@@ -103,6 +105,11 @@ jobs:
 
       - name: Run focused onboarding / Goals tests
         run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/prayers/prayer_generation_kill_switch_test.dart
+
+      - name: Fail on committed formatting drift
+        if: always() && steps.dart-format.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
 
   laravel-goals:
     name: Laravel Goal sync
