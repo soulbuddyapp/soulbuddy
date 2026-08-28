@@ -40,19 +40,19 @@ class _GoalTodaySectionsState extends State<GoalTodaySections> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var index = 0; index < widget.snapshot.sections.length; index++) ...[
+        for (
+          var index = 0;
+          index < widget.snapshot.sections.length;
+          index++
+        ) ...[
           _GoalTodaySectionCard(
             section: widget.snapshot.sections[index],
             resources: widget.snapshot.resources,
             busyKeys: _busyKeys,
-            onCompleteAction: (item) => _run(
-              item.stableKey,
-              () => widget.onCompleteAction(item),
-            ),
-            onOpenResource: (item, handle) => _run(
-              item.stableKey,
-              () => widget.onOpenResource(item, handle),
-            ),
+            onCompleteAction: (item) =>
+                _run(item.stableKey, () => widget.onCompleteAction(item)),
+            onOpenResource: (item, handle) =>
+                _run(item.stableKey, () => widget.onOpenResource(item, handle)),
             onCompleteResource: (item, handle) => _run(
               item.stableKey,
               () => widget.onCompleteResource(item, handle),
@@ -269,9 +269,9 @@ class _ResourceRow extends StatelessWidget {
     final resource = item.resource;
     final due = resource.dueAt == null
         ? null
-        : MaterialLocalizations.of(context).formatTimeOfDay(
-            TimeOfDay.fromDateTime(resource.dueAt!.toLocal()),
-          );
+        : MaterialLocalizations.of(
+            context,
+          ).formatTimeOfDay(TimeOfDay.fromDateTime(resource.dueAt!.toLocal()));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -294,11 +294,12 @@ class _ResourceRow extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xs),
                         Text(
                           due,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ],
                     ],
@@ -359,7 +360,7 @@ String? _actionTimeLabel(BuildContext context, GoalAction action) {
   if (action.scheduleType != GoalScheduleType.once || action.onceAt == null) {
     return null;
   }
-  return MaterialLocalizations.of(context).formatTimeOfDay(
-    TimeOfDay.fromDateTime(action.onceAt!.toLocal()),
-  );
+  return MaterialLocalizations.of(
+    context,
+  ).formatTimeOfDay(TimeOfDay.fromDateTime(action.onceAt!.toLocal()));
 }

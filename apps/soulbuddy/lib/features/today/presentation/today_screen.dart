@@ -14,7 +14,6 @@ import '../../goals/application/goal_today_composer.dart';
 import '../../goals/application/goal_today_resource_adapter.dart';
 import '../../goals/presentation/goal_today_sections.dart';
 import '../../goals/presentation/today_prayer_goal_migration_card.dart';
-import '../../goals/providers/goal_providers.dart';
 import '../../goals/providers/goal_today_providers.dart';
 import '../../prayers/application/prayer_reminder_scheduler.dart';
 import '../../prayers/domain/prayer_reference.dart';
@@ -79,7 +78,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'What needs your attention now?',
+                'Pray. Act. Remember.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -111,7 +110,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   )
                 else if (goalSnapshot.activeGoalCount > 0)
                   const _NoGoalAttention(),
-                if (goalSnapshot.resources.dueRemindersOutsideActiveGoals
+                if (goalSnapshot
+                    .resources
+                    .dueRemindersOutsideActiveGoals
                     .isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.md),
                   PrayerReminderCard(
@@ -136,18 +137,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ],
                 if (goalSnapshot.sections.isNotEmpty ||
                     goalSnapshot.activeGoalCount > 0 ||
-                    goalSnapshot.resources.dueRemindersOutsideActiveGoals
+                    goalSnapshot
+                        .resources
+                        .dueRemindersOutsideActiveGoals
                         .isNotEmpty)
                   const SizedBox(height: AppSpacing.md),
-              ] else if (goalToday is AsyncError) ...[
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: _retryGoalToday,
-                    child: const Text('Open Goals for today again'),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
               ],
               const AltarTodaySection(),
               SizedBox(height: showStartGuide ? AppSpacing.sm : AppSpacing.md),
@@ -209,9 +203,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           child: CircularProgressIndicator(),
         ),
       ),
-      error: (error, stackTrace) => _TodayUnavailable(
-        onRetry: () => retryTodayPrayerProvider(ref),
-      ),
+      error: (error, stackTrace) =>
+          _TodayUnavailable(onRetry: () => retryTodayPrayerProvider(ref)),
       data: (today) => today == null
           ? const _NoPrayerSelected()
           : _selectedLegacyPrayer(today, dailyPractices),
@@ -228,7 +221,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         TodayPrayerGoalMigrationCard(today: today),
         _SelectedPrayer(
           today: today,
-          prayerCompletionKnown: dailyPractices is AsyncData<DailyPracticeState>,
+          prayerCompletionKnown:
+              dailyPractices is AsyncData<DailyPracticeState>,
           prayed:
               dailyPractices.value?.completed.contains(DailyPractice.pray) ??
               false,
@@ -469,19 +463,6 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ),
       );
     }
-  }
-
-  void _retryGoalToday() {
-    if (ref.read(appDatabaseProvider).hasError) {
-      ref.invalidate(appDatabaseProvider);
-    }
-    if (ref.read(localIdentityProvider).hasError) {
-      ref.invalidate(localIdentityProvider);
-    }
-    ref.invalidate(goalRepositoryProvider);
-    ref.invalidate(activeGoalsProvider);
-    ref.invalidate(activeGoalTodayLinksProvider);
-    ref.invalidate(goalTodaySnapshotProvider);
   }
 
   void _retryDailyPractices() {
