@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:soulbuddy/core/config/app_config.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_generation_dispatcher.dart';
 import 'package:soulbuddy/features/prayers/data/laravel_prayer_draft_api.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_draft_api.dart';
@@ -12,6 +13,10 @@ import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart
 import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 
 void main() {
+  test('prayer generation is disabled unless explicitly enabled', () {
+    expect(AppConfig.prayerGenerationEnabled, isFalse);
+  });
+
   test('local kill switch never calls the prayer draft API', () async {
     final now = DateTime.utc(2026, 8, 28, 1);
     final repository = _KillSwitchRepository(_queuedRequest(now));
