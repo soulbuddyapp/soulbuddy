@@ -101,7 +101,10 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const Key('today-prayer-goal-migration')), findsOneWidget);
+    expect(
+      find.byKey(const Key('today-prayer-goal-migration')),
+      findsOneWidget,
+    );
     expect(find.byType(Wrap), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
