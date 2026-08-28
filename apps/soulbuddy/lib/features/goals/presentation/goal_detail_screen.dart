@@ -388,7 +388,14 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
         onPressed: () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
-      FilledButton(onPressed: _save, child: const Text('Save')),
+      ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _titleController,
+        builder: (context, value, child) => FilledButton(
+          key: const Key('edit-goal-save'),
+          onPressed: value.text.trim().isEmpty ? null : _save,
+          child: const Text('Save'),
+        ),
+      ),
     ],
   );
 
