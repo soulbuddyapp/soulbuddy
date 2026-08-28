@@ -81,8 +81,7 @@ void main() {
 
       final snapshot = await _nextSnapshot(
         container,
-        where: (value) =>
-            value.resources.legacyTodayOutsideActiveGoals != null,
+        where: (value) => value.resources.legacyTodayOutsideActiveGoals != null,
       );
 
       expect(snapshot.sections, isEmpty);
