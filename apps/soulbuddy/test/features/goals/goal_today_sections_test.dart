@@ -45,7 +45,7 @@ void main() {
   );
 
   testWidgets(
-    'legacy Goal prayer exposes Open and Prayed through typed handle',
+    'legacy Goal prayer exposes Open and I prayed this through typed handle',
     (tester) async {
       var opened = 0;
       var prayed = 0;
@@ -101,7 +101,7 @@ void main() {
       );
 
       expect(find.text('Prayer for today'), findsOneWidget);
-      expect(find.text('Prayed'), findsOneWidget);
+      expect(find.text('I prayed this'), findsOneWidget);
 
       await tester.tap(
         find.byKey(const ValueKey('goal-today-prayed-legacy-prayer')),
