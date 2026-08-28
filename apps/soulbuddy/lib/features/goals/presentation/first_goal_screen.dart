@@ -168,6 +168,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
             : 'What would you like help with?',
         continueLabel: 'Continue',
         maxLength: 120,
+        requireText: true,
         onContinue: (value) =>
             ref.read(goalOnboardingControllerProvider.notifier).setTitle(value),
       );
@@ -240,6 +241,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         hintText: 'Write your prayer in your own words.',
         continueLabel: 'Keep my words',
         maxLength: 4000,
+        requireText: true,
         skipLabel: 'Choose another prayer',
         onContinue: (value) async {
           await ref
@@ -392,6 +394,7 @@ class _GoalTextPage extends StatefulWidget {
     this.onSkip,
     this.skipLabel = 'Not now',
     this.maxLength = 1000,
+    this.requireText = false,
   });
 
   final String question;
@@ -402,6 +405,7 @@ class _GoalTextPage extends StatefulWidget {
   final FutureOr<void> Function()? onSkip;
   final String skipLabel;
   final int maxLength;
+  final bool requireText;
 
   @override
   State<_GoalTextPage> createState() => _GoalTextPageState();
@@ -454,12 +458,21 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               decoration: InputDecoration(hintText: widget.hintText),
             ),
             const SizedBox(height: AppSpacing.md),
-            FilledButton(
-              onPressed: _working
-                  ? null
-                  : () =>
-                        _run(() => widget.onContinue(_controller.text.trim())),
-              child: Text(_working ? 'Keeping…' : widget.continueLabel),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _controller,
+              builder: (context, value, child) {
+                final missingRequiredText =
+                    widget.requireText && value.text.trim().isEmpty;
+                return FilledButton(
+                  key: const Key('first-goal-text-continue'),
+                  onPressed: _working || missingRequiredText
+                      ? null
+                      : () => _run(
+                          () => widget.onContinue(_controller.text.trim()),
+                        ),
+                  child: Text(_working ? 'Keeping…' : widget.continueLabel),
+                );
+              },
             ),
             if (widget.onSkip case final onSkip?)
               TextButton(
