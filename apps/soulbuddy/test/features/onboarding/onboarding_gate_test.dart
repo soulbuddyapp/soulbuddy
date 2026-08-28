@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/features/goals/domain/goal.dart';
+import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
+import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 import 'package:soulbuddy/features/onboarding/data/onboarding_repository.dart';
 import 'package:soulbuddy/features/onboarding/data/first_prayer_progress_repository.dart';
 import 'package:soulbuddy/features/onboarding/domain/first_prayer_progress.dart';
@@ -16,7 +19,7 @@ void main() {
     final repository = _MemoryOnboardingRepository();
     await _pumpGate(tester, repository);
 
-    expect(find.text('A place to return to God'), findsOneWidget);
+    expect(find.text('Bring what matters'), findsOneWidget);
     expect(find.text('Routed app'), findsNothing);
   });
 
@@ -25,45 +28,72 @@ void main() {
     await _pumpGate(tester, repository);
 
     expect(find.text('Routed app'), findsOneWidget);
-    expect(find.text('A place to return to God'), findsNothing);
+    expect(find.text('Bring what matters'), findsNothing);
   });
 
-  testWidgets('completed welcome resumes a saved first prayer', (tester) async {
+  testWidgets('completed welcome resumes a saved legacy first prayer', (
+    tester,
+  ) async {
     final repository = _MemoryOnboardingRepository(completed: true);
-    var resumed = false;
+    var resumedPrayer = false;
+    var resumedGoal = false;
     await _pumpGate(
       tester,
       repository,
       progressRepository: _MemoryProgressRepository(
         const FirstPrayerProgress(stage: FirstPrayerStage.frequency),
       ),
-      onBeginWithPrayer: () => resumed = true,
+      goalProgress: const GoalOnboardingProgress(
+        stage: GoalOnboardingStage.agency,
+        starterKey: GoalStarterKey.direction,
+      ),
+      onResumeFirstPrayer: () => resumedPrayer = true,
+      onBeginWithGoal: () => resumedGoal = true,
     );
 
-    expect(resumed, isTrue);
+    expect(resumedPrayer, isTrue);
+    expect(resumedGoal, isFalse);
     expect(find.text('Routed app'), findsOneWidget);
   });
 
-  testWidgets('final welcome action persists and opens prayer choices', (
-    tester,
-  ) async {
-    final repository = _MemoryOnboardingRepository();
-    var openedPrayerChoices = false;
+  testWidgets('completed welcome resumes a saved first Goal', (tester) async {
+    final repository = _MemoryOnboardingRepository(completed: true);
+    var resumedGoal = false;
     await _pumpGate(
       tester,
       repository,
-      onBeginWithPrayer: () => openedPrayerChoices = true,
+      goalProgress: const GoalOnboardingProgress(
+        stage: GoalOnboardingStage.agency,
+        starterKey: GoalStarterKey.direction,
+        title: 'Find direction',
+      ),
+      onBeginWithGoal: () => resumedGoal = true,
+    );
+
+    expect(resumedGoal, isTrue);
+    expect(find.text('Routed app'), findsOneWidget);
+  });
+
+  testWidgets('final welcome action persists and opens Goal choices', (
+    tester,
+  ) async {
+    final repository = _MemoryOnboardingRepository();
+    var openedGoalChoices = false;
+    await _pumpGate(
+      tester,
+      repository,
+      onBeginWithGoal: () => openedGoalChoices = true,
     );
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Prepare my first prayer'));
+    await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
 
     expect(repository.completed, isTrue);
-    expect(openedPrayerChoices, isTrue);
+    expect(openedGoalChoices, isTrue);
     expect(find.text('Routed app'), findsOneWidget);
   });
 
@@ -83,8 +113,10 @@ void main() {
 Future<void> _pumpGate(
   WidgetTester tester,
   OnboardingRepository repository, {
-  VoidCallback? onBeginWithPrayer,
+  VoidCallback? onBeginWithGoal,
+  VoidCallback? onResumeFirstPrayer,
   FirstPrayerProgressRepository? progressRepository,
+  GoalOnboardingProgress? goalProgress,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -93,11 +125,15 @@ Future<void> _pumpGate(
         firstPrayerProgressRepositoryProvider.overrideWith(
           (ref) async => progressRepository ?? _MemoryProgressRepository(null),
         ),
+        goalOnboardingProgressProvider.overrideWith(
+          (ref) async => goalProgress,
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
         home: OnboardingGate(
-          onBeginWithPrayer: onBeginWithPrayer ?? () {},
+          onBeginWithGoal: onBeginWithGoal ?? () {},
+          onResumeFirstPrayer: onResumeFirstPrayer ?? () {},
           onSkip: () {},
           child: const Scaffold(body: Center(child: Text('Routed app'))),
         ),
