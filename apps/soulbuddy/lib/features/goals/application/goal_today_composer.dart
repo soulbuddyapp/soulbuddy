@@ -77,17 +77,18 @@ class GoalTodayComposer {
     required List<GoalActionOccurrence> dueActions,
     List<GoalTodayResourceCandidate> resources = const [],
   }) {
-    final orderedGoals = goals
-        .where(
-          (goal) =>
-              goal.status == GoalStatus.active && goal.archivedAt == null,
-        )
-        .toList()
-      ..sort((left, right) {
-        final byPosition = left.position.compareTo(right.position);
-        if (byPosition != 0) return byPosition;
-        return left.id.compareTo(right.id);
-      });
+    final orderedGoals =
+        goals
+            .where(
+              (goal) =>
+                  goal.status == GoalStatus.active && goal.archivedAt == null,
+            )
+            .toList()
+          ..sort((left, right) {
+            final byPosition = left.position.compareTo(right.position);
+            if (byPosition != 0) return byPosition;
+            return left.id.compareTo(right.id);
+          });
     final activeGoalIds = orderedGoals.map((goal) => goal.id).toSet();
     final candidatesByGoal = <String, List<_RankedGoalTodayItem>>{};
     var sequence = 0;
@@ -169,12 +170,13 @@ int _actionRank(GoalAction action) {
   };
 }
 
-int _resourceRank(GoalTodayResourceCandidate resource) => switch (resource.kind) {
-  GoalTodayResourceKind.accountability when resource.dueAt != null => 0,
-  GoalTodayResourceKind.reminder => 1,
-  GoalTodayResourceKind.prayer || GoalTodayResourceKind.scripture => 2,
-  GoalTodayResourceKind.accountability => 3,
-};
+int _resourceRank(GoalTodayResourceCandidate resource) =>
+    switch (resource.kind) {
+      GoalTodayResourceKind.accountability when resource.dueAt != null => 0,
+      GoalTodayResourceKind.reminder => 1,
+      GoalTodayResourceKind.prayer || GoalTodayResourceKind.scripture => 2,
+      GoalTodayResourceKind.accountability => 3,
+    };
 
 bool _hasExplicitTime(GoalAction action) =>
     action.localTime != null ||

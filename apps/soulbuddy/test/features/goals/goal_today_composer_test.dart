@@ -61,7 +61,10 @@ void main() {
     expect(sections, hasLength(1));
     final items = sections.single.items;
     expect(items, hasLength(3));
-    expect((items[0] as GoalTodayActionItem).occurrence.action.id, 'timed-guard');
+    expect(
+      (items[0] as GoalTodayActionItem).occurrence.action.id,
+      'timed-guard',
+    );
     expect(
       (items[1] as GoalTodayResourceItem).resource.kind,
       GoalTodayResourceKind.prayer,
@@ -90,48 +93,60 @@ void main() {
       ),
     );
 
-    final items = composer.compose(
-      goals: [goal],
-      dueActions: [sameDayGuard, timedGuard],
-      resources: [
-        GoalTodayResourceCandidate(
-          goalId: goal.id,
-          stableKey: 'prayer',
-          dedupeKey: 'prayer:1',
-          kind: GoalTodayResourceKind.prayer,
-          label: 'Prayer',
-        ),
-      ],
-    ).single.items;
+    final items = composer
+        .compose(
+          goals: [goal],
+          dueActions: [sameDayGuard, timedGuard],
+          resources: [
+            GoalTodayResourceCandidate(
+              goalId: goal.id,
+              stableKey: 'prayer',
+              dedupeKey: 'prayer:1',
+              kind: GoalTodayResourceKind.prayer,
+              label: 'Prayer',
+            ),
+          ],
+        )
+        .single
+        .items;
 
-    expect((items[0] as GoalTodayActionItem).occurrence.action.id, 'timed-guard');
+    expect(
+      (items[0] as GoalTodayActionItem).occurrence.action.id,
+      'timed-guard',
+    );
     expect(items[1], isA<GoalTodayResourceItem>());
-    expect((items[2] as GoalTodayActionItem).occurrence.action.id, 'today-guard');
+    expect(
+      (items[2] as GoalTodayActionItem).occurrence.action.id,
+      'today-guard',
+    );
   });
 
   test('due reminder replaces the generic copy of the same prayer', () {
     final goal = _goal('goal');
-    final items = composer.compose(
-      goals: [goal],
-      dueActions: const [],
-      resources: [
-        GoalTodayResourceCandidate(
-          goalId: goal.id,
-          stableKey: 'generic-prayer',
-          dedupeKey: 'prayer:library:1',
-          kind: GoalTodayResourceKind.prayer,
-          label: 'Prayer',
-        ),
-        GoalTodayResourceCandidate(
-          goalId: goal.id,
-          stableKey: 'reminder-occurrence',
-          dedupeKey: 'prayer:library:1',
-          kind: GoalTodayResourceKind.reminder,
-          label: 'Prayer reminder',
-          dueAt: DateTime(2026, 8, 28, 8),
-        ),
-      ],
-    ).single.items;
+    final items = composer
+        .compose(
+          goals: [goal],
+          dueActions: const [],
+          resources: [
+            GoalTodayResourceCandidate(
+              goalId: goal.id,
+              stableKey: 'generic-prayer',
+              dedupeKey: 'prayer:library:1',
+              kind: GoalTodayResourceKind.prayer,
+              label: 'Prayer',
+            ),
+            GoalTodayResourceCandidate(
+              goalId: goal.id,
+              stableKey: 'reminder-occurrence',
+              dedupeKey: 'prayer:library:1',
+              kind: GoalTodayResourceKind.reminder,
+              label: 'Prayer reminder',
+              dueAt: DateTime(2026, 8, 28, 8),
+            ),
+          ],
+        )
+        .single
+        .items;
 
     expect(items, hasLength(1));
     expect(
@@ -140,54 +155,93 @@ void main() {
     );
   });
 
-  test('completed and skipped occurrences stay out while retracted reopens', () {
-    final goal = _goal('goal');
-    final items = composer.compose(
-      goals: [goal],
-      dueActions: [
-        _occurrence(
-          _action('complete', goal.id),
-          latest: GoalActionEventType.completed,
-        ),
-        _occurrence(
-          _action('skip', goal.id),
-          latest: GoalActionEventType.skipped,
-        ),
-        _occurrence(
-          _action('retracted', goal.id),
-          latest: GoalActionEventType.retracted,
-        ),
-        _occurrence(_action('open', goal.id)),
-      ],
-    ).single.items;
+  test(
+    'completed and skipped occurrences stay out while retracted reopens',
+    () {
+      final goal = _goal('goal');
+      final items = composer
+          .compose(
+            goals: [goal],
+            dueActions: [
+              _occurrence(
+                _action('complete', goal.id),
+                latest: GoalActionEventType.completed,
+              ),
+              _occurrence(
+                _action('skip', goal.id),
+                latest: GoalActionEventType.skipped,
+              ),
+              _occurrence(
+                _action('retracted', goal.id),
+                latest: GoalActionEventType.retracted,
+              ),
+              _occurrence(_action('open', goal.id)),
+            ],
+          )
+          .single
+          .items;
 
+      expect(
+        items.cast<GoalTodayActionItem>().map(
+          (item) => item.occurrence.action.id,
+        ),
+        ['retracted', 'open'],
+      );
+    },
+  );
+
+  test('duplicate action occurrence keys render once and keep first source', () {
+    final goal = _goal('goal');
+    const occurrenceKey = 'same-occurrence:2026-08-28';
+    final items = composer
+        .compose(
+          goals: [goal],
+          dueActions: [
+            GoalActionOccurrence(
+              action: _action('first-source', goal.id),
+              occurrenceKey: occurrenceKey,
+            ),
+            GoalActionOccurrence(
+              action: _action('duplicate-source', goal.id),
+              occurrenceKey: occurrenceKey,
+            ),
+          ],
+        )
+        .single
+        .items;
+
+    expect(items, hasLength(1));
     expect(
-      items
-          .cast<GoalTodayActionItem>()
-          .map((item) => item.occurrence.action.id),
-      ['retracted', 'open'],
+      (items.single as GoalTodayActionItem).occurrence.action.id,
+      'first-source',
     );
   });
 
-  test('same-priority items preserve repository order without hidden scoring', () {
-    final goal = _goal('goal');
-    final items = composer.compose(
-      goals: [goal],
-      dueActions: [
-        _occurrence(_action('first', goal.id)),
-        _occurrence(_action('second', goal.id)),
-        _occurrence(_action('third', goal.id)),
-        _occurrence(_action('fourth', goal.id)),
-      ],
-    ).single.items;
+  test(
+    'same-priority items preserve repository order without hidden scoring',
+    () {
+      final goal = _goal('goal');
+      final items = composer
+          .compose(
+            goals: [goal],
+            dueActions: [
+              _occurrence(_action('first', goal.id)),
+              _occurrence(_action('second', goal.id)),
+              _occurrence(_action('third', goal.id)),
+              _occurrence(_action('fourth', goal.id)),
+            ],
+          )
+          .single
+          .items;
 
-    expect(
-      items
-          .cast<GoalTodayActionItem>()
-          .map((item) => item.occurrence.action.id),
-      ['first', 'second', 'third'],
-    );
-  });
+      expect(
+        items.cast<GoalTodayActionItem>().map(
+          (item) => item.occurrence.action.id,
+        ),
+        ['first', 'second', 'third'],
+      );
+    },
+  );
 }
 
 Goal _goal(
