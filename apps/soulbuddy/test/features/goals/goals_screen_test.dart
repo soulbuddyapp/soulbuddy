@@ -7,12 +7,10 @@ import 'package:soulbuddy/features/goals/presentation/goals_screen.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 
 void main() {
-  testWidgets('shows active, paused and completed Goals without hiding prayer', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      [
+  testWidgets(
+    'shows active, paused and completed Goals without hiding prayer',
+    (tester) async {
+      await _pump(tester, [
         _goal(id: 'active', title: 'Take the next faithful step'),
         _goal(
           id: 'paused',
@@ -24,16 +22,16 @@ void main() {
           title: 'Finish the application',
           status: GoalStatus.completed,
         ),
-      ],
-    );
+      ]);
 
-    expect(find.text('Goals'), findsOneWidget);
-    expect(find.text('Active'), findsWidgets);
-    expect(find.text('Paused'), findsWidgets);
-    expect(find.text('Completed'), findsWidgets);
-    expect(find.byKey(const Key('start-goal')), findsOneWidget);
-    expect(find.byKey(const Key('open-prayer-library')), findsOneWidget);
-  });
+      expect(find.text('Goals'), findsOneWidget);
+      expect(find.text('Active'), findsWidgets);
+      expect(find.text('Paused'), findsWidgets);
+      expect(find.text('Completed'), findsWidgets);
+      expect(find.byKey(const Key('start-goal')), findsOneWidget);
+      expect(find.byKey(const Key('open-prayer-library')), findsOneWidget);
+    },
+  );
 
   testWidgets('empty Goals keeps the approved first question visible', (
     tester,
