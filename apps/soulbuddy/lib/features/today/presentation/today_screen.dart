@@ -14,6 +14,7 @@ import '../../goals/application/goal_today_composer.dart';
 import '../../goals/application/goal_today_resource_adapter.dart';
 import '../../goals/presentation/goal_today_sections.dart';
 import '../../goals/presentation/today_prayer_goal_migration_card.dart';
+import '../../goals/providers/goal_providers.dart';
 import '../../goals/providers/goal_today_providers.dart';
 import '../../prayers/application/prayer_reminder_scheduler.dart';
 import '../../prayers/domain/prayer_reference.dart';
