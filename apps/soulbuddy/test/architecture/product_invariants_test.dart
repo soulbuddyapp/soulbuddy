@@ -4,6 +4,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('SoulBuddy product architecture', () {
+    test('keeps the approved five primary destinations in order', () {
+      final router = File('lib/app/router.dart').readAsStringSync();
+      final labels = RegExp(
+        r"label:\s*'([^']+)'",
+      ).allMatches(router).map((match) => match.group(1)).toList();
+
+      expect(labels, ['Today', 'Goals', 'Record', 'Remember', 'Circles']);
+      expect(router, contains("path: '/goals'"));
+      expect(router, contains("path: '/prayers'"));
+    });
+
     test('does not grow parallel-product primary destinations', () {
       final router = File('lib/app/router.dart').readAsStringSync();
 

@@ -36,11 +36,39 @@ final goalOnboardingProgressProvider =
       return repository.load();
     });
 
-final activeGoalsProvider = StreamProvider.autoDispose<List<Goal>>((
-  ref,
-) async* {
+final activeGoalsProvider = StreamProvider.autoDispose<List<Goal>>((ref) async* {
   final repository = await ref.watch(goalRepositoryProvider.future);
   yield* repository.watchActive();
+});
+
+final visibleGoalsProvider = StreamProvider.autoDispose<List<Goal>>((ref) async* {
+  final database = await ref.watch(appDatabaseProvider.future);
+  final identity = await ref.watch(localIdentityProvider.future);
+  yield* database.powersync
+      .watch(
+        '''
+        SELECT goal.*, revision.title, revision.current_situation,
+               revision.why_it_matters
+        FROM goals AS goal
+        JOIN goal_revisions AS revision
+          ON revision.id = goal.current_revision_id
+         AND revision.goal_id = goal.id
+         AND revision.owner_id = goal.owner_id
+        WHERE goal.owner_id = ?
+          AND goal.archived_at IS NULL
+        ORDER BY CASE goal.status
+                   WHEN 'active' THEN 0
+                   WHEN 'paused' THEN 1
+                   WHEN 'completed' THEN 2
+                   ELSE 3
+                 END ASC,
+                 goal.position ASC,
+                 goal.updated_at DESC,
+                 goal.id ASC
+        ''',
+        parameters: [identity.ownerId],
+      )
+      .map((rows) => List.unmodifiable(rows.map(Goal.fromRow)));
 });
 
 final goalProvider = StreamProvider.autoDispose.family<Goal?, String>((
