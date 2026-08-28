@@ -64,9 +64,8 @@ final GoRouter appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: ':goalId',
-                  builder: (context, state) => GoalDetailScreen(
-                    goalId: state.pathParameters['goalId']!,
-                  ),
+                  builder: (context, state) =>
+                      GoalDetailScreen(goalId: state.pathParameters['goalId']!),
                 ),
               ],
             ),
