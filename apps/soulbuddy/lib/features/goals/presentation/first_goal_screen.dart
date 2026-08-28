@@ -27,10 +27,12 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
   @override
   Widget build(BuildContext context) {
     final flow = ref.watch(goalOnboardingControllerProvider);
+    final compactTodayAction =
+        MediaQuery.sizeOf(context).width < 360 ||
+        MediaQuery.textScalerOf(context).scale(14) >= 21;
     return flow.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => Scaffold(
         body: Center(
           child: FilledButton(
@@ -50,10 +52,17 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                 )
               : null,
           actions: [
-            TextButton(
-              onPressed: _saving ? null : () => context.go('/today'),
-              child: const Text('Go to Today'),
-            ),
+            if (compactTodayAction)
+              IconButton(
+                tooltip: 'Go to Today',
+                onPressed: _saving ? null : () => context.go('/today'),
+                icon: const Icon(Icons.today_outlined),
+              )
+            else
+              TextButton(
+                onPressed: _saving ? null : () => context.go('/today'),
+                child: const Text('Go to Today'),
+              ),
           ],
         ),
         body: AnimatedSwitcher(
@@ -159,9 +168,8 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
             : 'What would you like help with?',
         continueLabel: 'Continue',
         maxLength: 120,
-        onContinue: (value) => ref
-            .read(goalOnboardingControllerProvider.notifier)
-            .setTitle(value),
+        onContinue: (value) =>
+            ref.read(goalOnboardingControllerProvider.notifier).setTitle(value),
       );
     }
 
@@ -274,9 +282,8 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   prayers.when(
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (_, _) => const Text(
                       'Prepared prayers are unavailable just now. Your own words remain available.',
                     ),
@@ -289,7 +296,8 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                               title: Text(prayer.title),
                               trailing:
                                   progress.prayerSource ==
-                                          GoalOnboardingPrayerSource.libraryPrayer &&
+                                          GoalOnboardingPrayerSource
+                                              .libraryPrayer &&
                                       progress.prayerResourceId == prayer.id
                                   ? const Icon(Icons.check_circle_outline)
                                   : const Icon(Icons.chevron_right),
@@ -361,7 +369,9 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This Goal could not be kept just now.')),
+          const SnackBar(
+            content: Text('This Goal could not be kept just now.'),
+          ),
         );
       }
     } finally {
@@ -447,9 +457,8 @@ class _GoalTextPageState extends State<_GoalTextPage> {
             FilledButton(
               onPressed: _working
                   ? null
-                  : () => _run(
-                      () => widget.onContinue(_controller.text.trim()),
-                    ),
+                  : () =>
+                        _run(() => widget.onContinue(_controller.text.trim())),
               child: Text(_working ? 'Keeping…' : widget.continueLabel),
             ),
             if (widget.onSkip case final onSkip?)
