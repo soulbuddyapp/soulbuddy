@@ -19,6 +19,7 @@ on:
       - 'services/api/app/Domain/Sync/ApplyCompositeSyncMutation.php'
       - 'services/api/app/Domain/Sync/*Goal*'
       - 'services/api/app/Domain/Sync/SyncOperationIdentity.php'
+      - 'services/api/app/Http/Controllers/Api/SyncMutationController.php'
       - 'services/api/app/Models/Goal*.php'
       - 'services/api/app/Policies/GoalPolicy.php'
       - 'services/api/database/migrations/*goal*'
@@ -49,6 +50,7 @@ on:
       - 'services/api/app/Domain/Sync/ApplyCompositeSyncMutation.php'
       - 'services/api/app/Domain/Sync/*Goal*'
       - 'services/api/app/Domain/Sync/SyncOperationIdentity.php'
+      - 'services/api/app/Http/Controllers/Api/SyncMutationController.php'
       - 'services/api/app/Models/Goal*.php'
       - 'services/api/app/Policies/GoalPolicy.php'
       - 'services/api/database/migrations/*goal*'
@@ -143,7 +145,7 @@ jobs:
           php artisan key:generate --ansi
 
       - name: Check focused PHP style
-        run: ./vendor/bin/pint --test app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php
+        run: ./vendor/bin/pint --test app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Http/Controllers/Api/SyncMutationController.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php database/migrations/*goal*.php tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php
 
       - name: Run Goal and invariant tests
         run: php artisan test tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php
