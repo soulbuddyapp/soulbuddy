@@ -8,6 +8,7 @@ import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../../core/presentation/covenant_slabs.dart';
 import '../../altar/presentation/altar_today_card.dart';
+import '../../goals/presentation/today_prayer_goal_migration_card.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../../prayers/presentation/prayer_library_tile.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
@@ -102,20 +103,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   ),
                   data: (today) => today == null
                       ? const _NoPrayerSelected()
-                      : _SelectedPrayer(
-                          today: today,
-                          prayerCompletionKnown:
-                              dailyPractices is AsyncData<DailyPracticeState>,
-                          prayed:
-                              dailyPractices.value?.completed.contains(
-                                DailyPractice.pray,
-                              ) ??
-                              false,
-                          recordingPrayer: _recordingPrayer,
-                          updatingAction: _updatingAction,
-                          onPrayerCompleted: () => _recordPrayer(today),
-                          onActionChanged: (value) =>
-                              _completeAction(today, value),
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TodayPrayerGoalMigrationCard(today: today),
+                            _SelectedPrayer(
+                              today: today,
+                              prayerCompletionKnown:
+                                  dailyPractices
+                                      is AsyncData<DailyPracticeState>,
+                              prayed:
+                                  dailyPractices.value?.completed.contains(
+                                    DailyPractice.pray,
+                                  ) ??
+                                  false,
+                              recordingPrayer: _recordingPrayer,
+                              updatingAction: _updatingAction,
+                              onPrayerCompleted: () => _recordPrayer(today),
+                              onActionChanged: (value) =>
+                                  _completeAction(today, value),
+                            ),
+                          ],
                         ),
                 ),
               if (!showStartGuide) const SizedBox(height: AppSpacing.lg),
