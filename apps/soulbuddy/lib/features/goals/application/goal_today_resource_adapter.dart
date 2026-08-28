@@ -115,7 +115,10 @@ class GoalTodayResourceAdapter {
               stableKey: stableKey,
               dedupeKey: _prayerDedupeKey(prayer),
               kind: GoalTodayResourceKind.prayer,
-              label: _nonEmptyLabel(legacyToday.prayer.title, fallback: 'Prayer'),
+              label: _nonEmptyLabel(
+                legacyToday.prayer.title,
+                fallback: 'Prayer',
+              ),
             ),
             GoalTodayLegacyPrayerHandle(link, legacyToday),
           );
