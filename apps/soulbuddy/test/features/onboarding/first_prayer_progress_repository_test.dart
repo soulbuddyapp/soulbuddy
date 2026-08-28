@@ -16,10 +16,9 @@ void main() {
       ),
     );
 
-    expect(
-      await firstPrayerOwnedTemporaryAudioKeys(repository),
-      {'staged:audio-temp/retry.webm'},
-    );
+    expect(await firstPrayerOwnedTemporaryAudioKeys(repository), {
+      'staged:audio-temp/retry.webm',
+    });
   });
 
   test('cleanup ownership is empty without a staged recording', () async {

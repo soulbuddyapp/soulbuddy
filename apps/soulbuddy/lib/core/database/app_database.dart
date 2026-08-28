@@ -17,10 +17,7 @@ class AppDatabase {
   }) async {
     final database = openFactory == null
         ? PowerSyncDatabase(schema: appRuntimeSchema, path: path)
-        : PowerSyncDatabase.withFactory(
-            openFactory,
-            schema: appRuntimeSchema,
-          );
+        : PowerSyncDatabase.withFactory(openFactory, schema: appRuntimeSchema);
     await database.initialize();
     if (connector != null) {
       await database.connect(connector: connector);

@@ -6,7 +6,9 @@ import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
 void main() {
   test('starter shortcuts do not invent a behavior Goal title', () {
     final stop = GoalOnboardingFlow.chooseStarter(GoalStarterKey.stopControl);
-    final direction = GoalOnboardingFlow.chooseStarter(GoalStarterKey.direction);
+    final direction = GoalOnboardingFlow.chooseStarter(
+      GoalStarterKey.direction,
+    );
 
     expect(stop.stage, GoalOnboardingStage.situation);
     expect(stop.title, isNull);
@@ -37,14 +39,14 @@ void main() {
       direction,
       GoalAgencyChoice.notSure,
     );
-    direction = GoalOnboardingFlow.setTodayAction(
-      direction,
-      'Call Emmanuel',
-    );
+    direction = GoalOnboardingFlow.setTodayAction(direction, 'Call Emmanuel');
 
     expect(stop.stage, GoalOnboardingStage.guard);
     expect(direction.stage, GoalOnboardingStage.accountability);
-    expect(GoalOnboardingFlow.goBack(stop).stage, GoalOnboardingStage.todayAction);
+    expect(
+      GoalOnboardingFlow.goBack(stop).stage,
+      GoalOnboardingStage.todayAction,
+    );
     expect(
       GoalOnboardingFlow.goBack(direction).stage,
       GoalOnboardingStage.todayAction,
@@ -82,7 +84,10 @@ void main() {
     var progress = GoalOnboardingFlow.chooseStarter(GoalStarterKey.stopControl);
     expect(() => GoalOnboardingFlow.beginSaving(progress), throwsStateError);
 
-    progress = GoalOnboardingFlow.setTitle(progress, 'Stop watching pornography');
+    progress = GoalOnboardingFlow.setTitle(
+      progress,
+      'Stop watching pornography',
+    );
     progress = GoalOnboardingFlow.setSituation(
       progress,
       situation: null,
@@ -111,7 +116,9 @@ void main() {
   });
 
   test('scripture choice rejects oversized ranges', () {
-    final progress = GoalOnboardingFlow.chooseStarter(GoalStarterKey.closerToGod);
+    final progress = GoalOnboardingFlow.chooseStarter(
+      GoalStarterKey.closerToGod,
+    );
 
     expect(
       () => GoalOnboardingFlow.chooseScripture(

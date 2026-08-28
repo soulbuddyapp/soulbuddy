@@ -35,10 +35,8 @@ void main() {
       apiBaseUri: Uri.parse('https://api.soulbuddy.test'),
       accessToken: () async => 'token',
       client: MockClient(
-        (_) async => http.Response(
-          jsonEncode({'code': 'generation_disabled'}),
-          503,
-        ),
+        (_) async =>
+            http.Response(jsonEncode({'code': 'generation_disabled'}), 503),
       ),
     );
 

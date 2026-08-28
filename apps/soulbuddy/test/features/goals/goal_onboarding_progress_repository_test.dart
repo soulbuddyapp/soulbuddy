@@ -65,10 +65,7 @@ void main() {
     expect(saved.situationByVoice, isTrue);
     expect(saved.agencyChoice, GoalAgencyChoice.stepsICanTake);
     expect(saved.todayAction, 'Call Emmanuel about the course');
-    expect(
-      saved.accountabilityChoice,
-      GoalAccountabilityChoice.trustedPerson,
-    );
+    expect(saved.accountabilityChoice, GoalAccountabilityChoice.trustedPerson);
     expect(saved.prayerSource, GoalOnboardingPrayerSource.scripture);
     expect(saved.scriptureBook, 'James');
     expect(saved.scriptureChapter, 1);

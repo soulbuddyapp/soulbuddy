@@ -105,7 +105,8 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
-class _MemoryGoalProgressRepository implements GoalOnboardingProgressRepository {
+class _MemoryGoalProgressRepository
+    implements GoalOnboardingProgressRepository {
   _MemoryGoalProgressRepository([this.progress]);
 
   GoalOnboardingProgress? progress;

@@ -36,7 +36,9 @@ final goalOnboardingProgressProvider =
       return repository.load();
     });
 
-final activeGoalsProvider = StreamProvider.autoDispose<List<Goal>>((ref) async* {
+final activeGoalsProvider = StreamProvider.autoDispose<List<Goal>>((
+  ref,
+) async* {
   final repository = await ref.watch(goalRepositoryProvider.future);
   yield* repository.watchActive();
 });

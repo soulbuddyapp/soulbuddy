@@ -175,7 +175,9 @@ abstract final class GoalOnboardingFlow {
       throw StateError('The Goal needs an agency choice before saving.');
     }
     if (!current.hasCompletePrayerSelection) {
-      throw StateError('A prayer or Scripture choice is required before saving.');
+      throw StateError(
+        'A prayer or Scripture choice is required before saving.',
+      );
     }
     return _copy(current, stage: GoalOnboardingStage.saving);
   }

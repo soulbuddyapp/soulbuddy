@@ -144,7 +144,10 @@ class _FirstPrayerSpeechPageState extends ConsumerState<FirstPrayerSpeechPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(widget.heading, style: Theme.of(context).textTheme.headlineMedium),
+            Text(
+              widget.heading,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(widget.description),
             const SizedBox(height: AppSpacing.lg),

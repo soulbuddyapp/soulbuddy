@@ -81,14 +81,11 @@ void main() {
     expect(prayers.single['current_revision_id'], prayerRevisions.single['id']);
     expect(links.single['goal_id'], result.goalId);
     expect(links.single['personal_prayer_id'], result.createdPersonalPrayerId);
-    expect(
-      actions.map((row) => row['action_kind']).toSet(),
-      {'guard', 'next_step'},
-    );
-    expect(
-      actions.every((row) => row['schedule_type'] == 'today'),
-      isTrue,
-    );
+    expect(actions.map((row) => row['action_kind']).toSet(), {
+      'guard',
+      'next_step',
+    });
+    expect(actions.every((row) => row['schedule_type'] == 'today'), isTrue);
     expect(await database.powersync.getCrudBatch(), isNotNull);
   });
 

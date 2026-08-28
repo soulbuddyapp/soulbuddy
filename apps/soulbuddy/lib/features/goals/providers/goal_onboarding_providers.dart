@@ -12,16 +12,17 @@ import '../domain/goal.dart';
 import '../domain/goal_onboarding_progress.dart';
 import 'goal_providers.dart';
 
-final goalOnboardingFinalizerProvider =
-    FutureProvider<GoalOnboardingFinalizer>((ref) async {
-      final database = await ref.watch(appDatabaseProvider.future);
-      final identity = await ref.watch(localIdentityProvider.future);
-      return PowerSyncGoalOnboardingFinalizer(
-        database: database.powersync,
-        ownerId: identity.ownerId,
-        deviceId: identity.deviceId,
-      );
-    });
+final goalOnboardingFinalizerProvider = FutureProvider<GoalOnboardingFinalizer>(
+  (ref) async {
+    final database = await ref.watch(appDatabaseProvider.future);
+    final identity = await ref.watch(localIdentityProvider.future);
+    return PowerSyncGoalOnboardingFinalizer(
+      database: database.powersync,
+      ownerId: identity.ownerId,
+      deviceId: identity.deviceId,
+    );
+  },
+);
 
 final firstGoalPrayerOptionsProvider = FutureProvider.autoDispose
     .family<List<LibraryPrayer>, GoalStarterKey>((ref, starterKey) async {
@@ -35,10 +36,11 @@ final firstGoalPrayerOptionsProvider = FutureProvider.autoDispose
       return List.unmodifiable(prayers.take(3));
     });
 
-final goalOnboardingControllerProvider = AsyncNotifierProvider.autoDispose<
-  GoalOnboardingController,
-  GoalOnboardingProgress
->(GoalOnboardingController.new);
+final goalOnboardingControllerProvider =
+    AsyncNotifierProvider.autoDispose<
+      GoalOnboardingController,
+      GoalOnboardingProgress
+    >(GoalOnboardingController.new);
 
 class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
   @override

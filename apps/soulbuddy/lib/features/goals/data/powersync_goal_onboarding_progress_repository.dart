@@ -155,7 +155,11 @@ int? _boolValue(bool? value) => value == null ? null : (value ? 1 : 0);
 
 void _bounded(String? value, String name, int maximum) {
   if (value != null && value.length > maximum) {
-    throw ArgumentError.value(value, name, 'must be at most $maximum characters');
+    throw ArgumentError.value(
+      value,
+      name,
+      'must be at most $maximum characters',
+    );
   }
 }
 

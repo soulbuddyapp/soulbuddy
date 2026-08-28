@@ -128,7 +128,8 @@ class GoalLinkDraft {
       voiceTabletId,
       circleId,
     ].where((value) => value != null).length;
-    final hasScripture = translation != null ||
+    final hasScripture =
+        translation != null ||
         book != null ||
         chapter != null ||
         firstVerse != null ||

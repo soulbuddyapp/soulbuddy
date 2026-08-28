@@ -58,10 +58,7 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
     // progress cleanup are one local transaction. A retry after interruption
     // therefore cannot observe or duplicate a half-created first Goal.
     await database.writeTransaction((transaction) async {
-      Future<void> insertTodayAction(
-        String body,
-        GoalActionKind kind,
-      ) async {
+      Future<void> insertTodayAction(String body, GoalActionKind kind) async {
         await transaction.execute(
           '''
           INSERT INTO goal_actions(
@@ -174,7 +171,8 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
             ''',
             [libraryPrayerId],
           );
-          final bundled = remote ??
+          final bundled =
+              remote ??
               await transaction.getOptional(
                 '''
                 SELECT id FROM bundled_prayers
@@ -330,7 +328,11 @@ String? _optionalText(String? value, String name, int maximum) {
   final normalized = value?.trim();
   if (normalized == null || normalized.isEmpty) return null;
   if (normalized.runes.length > maximum) {
-    throw ArgumentError.value(value, name, 'must not exceed $maximum characters');
+    throw ArgumentError.value(
+      value,
+      name,
+      'must not exceed $maximum characters',
+    );
   }
   return normalized;
 }
