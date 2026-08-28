@@ -79,7 +79,11 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final snapshot = await _nextSnapshot(container);
+      final snapshot = await _nextSnapshot(
+        container,
+        where: (value) =>
+            value.resources.legacyTodayOutsideActiveGoals != null,
+      );
 
       expect(snapshot.sections, isEmpty);
       expect(snapshot.resources.legacyTodayOutsideActiveGoals, same(today));
@@ -113,14 +117,19 @@ void main() {
   );
 }
 
-Future<GoalTodaySnapshot> _nextSnapshot(ProviderContainer container) async {
+Future<GoalTodaySnapshot> _nextSnapshot(
+  ProviderContainer container, {
+  bool Function(GoalTodaySnapshot)? where,
+}) async {
   final completer = Completer<GoalTodaySnapshot>();
   final subscription = container.listen(goalTodaySnapshotProvider, (
     previous,
     next,
   ) {
     if (next case AsyncData(:final value)) {
-      if (!completer.isCompleted) completer.complete(value);
+      if ((where == null || where(value)) && !completer.isCompleted) {
+        completer.complete(value);
+      }
     } else if (next case AsyncError(:final error, :final stackTrace)) {
       if (!completer.isCompleted) completer.completeError(error, stackTrace);
     }
