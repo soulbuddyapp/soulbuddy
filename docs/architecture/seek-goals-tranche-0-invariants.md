@@ -121,7 +121,7 @@ New users now enter the resumable first-Goal path at `/welcome/goal`. The review
 
 Committed first-Goal decisions are stored locally in `goal_onboarding_progress` and the final Goal/prayer/link/actions are committed atomically. A partially completed legacy first-prayer flow takes resume precedence so existing work is not silently discarded.
 
-External trusted-person/Circle accountability is intentionally not collected in the new path until that choice can create a real durable relationship. The underlying state model remains ready for it.
+The Goal onboarding UI currently records `not_now` for accountability internally and does **not** show the trusted-person/Circle choice. That question returns only when the choice can create a real durable relationship or action; SoulBuddy does not ask questions whose answers are discarded.
 
 ## 7. Focused onboarding / Goals CI
 
