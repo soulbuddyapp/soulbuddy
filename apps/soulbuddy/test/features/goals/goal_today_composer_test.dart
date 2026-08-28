@@ -190,32 +190,35 @@ void main() {
     },
   );
 
-  test('duplicate action occurrence keys render once and keep first source', () {
-    final goal = _goal('goal');
-    const occurrenceKey = 'same-occurrence:2026-08-28';
-    final items = composer
-        .compose(
-          goals: [goal],
-          dueActions: [
-            GoalActionOccurrence(
-              action: _action('first-source', goal.id),
-              occurrenceKey: occurrenceKey,
-            ),
-            GoalActionOccurrence(
-              action: _action('duplicate-source', goal.id),
-              occurrenceKey: occurrenceKey,
-            ),
-          ],
-        )
-        .single
-        .items;
+  test(
+    'duplicate action occurrence keys render once and keep first source',
+    () {
+      final goal = _goal('goal');
+      const occurrenceKey = 'same-occurrence:2026-08-28';
+      final items = composer
+          .compose(
+            goals: [goal],
+            dueActions: [
+              GoalActionOccurrence(
+                action: _action('first-source', goal.id),
+                occurrenceKey: occurrenceKey,
+              ),
+              GoalActionOccurrence(
+                action: _action('duplicate-source', goal.id),
+                occurrenceKey: occurrenceKey,
+              ),
+            ],
+          )
+          .single
+          .items;
 
-    expect(items, hasLength(1));
-    expect(
-      (items.single as GoalTodayActionItem).occurrence.action.id,
-      'first-source',
-    );
-  });
+      expect(items, hasLength(1));
+      expect(
+        (items.single as GoalTodayActionItem).occurrence.action.id,
+        'first-source',
+      );
+    },
+  );
 
   test(
     'same-priority items preserve repository order without hidden scoring',
