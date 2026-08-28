@@ -20,46 +20,48 @@ void main() {
     await temporaryDirectory.delete(recursive: true);
   });
 
-  test('explicit keep atomically creates one Goal, revision and prayer link', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/library.db',
-    );
-    addTearDown(database.close);
-    const prayerId = '0198b200-0000-7000-8000-000000000001';
-    await database.powersync.execute(
-      '''
+  test(
+    'explicit keep atomically creates one Goal, revision and prayer link',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/library.db',
+      );
+      addTearDown(database.close);
+      const prayerId = '0198b200-0000-7000-8000-000000000001';
+      await database.powersync.execute(
+        '''
       INSERT INTO bundled_prayers(
         id, title, body, grounding, language_style, purpose, action,
         helpful_count, content_version, archived_at
       ) VALUES (?, ?, ?, ?, ?, ?, NULL, 0, 1, NULL)
       ''',
-      [
-        prayerId,
-        'Prayer for guidance',
-        'Lord, guide me.',
-        'general_christian',
-        'christian',
-        'guidance',
-      ],
-    );
+        [
+          prayerId,
+          'Prayer for guidance',
+          'Lord, guide me.',
+          'general_christian',
+          'christian',
+          'guidance',
+        ],
+      );
 
-    final migration = PowerSyncGoalPrayerMigration(
-      database: database.powersync,
-      ownerId: 'owner-1',
-      deviceId: 'device-1',
-      now: () => DateTime.utc(2026, 8, 28, 7, 30),
-      uuid: const Uuid(),
-    );
-    const reference = PrayerReference.library(prayerId);
+      final migration = PowerSyncGoalPrayerMigration(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+        now: () => DateTime.utc(2026, 8, 28, 7, 30),
+        uuid: const Uuid(),
+      );
+      const reference = PrayerReference.library(prayerId);
 
-    expect(await migration.watchLinked(reference).first, isFalse);
-    final goalId = await migration.keepPrayerUnderGoal(
-      title: 'Choose the next faithful work step',
-      prayer: reference,
-    );
+      expect(await migration.watchLinked(reference).first, isFalse);
+      final goalId = await migration.keepPrayerUnderGoal(
+        title: 'Choose the next faithful work step',
+        prayer: reference,
+      );
 
-    final goals = await database.powersync.getAll(
-      '''
+      final goals = await database.powersync.getAll(
+        '''
       SELECT goal.id, goal.mode, goal.status, revision.title
       FROM goals AS goal
       JOIN goal_revisions AS revision
@@ -68,51 +70,56 @@ void main() {
        AND revision.owner_id = goal.owner_id
       WHERE goal.owner_id = ?
       ''',
-      ['owner-1'],
-    );
-    final links = await database.powersync.getAll(
-      'SELECT * FROM goal_links WHERE owner_id = ?',
-      ['owner-1'],
-    );
-    final actions = await database.powersync.getAll(
-      'SELECT * FROM goal_actions WHERE owner_id = ?',
-      ['owner-1'],
-    );
-
-    expect(goals, hasLength(1));
-    expect(goals.single['id'], goalId);
-    expect(goals.single['title'], 'Choose the next faithful work step');
-    expect(goals.single['mode'], 'mixed');
-    expect(goals.single['status'], 'active');
-    expect(links, hasLength(1));
-    expect(links.single['goal_id'], goalId);
-    expect(links.single['link_type'], 'library_prayer');
-    expect(links.single['library_prayer_id'], prayerId);
-    expect(links.single['role'], 'primary_prayer');
-    expect(actions, isEmpty, reason: 'Migration must not invent a Goal action.');
-    expect(await migration.watchLinked(reference).first, isTrue);
-    expect(await database.powersync.getCrudBatch(), isNotNull);
-
-    final replayedGoalId = await migration.keepPrayerUnderGoal(
-      title: 'A different title must not duplicate the migration',
-      prayer: reference,
-    );
-    expect(replayedGoalId, goalId);
-    expect(
-      await database.powersync.getAll(
-        'SELECT id FROM goals WHERE owner_id = ?',
         ['owner-1'],
-      ),
-      hasLength(1),
-    );
-    expect(
-      await database.powersync.getAll(
-        'SELECT id FROM goal_links WHERE owner_id = ?',
+      );
+      final links = await database.powersync.getAll(
+        'SELECT * FROM goal_links WHERE owner_id = ?',
         ['owner-1'],
-      ),
-      hasLength(1),
-    );
-  });
+      );
+      final actions = await database.powersync.getAll(
+        'SELECT * FROM goal_actions WHERE owner_id = ?',
+        ['owner-1'],
+      );
+
+      expect(goals, hasLength(1));
+      expect(goals.single['id'], goalId);
+      expect(goals.single['title'], 'Choose the next faithful work step');
+      expect(goals.single['mode'], 'mixed');
+      expect(goals.single['status'], 'active');
+      expect(links, hasLength(1));
+      expect(links.single['goal_id'], goalId);
+      expect(links.single['link_type'], 'library_prayer');
+      expect(links.single['library_prayer_id'], prayerId);
+      expect(links.single['role'], 'primary_prayer');
+      expect(
+        actions,
+        isEmpty,
+        reason: 'Migration must not invent a Goal action.',
+      );
+      expect(await migration.watchLinked(reference).first, isTrue);
+      expect(await database.powersync.getCrudBatch(), isNotNull);
+
+      final replayedGoalId = await migration.keepPrayerUnderGoal(
+        title: 'A different title must not duplicate the migration',
+        prayer: reference,
+      );
+      expect(replayedGoalId, goalId);
+      expect(
+        await database.powersync.getAll(
+          'SELECT id FROM goals WHERE owner_id = ?',
+          ['owner-1'],
+        ),
+        hasLength(1),
+      );
+      expect(
+        await database.powersync.getAll(
+          'SELECT id FROM goal_links WHERE owner_id = ?',
+          ['owner-1'],
+        ),
+        hasLength(1),
+      );
+    },
+  );
 
   test('wrong-owner personal prayer cannot create a Goal', () async {
     final database = await openTestDatabase(
