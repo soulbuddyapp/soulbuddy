@@ -1,3 +1,4 @@
+import '../../prayers/domain/library_prayer.dart';
 import '../domain/goal.dart';
 
 class GoalStarterOption {
@@ -23,3 +24,12 @@ const goalStarterOptions = <GoalStarterOption>[
   ),
   GoalStarterOption(key: GoalStarterKey.other, label: 'Something else'),
 ];
+
+PrayerPurpose prayerPurposeForGoalStarter(GoalStarterKey starterKey) =>
+    switch (starterKey) {
+      GoalStarterKey.direction => PrayerPurpose.guidance,
+      GoalStarterKey.difficultTime => PrayerPurpose.difficultTime,
+      GoalStarterKey.closerToGod ||
+      GoalStarterKey.stopControl ||
+      GoalStarterKey.other => PrayerPurpose.daily,
+    };
