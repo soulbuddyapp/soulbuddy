@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../prayers/domain/prayer_reminder.dart';
-import '../../prayers/domain/today_prayer.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../application/goal_today_composer.dart';
@@ -25,14 +24,13 @@ class GoalTodaySnapshot {
   final GoalTodayResourceProjection resources;
 }
 
-final activeGoalTodayLinksProvider = StreamProvider.autoDispose<List<GoalLink>>((
-  ref,
-) async* {
-  final database = await ref.watch(appDatabaseProvider.future);
-  final identity = await ref.watch(localIdentityProvider.future);
-  yield* database.powersync
-      .watch(
-        '''
+final activeGoalTodayLinksProvider = StreamProvider.autoDispose<List<GoalLink>>(
+  (ref) async* {
+    final database = await ref.watch(appDatabaseProvider.future);
+    final identity = await ref.watch(localIdentityProvider.future);
+    yield* database.powersync
+        .watch(
+          '''
         SELECT link.*
         FROM goal_links AS link
         JOIN goals AS goal
@@ -44,10 +42,11 @@ final activeGoalTodayLinksProvider = StreamProvider.autoDispose<List<GoalLink>>(
           AND goal.archived_at IS NULL
         ORDER BY goal.position ASC, link.created_at ASC, link.id ASC
         ''',
-        parameters: [identity.ownerId],
-      )
-      .map((rows) => List.unmodifiable(rows.map(GoalLink.fromRow)));
-});
+          parameters: [identity.ownerId],
+        )
+        .map((rows) => List.unmodifiable(rows.map(GoalLink.fromRow)));
+  },
+);
 
 final goalTodaySnapshotProvider =
     Provider.autoDispose<AsyncValue<GoalTodaySnapshot>>((ref) {
