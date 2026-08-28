@@ -9,22 +9,24 @@ import '../core/design/app_spacing.dart';
 import '../core/feedback/app_feedback.dart';
 import '../core/feedback/app_feedback_preferences.dart';
 import '../core/feedback/app_feedback_providers.dart';
-import '../features/circles/presentation/circles_screen.dart';
 import '../features/circles/presentation/circle_detail_screen.dart';
+import '../features/circles/presentation/circles_screen.dart';
 import '../features/goals/presentation/first_goal_screen.dart';
-import '../features/prayers/presentation/prayers_screen.dart';
-import '../features/prayers/presentation/prayer_detail_screen.dart';
-import '../features/prayers/presentation/prayer_draft_screen.dart';
+import '../features/goals/presentation/goal_detail_screen.dart';
+import '../features/goals/presentation/goals_screen.dart';
+import '../features/onboarding/presentation/first_prayer_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/personalized_prayer_screen.dart';
+import '../features/prayers/presentation/prayer_detail_screen.dart';
+import '../features/prayers/presentation/prayer_draft_screen.dart';
+import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/record/presentation/record_screen.dart';
-import '../features/remember/presentation/remember_screen.dart';
-import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/remember/presentation/daily_remembrance_screen.dart';
+import '../features/remember/presentation/memory_detail_screen.dart';
+import '../features/remember/presentation/remember_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
-import '../features/onboarding/presentation/first_prayer_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
@@ -56,6 +58,18 @@ final GoRouter appRouter = GoRouter(
         ),
         StatefulShellBranch(
           routes: [
+            GoRoute(
+              path: '/goals',
+              builder: (context, state) => const GoalsScreen(),
+              routes: [
+                GoRoute(
+                  path: ':goalId',
+                  builder: (context, state) => GoalDetailScreen(
+                    goalId: state.pathParameters['goalId']!,
+                  ),
+                ),
+              ],
+            ),
             GoRoute(
               path: '/prayers',
               builder: (context, state) => const PrayersScreen(),
@@ -165,9 +179,9 @@ class _SoulBuddyShell extends ConsumerWidget {
       selectedIcon: Icons.today,
     ),
     _AppDestination(
-      label: 'Prayers',
-      icon: Icons.menu_book_outlined,
-      selectedIcon: Icons.menu_book,
+      label: 'Goals',
+      icon: Icons.flag_outlined,
+      selectedIcon: Icons.flag,
     ),
     _AppDestination(
       label: 'Record',
