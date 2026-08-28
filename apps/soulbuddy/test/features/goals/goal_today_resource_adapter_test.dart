@@ -30,14 +30,11 @@ void main() {
     );
 
     expect(projection.candidates, hasLength(3));
-    expect(
-      projection.candidates.map((candidate) => candidate.kind),
-      [
-        GoalTodayResourceKind.prayer,
-        GoalTodayResourceKind.prayer,
-        GoalTodayResourceKind.scripture,
-      ],
-    );
+    expect(projection.candidates.map((candidate) => candidate.kind), [
+      GoalTodayResourceKind.prayer,
+      GoalTodayResourceKind.prayer,
+      GoalTodayResourceKind.scripture,
+    ]);
     expect(projection.candidates.last.label, 'James 1:5-6');
     expect(
       projection.handlesByStableKey.values
@@ -78,30 +75,35 @@ void main() {
     );
   });
 
-  test('linked legacy Today prayer wins its generic copy and keeps payload', () {
-    final link = _libraryPrayerLink('link-1', 'goal-1', 'library-1');
-    final today = _legacyToday(const PrayerReference.library('library-1'));
-    final projection = adapter.project(
-      activeGoalLinks: [link],
-      duePrayerOccurrences: const [],
-      legacyToday: today,
-    );
+  test(
+    'linked legacy Today prayer wins its generic copy and keeps payload',
+    () {
+      final link = _libraryPrayerLink('link-1', 'goal-1', 'library-1');
+      final today = _legacyToday(const PrayerReference.library('library-1'));
+      final projection = adapter.project(
+        activeGoalLinks: [link],
+        duePrayerOccurrences: const [],
+        legacyToday: today,
+      );
 
-    final selected = composer
-        .compose(
-          goals: [_goal('goal-1')],
-          dueActions: const [],
-          resources: projection.candidates,
-        )
-        .single
-        .items
-        .single as GoalTodayResourceItem;
+      final selected =
+          composer
+                  .compose(
+                    goals: [_goal('goal-1')],
+                    dueActions: const [],
+                    resources: projection.candidates,
+                  )
+                  .single
+                  .items
+                  .single
+              as GoalTodayResourceItem;
 
-    final handle = projection.handleFor(selected);
-    expect(handle, isA<GoalTodayLegacyPrayerHandle>());
-    expect((handle! as GoalTodayLegacyPrayerHandle).today, same(today));
-    expect(projection.legacyTodayOutsideActiveGoals, isNull);
-  });
+      final handle = projection.handleFor(selected);
+      expect(handle, isA<GoalTodayLegacyPrayerHandle>());
+      expect((handle! as GoalTodayLegacyPrayerHandle).today, same(today));
+      expect(projection.legacyTodayOutsideActiveGoals, isNull);
+    },
+  );
 
   test('legacy Today outside active Goal links remains explicit', () {
     final today = _legacyToday(const PrayerReference.library('library-1'));
@@ -122,26 +124,29 @@ void main() {
     );
   });
 
-  test('unscheduled due reminder is ignored instead of reading occurrenceKey', () {
-    final link = _personalPrayerLink('link-1', 'goal-1', 'prayer-1');
-    final projection = adapter.project(
-      activeGoalLinks: [link],
-      duePrayerOccurrences: [_dueReminder('prayer-1', scheduled: false)],
-    );
+  test(
+    'unscheduled due reminder is ignored instead of reading occurrenceKey',
+    () {
+      final link = _personalPrayerLink('link-1', 'goal-1', 'prayer-1');
+      final projection = adapter.project(
+        activeGoalLinks: [link],
+        duePrayerOccurrences: [_dueReminder('prayer-1', scheduled: false)],
+      );
 
-    expect(
-      projection.candidates.where(
-        (candidate) => candidate.kind == GoalTodayResourceKind.reminder,
-      ),
-      isEmpty,
-    );
-    expect(
-      projection.candidates.where(
-        (candidate) => candidate.kind == GoalTodayResourceKind.prayer,
-      ),
-      hasLength(1),
-    );
-  });
+      expect(
+        projection.candidates.where(
+          (candidate) => candidate.kind == GoalTodayResourceKind.reminder,
+        ),
+        isEmpty,
+      );
+      expect(
+        projection.candidates.where(
+          (candidate) => candidate.kind == GoalTodayResourceKind.prayer,
+        ),
+        hasLength(1),
+      );
+    },
+  );
 }
 
 Goal _goal(String id) => Goal(
@@ -156,33 +161,27 @@ Goal _goal(String id) => Goal(
   updatedAt: DateTime.utc(2026, 8, 28, 8),
 );
 
-GoalLink _personalPrayerLink(
-  String id,
-  String goalId,
-  String prayerId,
-) => GoalLink(
-  id: id,
-  goalId: goalId,
-  ownerId: 'owner-1',
-  type: GoalLinkType.personalPrayer,
-  role: GoalLinkRole.primaryPrayer,
-  personalPrayerId: prayerId,
-  createdAt: DateTime.utc(2026, 8, 28, 8),
-);
+GoalLink _personalPrayerLink(String id, String goalId, String prayerId) =>
+    GoalLink(
+      id: id,
+      goalId: goalId,
+      ownerId: 'owner-1',
+      type: GoalLinkType.personalPrayer,
+      role: GoalLinkRole.primaryPrayer,
+      personalPrayerId: prayerId,
+      createdAt: DateTime.utc(2026, 8, 28, 8),
+    );
 
-GoalLink _libraryPrayerLink(
-  String id,
-  String goalId,
-  String prayerId,
-) => GoalLink(
-  id: id,
-  goalId: goalId,
-  ownerId: 'owner-1',
-  type: GoalLinkType.libraryPrayer,
-  role: GoalLinkRole.primaryPrayer,
-  libraryPrayerId: prayerId,
-  createdAt: DateTime.utc(2026, 8, 28, 8),
-);
+GoalLink _libraryPrayerLink(String id, String goalId, String prayerId) =>
+    GoalLink(
+      id: id,
+      goalId: goalId,
+      ownerId: 'owner-1',
+      type: GoalLinkType.libraryPrayer,
+      role: GoalLinkRole.primaryPrayer,
+      libraryPrayerId: prayerId,
+      createdAt: DateTime.utc(2026, 8, 28, 8),
+    );
 
 GoalLink _scriptureLink(
   String id,
