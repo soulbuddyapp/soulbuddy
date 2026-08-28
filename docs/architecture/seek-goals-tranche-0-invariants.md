@@ -121,7 +121,7 @@ New users now enter the resumable first-Goal path at `/welcome/goal`. The review
 
 Committed first-Goal decisions are stored locally in `goal_onboarding_progress` and the final Goal/prayer/link/actions are committed atomically. A partially completed legacy first-prayer flow takes resume precedence so existing work is not silently discarded.
 
-Until real trusted-person/Circle linking lands, Goal onboarding does not present an accountability choice. The state machine records `not_now` internally and moves directly to the prayer/resource step. This preserves the future branch without asking the user a question whose answer would currently be discarded.
+Until real trusted-person/Circle linking lands, Goal onboarding does not present an accountability choice. The controller records `not_now` internally and moves directly to the prayer/resource step. The dormant accountability stage remains renderable only for compatibility with any already persisted intermediate state; new users are not asked a question whose answer would currently be discarded.
 
 ## 7. Focused onboarding / Goals CI
 
