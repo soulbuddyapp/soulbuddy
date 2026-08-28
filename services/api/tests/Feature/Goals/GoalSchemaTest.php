@@ -3,7 +3,9 @@
 use App\Models\Goal;
 use App\Models\GoalAction;
 use App\Models\GoalActionEvent;
+use App\Models\GoalLink;
 use App\Models\GoalRevision;
+use App\Models\PersonalPrayer;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -105,4 +107,40 @@ it('rejects an action event whose Goal does not match its action', function () {
         'local_date' => '2026-08-28',
         'device_id' => 'device-1',
     ]))->toThrow(QueryException::class);
+});
+
+it('deletes structural Goal links cleanly when an account is deleted', function () {
+    $user = User::factory()->create();
+    $goal = Goal::create([
+        'id' => '0198b200-0000-7000-8000-000000000030',
+        'user_id' => $user->id,
+        'mode' => 'mixed',
+        'status' => 'active',
+        'position' => 0,
+    ]);
+    $prayer = PersonalPrayer::create([
+        'id' => '0198b200-0000-7000-8000-000000000031',
+        'user_id' => $user->id,
+        'title' => 'Private prayer',
+        'style' => 'daily',
+        'reach' => 'personal',
+        'grounding' => 'general_christian',
+        'purpose' => 'daily',
+        'current_revision_id' => null,
+    ]);
+    $link = GoalLink::create([
+        'id' => '0198b200-0000-7000-8000-000000000032',
+        'goal_id' => $goal->id,
+        'user_id' => $user->id,
+        'link_type' => 'personal_prayer',
+        'personal_prayer_id' => $prayer->id,
+        'role' => 'primary_prayer',
+        'created_at' => now(),
+    ]);
+
+    $user->delete();
+
+    expect(Goal::find($goal->id))->toBeNull()
+        ->and(PersonalPrayer::find($prayer->id))->toBeNull()
+        ->and(GoalLink::find($link->id))->toBeNull();
 });
