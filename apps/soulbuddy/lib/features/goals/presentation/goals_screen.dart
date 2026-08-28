@@ -163,7 +163,9 @@ class _EmptyGoals extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: AppSpacing.xs),
-          const Text('Begin with one thing you want to seek, change, or carry.'),
+          const Text(
+            'Begin with one thing you want to seek, change, or carry.',
+          ),
         ],
       ),
     ),
