@@ -45,7 +45,10 @@ void main() {
 
     await tester.tap(find.text('Not now'));
     await tester.pump(const Duration(milliseconds: 250));
-    expect(find.textContaining('external prayer-writing service'), findsNothing);
+    expect(
+      find.textContaining('external prayer-writing service'),
+      findsNothing,
+    );
     expect(find.textContaining('DeepSeek'), findsNothing);
     expect(find.text('Preparing your prayer…'), findsOneWidget);
     expect(find.text('Choose a prepared prayer'), findsOneWidget);
