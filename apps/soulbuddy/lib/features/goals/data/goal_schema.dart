@@ -157,6 +157,9 @@ const goalTables = <Table>[
   Table.localOnly('goal_onboarding_progress', [
     Column.text('stage'),
     Column.text('starter_key'),
+    Column.text('stop_behavior_key'),
+    Column.text('alcohol_safety_choice'),
+    Column.integer('alcohol_care_acknowledged'),
     Column.text('title'),
     Column.text('current_situation'),
     Column.integer('situation_by_voice'),

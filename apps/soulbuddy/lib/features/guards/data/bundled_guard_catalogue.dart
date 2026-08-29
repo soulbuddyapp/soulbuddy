@@ -80,6 +80,46 @@ abstract final class BundledGuardCatalogue {
       sourceUri: Uri.parse('https://help.nextdns.io/'),
     ),
     GuardDefinition(
+      id: 'gambling-self-exclusion',
+      contentVersion: 1,
+      kind: GuardKind.appOrAccountRemoval,
+      title: 'Use official self-exclusion',
+      description:
+          'Where available, use the gambling provider or regulator’s official self-exclusion tool to block access for the period you choose.',
+      steps: const [
+        'Find the official self-exclusion option provided by the gambling service or regulator in your jurisdiction.',
+        'Review the duration, coverage, and consequences before confirming it.',
+        'Use the strongest practical coverage you are willing to keep in place, including linked accounts where the official tool supports that.',
+        'Remove alternate apps, accounts, and saved credentials that would make the exclusion easy to work around.',
+      ],
+      platforms: const {GuardPlatform.account},
+      goalContextTags: const {'gambling'},
+      reviewedAt: _reviewedAt,
+      sourceUri: Uri.parse(
+        'https://www.who.int/news-room/fact-sheets/detail/gambling',
+      ),
+    ),
+    GuardDefinition(
+      id: 'gambling-binding-limits',
+      contentVersion: 1,
+      kind: GuardKind.paymentFriction,
+      title: 'Set binding money and time limits',
+      description:
+          'Where the service supports it, set money or time limits before gambling and prefer limits that cannot be raised immediately.',
+      steps: const [
+        'Open the provider or account controls for spending, losses, deposits, or session time.',
+        'Set the limit before the next gambling session rather than while deciding whether to continue.',
+        'Prefer controls with a cooling-off period before increases, where available.',
+        'Pair the limit with self-exclusion or payment friction when one control is too easy to reverse.',
+      ],
+      platforms: const {GuardPlatform.account},
+      goalContextTags: const {'gambling'},
+      reviewedAt: _reviewedAt,
+      sourceUri: Uri.parse(
+        'https://www.who.int/news-room/fact-sheets/detail/gambling',
+      ),
+    ),
+    GuardDefinition(
       id: 'os-restrictions',
       contentVersion: 1,
       kind: GuardKind.osRestriction,

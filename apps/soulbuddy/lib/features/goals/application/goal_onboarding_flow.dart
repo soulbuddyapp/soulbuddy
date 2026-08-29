@@ -4,9 +4,97 @@ import '../domain/goal_onboarding_progress.dart';
 abstract final class GoalOnboardingFlow {
   static GoalOnboardingProgress chooseStarter(GoalStarterKey starterKey) {
     return GoalOnboardingProgress(
-      stage: GoalOnboardingStage.situation,
+      stage: starterKey == GoalStarterKey.stopControl
+          ? GoalOnboardingStage.stopBehavior
+          : GoalOnboardingStage.situation,
       starterKey: starterKey,
       title: _suggestedTitle(starterKey),
+    );
+  }
+
+  static GoalOnboardingProgress normalizeForResume(
+    GoalOnboardingProgress current,
+  ) {
+    if (current.starterKey != GoalStarterKey.stopControl) return current;
+    if (current.stopBehaviorKey == null) {
+      return _isPlanningStage(current.stage)
+          ? _copy(current, stage: GoalOnboardingStage.stopBehavior)
+          : current;
+    }
+    if (current.stopBehaviorKey != GoalStopBehaviorKey.alcohol ||
+        !_isPlanningStage(current.stage)) {
+      return current;
+    }
+    if (current.alcoholSafetyChoice == null) {
+      return _copy(
+        current,
+        stage: GoalOnboardingStage.alcoholSafety,
+        alcoholCareAcknowledged: null,
+      );
+    }
+    if (current.alcoholSafetyChoice == GoalAlcoholSafetyChoice.medicalGuidance &&
+        current.alcoholCareAcknowledged != true) {
+      return _copy(
+        current,
+        stage: GoalOnboardingStage.alcoholCare,
+        alcoholCareAcknowledged: false,
+      );
+    }
+    return current;
+  }
+
+  static GoalOnboardingProgress chooseStopBehavior(
+    GoalOnboardingProgress current,
+    GoalStopBehaviorKey behavior,
+  ) {
+    if (current.starterKey != GoalStarterKey.stopControl ||
+        current.stage != GoalOnboardingStage.stopBehavior) {
+      throw StateError('Behavior choice is not available at this step.');
+    }
+    return _copy(
+      current,
+      stage: behavior == GoalStopBehaviorKey.alcohol
+          ? GoalOnboardingStage.alcoholSafety
+          : GoalOnboardingStage.situation,
+      stopBehaviorKey: behavior,
+      alcoholSafetyChoice: null,
+      alcoholCareAcknowledged: null,
+      title: current.title,
+    );
+  }
+
+  static GoalOnboardingProgress chooseAlcoholSafety(
+    GoalOnboardingProgress current,
+    GoalAlcoholSafetyChoice choice,
+  ) {
+    if (current.stopBehaviorKey != GoalStopBehaviorKey.alcohol ||
+        current.stage != GoalOnboardingStage.alcoholSafety) {
+      throw StateError('Alcohol safety choice is not available at this step.');
+    }
+    return _copy(
+      current,
+      stage: choice == GoalAlcoholSafetyChoice.medicalGuidance
+          ? GoalOnboardingStage.alcoholCare
+          : GoalOnboardingStage.situation,
+      alcoholSafetyChoice: choice,
+      alcoholCareAcknowledged: choice ==
+              GoalAlcoholSafetyChoice.noKnownWithdrawalRisk
+          ? null
+          : false,
+    );
+  }
+
+  static GoalOnboardingProgress confirmAlcoholCare(
+    GoalOnboardingProgress current,
+  ) {
+    if (current.stage != GoalOnboardingStage.alcoholCare ||
+        !current.needsAlcoholMedicalGuidance) {
+      throw StateError('Medical-guidance review is not available at this step.');
+    }
+    return _copy(
+      current,
+      stage: GoalOnboardingStage.situation,
+      alcoholCareAcknowledged: true,
     );
   }
 
@@ -14,6 +102,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     String title,
   ) {
+    _requirePlanningSafety(current);
     final normalized = title.trim();
     if (normalized.isEmpty) {
       throw ArgumentError.value(title, 'title', 'must not be empty');
@@ -26,6 +115,7 @@ abstract final class GoalOnboardingFlow {
     String? situation,
     required bool byVoice,
   }) {
+    _requirePlanningSafety(current);
     return _copy(
       current,
       stage: GoalOnboardingStage.agency,
@@ -38,6 +128,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     GoalAgencyChoice choice,
   ) {
+    _requirePlanningSafety(current);
     return _copy(
       current,
       stage: GoalOnboardingStage.todayAction,
@@ -49,6 +140,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     String? action,
   ) {
+    _requirePlanningSafety(current);
     return _copy(
       current,
       stage: current.starterKey == GoalStarterKey.stopControl
@@ -62,6 +154,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     String? guardNote,
   ) {
+    _requirePlanningSafety(current);
     return _copy(
       current,
       stage: GoalOnboardingStage.accountability,
@@ -73,6 +166,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     GoalAccountabilityChoice choice,
   ) {
+    _requirePlanningSafety(current);
     return _copy(
       current,
       stage: GoalOnboardingStage.prayer,
@@ -84,6 +178,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     String prayerId,
   ) {
+    _requirePlanningSafety(current);
     final id = _requiredText(prayerId, 'prayerId');
     return _copy(
       current,
@@ -102,6 +197,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     String prayerId,
   ) {
+    _requirePlanningSafety(current);
     final id = _requiredText(prayerId, 'prayerId');
     return _copy(
       current,
@@ -124,6 +220,7 @@ abstract final class GoalOnboardingFlow {
     required int firstVerse,
     required int lastVerse,
   }) {
+    _requirePlanningSafety(current);
     final normalizedTranslation = _requiredText(translation, 'translation');
     final normalizedBook = _requiredText(book, 'book');
     if (chapter <= 0 || firstVerse <= 0 || lastVerse < firstVerse) {
@@ -153,6 +250,7 @@ abstract final class GoalOnboardingFlow {
     GoalOnboardingProgress current,
     String prayer,
   ) {
+    _requirePlanningSafety(current);
     final words = _requiredText(prayer, 'prayer');
     return _copy(
       current,
@@ -168,6 +266,11 @@ abstract final class GoalOnboardingFlow {
   }
 
   static GoalOnboardingProgress beginSaving(GoalOnboardingProgress current) {
+    if (current.starterKey == GoalStarterKey.stopControl &&
+        current.stopBehaviorKey == null) {
+      throw StateError('Choose what you are trying to stop before saving.');
+    }
+    _requirePlanningSafety(current);
     if (current.title?.trim().isNotEmpty != true) {
       throw StateError('A Goal title is required before saving.');
     }
@@ -194,7 +297,10 @@ abstract final class GoalOnboardingFlow {
   static GoalOnboardingProgress goBack(GoalOnboardingProgress current) {
     final stage = switch (current.stage) {
       GoalOnboardingStage.starter => GoalOnboardingStage.starter,
-      GoalOnboardingStage.situation => GoalOnboardingStage.starter,
+      GoalOnboardingStage.stopBehavior => GoalOnboardingStage.starter,
+      GoalOnboardingStage.alcoholSafety => GoalOnboardingStage.stopBehavior,
+      GoalOnboardingStage.alcoholCare => GoalOnboardingStage.alcoholSafety,
+      GoalOnboardingStage.situation => _stageBeforeSituation(current),
       GoalOnboardingStage.agency => GoalOnboardingStage.situation,
       GoalOnboardingStage.todayAction => GoalOnboardingStage.agency,
       GoalOnboardingStage.guard => GoalOnboardingStage.todayAction,
@@ -207,6 +313,45 @@ abstract final class GoalOnboardingFlow {
     };
     return _copy(current, stage: stage);
   }
+}
+
+bool _isPlanningStage(GoalOnboardingStage stage) => switch (stage) {
+  GoalOnboardingStage.situation ||
+  GoalOnboardingStage.agency ||
+  GoalOnboardingStage.todayAction ||
+  GoalOnboardingStage.guard ||
+  GoalOnboardingStage.accountability ||
+  GoalOnboardingStage.prayer ||
+  GoalOnboardingStage.saving => true,
+  GoalOnboardingStage.starter ||
+  GoalOnboardingStage.stopBehavior ||
+  GoalOnboardingStage.alcoholSafety ||
+  GoalOnboardingStage.alcoholCare => false,
+};
+
+void _requirePlanningSafety(GoalOnboardingProgress current) {
+  if (current.starterKey == GoalStarterKey.stopControl &&
+      current.stopBehaviorKey == null) {
+    throw StateError('Choose what you are trying to stop first.');
+  }
+  if (!current.alcoholSafetyCleared) {
+    throw StateError(
+      'Complete the alcohol safety guidance before making the plan.',
+    );
+  }
+}
+
+GoalOnboardingStage _stageBeforeSituation(GoalOnboardingProgress current) {
+  if (current.starterKey != GoalStarterKey.stopControl ||
+      current.stopBehaviorKey == null) {
+    return GoalOnboardingStage.starter;
+  }
+  if (current.stopBehaviorKey != GoalStopBehaviorKey.alcohol) {
+    return GoalOnboardingStage.stopBehavior;
+  }
+  return current.needsAlcoholMedicalGuidance
+      ? GoalOnboardingStage.alcoholCare
+      : GoalOnboardingStage.alcoholSafety;
 }
 
 String? _suggestedTitle(GoalStarterKey starterKey) => switch (starterKey) {
@@ -235,6 +380,9 @@ GoalOnboardingProgress _copy(
   GoalOnboardingProgress current, {
   GoalOnboardingStage? stage,
   Object? starterKey = _unchanged,
+  Object? stopBehaviorKey = _unchanged,
+  Object? alcoholSafetyChoice = _unchanged,
+  Object? alcoholCareAcknowledged = _unchanged,
   Object? title = _unchanged,
   Object? currentSituation = _unchanged,
   Object? situationByVoice = _unchanged,
@@ -257,6 +405,16 @@ GoalOnboardingProgress _copy(
     starterKey: identical(starterKey, _unchanged)
         ? current.starterKey
         : starterKey as GoalStarterKey?,
+    stopBehaviorKey: identical(stopBehaviorKey, _unchanged)
+        ? current.stopBehaviorKey
+        : stopBehaviorKey as GoalStopBehaviorKey?,
+    alcoholSafetyChoice: identical(alcoholSafetyChoice, _unchanged)
+        ? current.alcoholSafetyChoice
+        : alcoholSafetyChoice as GoalAlcoholSafetyChoice?,
+    alcoholCareAcknowledged:
+        identical(alcoholCareAcknowledged, _unchanged)
+        ? current.alcoholCareAcknowledged
+        : alcoholCareAcknowledged as bool?,
     title: identical(title, _unchanged) ? current.title : title as String?,
     currentSituation: identical(currentSituation, _unchanged)
         ? current.currentSituation

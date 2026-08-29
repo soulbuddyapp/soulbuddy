@@ -4,19 +4,30 @@ import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
 
 void main() {
-  test('starter shortcuts do not invent a behavior Goal title', () {
-    final stop = GoalOnboardingFlow.chooseStarter(GoalStarterKey.stopControl);
+  test('stop starter asks for explicit behavior without inventing a title', () {
+    var stop = GoalOnboardingFlow.chooseStarter(GoalStarterKey.stopControl);
     final direction = GoalOnboardingFlow.chooseStarter(
       GoalStarterKey.direction,
     );
 
+    expect(stop.stage, GoalOnboardingStage.stopBehavior);
+    expect(stop.title, isNull);
+    stop = GoalOnboardingFlow.chooseStopBehavior(
+      stop,
+      GoalStopBehaviorKey.pornography,
+    );
     expect(stop.stage, GoalOnboardingStage.situation);
+    expect(stop.stopBehaviorKey, GoalStopBehaviorKey.pornography);
     expect(stop.title, isNull);
     expect(direction.title, 'Find direction');
   });
 
   test('only the stop-control starter inserts the guard decision', () {
     var stop = GoalOnboardingFlow.chooseStarter(GoalStarterKey.stopControl);
+    stop = GoalOnboardingFlow.chooseStopBehavior(
+      stop,
+      GoalStopBehaviorKey.pornography,
+    );
     stop = GoalOnboardingFlow.setTitle(stop, 'Stop watching pornography');
     stop = GoalOnboardingFlow.setSituation(
       stop,
@@ -53,6 +64,66 @@ void main() {
     );
   });
 
+  test('alcohol medical-guidance route cannot be bypassed by planning calls', () {
+    var progress = GoalOnboardingFlow.chooseStarter(
+      GoalStarterKey.stopControl,
+    );
+    progress = GoalOnboardingFlow.chooseStopBehavior(
+      progress,
+      GoalStopBehaviorKey.alcohol,
+    );
+    expect(progress.stage, GoalOnboardingStage.alcoholSafety);
+    expect(
+      () => GoalOnboardingFlow.setTitle(progress, 'Stop drinking'),
+      throwsStateError,
+    );
+
+    progress = GoalOnboardingFlow.chooseAlcoholSafety(
+      progress,
+      GoalAlcoholSafetyChoice.medicalGuidance,
+    );
+    expect(progress.stage, GoalOnboardingStage.alcoholCare);
+    expect(progress.needsAlcoholMedicalGuidance, isTrue);
+    expect(progress.alcoholSafetyCleared, isFalse);
+    expect(
+      () => GoalOnboardingFlow.setTitle(progress, 'Stop drinking'),
+      throwsStateError,
+    );
+    expect(
+      () => GoalOnboardingFlow.beginSaving(progress),
+      throwsStateError,
+    );
+
+    progress = GoalOnboardingFlow.confirmAlcoholCare(progress);
+    expect(progress.stage, GoalOnboardingStage.situation);
+    expect(progress.alcoholCareAcknowledged, isTrue);
+    expect(progress.alcoholSafetyCleared, isTrue);
+    expect(
+      GoalOnboardingFlow.goBack(progress).stage,
+      GoalOnboardingStage.alcoholCare,
+    );
+  });
+
+  test('alcohol no-known-risk choice still requires the safety step itself', () {
+    var progress = GoalOnboardingFlow.chooseStarter(
+      GoalStarterKey.stopControl,
+    );
+    progress = GoalOnboardingFlow.chooseStopBehavior(
+      progress,
+      GoalStopBehaviorKey.alcohol,
+    );
+    expect(progress.alcoholSafetyCleared, isFalse);
+
+    progress = GoalOnboardingFlow.chooseAlcoholSafety(
+      progress,
+      GoalAlcoholSafetyChoice.noKnownWithdrawalRisk,
+    );
+
+    expect(progress.stage, GoalOnboardingStage.situation);
+    expect(progress.alcoholSafetyCleared, isTrue);
+    expect(progress.alcoholCareAcknowledged, isNull);
+  });
+
   test('changing prayer source clears incompatible stale selection state', () {
     var progress = GoalOnboardingFlow.chooseStarter(GoalStarterKey.direction);
     progress = GoalOnboardingFlow.chooseLibraryPrayer(progress, 'prayer-1');
@@ -80,10 +151,14 @@ void main() {
     expect(progress.hasCompletePrayerSelection, isTrue);
   });
 
-  test('saving requires a real title, agency choice and prayer resource', () {
+  test('saving requires behavior, title, agency and prayer resource', () {
     var progress = GoalOnboardingFlow.chooseStarter(GoalStarterKey.stopControl);
     expect(() => GoalOnboardingFlow.beginSaving(progress), throwsStateError);
 
+    progress = GoalOnboardingFlow.chooseStopBehavior(
+      progress,
+      GoalStopBehaviorKey.pornography,
+    );
     progress = GoalOnboardingFlow.setTitle(
       progress,
       'Stop watching pornography',

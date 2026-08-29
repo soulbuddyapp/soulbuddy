@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../guards/application/guard_recommendations.dart';
+import '../../guards/data/bundled_guard_catalogue.dart';
 import '../../onboarding/presentation/first_prayer_choice_page.dart';
 import '../../onboarding/presentation/first_prayer_speech_page.dart';
 import '../../scripture/presentation/scripture_picker_sheet.dart';
@@ -94,6 +96,33 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         );
       },
     ),
+    GoalOnboardingStage.stopBehavior => FirstPrayerChoicePage(
+      question: 'What are you trying to stop?',
+      choices: goalStopBehaviorOptions.map((option) => option.label).toList(),
+      onChoose: (label) {
+        final option = goalStopBehaviorOptions.firstWhere(
+          (item) => item.label == label,
+        );
+        unawaited(
+          ref
+              .read(goalOnboardingControllerProvider.notifier)
+              .chooseStopBehavior(option.key),
+        );
+      },
+    ),
+    GoalOnboardingStage.alcoholSafety => _AlcoholSafetyPage(
+      onMedicalGuidance: () => ref
+          .read(goalOnboardingControllerProvider.notifier)
+          .chooseAlcoholSafety(GoalAlcoholSafetyChoice.medicalGuidance),
+      onNoKnownRisk: () => ref
+          .read(goalOnboardingControllerProvider.notifier)
+          .chooseAlcoholSafety(GoalAlcoholSafetyChoice.noKnownWithdrawalRisk),
+    ),
+    GoalOnboardingStage.alcoholCare => _AlcoholCarePage(
+      onContinue: () => ref
+          .read(goalOnboardingControllerProvider.notifier)
+          .confirmAlcoholCare(),
+    ),
     GoalOnboardingStage.situation => _situationPage(progress),
     GoalOnboardingStage.agency => FirstPrayerChoicePage(
       question: 'What can you do about this?',
@@ -118,7 +147,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
     GoalOnboardingStage.todayAction => _GoalTextPage(
       question: 'What would help today?',
       initialValue: progress.todayAction,
-      hintText: 'One small faithful step',
+      hintText: _todayActionHint(progress),
       continueLabel: 'Keep this',
       onContinue: (value) => ref
           .read(goalOnboardingControllerProvider.notifier)
@@ -132,6 +161,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       initialValue: progress.guardNote,
       hintText: 'A door to close, remove, or make harder to reach',
       continueLabel: 'Keep this guard',
+      supporting: _GuardSuggestions(behaviorKey: progress.stopBehaviorKey),
       onContinue: (value) => ref
           .read(goalOnboardingControllerProvider.notifier)
           .setGuardNote(value),
@@ -161,12 +191,18 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
 
   Widget _situationPage(GoalOnboardingProgress progress) {
     if (progress.title == null) {
+      final behavior = stopBehaviorOption(progress.stopBehaviorKey);
       final stopping = progress.starterKey == GoalStarterKey.stopControl;
       return _GoalTextPage(
-        question: stopping ? 'What do you want to stop?' : 'Name it simply.',
-        hintText: stopping
-            ? 'For example: Stop watching pornography'
-            : 'What would you like help with?',
+        question: behavior?.titleQuestion ??
+            (stopping ? 'What do you want to stop?' : 'Name it simply.'),
+        hintText: behavior?.titleHint ??
+            (stopping
+                ? 'For example: Stop watching pornography'
+                : 'What would you like help with?'),
+        supporting: behavior?.supportNote == null
+            ? null
+            : _BehaviorSupportNote(text: behavior!.supportNote!),
         continueLabel: 'Continue',
         maxLength: 120,
         requireText: true,
@@ -232,6 +268,11 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         },
       ),
     };
+  }
+
+  String _todayActionHint(GoalOnboardingProgress progress) {
+    return stopBehaviorOption(progress.stopBehaviorKey)?.todayActionHint ??
+        'One small faithful step';
   }
 
   Widget _prayerPage(GoalOnboardingProgress progress) {
@@ -442,6 +483,212 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
 
 enum _SituationInput { speak, write }
 
+class _AlcoholSafetyPage extends StatefulWidget {
+  const _AlcoholSafetyPage({
+    required this.onMedicalGuidance,
+    required this.onNoKnownRisk,
+  });
+
+  final Future<void> Function() onMedicalGuidance;
+  final Future<void> Function() onNoKnownRisk;
+
+  @override
+  State<_AlcoholSafetyPage> createState() => _AlcoholSafetyPageState();
+}
+
+class _AlcoholSafetyPageState extends State<_AlcoholSafetyPage> {
+  var _working = false;
+
+  Future<void> _run(Future<void> Function() action) async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Before you make an alcohol plan',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text(
+              'Stopping suddenly after prolonged heavy drinking can cause dangerous withdrawal.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'SoulBuddy cannot assess withdrawal risk. If you drink heavily or regularly, have had shaking, sweating, vomiting, hallucinations or seizures when cutting down, or you are not sure, get medical guidance before stopping.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'If severe withdrawal symptoms are happening now, seek emergency medical care.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              key: const Key('first-goal-alcohol-medical-guidance'),
+              onPressed: _working ? null : () => _run(widget.onMedicalGuidance),
+              child: const Text('This may apply, or I’m not sure'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton(
+              key: const Key('first-goal-alcohol-no-known-risk'),
+              onPressed: _working ? null : () => _run(widget.onNoKnownRisk),
+              child: const Text('None of these apply to me'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Reviewed safety source: NIAAA',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _AlcoholCarePage extends StatefulWidget {
+  const _AlcoholCarePage({required this.onContinue});
+
+  final Future<void> Function() onContinue;
+
+  @override
+  State<_AlcoholCarePage> createState() => _AlcoholCarePageState();
+}
+
+class _AlcoholCarePageState extends State<_AlcoholCarePage> {
+  var _working = false;
+
+  Future<void> _continue() async {
+    if (_working) return;
+    setState(() => _working = true);
+    try {
+      await widget.onContinue();
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Make medical guidance the first step',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const Text(
+              'Do not use SoulBuddy as a detox plan. Contact a qualified medical professional or appropriate medical service before stopping heavy alcohol use suddenly.',
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            const Text(
+              'SoulBuddy can still support prayer, accountability and practical walls around that care.',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              key: const Key('first-goal-alcohol-care-reviewed'),
+              onPressed: _working ? null : _continue,
+              child: Text(_working ? 'Keeping…' : 'I understand — continue'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _BehaviorSupportNote extends StatelessWidget {
+  const _BehaviorSupportNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Text(text),
+    ),
+  );
+}
+
+class _GuardSuggestions extends StatelessWidget {
+  const _GuardSuggestions({required this.behaviorKey});
+
+  final GoalStopBehaviorKey? behaviorKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final option = stopBehaviorOption(behaviorKey);
+    final definitions = recommendedGuardDefinitions(
+      definitions: BundledGuardCatalogue.definitions,
+      contextTag: option?.guardContextTag,
+    );
+    if (definitions.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Walls to consider', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Reviewed ideas only. Nothing is configured until you set it up and save it from Return.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        for (var index = 0; index < definitions.length; index++) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    definitions[index].title,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(definitions[index].description),
+                ],
+              ),
+            ),
+          ),
+          if (index != definitions.length - 1)
+            const SizedBox(height: AppSpacing.xs),
+        ],
+      ],
+    );
+  }
+}
+
 class _GoalTextPage extends StatefulWidget {
   const _GoalTextPage({
     required this.question,
@@ -453,6 +700,7 @@ class _GoalTextPage extends StatefulWidget {
     this.skipLabel = 'Not now',
     this.maxLength = 1000,
     this.requireText = false,
+    this.supporting,
   });
 
   final String question;
@@ -464,6 +712,7 @@ class _GoalTextPage extends StatefulWidget {
   final String skipLabel;
   final int maxLength;
   final bool requireText;
+  final Widget? supporting;
 
   @override
   State<_GoalTextPage> createState() => _GoalTextPageState();
@@ -504,6 +753,10 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               widget.question,
               style: Theme.of(context).textTheme.headlineMedium,
             ),
+            if (widget.supporting != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              widget.supporting!,
+            ],
             const SizedBox(height: AppSpacing.lg),
             TextField(
               key: const Key('first-goal-text-field'),

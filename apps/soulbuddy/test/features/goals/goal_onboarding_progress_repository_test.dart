@@ -72,6 +72,42 @@ void main() {
     expect(saved.hasCompletePrayerSelection, isTrue);
   });
 
+  test('alcohol safety state survives reopen and remains local-only', () async {
+    final path = '${temporaryDirectory.path}/alcohol.db';
+    final firstDatabase = await openTestDatabase(path);
+    final repository = PowerSyncGoalOnboardingProgressRepository(
+      database: firstDatabase.powersync,
+    );
+    await repository.save(
+      const GoalOnboardingProgress(
+        stage: GoalOnboardingStage.situation,
+        starterKey: GoalStarterKey.stopControl,
+        stopBehaviorKey: GoalStopBehaviorKey.alcohol,
+        alcoholSafetyChoice: GoalAlcoholSafetyChoice.medicalGuidance,
+        alcoholCareAcknowledged: true,
+      ),
+    );
+
+    expect(await firstDatabase.powersync.getCrudBatch(), isNull);
+    await firstDatabase.close();
+
+    final reopenedDatabase = await openTestDatabase(path);
+    addTearDown(reopenedDatabase.close);
+    final reopened = PowerSyncGoalOnboardingProgressRepository(
+      database: reopenedDatabase.powersync,
+    );
+    final saved = await reopened.load();
+
+    expect(saved?.stage, GoalOnboardingStage.situation);
+    expect(saved?.stopBehaviorKey, GoalStopBehaviorKey.alcohol);
+    expect(
+      saved?.alcoholSafetyChoice,
+      GoalAlcoholSafetyChoice.medicalGuidance,
+    );
+    expect(saved?.alcoholCareAcknowledged, isTrue);
+    expect(saved?.alcoholSafetyCleared, isTrue);
+  });
+
   test('treats corrupt persisted enum state as unusable', () async {
     final database = await openTestDatabase(
       '${temporaryDirectory.path}/soulbuddy.db',
@@ -103,6 +139,7 @@ void main() {
       const GoalOnboardingProgress(
         stage: GoalOnboardingStage.situation,
         starterKey: GoalStarterKey.stopControl,
+        stopBehaviorKey: GoalStopBehaviorKey.pornography,
         title: 'Stop watching pornography',
       ),
     );

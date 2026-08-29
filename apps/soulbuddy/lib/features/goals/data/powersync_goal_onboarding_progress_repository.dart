@@ -32,6 +32,19 @@ class PowerSyncGoalOnboardingProgressRepository
           GoalStarterKey.tryFromWire,
           'starter_key',
         ),
+        stopBehaviorKey: _requiredNullableEnum(
+          row['stop_behavior_key'] as String?,
+          GoalStopBehaviorKey.tryFromWire,
+          'stop_behavior_key',
+        ),
+        alcoholSafetyChoice: _requiredNullableEnum(
+          row['alcohol_safety_choice'] as String?,
+          GoalAlcoholSafetyChoice.tryFromWire,
+          'alcohol_safety_choice',
+        ),
+        alcoholCareAcknowledged: _nullableBool(
+          row['alcohol_care_acknowledged'],
+        ),
         title: row['title'] as String?,
         currentSituation: row['current_situation'] as String?,
         situationByVoice: _nullableBool(row['situation_by_voice']),
@@ -93,18 +106,22 @@ class PowerSyncGoalOnboardingProgressRepository
     await database.execute(
       '''
       INSERT OR REPLACE INTO goal_onboarding_progress(
-        id, stage, starter_key, title, current_situation,
+        id, stage, starter_key, stop_behavior_key, alcohol_safety_choice,
+        alcohol_care_acknowledged, title, current_situation,
         situation_by_voice, agency_choice, today_action, guard_note,
         accountability_choice, prayer_source, prayer_resource_id,
         scripture_translation, scripture_book, scripture_chapter,
         scripture_first_verse, scripture_last_verse, own_prayer_text,
         created_goal_id, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ''',
       [
         _rowId,
         progress.stage.name,
         progress.starterKey?.wireValue,
+        progress.stopBehaviorKey?.wireValue,
+        progress.alcoholSafetyChoice?.wireValue,
+        _boolValue(progress.alcoholCareAcknowledged),
         progress.title,
         progress.currentSituation,
         _boolValue(progress.situationByVoice),

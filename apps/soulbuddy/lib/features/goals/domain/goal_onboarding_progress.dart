@@ -2,6 +2,9 @@ import 'goal.dart';
 
 enum GoalOnboardingStage {
   starter,
+  stopBehavior,
+  alcoholSafety,
+  alcoholCare,
   situation,
   agency,
   todayAction,
@@ -63,10 +66,49 @@ enum GoalOnboardingPrayerSource {
   }
 }
 
+enum GoalStopBehaviorKey {
+  pornography('pornography'),
+  gambling('gambling'),
+  nicotineTobacco('nicotine_tobacco'),
+  alcohol('alcohol'),
+  digitalDistraction('digital_distraction'),
+  other('other');
+
+  const GoalStopBehaviorKey(this.wireValue);
+
+  final String wireValue;
+
+  static GoalStopBehaviorKey? tryFromWire(String? value) {
+    for (final item in values) {
+      if (item.wireValue == value) return item;
+    }
+    return null;
+  }
+}
+
+enum GoalAlcoholSafetyChoice {
+  medicalGuidance('medical_guidance'),
+  noKnownWithdrawalRisk('no_known_withdrawal_risk');
+
+  const GoalAlcoholSafetyChoice(this.wireValue);
+
+  final String wireValue;
+
+  static GoalAlcoholSafetyChoice? tryFromWire(String? value) {
+    for (final item in values) {
+      if (item.wireValue == value) return item;
+    }
+    return null;
+  }
+}
+
 class GoalOnboardingProgress {
   const GoalOnboardingProgress({
     this.stage = GoalOnboardingStage.starter,
     this.starterKey,
+    this.stopBehaviorKey,
+    this.alcoholSafetyChoice,
+    this.alcoholCareAcknowledged,
     this.title,
     this.currentSituation,
     this.situationByVoice,
@@ -87,6 +129,9 @@ class GoalOnboardingProgress {
 
   final GoalOnboardingStage stage;
   final GoalStarterKey? starterKey;
+  final GoalStopBehaviorKey? stopBehaviorKey;
+  final GoalAlcoholSafetyChoice? alcoholSafetyChoice;
+  final bool? alcoholCareAcknowledged;
   final String? title;
   final String? currentSituation;
   final bool? situationByVoice;
@@ -103,6 +148,20 @@ class GoalOnboardingProgress {
   final int? scriptureLastVerse;
   final String? ownPrayerText;
   final String? createdGoalId;
+
+  bool get needsAlcoholMedicalGuidance =>
+      stopBehaviorKey == GoalStopBehaviorKey.alcohol &&
+      alcoholSafetyChoice == GoalAlcoholSafetyChoice.medicalGuidance;
+
+  bool get alcoholSafetyCleared {
+    if (stopBehaviorKey != GoalStopBehaviorKey.alcohol) return true;
+    return switch (alcoholSafetyChoice) {
+      GoalAlcoholSafetyChoice.noKnownWithdrawalRisk => true,
+      GoalAlcoholSafetyChoice.medicalGuidance =>
+        alcoholCareAcknowledged == true,
+      null => false,
+    };
+  }
 
   bool get hasCompletePrayerSelection => switch (prayerSource) {
     GoalOnboardingPrayerSource.libraryPrayer ||

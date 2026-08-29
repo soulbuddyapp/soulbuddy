@@ -49,7 +49,15 @@ class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
       goalOnboardingProgressRepositoryProvider.future,
     );
     final saved = await repository.load();
-    if (saved != null) return saved;
+    if (saved != null) {
+      final normalized = GoalOnboardingFlow.normalizeForResume(saved);
+      if (normalized.stage != saved.stage ||
+          normalized.alcoholCareAcknowledged !=
+              saved.alcoholCareAcknowledged) {
+        await repository.save(normalized);
+      }
+      return normalized;
+    }
 
     const initial = GoalOnboardingProgress();
     await repository.save(initial);
@@ -62,6 +70,15 @@ class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
 
   Future<void> chooseStarter(GoalStarterKey starterKey) =>
       _persist(GoalOnboardingFlow.chooseStarter(starterKey));
+
+  Future<void> chooseStopBehavior(GoalStopBehaviorKey behavior) =>
+      _persist(GoalOnboardingFlow.chooseStopBehavior(_value, behavior));
+
+  Future<void> chooseAlcoholSafety(GoalAlcoholSafetyChoice choice) =>
+      _persist(GoalOnboardingFlow.chooseAlcoholSafety(_value, choice));
+
+  Future<void> confirmAlcoholCare() =>
+      _persist(GoalOnboardingFlow.confirmAlcoholCare(_value));
 
   Future<void> setTitle(String title) =>
       _persist(GoalOnboardingFlow.setTitle(_value, title));

@@ -33,6 +33,7 @@ void main() {
     const progress = GoalOnboardingProgress(
       stage: GoalOnboardingStage.prayer,
       starterKey: GoalStarterKey.stopControl,
+      stopBehaviorKey: GoalStopBehaviorKey.pornography,
       title: 'Stop watching pornography',
       currentSituation: 'Late-night phone use makes this easier.',
       situationByVoice: false,
@@ -94,6 +95,59 @@ void main() {
     );
     expect(actions.every((row) => row['schedule_type'] == 'today'), isTrue);
     expect(await database.powersync.getCrudBatch(), isNotNull);
+  });
+
+  test('five behavior starters finalize through the shared Goal engine', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/behavior-starters.db',
+    );
+    addTearDown(database.close);
+    final finalizer = PowerSyncGoalOnboardingFinalizer(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      deviceId: 'device-1',
+      now: () => DateTime(2026, 8, 29, 9),
+      uuid: const Uuid(),
+    );
+    const starters = <(GoalStopBehaviorKey, String)>[
+      (GoalStopBehaviorKey.pornography, 'Stop watching pornography'),
+      (GoalStopBehaviorKey.gambling, 'Stop gambling'),
+      (GoalStopBehaviorKey.nicotineTobacco, 'Stop smoking cigarettes'),
+      (GoalStopBehaviorKey.alcohol, 'Change my drinking'),
+      (GoalStopBehaviorKey.digitalDistraction, 'Stop losing hours online'),
+    ];
+
+    for (final starter in starters) {
+      final result = await finalizer.finalize(
+        GoalOnboardingProgress(
+          stage: GoalOnboardingStage.prayer,
+          starterKey: GoalStarterKey.stopControl,
+          stopBehaviorKey: starter.$1,
+          alcoholSafetyChoice: starter.$1 == GoalStopBehaviorKey.alcohol
+              ? GoalAlcoholSafetyChoice.noKnownWithdrawalRisk
+              : null,
+          title: starter.$2,
+          agencyChoice: GoalAgencyChoice.stepsICanTake,
+          accountabilityChoice: GoalAccountabilityChoice.notNow,
+          prayerSource: GoalOnboardingPrayerSource.ownWords,
+          ownPrayerText: 'God, help me take the next faithful step.',
+        ),
+      );
+      expect(result.goalId, isNotEmpty);
+    }
+
+    final goals = await database.powersync.getAll(
+      'SELECT * FROM goals ORDER BY position',
+    );
+    expect(goals, hasLength(starters.length));
+    expect(
+      goals.every((row) => row['starter_key'] == 'stop_control'),
+      isTrue,
+    );
+    expect(
+      goals.every((row) => !row.containsKey('stop_behavior_key')),
+      isTrue,
+    );
   });
 
   test('failure leaves both synced records and progress untouched', () async {
