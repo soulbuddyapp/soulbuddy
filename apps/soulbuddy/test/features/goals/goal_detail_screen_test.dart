@@ -5,6 +5,8 @@ import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/presentation/goal_detail_screen.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
+import 'package:soulbuddy/features/guards/application/return_plan.dart';
+import 'package:soulbuddy/features/guards/providers/return_providers.dart';
 
 void main() {
   testWidgets('Goal detail remains usable at 320px and 200 percent text', (
@@ -13,11 +15,20 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final goal = _goal();
+    final plan = ReturnPlanBuilder.build(
+      goal: goal,
+      actions: const [],
+      links: const [],
+      guardSelections: const [],
+    );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
+          goalReturnPlanProvider(
+            goal.id,
+          ).overrideWith((ref) => AsyncData(plan)),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -37,6 +48,7 @@ void main() {
     expect(find.text(goal.title), findsOneWidget);
     expect(find.text('What is happening now'), findsOneWidget);
     expect(find.text('Why this matters'), findsOneWidget);
+    expect(find.byKey(const Key('goal-return')), findsNothing);
     expect(tester.takeException(), isNull);
 
     for (final key in const [
@@ -64,11 +76,51 @@ void main() {
     expect(save.onPressed, isNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('stop-control Goal exposes the five-step Return flow', (
+    tester,
+  ) async {
+    final goal = _goal(starterKey: GoalStarterKey.stopControl);
+    final plan = ReturnPlanBuilder.build(
+      goal: goal,
+      actions: const [],
+      links: const [],
+      guardSelections: const [],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
+          goalReturnPlanProvider(
+            goal.id,
+          ).overrideWith((ref) => AsyncData(plan)),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(body: GoalDetailScreen(goalId: goal.id)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('goal-return')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('goal-return')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Return'), findsWidgets);
+    expect(find.text('Move'), findsOneWidget);
+    expect(find.text('Close the door'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
-Goal _goal() => Goal(
-  id: 'goal-detail-large-text',
+Goal _goal({GoalStarterKey? starterKey}) => Goal(
+  id: starterKey == GoalStarterKey.stopControl
+      ? 'goal-detail-return'
+      : 'goal-detail-large-text',
   ownerId: 'owner-1',
+  starterKey: starterKey,
   mode: GoalMode.mixed,
   status: GoalStatus.active,
   currentRevisionId: 'revision-goal-detail-large-text',

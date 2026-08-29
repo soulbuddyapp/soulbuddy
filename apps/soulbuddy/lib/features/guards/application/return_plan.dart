@@ -3,6 +3,8 @@ import '../../goals/domain/goal_action.dart';
 import '../../goals/domain/goal_link.dart';
 import '../domain/guard_definition.dart';
 
+enum ReturnPlanPart { actions, spiritualResources, guards }
+
 class ReturnPlan {
   const ReturnPlan({
     required this.goal,
@@ -12,6 +14,7 @@ class ReturnPlan {
     this.spiritualResource,
     this.replacementAction,
     this.accountabilityAction,
+    this.unavailableParts = const {},
   });
 
   final Goal goal;
@@ -21,12 +24,14 @@ class ReturnPlan {
   final GoalAction? replacementAction;
   final GoalAction? accountabilityAction;
   final List<GoalGuardSelection> guardSelections;
+  final Set<ReturnPlanPart> unavailableParts;
 
   bool get hasCloseTheDoorStep =>
       barrierAction != null || guardSelections.isNotEmpty;
   bool get hasReturnToGodStep => spiritualResource != null;
   bool get hasReplacementStep => replacementAction != null;
   bool get hasDoNotHideStep => accountabilityAction != null;
+  bool get isDegraded => unavailableParts.isNotEmpty;
 }
 
 abstract final class ReturnPlanBuilder {
@@ -35,6 +40,7 @@ abstract final class ReturnPlanBuilder {
     required List<GoalAction> actions,
     required List<GoalLink> links,
     required List<GoalGuardSelection> guardSelections,
+    Set<ReturnPlanPart> unavailableParts = const {},
   }) {
     final availableActions = actions
         .where(
@@ -75,6 +81,7 @@ abstract final class ReturnPlanBuilder {
       replacementAction: replacement,
       accountabilityAction: accountability,
       guardSelections: List.unmodifiable(activeGuards),
+      unavailableParts: Set.unmodifiable(unavailableParts),
     );
   }
 }

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../guards/presentation/return_sheet.dart';
+import '../../guards/providers/return_providers.dart';
 import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
 
@@ -33,6 +35,14 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   }
 
   Widget _buildGoal(BuildContext context, Goal goal) {
+    final returnPlan = ref.watch(goalReturnPlanProvider(goal.id));
+    final returnRelevant =
+        goal.starterKey == GoalStarterKey.stopControl ||
+        switch (returnPlan) {
+          AsyncData(:final value) => value.relevant,
+          _ => false,
+        };
+
     return SafeArea(
       child: Align(
         alignment: Alignment.topCenter,
@@ -96,6 +106,18 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                       spacing: AppSpacing.sm,
                       runSpacing: AppSpacing.sm,
                       children: [
+                        if (returnRelevant)
+                          FilledButton.icon(
+                            key: const Key('goal-return'),
+                            onPressed: _working
+                                ? null
+                                : () => showReturnSheet(
+                                    context,
+                                    goalId: goal.id,
+                                  ),
+                            icon: const Icon(Icons.reply_outlined),
+                            label: const Text('Return'),
+                          ),
                         FilledButton.tonalIcon(
                           key: const Key('edit-goal'),
                           onPressed: _working ? null : () => _edit(goal),

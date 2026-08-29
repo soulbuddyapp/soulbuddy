@@ -6,6 +6,7 @@ import '../../goals/domain/goal_action.dart';
 import '../../goals/domain/goal_link.dart';
 import '../../goals/providers/goal_providers.dart';
 import '../application/return_plan.dart';
+import '../domain/guard_definition.dart';
 import 'guard_providers.dart';
 
 final goalReturnActionsProvider = StreamProvider.autoDispose
@@ -48,16 +49,10 @@ final goalReturnLinksProvider = StreamProvider.autoDispose
 final goalReturnPlanProvider = Provider.autoDispose
     .family<AsyncValue<ReturnPlan>, String>((ref, goalId) {
       final goal = ref.watch(goalProvider(goalId));
-      final actions = ref.watch(goalReturnActionsProvider(goalId));
-      final links = ref.watch(goalReturnLinksProvider(goalId));
-      final guards = ref.watch(goalGuardSelectionsProvider(goalId));
-
-      for (final value in [goal, actions, links, guards]) {
-        if (value case AsyncError(:final error, :final stackTrace)) {
-          return AsyncError(error, stackTrace);
-        }
-        if (value is AsyncLoading) return const AsyncLoading();
+      if (goal case AsyncError(:final error, :final stackTrace)) {
+        return AsyncError(error, stackTrace);
       }
+      if (goal case AsyncLoading()) return const AsyncLoading();
 
       final resolvedGoal = goal.requireValue;
       if (resolvedGoal == null) {
@@ -66,12 +61,44 @@ final goalReturnPlanProvider = Provider.autoDispose
           StackTrace.current,
         );
       }
+
+      final actions = ref.watch(goalReturnActionsProvider(goalId));
+      final links = ref.watch(goalReturnLinksProvider(goalId));
+      final guards = ref.watch(goalGuardSelectionsProvider(goalId));
+      final unavailable = <ReturnPlanPart>{};
+
+      final resolvedActions = switch (actions) {
+        AsyncData(:final value) => value,
+        AsyncError() => () {
+          unavailable.add(ReturnPlanPart.actions);
+          return const <GoalAction>[];
+        }(),
+        AsyncLoading() => const <GoalAction>[],
+      };
+      final resolvedLinks = switch (links) {
+        AsyncData(:final value) => value,
+        AsyncError() => () {
+          unavailable.add(ReturnPlanPart.spiritualResources);
+          return const <GoalLink>[];
+        }(),
+        AsyncLoading() => const <GoalLink>[],
+      };
+      final resolvedGuards = switch (guards) {
+        AsyncData(:final value) => value,
+        AsyncError() => () {
+          unavailable.add(ReturnPlanPart.guards);
+          return const <GoalGuardSelection>[];
+        }(),
+        AsyncLoading() => const <GoalGuardSelection>[],
+      };
+
       return AsyncData(
         ReturnPlanBuilder.build(
           goal: resolvedGoal,
-          actions: actions.requireValue,
-          links: links.requireValue,
-          guardSelections: guards.requireValue,
+          actions: resolvedActions,
+          links: resolvedLinks,
+          guardSelections: resolvedGuards,
+          unavailableParts: unavailable,
         ),
       );
     });
