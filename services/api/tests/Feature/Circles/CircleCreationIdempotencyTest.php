@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -28,8 +29,8 @@ it('deduplicates exact Circle create retries and rejects key reuse with differen
         ->assertOk()
         ->assertJsonPath('public_id', $publicId);
 
-    expect($this->getConnection()->table('circles')->count())->toBe(1)
-        ->and($this->getConnection()->table('circle_provider_bindings')->count())->toBe(1);
+    expect(DB::table('circles')->count())->toBe(1)
+        ->and(DB::table('circle_provider_bindings')->count())->toBe(1);
 
     $changed = $payload;
     $changed['name'] = 'Different Circle';
@@ -61,5 +62,5 @@ it('scopes Circle creation keys to the owner', function () {
     $this->actingAs($firstOwner)->postJson('/api/circles', $payload)->assertCreated();
     $this->actingAs($secondOwner)->postJson('/api/circles', $payload)->assertCreated();
 
-    expect($this->getConnection()->table('circles')->count())->toBe(2);
+    expect(DB::table('circles')->count())->toBe(2);
 });
