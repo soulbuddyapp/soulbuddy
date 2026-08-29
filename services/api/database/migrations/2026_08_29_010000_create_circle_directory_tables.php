@@ -13,6 +13,7 @@ return new class extends Migration
             $table->uuid('public_id')->unique();
             $table->foreignId('owner_user_id')->constrained('users')->cascadeOnDelete();
             $table->uuid('creation_key');
+            $table->string('creation_fingerprint', 64);
             $table->string('name', 80);
             $table->string('category', 32);
             $table->string('description', 280);
