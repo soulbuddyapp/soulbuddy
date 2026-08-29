@@ -17,6 +17,7 @@ import '../features/goals/presentation/goals_screen.dart';
 import '../features/onboarding/presentation/first_prayer_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/personalized_prayer_screen.dart';
+import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayer_draft_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
@@ -75,9 +76,7 @@ final GoRouter appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: 'create',
-                  builder: (context, state) => PersonalizedPrayerScreen(
-                    initialMemoryId: state.uri.queryParameters['memoryId'],
-                  ),
+                  builder: (context, state) => const PrayerCreateScreen(),
                 ),
                 GoRoute(
                   path: 'requests/:requestId',
