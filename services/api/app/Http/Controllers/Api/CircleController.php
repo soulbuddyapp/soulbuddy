@@ -43,9 +43,10 @@ class CircleController extends Controller
         }
         $search = trim((string) ($validated['q'] ?? ''));
         if ($search !== '') {
-            $query->where(function ($nested) use ($search): void {
-                $nested->where('name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
+            $pattern = '%'.Str::lower($search).'%';
+            $query->where(function ($nested) use ($pattern): void {
+                $nested->whereRaw('LOWER(name) LIKE ?', [$pattern])
+                    ->orWhereRaw('LOWER(description) LIKE ?', [$pattern]);
             });
         }
 
