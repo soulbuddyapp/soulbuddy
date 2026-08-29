@@ -66,6 +66,32 @@ it('keeps unlisted and private Circles out of discovery while preserving direct 
         ->assertOk()->assertJsonPath('is_owner', true);
 });
 
+it('keeps draft Circles owner-visible but undiscoverable until published', function () {
+    $owner = User::factory()->create();
+    $viewer = User::factory()->create();
+    $publicId = $this->actingAs($owner)
+        ->postJson('/api/circles', circlePayload(['status' => 'draft']))
+        ->assertCreated()
+        ->assertJsonPath('status', 'draft')
+        ->json('public_id');
+
+    $this->actingAs($viewer)->getJson('/api/circles')
+        ->assertOk()->assertJsonCount(0, 'data');
+    $this->actingAs($viewer)->getJson("/api/circles/{$publicId}")
+        ->assertForbidden();
+    $this->actingAs($owner)->getJson('/api/circles/mine')
+        ->assertOk()
+        ->assertJsonPath('data.0.public_id', $publicId)
+        ->assertJsonPath('data.0.status', 'draft');
+
+    $this->actingAs($owner)->patchJson("/api/circles/{$publicId}", ['status' => 'active'])
+        ->assertOk()->assertJsonPath('status', 'active');
+    $this->actingAs($viewer)->getJson('/api/circles')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.public_id', $publicId);
+});
+
 it('enforces owner edits and lifecycle visibility', function () {
     $owner = User::factory()->create();
     $other = User::factory()->create();
