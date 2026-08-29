@@ -211,6 +211,7 @@ Circle _publicCircle({bool isOwner = false}) => Circle(
   description: 'Honest accountability and prayer.',
   visibility: CircleVisibility.public,
   status: CircleStatus.active,
+  directoryListed: true,
   provider: CircleProvider.telegram,
   openUri: Uri.parse('https://t.me/+walk-together'),
   capabilities: const ['open_link'],
@@ -256,6 +257,7 @@ class _FakeDirectoryRepository implements CircleDirectoryRepository {
       description: draft.description,
       visibility: draft.visibility,
       status: CircleStatus.active,
+      directoryListed: true,
       provider: draft.provider,
       openUri: draft.openUri,
       capabilities: const ['open_link'],
@@ -273,6 +275,7 @@ class _FakeDirectoryRepository implements CircleDirectoryRepository {
       items: circles
           .where(
             (circle) =>
+                circle.directoryListed &&
                 circle.visibility == CircleVisibility.public &&
                 circle.status == CircleStatus.active &&
                 (query.category == null || circle.category == query.category) &&
@@ -308,6 +311,7 @@ class _FakeDirectoryRepository implements CircleDirectoryRepository {
       description: update.description ?? existing.description,
       visibility: update.visibility ?? existing.visibility,
       status: update.status ?? existing.status,
+      directoryListed: existing.directoryListed,
       provider: update.provider ?? existing.provider,
       openUri: update.openUri ?? existing.openUri,
       capabilities: existing.capabilities,
