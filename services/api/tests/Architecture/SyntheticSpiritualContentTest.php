@@ -1,18 +1,18 @@
 <?php
 
-it('keeps legacy synthetic prayer generation inside its reviewed boundary', function () {
-    $markers = ['PrayerDraftProvider', 'GeneratePrayerDraft'];
-    $allowed = [
-        'app/Domain/PrayerDrafts/DeepSeekPrayerDraftProvider.php',
-        'app/Domain/PrayerDrafts/GeneratePrayerDraft.php',
-        'app/Domain/PrayerDrafts/PrayerDraftProvider.php',
-        'app/Http/Controllers/Api/PrayerDraftController.php',
-        'app/Http/Requests/GeneratePrayerDraftRequest.php',
-        'app/Providers/AppServiceProvider.php',
+it('has no server runtime synthetic prayer generation surface', function () {
+    $root = dirname(__DIR__, 2);
+    $app = $root.DIRECTORY_SEPARATOR.'app';
+    $markers = [
+        'PrayerDraftProvider',
+        'GeneratePrayerDraft',
+        'DeepSeekPrayerDraftProvider',
+        'PrayerDraftController',
+        'PrayerDraftAttemptController',
     ];
     $found = [];
     $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator(app_path(), FilesystemIterator::SKIP_DOTS),
+        new RecursiveDirectoryIterator($app, FilesystemIterator::SKIP_DOTS),
     );
 
     foreach ($files as $file) {
@@ -23,22 +23,35 @@ it('keeps legacy synthetic prayer generation inside its reviewed boundary', func
         if (! is_string($content)) {
             continue;
         }
-        $matchesLegacyBoundary = false;
         foreach ($markers as $marker) {
-            if (str_contains($content, $marker)) {
-                $matchesLegacyBoundary = true;
-                break;
+            if (! str_contains($content, $marker)) {
+                continue;
             }
+            $relative = substr($file->getPathname(), strlen($root) + 1);
+            $found[] = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+            break;
         }
-        if (! $matchesLegacyBoundary) {
-            continue;
-        }
-        $relative = substr($file->getPathname(), strlen(app_path()) + 1);
-        $found[] = 'app/'.str_replace(DIRECTORY_SEPARATOR, '/', $relative);
     }
 
     sort($found);
-    sort($allowed);
+    expect($found)->toBe([]);
 
-    expect($found)->toBe($allowed);
+    $routes = file_get_contents($root.'/routes/api.php');
+    expect($routes)->toBeString()->not->toContain('/prayer-drafts');
+
+    $services = file_get_contents($root.'/config/services.php');
+    expect($services)
+        ->toBeString()
+        ->not->toContain("'deepseek'")
+        ->not->toContain('DEEPSEEK_')
+        ->not->toContain('PRAYER_GENERATION_ENABLED')
+        ->not->toContain('PRAYER_DRAFT_');
+
+    $environment = file_get_contents($root.'/.env.example');
+    expect($environment)
+        ->toBeString()
+        ->not->toContain('AI_PROVIDER')
+        ->not->toContain('DEEPSEEK_')
+        ->not->toContain('PRAYER_GENERATION_ENABLED')
+        ->not->toContain('PRAYER_DRAFT_');
 });

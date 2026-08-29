@@ -30,7 +30,7 @@ on:
       - 'services/api/tests/Feature/Goals/**'
       - 'services/api/tests/Feature/Sync/GoalMutationTest.php'
       - 'services/api/tests/Architecture/SyntheticSpiritualContentTest.php'
-      - 'services/api/tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php'
+      - 'services/api/tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php'
       - 'services/api/composer.json'
       - 'services/api/composer.lock'
   push:
@@ -65,7 +65,7 @@ on:
       - 'services/api/tests/Feature/Goals/**'
       - 'services/api/tests/Feature/Sync/GoalMutationTest.php'
       - 'services/api/tests/Architecture/SyntheticSpiritualContentTest.php'
-      - 'services/api/tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php'
+      - 'services/api/tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php'
       - 'services/api/composer.json'
       - 'services/api/composer.lock'
   workflow_dispatch:
@@ -185,4 +185,4 @@ jobs:
         run: ./vendor/bin/pint --test app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Http/Controllers/Api/SyncMutationController.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php database/migrations/*goal*.php tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php
 
       - name: Run Goal and invariant tests
-        run: php artisan test tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php
+        run: php artisan test tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php

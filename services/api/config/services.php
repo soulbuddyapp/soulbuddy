@@ -30,16 +30,6 @@ return [
         'ttl_seconds' => (int) env('POWERSYNC_JWT_TTL_SECONDS', 600),
     ],
 
-    'deepseek' => [
-        'provider' => env('AI_PROVIDER', 'deepseek'),
-        'key' => env('DEEPSEEK_API_KEY'),
-        'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
-        'model' => env('DEEPSEEK_MODEL', 'deepseek-v4-flash'),
-        'prompt_version' => env('PRAYER_DRAFT_PROMPT_VERSION', '1'),
-        'disclosure_version' => env('PRAYER_DRAFT_DISCLOSURE_VERSION', 'deepseek-1'),
-        'prayer_generation_enabled' => env('PRAYER_GENERATION_ENABLED', false),
-    ],
-
     'deepgram' => [
         'key' => env('DEEPGRAM_API_KEY'),
         'base_url' => env('DEEPGRAM_BASE_URL', 'https://api.deepgram.com'),

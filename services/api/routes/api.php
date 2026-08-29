@@ -2,8 +2,6 @@
 
 use App\Http\Controllers\Api\InstallationSessionController;
 use App\Http\Controllers\Api\PowerSyncTokenController;
-use App\Http\Controllers\Api\PrayerDraftAttemptController;
-use App\Http\Controllers\Api\PrayerDraftController;
 use App\Http\Controllers\Api\PrayerNarrationController;
 use App\Http\Controllers\Api\PrayerNarrationPlaybackController;
 use App\Http\Controllers\Api\SyncMutationController;
@@ -15,9 +13,6 @@ Route::post('/installations/session', InstallationSessionController::class)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sync/token', PowerSyncTokenController::class);
     Route::post('/sync/mutations', SyncMutationController::class);
-    Route::post('/prayer-drafts', PrayerDraftController::class)
-        ->middleware('throttle:prayer-drafts');
-    Route::delete('/prayer-drafts/{attemptId}', PrayerDraftAttemptController::class);
     Route::post('/prayer-narrations', PrayerNarrationController::class)
         ->middleware('throttle:prayer-narrations');
     Route::get('/prayer-narrations/{revision}/{hash}', PrayerNarrationPlaybackController::class)

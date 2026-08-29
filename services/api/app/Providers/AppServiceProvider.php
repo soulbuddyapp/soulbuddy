@@ -2,8 +2,6 @@
 
 namespace App\Providers;
 
-use App\Domain\PrayerDrafts\DeepSeekPrayerDraftProvider;
-use App\Domain\PrayerDrafts\PrayerDraftProvider;
 use App\Domain\PrayerNarrations\DeepgramPrayerNarrationProvider;
 use App\Domain\PrayerNarrations\PrayerNarrationProvider;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -18,7 +16,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(PrayerDraftProvider::class, DeepSeekPrayerDraftProvider::class);
         $this->app->bind(PrayerNarrationProvider::class, DeepgramPrayerNarrationProvider::class);
     }
 
@@ -27,15 +24,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        RateLimiter::for('prayer-drafts', function (Request $request): array {
-            $userKey = (string) ($request->user()?->public_id ?? 'guest');
-
-            return [
-                Limit::perHour(10)->by('prayer-draft:user-hour:'.$userKey),
-                Limit::perDay(30)->by('prayer-draft:user-day:'.$userKey),
-                Limit::perHour(30)->by('prayer-draft:ip-hour:'.$request->ip()),
-            ];
-        });
         RateLimiter::for('prayer-narrations', function (Request $request): array {
             $userKey = (string) ($request->user()?->public_id ?? 'guest');
 
