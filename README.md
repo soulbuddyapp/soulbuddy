@@ -1,15 +1,17 @@
 # SoulBuddy
 
-SoulBuddy is a local-first Christian spiritual companion for prayer, practical spiritual growth, and remembering meaningful encounters.
+SoulBuddy is a local-first Christian formation companion built around five primary destinations: **Today · Goals · Record · Remember · Circles**.
 
 The repository contains:
 
 - `apps/soulbuddy`: Flutter application for iOS, Android, and authenticated web.
-- `services/api`: Laravel application and authoritative API.
+- `services/api`: Laravel application and authoritative sync/API boundary.
 - `docs/superpowers`: approved product design and implementation plans.
 - `tool`: local development utilities, including RSVCE preparation.
 
-The implemented slices record an Encounter locally, preserve it across database reopen, mark lasting encounters as Altars, and open indexed RSVCE Scripture on mobile and web. They also provide a bundled prayer library, private Helpful choices, a prayer and optional action for Today, and action completion that survives a real local database reopen. A guided flow can formulate a private prayer request from explicit choices and selected Encounter or RSVCE context, queue it offline, prepare a guarded DeepSeek draft after reconnect, and let the user edit it before saving or using it for Today. Laravel provides an authenticated, idempotent mutation boundary, canonical community Helpful totals, short-lived PowerSync credentials, and the server-owned prayer-draft policy.
+SoulBuddy helps a person choose and pursue a Goal, respond through Today, record meaningful Encounters, remember what matters, and use prayer and Scripture as resources around that path. Spiritual copy shipped by the app is limited to Scripture with provenance, deliberately reviewed editorial content, or the person's own words. Runtime generative prayer writing is retired and no LLM credential is required or supported for prayer creation.
+
+The current prayer flow offers deterministic reviewed prayers or **Write/Speak your own words**. Reviewed prayer assets use stable IDs plus local editorial metadata for provenance, review state, version, publication, archival state, and tags. Historical local generation-request rows remain readable only so older unfinished/accepted content can be recovered safely; new requests cannot be created, queued, dispatched, or retried.
 
 SoulBuddy treats prayer and practice as aids to formation, not a way to earn grace or measure holiness. Product decisions should help a person respond to grace, form character, bear outward fruit, and remember what God has done. The app does not turn those aims into a spiritual score, streak, leaderboard, or extra dashboard.
 
@@ -30,15 +32,15 @@ dart run powersync:setup_web
 flutter run
 ```
 
-No API or PowerSync service is required for local recording or prayer use. At startup, the versioned prayer asset is validated and imported idempotently into a local-only SQLite table. Helpful choices and the dated Today selection are written to the device database immediately, so filtering, selecting, completing an action, and reopening the app remain available offline.
+No API, PowerSync service, or AI provider is required for local recording, Goals, Scripture, reviewed prayers, or own-words prayer creation. At startup, versioned prayer/editorial assets are validated and imported idempotently into local-only SQLite tables.
 
-When sync is configured, canonical Laravel prayer rows replace bundled rows with the same stable UUID, and their server-derived Helpful totals control library ordering. Votes and Today selections remain private to the authenticated user. The upload connector reads `SOULBUDDY_API_URL` and `SOULBUDDY_POWERSYNC_URL` at compile time; the authentication milestone will supply its Laravel application-session token. Empty values keep startup in local-only mode.
+When sync is configured, private records such as Goals, Encounters, personal prayers, prayer revisions, votes, Today selections, and supported practice records use the authenticated Laravel/PowerSync boundary. Reviewed/published bundled editorial prayer wording remains authoritative for its stable IDs: an unprovenanced server row with the same ID cannot silently replace reviewed wording. Canonical-only and legacy library rows remain available through normal library reads.
 
-Personalized requests and their selected context snapshots remain local-only until the user confirms the DeepSeek disclosure. An offline confirmation stays queued in the local database and resumes from the same request after reconnect or restart. Only the confirmed choices and explicitly selected records are sent; raw request, context, draft, and token values must never be written to logs or test diagnostics. Accepted prayers, immutable revisions, their Encounter/Scripture links, and typed Today selections are private synchronized records.
+The Flutter build reads `SOULBUDDY_API_URL` and `SOULBUDDY_POWERSYNC_URL` at compile time. Empty values keep startup in local-only mode. There are no prayer-generation provider, model, prompt, or disclosure dart-defines.
 
-Saved personal prayers can also have one once, daily, or selected-day reminder at a local wall time. The reminder schedule and quiet prayer-session count sync privately, while notification enablement remains specific to each device. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload. When the app is open—or on web, where native delivery is unavailable—the same persisted occurrence appears as a compact in-app card with `Open prayer`, `I prayed this`, `Snooze 10 minutes`, and `Dismiss`.
+Saved personal prayers can have once, daily, or selected-day reminders at a local wall time. Reminder schedules and quiet prayer-session records sync privately, while notification enablement remains device-specific. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload.
 
-Confirming a prayer records the exact displayed prayer revision offline and offers a five-minute Undo. Timezone changes preserve the chosen local wall time and reschedule quietly. A saved personal prayer may use an opt-in Deepgram Aura narration cached privately on the device; system notifications never play it, and playback never records a prayer session. This release does not include Web Push, publication, streaks, scores, rankings, or claims about the spiritual value of a recorded count.
+A saved personal prayer may also use opt-in Deepgram Aura narration. Narration is separate from prayer authorship: only the exact immutable saved-prayer revision is sent after explicit disclosure and consent, encrypted narration audio is cached privately, system notifications never play it, and playback itself never records a prayer session.
 
 ## Run Laravel
 
@@ -51,33 +53,11 @@ php artisan migrate
 php artisan serve
 ```
 
-SQLite is used by default for local development and tests. Production is designed for PostgreSQL; set the standard `DB_*` environment values before migrating.
+SQLite is used by default for local development and tests. Production database configuration is supplied through the standard `DB_*` environment values.
 
 Remote sync also requires `POWERSYNC_JWT_AUDIENCE`, `POWERSYNC_JWT_KID`, and a strong base64url-encoded `POWERSYNC_JWT_SECRET` matching the PowerSync client-auth key. The issuer defaults to `APP_URL`. Credentials expire after 600 seconds; configured lifetimes must remain between 60 and 3,600 seconds.
 
-### Configure DeepSeek safely
-
-Revoke and rotate any API credential that has ever been pasted into chat, source code, a shell command, or logs. Put only the rotated DeepSeek credential in the ignored `services/api/.env`; never commit it or paste it into a command whose arguments may be recorded.
-
-```dotenv
-AI_PROVIDER=deepseek
-DEEPSEEK_API_KEY=replace-with-a-rotated-key
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-v4-flash
-PRAYER_DRAFT_PROMPT_VERSION=1
-PRAYER_DRAFT_DISCLOSURE_VERSION=deepseek-1
-```
-
-The Flutter build should use matching non-secret configuration and the authenticated Laravel base URL:
-
-```powershell
-flutter run `
-  --dart-define=SOULBUDDY_API_URL=http://10.0.2.2:8000 `
-  --dart-define=SOULBUDDY_PRAYER_DRAFT_PROVIDER=deepseek `
-  --dart-define=SOULBUDDY_PRAYER_DRAFT_DISCLOSURE_VERSION=deepseek-1
-```
-
-For a local authenticated smoke check, seed a development user and application session first. Use one synthetic request only, and report status, latency, and provider token counts—never the request, selected context, generated prayer, session token, or provider key. Live provider calls are deliberately excluded from CI.
+No DeepSeek or other LLM configuration is required. Prayer-draft routes, provider configuration, prompts, and client generation runtime have been retired. Keep narration and infrastructure credentials only in ignored deployment environment files; never commit secrets or place them in Flutter build arguments.
 
 ## Verify
 
@@ -86,20 +66,19 @@ powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 powershell -ExecutionPolicy Bypass -File scripts/run_web_integration.ps1
 ```
 
-The browser script matches the installed Chrome version to the official ChromeDriver release in a temporary directory, then runs four network-independent flows at a mobile viewport: Encounter save/relaunch/Scripture; prayer filter/Helpful/Today/action completion/database reopen; guided personalized prayer/offline queue/authenticated reconnect/edit/accept/Today/database reopen; and saved-prayer reminder/session/Undo/database reopen.
+The browser script matches the installed Chrome version to the official ChromeDriver release in a temporary directory, then runs the current network-independent mobile-viewport flows:
 
-Run the personalized flow on the Android 14 emulator as well:
+- Encounter save/relaunch/Scripture.
+- Offline audio-memory capture/recovery.
+- Reviewed prayer library/Helpful/Today/action completion/database reopen.
+- Saved-prayer reminder/session/Undo/database reopen.
 
-```powershell
-Set-Location apps/soulbuddy
-flutter test integration_test/personalized_prayer_flow_test.dart -d emulator-5554
-```
-
-The Android-native reminder target requires API 33+ notification permission to be granted through ADB after the freshly installed test starts. It verifies a real private, generic, actionable notification and its `I prayed this` response:
+The Android-native reminder target requires API 33+ notification permission to be granted through ADB after the freshly installed test starts. It verifies a real private, generic, actionable notification and its `I prayed this` response.
 
 In one terminal, start the test:
 
 ```powershell
+Set-Location apps/soulbuddy
 flutter drive -d emulator-5554 --driver=test_driver/integration_test.dart --target=integration_test/prayer_reminder_android_test.dart
 ```
 
