@@ -75,6 +75,7 @@ void main() {
     );
     expect(find.text('Walls to consider'), findsOneWidget);
     expect(find.text('AdGuard Family Protection'), findsOneWidget);
+    await tester.ensureVisible(find.text('Not now'));
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
     expect(find.text('Who can walk with you?'), findsOneWidget);
