@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../data/circle_directory_repository.dart';
@@ -16,6 +17,7 @@ class CreateCircleSheet extends ConsumerStatefulWidget {
 }
 
 class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
+  final _creationKey = const Uuid().v4();
   late final _nameController = TextEditingController(
     text: widget.initialCircle?.name ?? '',
   );
@@ -222,6 +224,7 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
       } else {
         circle = await repository.create(
           CircleDraft(
+            creationKey: _creationKey,
             name: name,
             category: _category,
             description: description,
