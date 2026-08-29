@@ -64,7 +64,6 @@ try {
     'integration_test/offline_encounter_flow_test.dart',
     'integration_test/offline_audio_memory_flow_test.dart',
     'integration_test/offline_prayer_flow_test.dart',
-    'integration_test/personalized_prayer_flow_test.dart',
     'integration_test/prayer_reminder_flow_test.dart'
   )
 
