@@ -18,6 +18,7 @@ it('creates a server-backed external Circle and exposes only public active direc
         ->assertJsonPath('category', 'accountability')
         ->assertJsonPath('provider', 'telegram')
         ->assertJsonPath('open_url', 'https://t.me/+soulbuddy-test')
+        ->assertJsonPath('directory_listed', true)
         ->assertJsonPath('is_owner', true);
 
     expect($created->json('public_id'))->not->toBeEmpty()
@@ -27,6 +28,7 @@ it('creates a server-backed external Circle and exposes only public active direc
         'owner_user_id' => $owner->id,
         'visibility' => 'public',
         'status' => 'active',
+        'directory_listed' => true,
     ]);
     $this->assertDatabaseHas('circle_provider_bindings', [
         'provider' => 'telegram',
@@ -122,7 +124,7 @@ it('filters, searches and cursor-paginates the public directory deterministicall
         ->assertJsonPath('data.0.category', 'bible_study');
 });
 
-it('records minimal reports and moderation actions without conversation evidence', function () {
+it('records minimal reports and keeps moderation delisting authoritative', function () {
     $owner = User::factory()->create();
     $reporter = User::factory()->create();
     $moderator = User::factory()->create();
@@ -144,9 +146,26 @@ it('records minimal reports and moderation actions without conversation evidence
 
     $service = app(CircleModerationService::class);
     $service->delist($circle, $moderator, 'review_pending');
-    expect($circle->fresh()->visibility)->toBe('unlisted');
+    expect($circle->fresh()->visibility)->toBe('public')
+        ->and($circle->fresh()->directory_listed)->toBeFalse();
+
+    $this->actingAs($owner)->patchJson("/api/circles/{$publicId}", ['visibility' => 'unlisted'])
+        ->assertOk()->assertJsonPath('directory_listed', false);
+    $this->actingAs($owner)->patchJson("/api/circles/{$publicId}", ['visibility' => 'public'])
+        ->assertOk()->assertJsonPath('directory_listed', false);
+    $this->actingAs($reporter)->getJson('/api/circles')->assertJsonCount(0, 'data');
+
+    $service->relist($circle->fresh(), $moderator, 'review_cleared');
+    expect($circle->fresh()->directory_listed)->toBeTrue();
+    $this->actingAs($reporter)->getJson('/api/circles')->assertJsonCount(1, 'data');
+
+    $service->delist($circle->fresh(), $moderator, 'confirmed_unsafe');
     $service->suspend($circle->fresh(), $moderator, 'confirmed_unsafe');
-    expect($circle->fresh()->status)->toBe('suspended');
+    expect($circle->fresh()->status)->toBe('suspended')
+        ->and($circle->fresh()->directory_listed)->toBeFalse();
+    $this->actingAs($owner)->patchJson("/api/circles/{$publicId}", ['status' => 'active'])
+        ->assertForbidden();
+
     $this->assertDatabaseHas('circle_moderation_events', [
         'circle_id' => $circle->id,
         'event_type' => 'reported',
@@ -156,6 +175,11 @@ it('records minimal reports and moderation actions without conversation evidence
         'circle_id' => $circle->id,
         'event_type' => 'delisted',
         'reason_code' => 'review_pending',
+    ]);
+    $this->assertDatabaseHas('circle_moderation_events', [
+        'circle_id' => $circle->id,
+        'event_type' => 'relisted',
+        'reason_code' => 'review_cleared',
     ]);
     $this->assertDatabaseHas('circle_moderation_events', [
         'circle_id' => $circle->id,
