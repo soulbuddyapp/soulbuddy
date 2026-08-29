@@ -17,10 +17,11 @@ return new class extends Migration
             $table->string('description', 280);
             $table->string('visibility', 16);
             $table->string('status', 16)->default('active');
+            $table->boolean('directory_listed')->default(true);
             $table->timestamps();
 
             $table->index(
-                ['visibility', 'status', 'category', 'public_id'],
+                ['directory_listed', 'visibility', 'status', 'category', 'public_id'],
                 'circles_directory_index',
             );
             $table->index(
