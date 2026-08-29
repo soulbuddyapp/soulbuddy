@@ -34,6 +34,7 @@ class PowerSyncEditorialPrayerRepository implements EditorialPrayerRepository {
       AND editorial.content_kind = 'prepared_prayer'
       AND editorial.review_state = 'approved'
       AND editorial.published_at IS NOT NULL
+      AND datetime(editorial.published_at) <= datetime('now')
       AND editorial.archived_at IS NULL
   ''';
 
