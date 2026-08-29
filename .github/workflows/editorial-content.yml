@@ -1,0 +1,95 @@
+name: Editorial Content
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/editorial-content.yml'
+      - 'apps/soulbuddy/assets/content/editorial_manifest.json'
+      - 'apps/soulbuddy/lib/core/database/app_database.dart'
+      - 'apps/soulbuddy/lib/features/editorial/**'
+      - 'apps/soulbuddy/lib/features/goals/providers/goal_onboarding_providers.dart'
+      - 'apps/soulbuddy/lib/features/prayers/providers/prayer_providers.dart'
+      - 'apps/soulbuddy/test/features/editorial/**'
+      - 'apps/soulbuddy/test/features/goals/first_goal_editorial_prayer_provider_test.dart'
+      - 'apps/soulbuddy/test/features/goals/first_goal_screen_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/bundled_prayer_importer_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/prayer_repository_test.dart'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - '.github/workflows/editorial-content.yml'
+      - 'apps/soulbuddy/assets/content/editorial_manifest.json'
+      - 'apps/soulbuddy/lib/core/database/app_database.dart'
+      - 'apps/soulbuddy/lib/features/editorial/**'
+      - 'apps/soulbuddy/lib/features/goals/providers/goal_onboarding_providers.dart'
+      - 'apps/soulbuddy/lib/features/prayers/providers/prayer_providers.dart'
+      - 'apps/soulbuddy/test/features/editorial/**'
+      - 'apps/soulbuddy/test/features/goals/first_goal_editorial_prayer_provider_test.dart'
+      - 'apps/soulbuddy/test/features/goals/first_goal_screen_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/bundled_prayer_importer_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/prayer_repository_test.dart'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: editorial-content-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-editorial:
+    name: Flutter editorial content
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.35.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Prepare ignored Scripture asset placeholder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets/scripture | Out-Null
+          if (-not (Test-Path assets/scripture/rsvce.db)) {
+            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
+          }
+
+      - name: Normalize and check focused formatting
+        id: dart-format
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dart format lib/core/database/app_database.dart lib/features/editorial lib/features/goals/providers/goal_onboarding_providers.dart lib/features/prayers/providers/prayer_providers.dart test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart
+          git diff --check
+          git diff --exit-code -- lib/core/database/app_database.dart lib/features/editorial lib/features/goals/providers/goal_onboarding_providers.dart lib/features/prayers/providers/prayer_providers.dart test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart
+
+      - name: Analyze editorial content boundary
+        run: flutter analyze --fatal-infos lib/features/editorial lib/features/prayers/providers/prayer_providers.dart lib/features/goals/providers/goal_onboarding_providers.dart lib/core/database/app_database.dart
+
+      - name: Run editorial and compatibility tests
+        run: flutter test test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart test/features/goals/first_goal_screen_test.dart test/features/prayers/bundled_prayer_importer_test.dart test/features/prayers/prayer_repository_test.dart
+
+      - name: Fail on committed formatting drift
+        if: always() && steps.dart-format.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
