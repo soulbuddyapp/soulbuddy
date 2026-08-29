@@ -40,7 +40,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Continue with reviewed prayers'), findsOneWidget);
-      expect(find.textContaining('external prayer-writing service'), findsNothing);
+      expect(
+        find.textContaining('external prayer-writing service'),
+        findsNothing,
+      );
       expect(generationReads, 0);
 
       await tester.tap(
@@ -154,10 +157,7 @@ GoRouter _router() {
         path: '/prayers/create',
         builder: (context, state) => const Text('reviewed-create'),
       ),
-      GoRoute(
-        path: '/today',
-        builder: (context, state) => const Text('today'),
-      ),
+      GoRoute(path: '/today', builder: (context, state) => const Text('today')),
     ],
   );
 }
