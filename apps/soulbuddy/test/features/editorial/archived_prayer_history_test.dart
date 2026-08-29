@@ -119,4 +119,72 @@ void main() {
       expect(today?.prayer.id, prayerId);
     },
   );
+
+  test(
+    'scheduled editorial ownership hides both bundled and same-ID server wording',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/scheduled.db',
+      );
+      addTearDown(database.close);
+      const prayerId = '0198a100-0000-7000-8000-000000000092';
+
+      await database.powersync.execute(
+        '''
+        INSERT INTO bundled_prayers(
+          id, title, body, grounding, language_style, purpose, action,
+          helpful_count, content_version, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, 0, 3, NULL)
+        ''',
+        [
+          prayerId,
+          'Scheduled reviewed wording',
+          'Father, guide me when this prayer is published. Amen.',
+          'general_christian',
+          'christian',
+          'guidance',
+        ],
+      );
+      await database.powersync.execute(
+        '''
+        INSERT INTO editorial_items(
+          id, content_kind, content_version, provenance, source_ref,
+          review_state, reviewed_on, published_at, archived_at, tags_json
+        ) VALUES (?, 'prepared_prayer', 1, 'soulbuddy_editorial', ?,
+          'approved', '2026-08-29', '2099-01-01T00:00:00.000Z', NULL, ?)
+        ''',
+        [
+          prayerId,
+          'fixture:scheduled-v1',
+          jsonEncode(['prayer', 'guidance']),
+        ],
+      );
+      await database.powersync.execute(
+        '''
+        INSERT INTO library_prayers(
+          id, title, body, grounding, language_style, purpose, action,
+          helpful_count, published_at, archived_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL, 500, ?, NULL)
+        ''',
+        [
+          prayerId,
+          'Server wording must stay hidden',
+          'This unprovenanced copy must not leak before publication.',
+          'general_christian',
+          'christian',
+          'guidance',
+          '2026-08-29T00:00:00.000Z',
+        ],
+      );
+
+      final repository = PowerSyncPrayerRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+      );
+
+      final selectable = await repository.watchLibrary().first;
+      expect(selectable.where((item) => item.id == prayerId), isEmpty);
+      expect(await repository.watchPrayer(prayerId).first, isNull);
+    },
+  );
 }
