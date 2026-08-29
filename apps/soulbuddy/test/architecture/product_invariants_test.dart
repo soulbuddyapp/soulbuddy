@@ -63,9 +63,18 @@ void main() {
       expect(repository, contains('watch(String id)'));
       expect(repository, contains('watchPending() =>'));
       expect(repository, contains('throw _retired()'));
-      expect(repository, isNot(contains('INSERT INTO prayer_generation_requests')));
-      expect(repository, isNot(contains('UPDATE prayer_generation_requests')));
-      expect(repository, isNot(contains('DELETE FROM prayer_generation_contexts')));
+      expect(
+        repository,
+        isNot(contains('INSERT INTO prayer_generation_requests')),
+      );
+      expect(
+        repository,
+        isNot(contains('UPDATE prayer_generation_requests')),
+      );
+      expect(
+        repository,
+        isNot(contains('DELETE FROM prayer_generation_contexts')),
+      );
     });
 
     test('SyntheticSpiritualContent legacy runtime boundary does not expand', () {
@@ -82,7 +91,6 @@ void main() {
         'lib/features/prayers/application/prayer_generation_worker.dart',
         'lib/features/prayers/data/laravel_prayer_draft_api.dart',
         'lib/features/prayers/data/prayer_draft_api.dart',
-        'lib/features/prayers/presentation/prayer_draft_screen.dart',
         'lib/features/prayers/providers/personal_prayer_providers.dart',
       };
 
