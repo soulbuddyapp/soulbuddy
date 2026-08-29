@@ -10,7 +10,9 @@ use Illuminate\Validation\Validator;
 
 class StoreCircleRequest extends FormRequest
 {
-    private const KEYS = ['name', 'category', 'description', 'visibility', 'provider', 'open_url'];
+    private const KEYS = [
+        'name', 'category', 'description', 'visibility', 'status', 'provider', 'open_url',
+    ];
 
     public function authorize(): bool
     {
@@ -24,6 +26,7 @@ class StoreCircleRequest extends FormRequest
             'category' => ['required', Rule::in(['accountability', 'daily_exhortation', 'bible_study'])],
             'description' => ['required', 'string', 'max:280'],
             'visibility' => ['required', Rule::in(['public', 'unlisted', 'private'])],
+            'status' => ['sometimes', 'required', Rule::in(['draft', 'active'])],
             'provider' => ['required', Rule::in(['telegram', 'whatsapp_link'])],
             'open_url' => ['required', 'string', 'max:2048'],
         ];
