@@ -59,7 +59,7 @@ class PowerSyncEditorialPrayerRepository implements EditorialPrayerRepository {
           ],
         )
         .map((rows) {
-          final items = rows.map(_fromRow).toList(growable: false);
+          final items = rows.map(_fromRow).toList();
           if (languagePreference != null) {
             items.sort((left, right) {
               final languageRank = languagePreference
