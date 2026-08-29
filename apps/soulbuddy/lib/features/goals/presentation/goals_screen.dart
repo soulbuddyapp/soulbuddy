@@ -6,11 +6,18 @@ import '../../../core/design/app_spacing.dart';
 import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
 
-class GoalsScreen extends ConsumerWidget {
+class GoalsScreen extends ConsumerStatefulWidget {
   const GoalsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GoalsScreen> createState() => _GoalsScreenState();
+}
+
+class _GoalsScreenState extends ConsumerState<GoalsScreen> {
+  var _reordering = false;
+
+  @override
+  Widget build(BuildContext context) {
     final goals = ref.watch(visibleGoalsProvider);
     return SafeArea(
       child: Align(
@@ -65,7 +72,11 @@ class GoalsScreen extends ConsumerWidget {
                 ),
                 data: (items) => items.isEmpty
                     ? const _EmptyGoals()
-                    : _GoalSections(goals: items),
+                    : _GoalSections(
+                        goals: items,
+                        reordering: _reordering,
+                        onMoveActive: _moveActive,
+                      ),
               ),
             ],
           ),
@@ -73,43 +84,105 @@ class GoalsScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _moveActive(
+    List<Goal> activeGoals,
+    String goalId,
+    _GoalMove move,
+  ) async {
+    if (_reordering) return;
+    final index = activeGoals.indexWhere((goal) => goal.id == goalId);
+    if (index < 0) return;
+    final targetIndex = switch (move) {
+      _GoalMove.earlier => index - 1,
+      _GoalMove.later => index + 1,
+    };
+    if (targetIndex < 0 || targetIndex >= activeGoals.length) return;
+
+    final orderedIds = activeGoals.map((goal) => goal.id).toList();
+    final current = orderedIds[index];
+    orderedIds[index] = orderedIds[targetIndex];
+    orderedIds[targetIndex] = current;
+
+    setState(() => _reordering = true);
+    try {
+      final orderer = await ref.read(goalOrdererProvider.future);
+      await orderer.reorderActive(orderedIds);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal order could not be updated.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _reordering = false);
+    }
+  }
 }
 
+enum _GoalMove { earlier, later }
+
 class _GoalSections extends StatelessWidget {
-  const _GoalSections({required this.goals});
+  const _GoalSections({
+    required this.goals,
+    required this.reordering,
+    required this.onMoveActive,
+  });
 
   final List<Goal> goals;
+  final bool reordering;
+  final Future<void> Function(
+    List<Goal> activeGoals,
+    String goalId,
+    _GoalMove move,
+  )
+  onMoveActive;
 
   @override
   Widget build(BuildContext context) {
-    final active = goals.where((goal) => goal.status == GoalStatus.active);
-    final paused = goals.where((goal) => goal.status == GoalStatus.paused);
-    final completed = goals.where(
-      (goal) => goal.status == GoalStatus.completed,
-    );
+    final active = goals
+        .where((goal) => goal.status == GoalStatus.active)
+        .toList(growable: false);
+    final paused = goals
+        .where((goal) => goal.status == GoalStatus.paused)
+        .toList(growable: false);
+    final completed = goals
+        .where((goal) => goal.status == GoalStatus.completed)
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (active.isNotEmpty)
-          _GoalSection(title: 'Active', goals: active.toList()),
+          _GoalSection(
+            title: 'Active',
+            goals: active,
+            reordering: reordering,
+            onMove: (goalId, move) => onMoveActive(active, goalId, move),
+          ),
         if (active.isNotEmpty && paused.isNotEmpty)
           const SizedBox(height: AppSpacing.lg),
-        if (paused.isNotEmpty)
-          _GoalSection(title: 'Paused', goals: paused.toList()),
+        if (paused.isNotEmpty) _GoalSection(title: 'Paused', goals: paused),
         if ((active.isNotEmpty || paused.isNotEmpty) && completed.isNotEmpty)
           const SizedBox(height: AppSpacing.lg),
         if (completed.isNotEmpty)
-          _GoalSection(title: 'Completed', goals: completed.toList()),
+          _GoalSection(title: 'Completed', goals: completed),
       ],
     );
   }
 }
 
 class _GoalSection extends StatelessWidget {
-  const _GoalSection({required this.title, required this.goals});
+  const _GoalSection({
+    required this.title,
+    required this.goals,
+    this.reordering = false,
+    this.onMove,
+  });
 
   final String title;
   final List<Goal> goals;
+  final bool reordering;
+  final Future<void> Function(String goalId, _GoalMove move)? onMove;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -118,7 +191,13 @@ class _GoalSection extends StatelessWidget {
       Text(title, style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: AppSpacing.sm),
       for (var index = 0; index < goals.length; index++) ...[
-        _GoalTile(goal: goals[index]),
+        _GoalTile(
+          goal: goals[index],
+          reordering: reordering,
+          canMoveEarlier: onMove != null && index > 0,
+          canMoveLater: onMove != null && index < goals.length - 1,
+          onMove: onMove,
+        ),
         if (index != goals.length - 1) const SizedBox(height: AppSpacing.sm),
       ],
     ],
@@ -126,13 +205,24 @@ class _GoalSection extends StatelessWidget {
 }
 
 class _GoalTile extends StatelessWidget {
-  const _GoalTile({required this.goal});
+  const _GoalTile({
+    required this.goal,
+    required this.reordering,
+    required this.canMoveEarlier,
+    required this.canMoveLater,
+    this.onMove,
+  });
 
   final Goal goal;
+  final bool reordering;
+  final bool canMoveEarlier;
+  final bool canMoveLater;
+  final Future<void> Function(String goalId, _GoalMove move)? onMove;
 
   @override
   Widget build(BuildContext context) {
     final situation = goal.currentSituation?.trim();
+    final canReorder = canMoveEarlier || canMoveLater;
     return Card(
       child: ListTile(
         minTileHeight: 76,
@@ -141,7 +231,26 @@ class _GoalTile extends StatelessWidget {
         subtitle: situation == null || situation.isEmpty
             ? Text(_statusLabel(goal.status))
             : Text(situation, maxLines: 2, overflow: TextOverflow.ellipsis),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: canReorder
+            ? PopupMenuButton<_GoalMove>(
+                key: Key('goal-order-menu-${goal.id}'),
+                enabled: !reordering,
+                tooltip: 'Change order for ${goal.title}',
+                onSelected: (move) => onMove?.call(goal.id, move),
+                itemBuilder: (context) => [
+                  if (canMoveEarlier)
+                    const PopupMenuItem(
+                      value: _GoalMove.earlier,
+                      child: Text('Move earlier'),
+                    ),
+                  if (canMoveLater)
+                    const PopupMenuItem(
+                      value: _GoalMove.later,
+                      child: Text('Move later'),
+                    ),
+                ],
+              )
+            : const Icon(Icons.chevron_right),
         onTap: () => context.go('/goals/${goal.id}'),
       ),
     );
