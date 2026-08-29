@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/core/presentation/covenant_slabs.dart';
+import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
+import 'package:soulbuddy/features/goals/providers/goal_today_providers.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_practice_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
@@ -668,6 +670,13 @@ Future<void> _pumpToday(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        activeGoalsProvider.overrideWith((ref) => Stream.value(const [])),
+        activeGoalTodayLinksProvider.overrideWith(
+          (ref) => Stream.value(const []),
+        ),
+        dueGoalActionsProvider.overrideWith(
+          (ref, localDate) => Stream.value(const []),
+        ),
         prayerRepositoryProvider.overrideWith((ref) async => repository),
         prayerPracticeRepositoryProvider.overrideWith(
           (ref) async => resolvedPracticeRepository,
