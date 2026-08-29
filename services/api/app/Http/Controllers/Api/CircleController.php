@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -82,13 +83,19 @@ class CircleController extends Controller
         $user = $this->user($request);
         Gate::authorize('create', Circle::class);
         $validated = $request->validated();
+        $creationKey = $validated['creation_key'] ?? (string) Str::uuid();
         $fingerprint = $this->creationFingerprint($validated);
 
-        [$circle, $created] = DB::transaction(function () use ($user, $validated, $fingerprint): array {
+        [$circle, $created] = DB::transaction(function () use (
+            $user,
+            $validated,
+            $creationKey,
+            $fingerprint,
+        ): array {
             $existing = Circle::query()
                 ->with('providerBinding')
                 ->where('owner_user_id', $user->id)
-                ->where('creation_key', $validated['creation_key'])
+                ->where('creation_key', $creationKey)
                 ->lockForUpdate()
                 ->first();
             if ($existing !== null) {
@@ -103,7 +110,7 @@ class CircleController extends Controller
 
             $circle = Circle::create([
                 'owner_user_id' => $user->id,
-                'creation_key' => $validated['creation_key'],
+                'creation_key' => $creationKey,
                 'creation_fingerprint' => $fingerprint,
                 'name' => trim($validated['name']),
                 'category' => $validated['category'],
