@@ -14,8 +14,7 @@ class PrayerCreateScreen extends ConsumerStatefulWidget {
   const PrayerCreateScreen({super.key});
 
   @override
-  ConsumerState<PrayerCreateScreen> createState() =>
-      _PrayerCreateScreenState();
+  ConsumerState<PrayerCreateScreen> createState() => _PrayerCreateScreenState();
 }
 
 class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
@@ -205,7 +204,9 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
     if (purpose == null || body.isEmpty || _saving) return;
     setState(() => _saving = true);
     try {
-      final repository = await ref.read(personalPrayerRepositoryProvider.future);
+      final repository = await ref.read(
+        personalPrayerRepositoryProvider.future,
+      );
       final prayer = await repository.createOwnWords(
         title: 'My prayer · ${prayerPurposeLabel(purpose)}',
         body: body,
@@ -215,7 +216,9 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Your prayer could not be saved just now.')),
+          const SnackBar(
+            content: Text('Your prayer could not be saved just now.'),
+          ),
         );
       }
     } finally {
@@ -269,7 +272,10 @@ class _ReviewedPrayerCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(prayer.title, style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                prayer.title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 prayer.body,
