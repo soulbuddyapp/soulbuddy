@@ -135,8 +135,10 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
                 selected: {_provider},
                 onSelectionChanged: _saving
                     ? null
-                    : (selection) =>
-                          setState(() => _provider = selection.single),
+                    : (selection) => setState(() {
+                        _provider = selection.single;
+                        _error = null;
+                      }),
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
@@ -188,8 +190,14 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
     final name = _nameController.text.trim();
     final description = _descriptionController.text.trim();
     final link = Uri.tryParse(_linkController.text.trim());
-    if (name.isEmpty || description.isEmpty || link == null || !link.hasScheme) {
-      setState(() => _error = 'Add a name, purpose, and valid group link.');
+    if (name.isEmpty || description.isEmpty) {
+      setState(() => _error = 'Add a name and purpose for this Circle.');
+      return;
+    }
+    if (link == null || !_provider.allows(link)) {
+      setState(
+        () => _error = 'Use a valid ${_provider.label} group link.',
+      );
       return;
     }
     setState(() {
