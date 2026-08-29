@@ -4,9 +4,11 @@ import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../prayers/domain/prayer_reference.dart';
 import '../data/goal_onboarding_progress_repository.dart';
+import '../data/goal_orderer.dart';
 import '../data/goal_prayer_migration.dart';
 import '../data/goal_repository.dart';
 import '../data/powersync_goal_onboarding_progress_repository.dart';
+import '../data/powersync_goal_orderer.dart';
 import '../data/powersync_goal_repository.dart';
 import '../domain/goal.dart';
 import '../domain/goal_action.dart';
@@ -19,6 +21,15 @@ final goalRepositoryProvider = FutureProvider<GoalRepository>((ref) async {
     database: database.powersync,
     ownerId: identity.ownerId,
     deviceId: identity.deviceId,
+  );
+});
+
+final goalOrdererProvider = FutureProvider<GoalOrderer>((ref) async {
+  final database = await ref.watch(appDatabaseProvider.future);
+  final identity = await ref.watch(localIdentityProvider.future);
+  return PowerSyncGoalOrderer(
+    database: database.powersync,
+    ownerId: identity.ownerId,
   );
 });
 
