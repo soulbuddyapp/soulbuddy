@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:powersync/powersync.dart';
 import 'package:soulbuddy/features/editorial/data/powersync_editorial_prayer_repository.dart';
 import 'package:soulbuddy/features/editorial/domain/editorial_item.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
@@ -188,7 +189,7 @@ void main() {
 }
 
 Future<void> _seedBundledPrayer(
-  dynamic database, {
+  PowerSyncDatabase database, {
   required String id,
   required String title,
   String body = 'Father, help me take the next faithful step. Amen.',
@@ -216,7 +217,7 @@ Future<void> _seedBundledPrayer(
 }
 
 Future<void> _seedEditorial(
-  dynamic database, {
+  PowerSyncDatabase database, {
   required String id,
   String reviewState = 'approved',
   String? publishedAt = '2026-08-29T00:00:00.000Z',
