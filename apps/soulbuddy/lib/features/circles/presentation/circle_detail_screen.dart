@@ -337,6 +337,11 @@ class _LegacyCircleDetail extends ConsumerWidget {
               ),
             ],
             TextButton(
+              key: const Key('discard-legacy-circle'),
+              onPressed: () => _discard(context, ref),
+              child: const Text('Discard local Circle'),
+            ),
+            TextButton(
               onPressed: () => context.go('/circles'),
               child: const Text('Back to Circles'),
             ),
@@ -378,6 +383,44 @@ class _LegacyCircleDetail extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not copy these messages yet.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _discard(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard local Circle?'),
+        content: Text(
+          'This permanently removes ${archive.messages.length} saved local messages from ${archive.summary.name}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final repository = await ref.read(
+        legacyCircleMigrationRepositoryProvider.future,
+      );
+      await repository.discard(archive.summary.id);
+      ref.invalidate(legacyCirclesProvider);
+      ref.invalidate(legacyCircleArchiveProvider(archive.summary.id));
+      if (context.mounted) context.go('/circles');
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not discard this local Circle yet.')),
         );
       }
     }
