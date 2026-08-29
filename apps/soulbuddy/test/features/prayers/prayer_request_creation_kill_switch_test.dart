@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_generation_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 
 void main() {
@@ -89,7 +90,7 @@ class _GenerationRepository implements PrayerGenerationRepository {
     required PrayerReach reach,
     required PrayerGrounding grounding,
     required PrayerPurpose purpose,
-    dynamic languagePreference,
+    PrayerLanguagePreference? languagePreference,
     required String requestText,
   }) async {
     createCalls++;
