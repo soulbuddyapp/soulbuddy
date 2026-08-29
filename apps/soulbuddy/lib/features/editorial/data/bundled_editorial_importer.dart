@@ -77,7 +77,9 @@ class BundledEditorialImporter {
     try {
       decoded = jsonDecode(source);
     } on FormatException catch (error) {
-      throw FormatException('Invalid editorial manifest JSON: ${error.message}');
+      throw FormatException(
+        'Invalid editorial manifest JSON: ${error.message}',
+      );
     }
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Editorial manifest must be an object.');
@@ -94,7 +96,9 @@ class BundledEditorialImporter {
     }
     final rawItems = decoded['items'];
     if (rawItems is! List<dynamic> || rawItems.isEmpty) {
-      throw const FormatException('Editorial manifest needs at least one item.');
+      throw const FormatException(
+        'Editorial manifest needs at least one item.',
+      );
     }
     final items = rawItems.map(_itemFromJson).toList(growable: false);
     if (items.map((item) => item.id).toSet().length != items.length) {
@@ -117,9 +121,7 @@ class BundledEditorialImporter {
     if (!_uuidPattern.hasMatch(id)) {
       throw FormatException('Editorial item "$id" does not have a valid UUID.');
     }
-    final kind = EditorialContentKind.fromWire(
-      _requiredString(value, 'kind'),
-    );
+    final kind = EditorialContentKind.fromWire(_requiredString(value, 'kind'));
     final contentVersion = value['content_version'];
     if (contentVersion is! int || contentVersion <= 0) {
       throw const FormatException(
@@ -175,8 +177,8 @@ void _validateAllowedKeys(
   required Set<String> allowedKeys,
   required String scope,
 }) {
-  final unexpected = value.keys.where((key) => !allowedKeys.contains(key)).toList()
-    ..sort();
+  final unexpected =
+      value.keys.where((key) => !allowedKeys.contains(key)).toList()..sort();
   if (unexpected.isNotEmpty) {
     throw FormatException(
       'Unexpected editorial manifest $scope: ${unexpected.first}.',
