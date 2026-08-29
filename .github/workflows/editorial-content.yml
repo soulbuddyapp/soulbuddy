@@ -177,7 +177,7 @@ jobs:
           php artisan key:generate --ansi
 
       - name: Check retirement PHP style
-        run: ./vendor/bin/pint --test app/Providers/AppServiceProvider.php config/services.php routes/api.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft
+        run: ./vendor/bin/pint --test app/Providers/AppServiceProvider.php config/services.php routes/api.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationKillSwitchTest.php
 
       - name: Run server synthetic-content retirement tests
         run: php artisan test tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft
