@@ -136,6 +136,51 @@ void main() {
             'the user\'s own words; client generation runtime is retired.',
       );
     });
+
+    test('private spiritual content boundaries contain no logging or analytics', () {
+      final targets = <File>[];
+      for (final root in const [
+        'lib/features/editorial',
+      ]) {
+        final directory = Directory(root);
+        if (!directory.existsSync()) continue;
+        targets.addAll(
+          directory
+              .listSync(recursive: true, followLinks: false)
+              .whereType<File>()
+              .where((file) => file.path.endsWith('.dart')),
+        );
+      }
+      for (final path in const [
+        'lib/features/onboarding/providers/first_prayer_providers.dart',
+        'lib/features/prayers/data/powersync_personal_prayer_repository.dart',
+        'lib/features/prayers/data/powersync_prayer_generation_repository.dart',
+        'lib/features/prayers/presentation/prayer_create_screen.dart',
+        'lib/features/prayers/providers/personal_prayer_providers.dart',
+      ]) {
+        targets.add(File(path));
+      }
+
+      for (final file in targets) {
+        final source = file.readAsStringSync();
+        for (final marker in const [
+          'print(',
+          'debugPrint(',
+          'developer.log(',
+          'FirebaseAnalytics',
+          'analytics.log',
+          'telemetry',
+        ]) {
+          expect(
+            source,
+            isNot(contains(marker)),
+            reason:
+                '${_relativeLibPath(file.path)} must not send or log private '
+                'prayer, request, context, or editorial-selection content.',
+          );
+        }
+      }
+    });
   });
 }
 
