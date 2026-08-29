@@ -30,6 +30,7 @@ class CircleController extends Controller
         $cursor = Cursor::fromEncoded($validated['cursor'] ?? null);
         $query = Circle::query()
             ->with('providerBinding')
+            ->where('directory_listed', true)
             ->where('visibility', 'public')
             ->where('status', 'active')
             ->whereHas('providerBinding', fn ($binding) => $binding->where('binding_status', 'ready'));
@@ -88,6 +89,7 @@ class CircleController extends Controller
                 'description' => trim($validated['description']),
                 'visibility' => $validated['visibility'],
                 'status' => 'active',
+                'directory_listed' => true,
             ]);
             $circle->providerBinding()->create([
                 'provider' => $validated['provider'],
@@ -159,6 +161,7 @@ class CircleController extends Controller
             'description' => $circle->description,
             'visibility' => $circle->visibility,
             'status' => $circle->status,
+            'directory_listed' => $circle->directory_listed,
             'provider' => $binding?->provider,
             'open_url' => $binding?->binding_status === 'ready' ? $binding->open_url : null,
             'capabilities' => $binding?->capabilities ?? [],
