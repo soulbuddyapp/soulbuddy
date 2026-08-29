@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:powersync/powersync.dart';
 import 'package:soulbuddy/features/goals/data/powersync_goal_orderer.dart';
 import 'package:soulbuddy/features/goals/data/powersync_goal_repository.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
@@ -131,7 +132,7 @@ void main() {
   });
 }
 
-Future<Map<String, int>> _positions(dynamic database) async {
+Future<Map<String, int>> _positions(PowerSyncDatabase database) async {
   final rows = await database.getAll(
     'SELECT id, position FROM goals WHERE owner_id = ?',
     ['owner-1'],
@@ -142,7 +143,7 @@ Future<Map<String, int>> _positions(dynamic database) async {
   };
 }
 
-Future<void> _completePendingCrud(dynamic database) async {
+Future<void> _completePendingCrud(PowerSyncDatabase database) async {
   while (true) {
     final transaction = await database.getNextCrudTransaction();
     if (transaction == null) return;
