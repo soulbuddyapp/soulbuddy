@@ -8,7 +8,7 @@ import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import '../../helpers/in_memory_prayer_repository.dart';
 
 void main() {
-  test('Goals shell constructs with legacy prayer routes preserved', () {
+  test('Goals shell constructs with prayer resources preserved', () {
     expect(appRouter, isNotNull);
   });
 
