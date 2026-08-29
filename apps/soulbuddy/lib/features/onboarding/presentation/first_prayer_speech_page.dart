@@ -21,7 +21,7 @@ class FirstPrayerSpeechPage extends ConsumerStatefulWidget {
     required this.onSkip,
     this.heading = 'Speak',
     this.description = 'Say a name, need, or a few words.',
-    this.continueLabel = 'Prepare prayer',
+    this.continueLabel = 'Use reviewed prayer',
     this.hintText = 'Your words will appear here',
     this.fieldKey = const Key('first-prayer-spoken-detail'),
     super.key,
