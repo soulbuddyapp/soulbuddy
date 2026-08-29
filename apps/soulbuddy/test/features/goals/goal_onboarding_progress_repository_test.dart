@@ -100,10 +100,7 @@ void main() {
 
     expect(saved?.stage, GoalOnboardingStage.situation);
     expect(saved?.stopBehaviorKey, GoalStopBehaviorKey.alcohol);
-    expect(
-      saved?.alcoholSafetyChoice,
-      GoalAlcoholSafetyChoice.medicalGuidance,
-    );
+    expect(saved?.alcoholSafetyChoice, GoalAlcoholSafetyChoice.medicalGuidance);
     expect(saved?.alcoholCareAcknowledged, isTrue);
     expect(saved?.alcoholSafetyCleared, isTrue);
   });

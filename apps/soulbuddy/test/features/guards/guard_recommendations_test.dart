@@ -35,9 +35,7 @@ void main() {
       isTrue,
     );
     expect(
-      recommendations.any(
-        (definition) => definition.id.startsWith('dns-'),
-      ),
+      recommendations.any((definition) => definition.id.startsWith('dns-')),
       isFalse,
     );
   });

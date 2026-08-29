@@ -64,65 +64,68 @@ void main() {
     );
   });
 
-  test('alcohol medical-guidance route cannot be bypassed by planning calls', () {
-    var progress = GoalOnboardingFlow.chooseStarter(
-      GoalStarterKey.stopControl,
-    );
-    progress = GoalOnboardingFlow.chooseStopBehavior(
-      progress,
-      GoalStopBehaviorKey.alcohol,
-    );
-    expect(progress.stage, GoalOnboardingStage.alcoholSafety);
-    expect(
-      () => GoalOnboardingFlow.setTitle(progress, 'Stop drinking'),
-      throwsStateError,
-    );
+  test(
+    'alcohol medical-guidance route cannot be bypassed by planning calls',
+    () {
+      var progress = GoalOnboardingFlow.chooseStarter(
+        GoalStarterKey.stopControl,
+      );
+      progress = GoalOnboardingFlow.chooseStopBehavior(
+        progress,
+        GoalStopBehaviorKey.alcohol,
+      );
+      expect(progress.stage, GoalOnboardingStage.alcoholSafety);
+      expect(
+        () => GoalOnboardingFlow.setTitle(progress, 'Stop drinking'),
+        throwsStateError,
+      );
 
-    progress = GoalOnboardingFlow.chooseAlcoholSafety(
-      progress,
-      GoalAlcoholSafetyChoice.medicalGuidance,
-    );
-    expect(progress.stage, GoalOnboardingStage.alcoholCare);
-    expect(progress.needsAlcoholMedicalGuidance, isTrue);
-    expect(progress.alcoholSafetyCleared, isFalse);
-    expect(
-      () => GoalOnboardingFlow.setTitle(progress, 'Stop drinking'),
-      throwsStateError,
-    );
-    expect(
-      () => GoalOnboardingFlow.beginSaving(progress),
-      throwsStateError,
-    );
+      progress = GoalOnboardingFlow.chooseAlcoholSafety(
+        progress,
+        GoalAlcoholSafetyChoice.medicalGuidance,
+      );
+      expect(progress.stage, GoalOnboardingStage.alcoholCare);
+      expect(progress.needsAlcoholMedicalGuidance, isTrue);
+      expect(progress.alcoholSafetyCleared, isFalse);
+      expect(
+        () => GoalOnboardingFlow.setTitle(progress, 'Stop drinking'),
+        throwsStateError,
+      );
+      expect(() => GoalOnboardingFlow.beginSaving(progress), throwsStateError);
 
-    progress = GoalOnboardingFlow.confirmAlcoholCare(progress);
-    expect(progress.stage, GoalOnboardingStage.situation);
-    expect(progress.alcoholCareAcknowledged, isTrue);
-    expect(progress.alcoholSafetyCleared, isTrue);
-    expect(
-      GoalOnboardingFlow.goBack(progress).stage,
-      GoalOnboardingStage.alcoholCare,
-    );
-  });
+      progress = GoalOnboardingFlow.confirmAlcoholCare(progress);
+      expect(progress.stage, GoalOnboardingStage.situation);
+      expect(progress.alcoholCareAcknowledged, isTrue);
+      expect(progress.alcoholSafetyCleared, isTrue);
+      expect(
+        GoalOnboardingFlow.goBack(progress).stage,
+        GoalOnboardingStage.alcoholCare,
+      );
+    },
+  );
 
-  test('alcohol no-known-risk choice still requires the safety step itself', () {
-    var progress = GoalOnboardingFlow.chooseStarter(
-      GoalStarterKey.stopControl,
-    );
-    progress = GoalOnboardingFlow.chooseStopBehavior(
-      progress,
-      GoalStopBehaviorKey.alcohol,
-    );
-    expect(progress.alcoholSafetyCleared, isFalse);
+  test(
+    'alcohol no-known-risk choice still requires the safety step itself',
+    () {
+      var progress = GoalOnboardingFlow.chooseStarter(
+        GoalStarterKey.stopControl,
+      );
+      progress = GoalOnboardingFlow.chooseStopBehavior(
+        progress,
+        GoalStopBehaviorKey.alcohol,
+      );
+      expect(progress.alcoholSafetyCleared, isFalse);
 
-    progress = GoalOnboardingFlow.chooseAlcoholSafety(
-      progress,
-      GoalAlcoholSafetyChoice.noKnownWithdrawalRisk,
-    );
+      progress = GoalOnboardingFlow.chooseAlcoholSafety(
+        progress,
+        GoalAlcoholSafetyChoice.noKnownWithdrawalRisk,
+      );
 
-    expect(progress.stage, GoalOnboardingStage.situation);
-    expect(progress.alcoholSafetyCleared, isTrue);
-    expect(progress.alcoholCareAcknowledged, isNull);
-  });
+      expect(progress.stage, GoalOnboardingStage.situation);
+      expect(progress.alcoholSafetyCleared, isTrue);
+      expect(progress.alcoholCareAcknowledged, isNull);
+    },
+  );
 
   test('changing prayer source clears incompatible stale selection state', () {
     var progress = GoalOnboardingFlow.chooseStarter(GoalStarterKey.direction);

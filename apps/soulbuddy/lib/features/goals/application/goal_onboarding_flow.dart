@@ -32,7 +32,8 @@ abstract final class GoalOnboardingFlow {
         alcoholCareAcknowledged: null,
       );
     }
-    if (current.alcoholSafetyChoice == GoalAlcoholSafetyChoice.medicalGuidance &&
+    if (current.alcoholSafetyChoice ==
+            GoalAlcoholSafetyChoice.medicalGuidance &&
         current.alcoholCareAcknowledged != true) {
       return _copy(
         current,
@@ -77,8 +78,8 @@ abstract final class GoalOnboardingFlow {
           ? GoalOnboardingStage.alcoholCare
           : GoalOnboardingStage.situation,
       alcoholSafetyChoice: choice,
-      alcoholCareAcknowledged: choice ==
-              GoalAlcoholSafetyChoice.noKnownWithdrawalRisk
+      alcoholCareAcknowledged:
+          choice == GoalAlcoholSafetyChoice.noKnownWithdrawalRisk
           ? null
           : false,
     );
@@ -89,7 +90,9 @@ abstract final class GoalOnboardingFlow {
   ) {
     if (current.stage != GoalOnboardingStage.alcoholCare ||
         !current.needsAlcoholMedicalGuidance) {
-      throw StateError('Medical-guidance review is not available at this step.');
+      throw StateError(
+        'Medical-guidance review is not available at this step.',
+      );
     }
     return _copy(
       current,
@@ -411,8 +414,7 @@ GoalOnboardingProgress _copy(
     alcoholSafetyChoice: identical(alcoholSafetyChoice, _unchanged)
         ? current.alcoholSafetyChoice
         : alcoholSafetyChoice as GoalAlcoholSafetyChoice?,
-    alcoholCareAcknowledged:
-        identical(alcoholCareAcknowledged, _unchanged)
+    alcoholCareAcknowledged: identical(alcoholCareAcknowledged, _unchanged)
         ? current.alcoholCareAcknowledged
         : alcoholCareAcknowledged as bool?,
     title: identical(title, _unchanged) ? current.title : title as String?,

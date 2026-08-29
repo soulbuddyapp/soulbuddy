@@ -68,7 +68,8 @@ const goalStopBehaviorOptions = <GoalStopBehaviorOption>[
     label: 'Gambling',
     titleQuestion: 'What do you want to stop?',
     titleHint: 'For example: Stop gambling',
-    todayActionHint: 'Use self-exclusion or a binding money/time limit where available',
+    todayActionHint:
+        'Use self-exclusion or a binding money/time limit where available',
     guardContextTag: 'gambling',
     contentVersion: 1,
     reviewedOn: '2026-08-29',
@@ -81,7 +82,8 @@ const goalStopBehaviorOptions = <GoalStopBehaviorOption>[
     label: 'Nicotine or tobacco',
     titleQuestion: 'What do you want to stop?',
     titleHint: 'For example: Stop smoking cigarettes',
-    todayActionHint: 'Name one trigger and the replacement you will use instead',
+    todayActionHint:
+        'Name one trigger and the replacement you will use instead',
     guardContextTag: 'nicotine',
     contentVersion: 1,
     reviewedOn: '2026-08-29',
@@ -108,7 +110,8 @@ const goalStopBehaviorOptions = <GoalStopBehaviorOption>[
     label: 'Digital distraction',
     titleQuestion: 'What do you want to stop?',
     titleHint: 'For example: Stop losing hours to social media',
-    todayActionHint: 'Turn off one trigger or move one distracting app out of easy reach',
+    todayActionHint:
+        'Turn off one trigger or move one distracting app out of easy reach',
     guardContextTag: 'digital_distraction',
     contentVersion: 1,
     reviewedOn: '2026-08-29',

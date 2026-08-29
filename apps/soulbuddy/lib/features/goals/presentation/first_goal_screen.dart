@@ -194,9 +194,11 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       final behavior = stopBehaviorOption(progress.stopBehaviorKey);
       final stopping = progress.starterKey == GoalStarterKey.stopControl;
       return _GoalTextPage(
-        question: behavior?.titleQuestion ??
+        question:
+            behavior?.titleQuestion ??
             (stopping ? 'What do you want to stop?' : 'Name it simply.'),
-        hintText: behavior?.titleHint ??
+        hintText:
+            behavior?.titleHint ??
             (stopping
                 ? 'For example: Stop watching pornography'
                 : 'What would you like help with?'),
@@ -534,9 +536,9 @@ class _AlcoholSafetyPageState extends State<_AlcoholSafetyPage> {
             const SizedBox(height: AppSpacing.sm),
             Text(
               'If severe withdrawal symptoms are happening now, seek emergency medical care.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
@@ -655,7 +657,10 @@ class _GuardSuggestions extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Walls to consider', style: Theme.of(context).textTheme.labelLarge),
+        Text(
+          'Walls to consider',
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
         const SizedBox(height: AppSpacing.xs),
         Text(
           'Reviewed ideas only. Nothing is configured until you set it up and save it from Return.',

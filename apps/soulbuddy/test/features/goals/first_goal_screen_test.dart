@@ -64,7 +64,7 @@ void main() {
         TextField,
         'One concrete step that removes easy access today',
       ),
-      findsNothing,
+      findsOneWidget,
     );
 
     await tester.tap(find.text('Not now'));
@@ -125,6 +125,10 @@ void main() {
       ),
     );
 
+    await tester.scrollUntilVisible(
+      find.text('Stop something fighting to control me'),
+      120,
+    );
     await tester.tap(find.text('Stop something fighting to control me'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Alcohol'), 120);
