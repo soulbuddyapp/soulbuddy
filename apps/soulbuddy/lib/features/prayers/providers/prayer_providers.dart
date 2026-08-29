@@ -12,11 +12,17 @@ import '../data/bundled_prayer_importer.dart';
 import '../data/powersync_prayer_repository.dart';
 import '../data/prayer_repository.dart';
 import '../domain/library_prayer.dart';
+import '../domain/prayer_language.dart';
 import '../domain/today_prayer.dart';
 
 typedef PrayerLibraryFilter = ({
   PrayerGrounding? grounding,
   PrayerPurpose? purpose,
+});
+
+typedef EditorialPrayerFilter = ({
+  PrayerPurpose? purpose,
+  PrayerLanguagePreference? languagePreference,
 });
 
 typedef PrayerLocalDate = ({int year, int month, int day});
@@ -123,6 +129,17 @@ final editorialPrayerRepositoryProvider =
       final database = await ref.watch(appDatabaseProvider.future);
       await ref.watch(editorialPrayerContentBootstrapProvider.future);
       return PowerSyncEditorialPrayerRepository(database: database.powersync);
+    });
+
+final reviewedEditorialPrayersProvider = StreamProvider.autoDispose
+    .family<List<EditorialPrayer>, EditorialPrayerFilter>((ref, filter) async* {
+      final repository = await ref.watch(
+        editorialPrayerRepositoryProvider.future,
+      );
+      yield* repository.watchApproved(
+        purpose: filter.purpose,
+        languagePreference: filter.languagePreference,
+      );
     });
 
 final prayerLibraryProvider = StreamProvider.autoDispose
