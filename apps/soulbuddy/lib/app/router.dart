@@ -16,10 +16,8 @@ import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
 import '../features/onboarding/presentation/legacy_first_prayer_migration_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
-import '../features/prayers/presentation/personalized_prayer_screen.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
-import '../features/prayers/presentation/prayer_draft_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/daily_remembrance_screen.dart';
@@ -77,21 +75,6 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'create',
                   builder: (context, state) => const PrayerCreateScreen(),
-                ),
-                GoRoute(
-                  path: 'requests/:requestId',
-                  builder: (context, state) => PersonalizedPrayerScreen(
-                    requestId: state.pathParameters['requestId'],
-                    initialMemoryId: state.uri.queryParameters['memoryId'],
-                  ),
-                  routes: [
-                    GoRoute(
-                      path: 'draft',
-                      builder: (context, state) => PrayerDraftScreen(
-                        requestId: state.pathParameters['requestId']!,
-                      ),
-                    ),
-                  ],
                 ),
                 GoRoute(
                   path: 'saved/:prayerId',
