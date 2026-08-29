@@ -62,9 +62,12 @@ class EditorialItem {
   final DateTime? archivedAt;
   final List<String> tags;
 
-  bool get isSelectable =>
+  bool get isSelectable => isSelectableAt(DateTime.now());
+
+  bool isSelectableAt(DateTime now) =>
       reviewState == EditorialReviewState.approved &&
       publishedAt != null &&
+      !publishedAt!.isAfter(now.toUtc()) &&
       archivedAt == null;
 
   factory EditorialItem.fromRow(Map<String, dynamic> row) {
