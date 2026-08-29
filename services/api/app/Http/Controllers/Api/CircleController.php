@@ -88,7 +88,7 @@ class CircleController extends Controller
                 'category' => $validated['category'],
                 'description' => trim($validated['description']),
                 'visibility' => $validated['visibility'],
-                'status' => 'active',
+                'status' => $validated['status'] ?? 'active',
                 'directory_listed' => true,
             ]);
             $circle->providerBinding()->create([
