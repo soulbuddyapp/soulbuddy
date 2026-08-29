@@ -8,6 +8,7 @@ import 'package:soulbuddy/features/prayers/data/personal_prayer_repository.dart'
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_create_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
@@ -51,7 +52,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('reviewed:0198a100-0000-7000-8000-000000000003'), findsOneWidget);
+    expect(
+      find.text('reviewed:0198a100-0000-7000-8000-000000000003'),
+      findsOneWidget,
+    );
     expect(generationProviderReads, 0);
     expect(personalRepository.createCalls, 0);
   });
@@ -146,11 +150,13 @@ Future<void> _pump(
       ),
       GoRoute(
         path: '/prayers/saved/:id',
-        builder: (context, state) => Text('saved:${state.pathParameters['id']}'),
+        builder: (context, state) =>
+            Text('saved:${state.pathParameters['id']}'),
       ),
       GoRoute(
         path: '/prayers/:id',
-        builder: (context, state) => Text('reviewed:${state.pathParameters['id']}'),
+        builder: (context, state) =>
+            Text('reviewed:${state.pathParameters['id']}'),
       ),
       GoRoute(
         path: '/prayers',
@@ -159,28 +165,32 @@ Future<void> _pump(
     ],
   );
   addTearDown(router.dispose);
-  Widget app = ProviderScope(
-    overrides: [
-      editorialPrayerRepositoryProvider.overrideWith(
-        (ref) async => editorialRepository,
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        editorialPrayerRepositoryProvider.overrideWith(
+          (ref) async => editorialRepository,
+        ),
+        personalPrayerRepositoryProvider.overrideWith(
+          (ref) async => personalRepository,
+        ),
+        prayerGenerationRepositoryProvider.overrideWith((ref) async {
+          onGenerationProviderRead();
+          throw StateError('Generation must not be read by the new flow.');
+        }),
+      ],
+      child: MaterialApp.router(
+        routerConfig: router,
+        builder: (context, child) {
+          if (textScaler == null) return child!;
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: child!,
+          );
+        },
       ),
-      personalPrayerRepositoryProvider.overrideWith(
-        (ref) async => personalRepository,
-      ),
-      prayerGenerationRepositoryProvider.overrideWith((ref) async {
-        onGenerationProviderRead();
-        throw StateError('Generation must not be read by the new flow.');
-      }),
-    ],
-    child: MaterialApp.router(routerConfig: router),
+    ),
   );
-  if (textScaler != null) {
-    app = MediaQuery(
-      data: MediaQueryData(textScaler: textScaler),
-      child: app,
-    );
-  }
-  await tester.pumpWidget(app);
   await tester.pumpAndSettle();
 }
 
@@ -193,7 +203,7 @@ class _EditorialRepository implements EditorialPrayerRepository {
   Stream<List<EditorialPrayer>> watchApproved({
     PrayerGrounding? grounding,
     PrayerPurpose? purpose,
-    dynamic languagePreference,
+    PrayerLanguagePreference? languagePreference,
   }) {
     return Stream.value(
       List.unmodifiable(
@@ -268,7 +278,8 @@ EditorialPrayer _reviewedPrayer({
     prayer: LibraryPrayer(
       id: id,
       title: title,
-      body: 'Father, keep me near you and help me take the next faithful step. Amen.',
+      body:
+          'Father, keep me near you and help me take the next faithful step. Amen.',
       grounding: PrayerGrounding.generalChristian,
       purpose: purpose,
       helpfulCount: 0,
