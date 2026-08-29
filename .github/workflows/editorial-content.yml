@@ -2,6 +2,8 @@ name: Editorial Content
 
 on:
   pull_request:
+    branches:
+      - main
     paths:
       - '.github/workflows/editorial-content.yml'
       - 'apps/soulbuddy/assets/content/editorial_manifest.json'
@@ -53,7 +55,6 @@ on:
   push:
     branches:
       - main
-      - 'agent/**'
     paths:
       - '.github/workflows/editorial-content.yml'
       - 'apps/soulbuddy/assets/content/editorial_manifest.json'

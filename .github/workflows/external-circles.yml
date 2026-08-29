@@ -1,0 +1,158 @@
+name: External Circles
+
+on:
+  pull_request:
+    branches:
+      - main
+      - agent/seek-goals-circles-redesign-20260828
+    paths:
+      - '.github/workflows/external-circles.yml'
+      - 'apps/soulbuddy/lib/features/circles/**'
+      - 'apps/soulbuddy/lib/app/router.dart'
+      - 'apps/soulbuddy/lib/core/database/app_schema.dart'
+      - 'apps/soulbuddy/test/features/circles/**'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+      - 'services/api/app/Domain/Circles/**'
+      - 'services/api/app/Http/Controllers/Api/Circle*.php'
+      - 'services/api/app/Http/Requests/*CircleRequest.php'
+      - 'services/api/app/Models/Circle*.php'
+      - 'services/api/app/Policies/CirclePolicy.php'
+      - 'services/api/database/migrations/*circle*'
+      - 'services/api/routes/api.php'
+      - 'services/api/tests/Feature/Circles/**'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/external-circles.yml'
+      - 'apps/soulbuddy/lib/features/circles/**'
+      - 'apps/soulbuddy/lib/app/router.dart'
+      - 'apps/soulbuddy/lib/core/database/app_schema.dart'
+      - 'apps/soulbuddy/test/features/circles/**'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+      - 'services/api/app/Domain/Circles/**'
+      - 'services/api/app/Http/Controllers/Api/Circle*.php'
+      - 'services/api/app/Http/Requests/*CircleRequest.php'
+      - 'services/api/app/Models/Circle*.php'
+      - 'services/api/app/Policies/CirclePolicy.php'
+      - 'services/api/database/migrations/*circle*'
+      - 'services/api/routes/api.php'
+      - 'services/api/tests/Feature/Circles/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-circles-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-circles:
+    name: Flutter external Circles
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.35.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies and expose lock drift
+        id: pub-get
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          flutter pub get
+          git diff -- pubspec.lock
+          git diff --exit-code -- pubspec.lock
+
+      - name: Prepare ignored Scripture asset placeholder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets/scripture | Out-Null
+          if (-not (Test-Path assets/scripture/rsvce.db)) {
+            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
+          }
+
+      - name: Normalize and check focused formatting
+        id: dart-format
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dart format lib/features/circles lib/app/router.dart test/features/circles
+          git diff --check
+          git diff --exit-code -- lib/features/circles lib/app/router.dart test/features/circles
+
+      - name: Analyze external Circle boundary
+        run: flutter analyze --fatal-infos lib/features/circles lib/app/router.dart
+
+      - name: Run external Circle tests
+        run: flutter test test/features/circles
+
+      - name: Fail on committed lock drift
+        if: always() && steps.pub-get.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
+
+      - name: Fail on committed formatting drift
+        if: always() && steps.dart-format.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
+
+  laravel-circles:
+    name: Laravel Circle directory
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php84-${{ hashFiles('services/api/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php84-
+
+      - name: Install Laravel dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Check Circle PHP style
+        run: ./vendor/bin/pint --test app/Domain/Circles app/Http/Controllers/Api/CircleController.php app/Http/Controllers/Api/CircleReportController.php app/Http/Requests/StoreCircleRequest.php app/Http/Requests/UpdateCircleRequest.php app/Http/Requests/ReportCircleRequest.php app/Models/Circle.php app/Models/CircleProviderBinding.php app/Models/CircleSchedule.php app/Models/CircleContentPlan.php app/Models/CircleDirectoryReport.php app/Models/CircleModerationEvent.php app/Policies/CirclePolicy.php database/migrations/*circle*.php routes/api.php tests/Feature/Circles
+
+      - name: Run Circle directory tests
+        run: php artisan test tests/Feature/Circles

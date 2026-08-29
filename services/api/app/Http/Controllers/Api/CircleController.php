@@ -1,0 +1,227 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Domain\Circles\CircleLifecycle;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreCircleRequest;
+use App\Http\Requests\UpdateCircleRequest;
+use App\Models\Circle;
+use App\Models\CircleProviderBinding;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+class CircleController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'category' => ['nullable', Rule::in(['accountability', 'daily_exhortation', 'bible_study'])],
+            'q' => ['nullable', 'string', 'max:80'],
+            'cursor' => ['nullable', 'string', 'max:500'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:30'],
+        ]);
+        $user = $this->user($request);
+        $limit = (int) ($validated['limit'] ?? 20);
+        $cursor = Cursor::fromEncoded($validated['cursor'] ?? null);
+        $query = Circle::query()
+            ->with('providerBinding')
+            ->where('directory_listed', true)
+            ->where('visibility', 'public')
+            ->where('status', 'active')
+            ->whereHas('providerBinding', fn ($binding) => $binding->where('binding_status', 'ready'));
+
+        if (($validated['category'] ?? null) !== null) {
+            $query->where('category', $validated['category']);
+        }
+        $search = trim((string) ($validated['q'] ?? ''));
+        if ($search !== '') {
+            $pattern = '%'.Str::lower($search).'%';
+            $query->where(function ($nested) use ($pattern): void {
+                $nested->whereRaw('LOWER(name) LIKE ?', [$pattern])
+                    ->orWhereRaw('LOWER(description) LIKE ?', [$pattern]);
+            });
+        }
+
+        $page = $query
+            ->orderBy('public_id')
+            ->cursorPaginate($limit, ['*'], 'cursor', $cursor);
+
+        return response()->json([
+            'data' => $page->getCollection()
+                ->map(fn (Circle $circle) => $this->payload($circle, $user))
+                ->values()
+                ->all(),
+            'next_cursor' => $page->nextCursor()?->encode(),
+        ]);
+    }
+
+    public function mine(Request $request): JsonResponse
+    {
+        $user = $this->user($request);
+        $circles = Circle::query()
+            ->with('providerBinding')
+            ->where('owner_user_id', $user->id)
+            ->where('status', '!=', 'archived')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'data' => $circles->map(fn (Circle $circle) => $this->payload($circle, $user))->all(),
+        ]);
+    }
+
+    public function store(StoreCircleRequest $request): JsonResponse
+    {
+        $user = $this->user($request);
+        Gate::authorize('create', Circle::class);
+        $validated = $request->validated();
+        $creationKey = $validated['creation_key'] ?? (string) Str::uuid();
+        $fingerprint = $this->creationFingerprint($validated);
+
+        [$circle, $created] = DB::transaction(function () use (
+            $user,
+            $validated,
+            $creationKey,
+            $fingerprint,
+        ): array {
+            $circle = Circle::query()->firstOrCreate(
+                [
+                    'owner_user_id' => $user->id,
+                    'creation_key' => $creationKey,
+                ],
+                [
+                    'creation_fingerprint' => $fingerprint,
+                    'name' => trim($validated['name']),
+                    'category' => $validated['category'],
+                    'description' => trim($validated['description']),
+                    'visibility' => $validated['visibility'],
+                    'status' => $validated['status'] ?? 'active',
+                    'directory_listed' => true,
+                ],
+            );
+            $created = $circle->wasRecentlyCreated;
+            if (! hash_equals($circle->creation_fingerprint, $fingerprint)) {
+                throw ValidationException::withMessages([
+                    'creation_key' => ['idempotency_conflict'],
+                ]);
+            }
+            if ($created) {
+                $circle->providerBinding()->create([
+                    'provider' => $validated['provider'],
+                    'open_url' => trim($validated['open_url']),
+                    'capabilities' => ['open_link'],
+                    'binding_status' => 'ready',
+                    'bound_at' => now(),
+                ]);
+            }
+
+            return [$circle->load('providerBinding'), $created];
+        });
+
+        return response()->json($this->payload($circle, $user), $created ? 201 : 200);
+    }
+
+    public function show(Request $request, Circle $circle): JsonResponse
+    {
+        Gate::authorize('view', $circle);
+        $circle->load('providerBinding');
+
+        return response()->json($this->payload($circle, $this->user($request)));
+    }
+
+    public function update(UpdateCircleRequest $request, Circle $circle): JsonResponse
+    {
+        Gate::authorize('update', $circle);
+        $validated = $request->validated();
+        if (
+            array_key_exists('status', $validated)
+            && ! CircleLifecycle::ownerCanTransition($circle->status, $validated['status'])
+        ) {
+            throw ValidationException::withMessages(['status' => ['invalid_transition']]);
+        }
+
+        DB::transaction(function () use ($circle, $validated): void {
+            $attributes = [];
+            foreach (['name', 'category', 'description', 'visibility', 'status'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $attributes[$field] = is_string($validated[$field])
+                        ? trim($validated[$field])
+                        : $validated[$field];
+                }
+            }
+            if ($attributes !== []) {
+                $circle->fill($attributes)->save();
+            }
+            if (isset($validated['provider'], $validated['open_url'])) {
+                CircleProviderBinding::query()->updateOrCreate(
+                    ['circle_id' => $circle->id],
+                    [
+                        'provider' => $validated['provider'],
+                        'open_url' => trim($validated['open_url']),
+                        'capabilities' => ['open_link'],
+                        'binding_status' => 'ready',
+                        'bound_at' => now(),
+                        'last_verified_at' => null,
+                    ],
+                );
+            }
+        });
+
+        return response()->json(
+            $this->payload($circle->fresh()->load('providerBinding'), $this->user($request)),
+        );
+    }
+
+    private function creationFingerprint(array $validated): string
+    {
+        $payload = [
+            'name' => trim($validated['name']),
+            'category' => $validated['category'],
+            'description' => trim($validated['description']),
+            'visibility' => $validated['visibility'],
+            'status' => $validated['status'] ?? 'active',
+            'provider' => $validated['provider'],
+            'open_url' => trim($validated['open_url']),
+        ];
+
+        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function payload(Circle $circle, User $viewer): array
+    {
+        $binding = $circle->providerBinding;
+
+        return [
+            'public_id' => $circle->public_id,
+            'name' => $circle->name,
+            'category' => $circle->category,
+            'description' => $circle->description,
+            'visibility' => $circle->visibility,
+            'status' => $circle->status,
+            'directory_listed' => $circle->directory_listed,
+            'provider' => $binding?->provider,
+            'open_url' => $binding?->binding_status === 'ready' ? $binding->open_url : null,
+            'capabilities' => $binding?->capabilities ?? [],
+            'member_count' => null,
+            'is_owner' => $circle->owner_user_id === $viewer->id,
+            'updated_at' => $circle->updated_at?->toISOString(),
+        ];
+    }
+
+    private function user(Request $request): User
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        return $user;
+    }
+}
