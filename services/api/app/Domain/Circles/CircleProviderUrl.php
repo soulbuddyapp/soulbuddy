@@ -7,7 +7,7 @@ final class CircleProviderUrl
     /** @var array<string, list<string>> */
     private const HOSTS = [
         'telegram' => ['t.me', 'telegram.me'],
-        'whatsapp_link' => ['chat.whatsapp.com', 'wa.me'],
+        'whatsapp_link' => ['chat.whatsapp.com'],
     ];
 
     public static function isAllowed(string $provider, string $value): bool
