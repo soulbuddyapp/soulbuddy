@@ -7,68 +7,74 @@ import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 
 void main() {
-  test('new generated prayer request is blocked before repository creation', () async {
-    final repository = _GenerationRepository();
-    final container = ProviderContainer(
-      overrides: [
-        prayerGenerationRepositoryProvider.overrideWith(
-          (ref) async => repository,
+  test(
+    'new generated prayer request is blocked before repository creation',
+    () async {
+      final repository = _GenerationRepository();
+      final container = ProviderContainer(
+        overrides: [
+          prayerGenerationRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
+          prayerRequestCreationEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final provider = personalizedPrayerControllerProvider(null);
+      await container.read(provider.future);
+      final controller = container.read(provider.notifier);
+
+      controller.chooseStyle(PrayerStyle.daily);
+      controller.chooseReach(PrayerReach.personal);
+      controller.chooseGrounding(PrayerGrounding.generalChristian);
+      controller.choosePurpose(PrayerPurpose.guidance);
+      controller.setRequestText('Help me receive and use wisdom today.');
+      await controller.continueFromRequest();
+
+      expect(repository.createCalls, 0);
+      expect(container.read(provider).hasError, isTrue);
+    },
+  );
+
+  test(
+    'existing local request still resumes while new creation is disabled',
+    () async {
+      final now = DateTime.utc(2026, 8, 29);
+      final repository = _GenerationRepository(
+        PrayerGenerationRequest(
+          id: 'legacy-request',
+          ownerId: 'owner-1',
+          style: PrayerStyle.daily,
+          reach: PrayerReach.personal,
+          grounding: PrayerGrounding.generalChristian,
+          purpose: PrayerPurpose.guidance,
+          requestText: 'Help me receive and use wisdom today.',
+          status: PrayerGenerationStatus.editing,
+          attemptCount: 0,
+          contexts: const [],
+          createdAt: now,
+          updatedAt: now,
         ),
-        prayerRequestCreationEnabledProvider.overrideWithValue(false),
-      ],
-    );
-    addTearDown(container.dispose);
-    final provider = personalizedPrayerControllerProvider(null);
-    await container.read(provider.future);
-    final controller = container.read(provider.notifier);
+      );
+      final container = ProviderContainer(
+        overrides: [
+          prayerGenerationRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
+          prayerRequestCreationEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    controller.chooseStyle(PrayerStyle.daily);
-    controller.chooseReach(PrayerReach.personal);
-    controller.chooseGrounding(PrayerGrounding.generalChristian);
-    controller.choosePurpose(PrayerPurpose.guidance);
-    controller.setRequestText('Help me receive and use wisdom today.');
-    await controller.continueFromRequest();
+      final state = await container.read(
+        personalizedPrayerControllerProvider('legacy-request').future,
+      );
 
-    expect(repository.createCalls, 0);
-    expect(container.read(provider).hasError, isTrue);
-  });
-
-  test('existing local request still resumes while new creation is disabled', () async {
-    final now = DateTime.utc(2026, 8, 29);
-    final repository = _GenerationRepository(
-      PrayerGenerationRequest(
-        id: 'legacy-request',
-        ownerId: 'owner-1',
-        style: PrayerStyle.daily,
-        reach: PrayerReach.personal,
-        grounding: PrayerGrounding.generalChristian,
-        purpose: PrayerPurpose.guidance,
-        requestText: 'Help me receive and use wisdom today.',
-        status: PrayerGenerationStatus.editing,
-        attemptCount: 0,
-        contexts: const [],
-        createdAt: now,
-        updatedAt: now,
-      ),
-    );
-    final container = ProviderContainer(
-      overrides: [
-        prayerGenerationRepositoryProvider.overrideWith(
-          (ref) async => repository,
-        ),
-        prayerRequestCreationEnabledProvider.overrideWithValue(false),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final state = await container.read(
-      personalizedPrayerControllerProvider('legacy-request').future,
-    );
-
-    expect(state.request?.id, 'legacy-request');
-    expect(state.step, PersonalizedPrayerStep.context);
-    expect(repository.createCalls, 0);
-  });
+      expect(state.request?.id, 'legacy-request');
+      expect(state.step, PersonalizedPrayerStep.context);
+      expect(repository.createCalls, 0);
+    },
+  );
 }
 
 class _GenerationRepository implements PrayerGenerationRepository {
