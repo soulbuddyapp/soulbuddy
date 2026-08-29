@@ -73,11 +73,27 @@ void main() {
       'category',
       'description',
       'visibility',
+      'status',
       'provider',
       'open_url',
     });
+    expect(payload?['status'], 'active');
     expect(payload, isNot(contains('message')));
     expect(payload, isNot(contains('body')));
+  });
+
+  test('draft creation serializes an explicit draft lifecycle state', () {
+    final payload = CircleDraft(
+      name: 'Walk together',
+      category: CircleCategory.accountability,
+      description: 'Honest accountability and prayer.',
+      visibility: CircleVisibility.public,
+      provider: CircleProvider.telegram,
+      openUri: Uri.parse('https://t.me/+soulbuddy-test'),
+      status: CircleStatus.draft,
+    ).toJson();
+
+    expect(payload['status'], 'draft');
   });
 
   test(
@@ -129,6 +145,26 @@ void main() {
         repository.get('circle-1'),
         throwsA(isA<CircleDirectoryUnavailable>()),
         reason: unsafeUrl,
+      );
+    }
+  });
+
+  test('rejects malformed directory booleans and timestamps uniformly', () async {
+    for (final malformed in [
+      {..._circleJson(), 'is_owner': 'yes'},
+      {..._circleJson(), 'directory_listed': 1},
+      {..._circleJson(), 'updated_at': 123},
+      {..._circleJson(), 'updated_at': 'not-a-date'},
+    ]) {
+      final repository = LaravelCircleDirectoryRepository(
+        apiBaseUri: Uri.parse('https://sbuddy.example'),
+        tokenReader: () async => 'session-token',
+        client: MockClient((_) async => http.Response(jsonEncode(malformed), 200)),
+      );
+
+      await expectLater(
+        repository.get('circle-1'),
+        throwsA(isA<CircleDirectoryUnavailable>()),
       );
     }
   });
