@@ -56,6 +56,7 @@ class GoalTodayResourceAdapter {
   GoalTodayResourceProjection project({
     required List<GoalLink> activeGoalLinks,
     required List<DuePrayerOccurrence> duePrayerOccurrences,
+    Map<PrayerReference, String> prayerTitles = const {},
     TodayPrayer? legacyToday,
   }) {
     final links = activeGoalLinks
@@ -138,6 +139,8 @@ class GoalTodayResourceAdapter {
 
     // Generic links come last so an existing Today selection wins within the
     // same prayer tier, while a due reminder still wins through explicit rank.
+    // Titles are optional display metadata: an unavailable title must never
+    // hide an otherwise valid linked prayer from an offline Goal.
     for (final link in links) {
       final prayer = _prayerReference(link);
       if (prayer != null) {
@@ -149,7 +152,10 @@ class GoalTodayResourceAdapter {
             stableKey: stableKey,
             dedupeKey: _prayerDedupeKey(prayer),
             kind: GoalTodayResourceKind.prayer,
-            label: 'Prayer',
+            label: _nonEmptyLabel(
+              prayerTitles[prayer] ?? '',
+              fallback: 'Prayer',
+            ),
           ),
           GoalTodayLinkedPrayerHandle(link, prayer),
         );

@@ -12,7 +12,7 @@ void main() {
   const adapter = GoalTodayResourceAdapter();
   const composer = GoalTodayComposer();
 
-  test('projects linked prayers and Scripture with typed handles', () {
+  test('projects linked prayer titles and Scripture with typed handles', () {
     final personal = _personalPrayerLink('personal-link', 'goal-1', 'prayer-1');
     final library = _libraryPrayerLink('library-link', 'goal-1', 'library-1');
     final scripture = _scriptureLink(
@@ -27,6 +27,10 @@ void main() {
     final projection = adapter.project(
       activeGoalLinks: [personal, library, scripture],
       duePrayerOccurrences: const [],
+      prayerTitles: const {
+        PrayerReference.personal('prayer-1'): 'My evening prayer',
+        PrayerReference.library('library-1'): 'Prayer for wisdom',
+      },
     );
 
     expect(projection.candidates, hasLength(3));
@@ -35,7 +39,11 @@ void main() {
       GoalTodayResourceKind.prayer,
       GoalTodayResourceKind.scripture,
     ]);
-    expect(projection.candidates.last.label, 'James 1:5-6');
+    expect(projection.candidates.map((candidate) => candidate.label), [
+      'My evening prayer',
+      'Prayer for wisdom',
+      'James 1:5-6',
+    ]);
     expect(
       projection.handlesByStableKey.values
           .whereType<GoalTodayLinkedPrayerHandle>(),
@@ -48,12 +56,27 @@ void main() {
     );
   });
 
+  test('missing prayer title stays visible with neutral fallback', () {
+    final projection = adapter.project(
+      activeGoalLinks: [
+        _personalPrayerLink('link-1', 'goal-1', 'prayer-1'),
+      ],
+      duePrayerOccurrences: const [],
+    );
+
+    expect(projection.candidates, hasLength(1));
+    expect(projection.candidates.single.label, 'Prayer');
+  });
+
   test('due reminder replaces generic copy of its linked personal prayer', () {
     final link = _personalPrayerLink('link-1', 'goal-1', 'prayer-1');
     final reminder = _dueReminder('prayer-1');
     final projection = adapter.project(
       activeGoalLinks: [link],
       duePrayerOccurrences: [reminder],
+      prayerTitles: const {
+        PrayerReference.personal('prayer-1'): 'Saved prayer title',
+      },
     );
 
     final sections = composer.compose(
@@ -66,6 +89,7 @@ void main() {
     expect(sections.single.items, hasLength(1));
     final selected = sections.single.items.single as GoalTodayResourceItem;
     expect(selected.resource.kind, GoalTodayResourceKind.reminder);
+    expect(selected.resource.label, 'Morning prayer');
     expect(projection.handleFor(selected), isA<GoalTodayReminderHandle>());
     expect(
       (projection.handleFor(selected)! as GoalTodayReminderHandle)
@@ -84,6 +108,9 @@ void main() {
       final projection = adapter.project(
         activeGoalLinks: [link],
         duePrayerOccurrences: const [],
+        prayerTitles: const {
+          PrayerReference.library('library-1'): 'Generic saved title',
+        },
         legacyToday: today,
       );
 
@@ -100,6 +127,7 @@ void main() {
               as GoalTodayResourceItem;
 
       final handle = projection.handleFor(selected);
+      expect(selected.resource.label, 'Prayer for today');
       expect(handle, isA<GoalTodayLegacyPrayerHandle>());
       expect((handle! as GoalTodayLegacyPrayerHandle).today, same(today));
       expect(projection.legacyTodayOutsideActiveGoals, isNull);
