@@ -5,14 +5,23 @@ on:
     paths:
       - '.github/workflows/editorial-content.yml'
       - 'apps/soulbuddy/assets/content/editorial_manifest.json'
+      - 'apps/soulbuddy/lib/app/router.dart'
+      - 'apps/soulbuddy/lib/core/config/app_config.dart'
       - 'apps/soulbuddy/lib/core/database/app_database.dart'
       - 'apps/soulbuddy/lib/features/editorial/**'
       - 'apps/soulbuddy/lib/features/goals/providers/goal_onboarding_providers.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/prayer_create_screen.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/prayer_library_intro.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/prayers_screen.dart'
+      - 'apps/soulbuddy/lib/features/prayers/providers/personal_prayer_providers.dart'
       - 'apps/soulbuddy/lib/features/prayers/providers/prayer_providers.dart'
       - 'apps/soulbuddy/test/features/editorial/**'
       - 'apps/soulbuddy/test/features/goals/first_goal_editorial_prayer_provider_test.dart'
       - 'apps/soulbuddy/test/features/goals/first_goal_screen_test.dart'
+      - 'apps/soulbuddy/test/features/goals/router_configuration_test.dart'
       - 'apps/soulbuddy/test/features/prayers/bundled_prayer_importer_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/prayer_create_screen_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/prayer_request_creation_kill_switch_test.dart'
       - 'apps/soulbuddy/test/features/prayers/prayer_repository_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
@@ -23,14 +32,23 @@ on:
     paths:
       - '.github/workflows/editorial-content.yml'
       - 'apps/soulbuddy/assets/content/editorial_manifest.json'
+      - 'apps/soulbuddy/lib/app/router.dart'
+      - 'apps/soulbuddy/lib/core/config/app_config.dart'
       - 'apps/soulbuddy/lib/core/database/app_database.dart'
       - 'apps/soulbuddy/lib/features/editorial/**'
       - 'apps/soulbuddy/lib/features/goals/providers/goal_onboarding_providers.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/prayer_create_screen.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/prayer_library_intro.dart'
+      - 'apps/soulbuddy/lib/features/prayers/presentation/prayers_screen.dart'
+      - 'apps/soulbuddy/lib/features/prayers/providers/personal_prayer_providers.dart'
       - 'apps/soulbuddy/lib/features/prayers/providers/prayer_providers.dart'
       - 'apps/soulbuddy/test/features/editorial/**'
       - 'apps/soulbuddy/test/features/goals/first_goal_editorial_prayer_provider_test.dart'
       - 'apps/soulbuddy/test/features/goals/first_goal_screen_test.dart'
+      - 'apps/soulbuddy/test/features/goals/router_configuration_test.dart'
       - 'apps/soulbuddy/test/features/prayers/bundled_prayer_importer_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/prayer_create_screen_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/prayer_request_creation_kill_switch_test.dart'
       - 'apps/soulbuddy/test/features/prayers/prayer_repository_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
@@ -79,15 +97,15 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dart format lib/core/database/app_database.dart lib/features/editorial lib/features/goals/providers/goal_onboarding_providers.dart lib/features/prayers/providers/prayer_providers.dart test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart
+          dart format lib/app/router.dart lib/core/config/app_config.dart lib/core/database/app_database.dart lib/features/editorial lib/features/goals/providers/goal_onboarding_providers.dart lib/features/prayers/presentation/prayer_create_screen.dart lib/features/prayers/presentation/prayer_library_intro.dart lib/features/prayers/presentation/prayers_screen.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/prayers/providers/prayer_providers.dart test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart test/features/goals/router_configuration_test.dart test/features/prayers/prayer_create_screen_test.dart test/features/prayers/prayer_request_creation_kill_switch_test.dart
           git diff --check
-          git diff --exit-code -- lib/core/database/app_database.dart lib/features/editorial lib/features/goals/providers/goal_onboarding_providers.dart lib/features/prayers/providers/prayer_providers.dart test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart
+          git diff --exit-code -- lib/app/router.dart lib/core/config/app_config.dart lib/core/database/app_database.dart lib/features/editorial lib/features/goals/providers/goal_onboarding_providers.dart lib/features/prayers/presentation/prayer_create_screen.dart lib/features/prayers/presentation/prayer_library_intro.dart lib/features/prayers/presentation/prayers_screen.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/prayers/providers/prayer_providers.dart test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart test/features/goals/router_configuration_test.dart test/features/prayers/prayer_create_screen_test.dart test/features/prayers/prayer_request_creation_kill_switch_test.dart
 
       - name: Analyze editorial content boundary
-        run: flutter analyze --fatal-infos lib/features/editorial lib/features/prayers/providers/prayer_providers.dart lib/features/goals/providers/goal_onboarding_providers.dart lib/core/database/app_database.dart
+        run: flutter analyze --fatal-infos lib/features/editorial lib/features/prayers/presentation/prayer_create_screen.dart lib/features/prayers/presentation/prayer_library_intro.dart lib/features/prayers/presentation/prayers_screen.dart lib/features/prayers/providers/prayer_providers.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/goals/providers/goal_onboarding_providers.dart lib/core/config/app_config.dart lib/core/database/app_database.dart lib/app/router.dart
 
       - name: Run editorial and compatibility tests
-        run: flutter test test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart test/features/goals/first_goal_screen_test.dart test/features/prayers/bundled_prayer_importer_test.dart test/features/prayers/prayer_repository_test.dart
+        run: flutter test test/features/editorial test/features/goals/first_goal_editorial_prayer_provider_test.dart test/features/goals/first_goal_screen_test.dart test/features/goals/router_configuration_test.dart test/features/prayers/bundled_prayer_importer_test.dart test/features/prayers/prayer_create_screen_test.dart test/features/prayers/prayer_request_creation_kill_switch_test.dart test/features/prayers/prayer_repository_test.dart
 
       - name: Fail on committed formatting drift
         if: always() && steps.dart-format.outcome == 'failure'
