@@ -27,6 +27,16 @@ on:
       - 'apps/soulbuddy/test/features/prayers/prayer_repository_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
+      - 'services/api/app/Domain/PrayerDrafts/**'
+      - 'services/api/app/Http/Controllers/Api/PrayerDraft*.php'
+      - 'services/api/app/Http/Requests/GeneratePrayerDraftRequest.php'
+      - 'services/api/app/Providers/AppServiceProvider.php'
+      - 'services/api/config/services.php'
+      - 'services/api/routes/api.php'
+      - 'services/api/tests/Architecture/SyntheticSpiritualContentTest.php'
+      - 'services/api/tests/Feature/PrayerDraft/**'
+      - 'services/api/composer.json'
+      - 'services/api/composer.lock'
   push:
     branches:
       - main
@@ -56,6 +66,16 @@ on:
       - 'apps/soulbuddy/test/features/prayers/prayer_repository_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
+      - 'services/api/app/Domain/PrayerDrafts/**'
+      - 'services/api/app/Http/Controllers/Api/PrayerDraft*.php'
+      - 'services/api/app/Http/Requests/GeneratePrayerDraftRequest.php'
+      - 'services/api/app/Providers/AppServiceProvider.php'
+      - 'services/api/config/services.php'
+      - 'services/api/routes/api.php'
+      - 'services/api/tests/Architecture/SyntheticSpiritualContentTest.php'
+      - 'services/api/tests/Feature/PrayerDraft/**'
+      - 'services/api/composer.json'
+      - 'services/api/composer.lock'
   workflow_dispatch:
 
 permissions:
@@ -115,3 +135,49 @@ jobs:
         if: always() && steps.dart-format.outcome == 'failure'
         shell: pwsh
         run: exit 1
+
+  laravel-editorial-retirement:
+    name: Laravel editorial retirement
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Locate Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php84-${{ hashFiles('services/api/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php84-
+
+      - name: Install Laravel dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Check retirement PHP style
+        run: ./vendor/bin/pint --test app/Providers/AppServiceProvider.php config/services.php routes/api.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft
+
+      - name: Run server synthetic-content retirement tests
+        run: php artisan test tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft
