@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PrayerLibraryIntro extends StatelessWidget {
-  const PrayerLibraryIntro({required this.onPersonalized, super.key});
+  const PrayerLibraryIntro({required this.onForThisMoment, super.key});
 
-  final VoidCallback onPersonalized;
+  final VoidCallback onForThisMoment;
 
   @override
   Widget build(BuildContext context) {
@@ -23,18 +23,20 @@ class PrayerLibraryIntro extends StatelessWidget {
             ),
           ),
           ButtonSegment(
-            value: _PrayerPath.personalized,
+            value: _PrayerPath.forThisMoment,
             icon: largeText ? null : const Icon(Icons.edit_outlined),
             label: const SizedBox(
-              key: Key('personalized-choice'),
+              key: Key('for-this-moment-choice'),
               height: 48,
-              child: Center(child: Text('Personalized')),
+              child: Center(child: Text('For this moment')),
             ),
           ),
         ],
         selected: const {_PrayerPath.library},
         onSelectionChanged: (selection) {
-          if (selection.contains(_PrayerPath.personalized)) onPersonalized();
+          if (selection.contains(_PrayerPath.forThisMoment)) {
+            onForThisMoment();
+          }
         },
         style: const ButtonStyle(
           minimumSize: WidgetStatePropertyAll(Size(0, 48)),
@@ -44,4 +46,4 @@ class PrayerLibraryIntro extends StatelessWidget {
   }
 }
 
-enum _PrayerPath { library, personalized }
+enum _PrayerPath { library, forThisMoment }
