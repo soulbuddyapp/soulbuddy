@@ -17,7 +17,8 @@ enum EditorialContentKind {
 
   static EditorialContentKind fromWire(String value) => values.firstWhere(
     (kind) => kind.wireValue == value,
-    orElse: () => throw FormatException('Unknown editorial content kind: $value'),
+    orElse: () =>
+        throw FormatException('Unknown editorial content kind: $value'),
   );
 }
 
@@ -31,7 +32,8 @@ enum EditorialReviewState {
 
   static EditorialReviewState fromWire(String value) => values.firstWhere(
     (state) => state.wireValue == value,
-    orElse: () => throw FormatException('Unknown editorial review state: $value'),
+    orElse: () =>
+        throw FormatException('Unknown editorial review state: $value'),
   );
 }
 
