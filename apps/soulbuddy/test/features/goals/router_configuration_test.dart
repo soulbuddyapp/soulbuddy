@@ -37,7 +37,10 @@ void main() {
 
     expect(find.text('Prayer not found'), findsOneWidget);
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, 1);
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      1,
+    );
     expect(find.text('Goals'), findsOneWidget);
     expect(find.text('Today'), findsOneWidget);
     expect(tester.takeException(), isNull);
