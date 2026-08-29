@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
+import '../../editorial/data/bundled_editorial_importer.dart';
+import '../../editorial/data/editorial_prayer_repository.dart';
+import '../../editorial/data/powersync_editorial_prayer_repository.dart';
 import '../data/bundled_prayer_importer.dart';
 import '../data/powersync_prayer_repository.dart';
 import '../data/prayer_repository.dart';
@@ -98,16 +101,29 @@ class _PrayerAppLifecycleObserver extends WidgetsBindingObserver {
   }
 }
 
+final prayerContentBootstrapProvider = FutureProvider<void>((ref) async {
+  final database = await ref.watch(appDatabaseProvider.future);
+  await BundledPrayerImporter().ensureLoaded(database.powersync);
+  await BundledEditorialImporter().ensureLoaded(database.powersync);
+});
+
 final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
   final database = await ref.watch(appDatabaseProvider.future);
   final identity = await ref.watch(localIdentityProvider.future);
-  await BundledPrayerImporter().ensureLoaded(database.powersync);
+  await ref.watch(prayerContentBootstrapProvider.future);
 
   return PowerSyncPrayerRepository(
     database: database.powersync,
     ownerId: identity.ownerId,
   );
 });
+
+final editorialPrayerRepositoryProvider =
+    FutureProvider<EditorialPrayerRepository>((ref) async {
+      final database = await ref.watch(appDatabaseProvider.future);
+      await ref.watch(prayerContentBootstrapProvider.future);
+      return PowerSyncEditorialPrayerRepository(database: database.powersync);
+    });
 
 final prayerLibraryProvider = StreamProvider.autoDispose
     .family<List<LibraryPrayer>, PrayerLibraryFilter>((ref, filter) async* {
@@ -165,5 +181,7 @@ void _invalidatePrayerStartup(WidgetRef ref) {
   if (identityState.hasError) {
     ref.invalidate(localIdentityProvider);
   }
+  ref.invalidate(prayerContentBootstrapProvider);
   ref.invalidate(prayerRepositoryProvider);
+  ref.invalidate(editorialPrayerRepositoryProvider);
 }
