@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../onboarding/presentation/first_prayer_choice_page.dart';
 import '../../onboarding/presentation/first_prayer_speech_page.dart';
+import '../../scripture/presentation/scripture_picker_sheet.dart';
 import '../application/goal_starter_content.dart';
 import '../domain/goal.dart';
 import '../domain/goal_onboarding_progress.dart';
@@ -260,6 +261,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       return const _GoalMessage('This Goal needs a starting point.');
     }
     final prayers = ref.watch(firstGoalPrayerOptionsProvider(starterKey));
+    final scriptureReference = _scriptureReference(progress);
     return SafeArea(
       top: false,
       child: ListView(
@@ -277,7 +279,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Choose a prepared prayer or use your own words.',
+                    'Choose a prepared prayer, Scripture, or use your own words.',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -287,7 +289,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (_, _) => const Text(
-                      'Prepared prayers are unavailable just now. Your own words remain available.',
+                      'Prepared prayers are unavailable just now. Scripture and your own words remain available.',
                     ),
                     data: (items) => Column(
                       children: [
@@ -296,6 +298,11 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                             child: ListTile(
                               key: Key('first-goal-prayer-${prayer.id}'),
                               title: Text(prayer.title),
+                              subtitle: Text(
+                                prayer.body,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                               trailing:
                                   progress.prayerSource ==
                                           GoalOnboardingPrayerSource
@@ -315,6 +322,29 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                       ],
                     ),
                   ),
+                  if (scriptureReference != null) ...[
+                    Card(
+                      child: ListTile(
+                        key: const Key('first-goal-scripture-selection'),
+                        leading: const Icon(Icons.menu_book_outlined),
+                        title: Text(scriptureReference),
+                        subtitle: Text(progress.scriptureTranslation!),
+                        trailing: const Icon(Icons.check_circle_outline),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                  OutlinedButton.icon(
+                    key: const Key('first-goal-scripture'),
+                    onPressed: _saving ? null : _chooseScripture,
+                    icon: const Icon(Icons.menu_book_outlined),
+                    label: Text(
+                      scriptureReference == null
+                          ? 'Choose Scripture'
+                          : 'Change Scripture',
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                   OutlinedButton.icon(
                     key: const Key('first-goal-own-prayer'),
                     onPressed: () => setState(() => _writingPrayer = true),
@@ -341,6 +371,34 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _chooseScripture() async {
+    final selection = await showScripturePicker(context);
+    if (selection == null || !mounted) return;
+    await ref
+        .read(goalOnboardingControllerProvider.notifier)
+        .chooseScripture(
+          translation: selection.translation,
+          book: selection.book,
+          chapter: selection.chapter,
+          firstVerse: selection.firstVerse,
+          lastVerse: selection.lastVerse,
+        );
+  }
+
+  String? _scriptureReference(GoalOnboardingProgress progress) {
+    if (progress.prayerSource != GoalOnboardingPrayerSource.scripture ||
+        progress.scriptureBook == null ||
+        progress.scriptureChapter == null ||
+        progress.scriptureFirstVerse == null ||
+        progress.scriptureLastVerse == null) {
+      return null;
+    }
+    final verses = progress.scriptureFirstVerse == progress.scriptureLastVerse
+        ? '${progress.scriptureFirstVerse}'
+        : '${progress.scriptureFirstVerse}-${progress.scriptureLastVerse}';
+    return '${progress.scriptureBook} ${progress.scriptureChapter}:$verses';
   }
 
   bool _canGoBack(GoalOnboardingProgress progress) {
