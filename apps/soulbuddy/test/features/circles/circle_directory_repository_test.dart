@@ -79,27 +79,30 @@ void main() {
     expect(payload, isNot(contains('body')));
   });
 
-  test('missing session and forbidden records fail without exposing response bodies', () async {
-    final noSession = LaravelCircleDirectoryRepository(
-      apiBaseUri: Uri.parse('https://sbuddy.example'),
-      tokenReader: () async => null,
-      client: MockClient((_) async => http.Response('{}', 200)),
-    );
-    expect(
-      () => noSession.discover(const CircleDiscoveryQuery()),
-      throwsA(isA<CircleDirectoryUnavailable>()),
-    );
+  test(
+    'missing session and forbidden records fail without exposing response bodies',
+    () async {
+      final noSession = LaravelCircleDirectoryRepository(
+        apiBaseUri: Uri.parse('https://sbuddy.example'),
+        tokenReader: () async => null,
+        client: MockClient((_) async => http.Response('{}', 200)),
+      );
+      await expectLater(
+        noSession.discover(const CircleDiscoveryQuery()),
+        throwsA(isA<CircleDirectoryUnavailable>()),
+      );
 
-    final forbidden = LaravelCircleDirectoryRepository(
-      apiBaseUri: Uri.parse('https://sbuddy.example'),
-      tokenReader: () async => 'token',
-      client: MockClient((_) async => http.Response('private text', 403)),
-    );
-    expect(
-      () => forbidden.get('circle-1'),
-      throwsA(isA<CircleDirectoryForbidden>()),
-    );
-  });
+      final forbidden = LaravelCircleDirectoryRepository(
+        apiBaseUri: Uri.parse('https://sbuddy.example'),
+        tokenReader: () async => 'token',
+        client: MockClient((_) async => http.Response('private text', 403)),
+      );
+      await expectLater(
+        forbidden.get('circle-1'),
+        throwsA(isA<CircleDirectoryForbidden>()),
+      );
+    },
+  );
 }
 
 Map<String, dynamic> _circleJson() => {
