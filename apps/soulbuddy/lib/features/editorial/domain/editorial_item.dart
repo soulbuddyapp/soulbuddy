@@ -78,13 +78,16 @@ class EditorialItem {
       provenance: row['provenance'] as String,
       sourceRef: row['source_ref'] as String,
       reviewState: EditorialReviewState.fromWire(row['review_state'] as String),
-      reviewedOn: DateTime.parse(row['reviewed_on'] as String).toUtc(),
+      reviewedOn: _reviewDate(row['reviewed_on'] as String),
       publishedAt: _optionalDateTime(row['published_at'] as String?),
       archivedAt: _optionalDateTime(row['archived_at'] as String?),
       tags: List.unmodifiable(decodedTags.cast<String>()),
     );
   }
 }
+
+DateTime _reviewDate(String value) =>
+    DateTime.parse('${value}T00:00:00.000Z').toUtc();
 
 DateTime? _optionalDateTime(String? value) =>
     value == null ? null : DateTime.parse(value).toUtc();
