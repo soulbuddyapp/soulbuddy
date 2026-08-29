@@ -24,7 +24,7 @@ class UpdateCircleRequest extends FormRequest
             'category' => ['sometimes', 'required', Rule::in(['accountability', 'daily_exhortation', 'bible_study'])],
             'description' => ['sometimes', 'required', 'string', 'max:280'],
             'visibility' => ['sometimes', 'required', Rule::in(['public', 'unlisted', 'private'])],
-            'status' => ['sometimes', 'required', Rule::in(['active', 'paused', 'archived'])],
+            'status' => ['sometimes', 'required', Rule::in(['draft', 'active', 'paused', 'archived'])],
             'provider' => ['sometimes', 'required_with:open_url', Rule::in(['telegram', 'whatsapp_link'])],
             'open_url' => ['sometimes', 'required_with:provider', 'string', 'max:2048'],
         ];
