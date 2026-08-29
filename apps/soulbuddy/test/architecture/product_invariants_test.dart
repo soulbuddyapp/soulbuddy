@@ -43,56 +43,74 @@ void main() {
       expect(router, contains("path: 'saved/:prayerId'"));
     });
 
-    test('retired prayer generation cannot be re-enabled by client config', () {
+    test('client config exposes no prayer-generation capability', () {
       final config = File('lib/core/config/app_config.dart').readAsStringSync();
 
-      expect(config, contains('prayerGenerationEnabled = false'));
-      expect(config, contains('prayerRequestCreationEnabled = false'));
-      expect(config, isNot(contains('SOULBUDDY_PRAYER_GENERATION_ENABLED')));
-      expect(
-        config,
-        isNot(contains('SOULBUDDY_PRAYER_REQUEST_CREATION_ENABLED')),
-      );
+      for (final marker in const [
+        'prayerGenerationEnabled',
+        'prayerRequestCreationEnabled',
+        'prayerDraftProvider',
+        'prayerDraftDisclosureVersion',
+        'SOULBUDDY_PRAYER_GENERATION_ENABLED',
+        'SOULBUDDY_PRAYER_REQUEST_CREATION_ENABLED',
+        'SOULBUDDY_PRAYER_DRAFT_PROVIDER',
+        'SOULBUDDY_PRAYER_DRAFT_DISCLOSURE_VERSION',
+        'deepseek',
+      ]) {
+        expect(config, isNot(contains(marker)));
+      }
     });
 
     test('historical generation storage is read-only in production', () {
-      final repository = File(
+      final contract = File(
+        'lib/features/prayers/data/prayer_generation_repository.dart',
+      ).readAsStringSync();
+      final archive = File(
         'lib/features/prayers/data/powersync_prayer_generation_repository.dart',
       ).readAsStringSync();
+      final personal = File(
+        'lib/features/prayers/data/powersync_personal_prayer_repository.dart',
+      ).readAsStringSync();
 
-      expect(repository, contains('watch(String id)'));
-      expect(repository, contains('watchPending() =>'));
-      expect(repository, contains('throw _retired()'));
+      expect(contract, contains('watch(String id)'));
+      for (final marker in const [
+        'create(',
+        'update(',
+        'replaceContexts(',
+        'queue(',
+        'claim(',
+        'storeDraft(',
+        'defer(',
+        'requireAttention(',
+        'watchPending(',
+      ]) {
+        expect(contract, isNot(contains(marker)));
+      }
+      expect(archive, contains('watch(String id)'));
+      expect(archive, isNot(contains('INSERT INTO prayer_generation_requests')));
+      expect(archive, isNot(contains('UPDATE prayer_generation_requests')));
+      expect(archive, isNot(contains('DELETE FROM prayer_generation_contexts')));
       expect(
-        repository,
-        isNot(contains('INSERT INTO prayer_generation_requests')),
-      );
-      expect(
-        repository,
+        personal,
         isNot(contains('UPDATE prayer_generation_requests')),
-      );
-      expect(
-        repository,
-        isNot(contains('DELETE FROM prayer_generation_contexts')),
+        reason:
+            'Accepting a historical draft must not mutate the retired archive.',
       );
     });
 
-    test('SyntheticSpiritualContent legacy runtime boundary does not expand', () {
+    test('client synthetic spiritual generation runtime is absent', () {
       const markers = [
         'PrayerDraftApi',
+        'LaravelPrayerDraftApi',
         'PrayerGenerationDispatcher',
+        'PrayerGenerationWorker',
         'prayerDraftProvider',
         'prayerGenerationWorkerProvider',
+        'prayerGenerationEnabled',
+        'prayerRequestCreationEnabled',
+        'SOULBUDDY_PRAYER_DRAFT_',
+        'deepseek',
       ];
-      const allowed = {
-        'lib/core/config/app_config.dart',
-        'lib/features/onboarding/providers/first_prayer_providers.dart',
-        'lib/features/prayers/application/prayer_generation_dispatcher.dart',
-        'lib/features/prayers/application/prayer_generation_worker.dart',
-        'lib/features/prayers/data/laravel_prayer_draft_api.dart',
-        'lib/features/prayers/data/prayer_draft_api.dart',
-        'lib/features/prayers/providers/personal_prayer_providers.dart',
-      };
 
       final found = <String>{};
       for (final entity in Directory(
@@ -106,10 +124,10 @@ void main() {
 
       expect(
         found,
-        equals(allowed),
+        isEmpty,
         reason:
-            'Runtime prayer generation is frozen legacy surface. New spiritual '
-            'copy paths must use Scripture, reviewed content, or user words.',
+            'Spiritual copy paths must use Scripture, reviewed content, or '
+            'the user\'s own words; client generation runtime is retired.',
       );
     });
   });
