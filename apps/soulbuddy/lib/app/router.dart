@@ -14,7 +14,7 @@ import '../features/circles/presentation/circles_screen.dart';
 import '../features/goals/presentation/first_goal_screen.dart';
 import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
-import '../features/onboarding/presentation/first_prayer_screen.dart';
+import '../features/onboarding/presentation/legacy_first_prayer_migration_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/personalized_prayer_screen.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
@@ -38,7 +38,7 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/welcome/prayer',
-      builder: (context, state) => const FirstPrayerScreen(),
+      builder: (context, state) => const LegacyFirstPrayerMigrationScreen(),
     ),
     GoRoute(
       path: '/settings',
