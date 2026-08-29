@@ -2,6 +2,8 @@ name: Onboarding and Goals
 
 on:
   pull_request:
+    branches:
+      - main
     paths:
       - '.github/workflows/onboarding-goals.yml'
       - 'apps/soulbuddy/lib/app/**'
@@ -42,7 +44,6 @@ on:
   push:
     branches:
       - main
-      - 'agent/**'
     paths:
       - '.github/workflows/onboarding-goals.yml'
       - 'apps/soulbuddy/lib/app/**'
