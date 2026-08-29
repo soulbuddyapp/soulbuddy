@@ -52,8 +52,7 @@ class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
     if (saved != null) {
       final normalized = GoalOnboardingFlow.normalizeForResume(saved);
       if (normalized.stage != saved.stage ||
-          normalized.alcoholCareAcknowledged !=
-              saved.alcoholCareAcknowledged) {
+          normalized.alcoholCareAcknowledged != saved.alcoholCareAcknowledged) {
         await repository.save(normalized);
       }
       return normalized;
