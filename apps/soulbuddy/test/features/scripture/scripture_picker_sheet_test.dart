@@ -8,67 +8,92 @@ import 'package:soulbuddy/features/scripture/presentation/scripture_picker_sheet
 import 'package:soulbuddy/features/scripture/providers/scripture_providers.dart';
 
 void main() {
-  testWidgets('picker returns Scripture and fits a small phone at 200 percent', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(320, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    ScriptureSelection? selected;
+  testWidgets(
+    'picker returns Scripture and fits a small phone at 200 percent',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      ScriptureSelection? selected;
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          scriptureRepositoryProvider.overrideWithValue(
-            const _FakeScriptureRepository(),
-          ),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: const TextScaler.linear(2),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            scriptureRepositoryProvider.overrideWithValue(
+              const _FakeScriptureRepository(),
             ),
-            child: child!,
-          ),
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => Center(
-                child: FilledButton(
-                  key: const Key('open-scripture-picker'),
-                  onPressed: () async {
-                    selected = await showScripturePicker(context);
-                  },
-                  child: const Text('Choose Scripture'),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Center(
+                  child: FilledButton(
+                    key: const Key('open-scripture-picker'),
+                    onPressed: () async {
+                      selected = await showScripturePicker(context);
+                    },
+                    child: const Text('Choose Scripture'),
+                  ),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.byKey(const Key('open-scripture-picker')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-scripture-picker')));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('scripture-picker-book')), findsOneWidget);
-    expect(find.byKey(const Key('scripture-picker-chapter')), findsOneWidget);
-    expect(
-      find.byKey(const Key('scripture-picker-first-verse')),
-      findsOneWidget,
-    );
-    expect(find.text('1  Ask God for wisdom.'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('scripture-picker-book')), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
-    await tester.ensureVisible(find.byKey(const Key('scripture-picker-choose')));
-    await tester.tap(find.byKey(const Key('scripture-picker-choose')));
-    await tester.pumpAndSettle();
+      final sheetScroll = find.byType(Scrollable).last;
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('scripture-picker-chapter')),
+        180,
+        scrollable: sheetScroll,
+      );
+      expect(find.byKey(const Key('scripture-picker-chapter')), findsOneWidget);
 
-    expect(selected, isNotNull);
-    expect(selected!.translation, 'RSVCE');
-    expect(selected!.reference, 'James 1:1');
-    expect(selected!.passage.verses.single.text, 'Ask God for wisdom.');
-    expect(tester.takeException(), isNull);
-  });
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('scripture-picker-first-verse')),
+        180,
+        scrollable: sheetScroll,
+      );
+      expect(
+        find.byKey(const Key('scripture-picker-first-verse')),
+        findsOneWidget,
+      );
+
+      await tester.scrollUntilVisible(
+        find.text('1  Ask God for wisdom.'),
+        180,
+        scrollable: sheetScroll,
+      );
+      expect(find.text('1  Ask God for wisdom.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('scripture-picker-choose')),
+        180,
+        scrollable: sheetScroll,
+      );
+      await tester.tap(find.byKey(const Key('scripture-picker-choose')));
+      await tester.pumpAndSettle();
+
+      expect(selected, isNotNull);
+      expect(selected!.translation, 'RSVCE');
+      expect(selected!.reference, 'James 1:1');
+      expect(selected!.passage.verses.single.text, 'Ask God for wisdom.');
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _FakeScriptureRepository implements ScriptureRepository {
@@ -104,8 +129,7 @@ class _FakeScriptureRepository implements ScriptureRepository {
       reference: '$book $chapter:$firstVerse',
       verses: source.verses
           .where(
-            (verse) =>
-                verse.number >= firstVerse && verse.number <= lastVerse,
+            (verse) => verse.number >= firstVerse && verse.number <= lastVerse,
           )
           .toList(growable: false),
     );
