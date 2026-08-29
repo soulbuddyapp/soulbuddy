@@ -59,7 +59,7 @@ void main() {
       }),
     );
 
-    const draft = CircleDraft(
+    final draft = CircleDraft(
       creationKey: creationKey,
       name: 'Walk together',
       category: CircleCategory.accountability,
@@ -88,7 +88,7 @@ void main() {
   });
 
   test('draft creation serializes an explicit draft lifecycle state', () {
-    const draft = CircleDraft(
+    final draft = CircleDraft(
       creationKey: creationKey,
       name: 'Walk together',
       category: CircleCategory.accountability,
