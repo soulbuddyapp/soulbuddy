@@ -28,6 +28,9 @@ void main() {
           activeGoalTodayLinksProvider.overrideWith(
             (ref) => Stream.value(const <GoalLink>[]),
           ),
+          activeGoalPrayerTitlesProvider.overrideWith(
+            (ref) => Stream.value(const <PrayerReference, String>{}),
+          ),
           dueGoalActionsProvider.overrideWith(
             (ref, localDate) => Stream.value([
               _occurrence(_action('action-1', goal.id), localDate),
@@ -68,6 +71,9 @@ void main() {
           activeGoalTodayLinksProvider.overrideWith(
             (ref) => Stream.value(const <GoalLink>[]),
           ),
+          activeGoalPrayerTitlesProvider.overrideWith(
+            (ref) => Stream.value(const <PrayerReference, String>{}),
+          ),
           dueGoalActionsProvider.overrideWith(
             (ref, localDate) => Stream.value(const <GoalActionOccurrence>[]),
           ),
@@ -102,6 +108,9 @@ void main() {
           ),
           activeGoalTodayLinksProvider.overrideWith(
             (ref) => Stream.error(StateError('links unavailable')),
+          ),
+          activeGoalPrayerTitlesProvider.overrideWith(
+            (ref) => Stream.value(const <PrayerReference, String>{}),
           ),
           duePrayerOccurrencesProvider.overrideWith(
             (ref) => Stream.value(const []),

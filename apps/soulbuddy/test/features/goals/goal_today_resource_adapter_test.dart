@@ -27,9 +27,9 @@ void main() {
     final projection = adapter.project(
       activeGoalLinks: [personal, library, scripture],
       duePrayerOccurrences: const [],
-      prayerTitles: const {
-        PrayerReference.personal('prayer-1'): 'My evening prayer',
-        PrayerReference.library('library-1'): 'Prayer for wisdom',
+      prayerTitles: {
+        const PrayerReference.personal('prayer-1'): 'My evening prayer',
+        const PrayerReference.library('library-1'): 'Prayer for wisdom',
       },
     );
 
@@ -58,9 +58,7 @@ void main() {
 
   test('missing prayer title stays visible with neutral fallback', () {
     final projection = adapter.project(
-      activeGoalLinks: [
-        _personalPrayerLink('link-1', 'goal-1', 'prayer-1'),
-      ],
+      activeGoalLinks: [_personalPrayerLink('link-1', 'goal-1', 'prayer-1')],
       duePrayerOccurrences: const [],
     );
 
@@ -74,8 +72,8 @@ void main() {
     final projection = adapter.project(
       activeGoalLinks: [link],
       duePrayerOccurrences: [reminder],
-      prayerTitles: const {
-        PrayerReference.personal('prayer-1'): 'Saved prayer title',
+      prayerTitles: {
+        const PrayerReference.personal('prayer-1'): 'Saved prayer title',
       },
     );
 
@@ -108,8 +106,8 @@ void main() {
       final projection = adapter.project(
         activeGoalLinks: [link],
         duePrayerOccurrences: const [],
-        prayerTitles: const {
-          PrayerReference.library('library-1'): 'Generic saved title',
+        prayerTitles: {
+          const PrayerReference.library('library-1'): 'Generic saved title',
         },
         legacyToday: today,
       );

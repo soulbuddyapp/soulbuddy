@@ -201,30 +201,31 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWith((ref) async => database),
           localIdentityProvider.overrideWith(
-            (ref) async => const LocalIdentity(
-              ownerId: ownerId,
-              deviceId: 'device-1',
-            ),
+            (ref) async =>
+                const LocalIdentity(ownerId: ownerId, deviceId: 'device-1'),
           ),
         ],
       );
+      final subscription = container.listen(
+        activeGoalPrayerTitlesProvider,
+        (previous, next) {},
+        fireImmediately: true,
+      );
 
       try {
-        final titles = await container.read(activeGoalPrayerTitlesProvider.future);
+        final titles = await container.read(
+          activeGoalPrayerTitlesProvider.future,
+        );
 
         expect(titles, {
           const PrayerReference.personal('personal-1'): 'My evening prayer',
-          const PrayerReference.library(
-            'library-bundled',
-          ): 'Bundled prayer for wisdom',
-          const PrayerReference.library(
-            'library-canonical',
-          ): 'Reviewed canonical prayer',
+          const PrayerReference.library('library-bundled'):
+              'Bundled prayer for wisdom',
+          const PrayerReference.library('library-canonical'):
+              'Reviewed canonical prayer',
         });
         expect(
-          titles.containsKey(
-            const PrayerReference.personal('personal-paused'),
-          ),
+          titles.containsKey(const PrayerReference.personal('personal-paused')),
           isFalse,
         );
         expect(
@@ -234,6 +235,7 @@ void main() {
           isFalse,
         );
       } finally {
+        subscription.close();
         container.dispose();
         await database.close();
       }
