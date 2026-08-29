@@ -101,7 +101,7 @@ class _PrayerAppLifecycleObserver extends WidgetsBindingObserver {
   }
 }
 
-final prayerContentBootstrapProvider = FutureProvider<void>((ref) async {
+final editorialPrayerContentBootstrapProvider = FutureProvider<void>((ref) async {
   final database = await ref.watch(appDatabaseProvider.future);
   await BundledPrayerImporter().ensureLoaded(database.powersync);
   await BundledEditorialImporter().ensureLoaded(database.powersync);
@@ -110,7 +110,7 @@ final prayerContentBootstrapProvider = FutureProvider<void>((ref) async {
 final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
   final database = await ref.watch(appDatabaseProvider.future);
   final identity = await ref.watch(localIdentityProvider.future);
-  await ref.watch(prayerContentBootstrapProvider.future);
+  await BundledPrayerImporter().ensureLoaded(database.powersync);
 
   return PowerSyncPrayerRepository(
     database: database.powersync,
@@ -121,7 +121,7 @@ final prayerRepositoryProvider = FutureProvider<PrayerRepository>((ref) async {
 final editorialPrayerRepositoryProvider =
     FutureProvider<EditorialPrayerRepository>((ref) async {
       final database = await ref.watch(appDatabaseProvider.future);
-      await ref.watch(prayerContentBootstrapProvider.future);
+      await ref.watch(editorialPrayerContentBootstrapProvider.future);
       return PowerSyncEditorialPrayerRepository(database: database.powersync);
     });
 
@@ -181,7 +181,7 @@ void _invalidatePrayerStartup(WidgetRef ref) {
   if (identityState.hasError) {
     ref.invalidate(localIdentityProvider);
   }
-  ref.invalidate(prayerContentBootstrapProvider);
+  ref.invalidate(editorialPrayerContentBootstrapProvider);
   ref.invalidate(prayerRepositoryProvider);
   ref.invalidate(editorialPrayerRepositoryProvider);
 }
