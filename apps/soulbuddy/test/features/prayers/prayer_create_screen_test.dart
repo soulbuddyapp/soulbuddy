@@ -33,14 +33,15 @@ void main() {
       onGenerationProviderRead: () => generationProviderReads++,
     );
 
-    await tester.tap(
-      find.byKey(const Key('prayer-create-purpose-guidance')),
-    );
+    await tester.tap(find.byKey(const Key('prayer-create-purpose-guidance')));
     await tester.pumpAndSettle();
 
     expect(find.text('Reviewed prayer'), findsOneWidget);
     expect(find.text('For guidance'), findsOneWidget);
-    expect(find.textContaining('Reviewed · SoulBuddy editorial'), findsOneWidget);
+    expect(
+      find.textContaining('Reviewed · SoulBuddy editorial'),
+      findsOneWidget,
+    );
     expect(generationProviderReads, 0);
 
     await tester.tap(
@@ -73,19 +74,34 @@ void main() {
       onGenerationProviderRead: () => generationProviderReads++,
     );
 
+    final scrollable = find.byType(Scrollable).first;
     await tester.tap(
       find.byKey(const Key('prayer-create-purpose-difficult_time')),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('prayer-create-write')),
+      160,
+      scrollable: scrollable,
+    );
     await tester.tap(find.byKey(const Key('prayer-create-write')));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('prayer-create-own-words')),
+      160,
+      scrollable: scrollable,
+    );
     await tester.enterText(
       find.byKey(const Key('prayer-create-own-words')),
       'Jesus, stay near me and help me take the next faithful step.',
     );
-    await tester.tap(
+    await tester.pump();
+    await tester.scrollUntilVisible(
       find.byKey(const Key('prayer-create-save-own-words')),
+      160,
+      scrollable: scrollable,
     );
+    await tester.tap(find.byKey(const Key('prayer-create-save-own-words')));
     await tester.pumpAndSettle();
 
     expect(personalRepository.createCalls, 1);
@@ -118,16 +134,24 @@ void main() {
       textScaler: const TextScaler.linear(2),
     );
 
-    expect(find.byType(Scrollable), findsWidgets);
+    final scrollable = find.byType(Scrollable).first;
+    final healingPurpose = find.byKey(
+      const Key('prayer-create-purpose-healing'),
+    );
     await tester.scrollUntilVisible(
-      find.byKey(const Key('prayer-create-purpose-healing')),
-      120,
+      healingPurpose,
+      160,
+      scrollable: scrollable,
     );
-    await tester.tap(
-      find.byKey(const Key('prayer-create-purpose-healing')),
-    );
+    await tester.ensureVisible(healingPurpose);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('In need of healing'), 160);
+    await tester.tap(healingPurpose);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('In need of healing'),
+      160,
+      scrollable: scrollable,
+    );
 
     expect(find.text('In need of healing'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -207,7 +231,9 @@ class _EditorialRepository implements EditorialPrayerRepository {
   }) {
     return Stream.value(
       List.unmodifiable(
-        items.where((item) => purpose == null || item.prayer.purpose == purpose),
+        items.where(
+          (item) => purpose == null || item.prayer.purpose == purpose,
+        ),
       ),
     );
   }
