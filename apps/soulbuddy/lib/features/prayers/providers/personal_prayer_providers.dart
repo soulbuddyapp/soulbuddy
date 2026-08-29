@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database_provider.dart';
@@ -17,9 +17,9 @@ import '../data/powersync_prayer_generation_repository.dart';
 import '../data/prayer_draft_api.dart';
 import '../data/prayer_generation_repository.dart';
 import '../domain/library_prayer.dart';
+import '../domain/personal_prayer.dart';
 import '../domain/prayer_generation_request.dart';
 import '../domain/prayer_language.dart';
-import '../domain/personal_prayer.dart';
 
 final prayerGenerationRepositoryProvider =
     FutureProvider<PrayerGenerationRepository>((ref) async {
@@ -41,6 +41,10 @@ final personalPrayerRepositoryProvider =
         deviceId: identity.deviceId,
       );
     });
+
+final prayerRequestCreationEnabledProvider = Provider<bool>(
+  (ref) => AppConfig.prayerRequestCreationEnabled,
+);
 
 final prayerDraftApiProvider = Provider<PrayerDraftApi>((ref) {
   final client = http.Client();
@@ -206,6 +210,10 @@ class PersonalizedPrayerController
     if (requestText.isEmpty || requestText.length > 500) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
+      if (current.request == null &&
+          !ref.read(prayerRequestCreationEnabledProvider)) {
+        throw StateError('New generated prayer requests are disabled.');
+      }
       final repository = await ref.read(
         prayerGenerationRepositoryProvider.future,
       );
