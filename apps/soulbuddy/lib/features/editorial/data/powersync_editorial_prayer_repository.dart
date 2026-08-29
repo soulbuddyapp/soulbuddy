@@ -64,7 +64,9 @@ class PowerSyncEditorialPrayerRepository implements EditorialPrayerRepository {
             items.sort((left, right) {
               final languageRank = languagePreference
                   .rankOf(left.prayer.languageStyle)
-                  .compareTo(languagePreference.rankOf(right.prayer.languageStyle));
+                  .compareTo(
+                    languagePreference.rankOf(right.prayer.languageStyle),
+                  );
               if (languageRank != 0) return languageRank;
               final title = left.prayer.title.toLowerCase().compareTo(
                 right.prayer.title.toLowerCase(),
