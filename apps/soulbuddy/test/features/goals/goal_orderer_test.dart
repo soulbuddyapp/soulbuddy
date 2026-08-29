@@ -59,26 +59,17 @@ void main() {
 
       await orderer.reorderActive([last.id, first.id]);
 
-      expect(
-        (await repository.watchActive().first).map((goal) => goal.id),
-        [last.id, first.id],
-      );
+      expect((await repository.watchActive().first).map((goal) => goal.id), [
+        last.id,
+        first.id,
+      ]);
       final rows = await database.powersync.getAll(
         'SELECT id, position FROM goals WHERE owner_id = ? ORDER BY position',
         ['owner-1'],
       );
-      expect(
-        rows.singleWhere((row) => row['id'] == paused.id)['position'],
-        1,
-      );
-      expect(
-        rows.singleWhere((row) => row['id'] == last.id)['position'],
-        0,
-      );
-      expect(
-        rows.singleWhere((row) => row['id'] == first.id)['position'],
-        2,
-      );
+      expect(rows.singleWhere((row) => row['id'] == paused.id)['position'], 1);
+      expect(rows.singleWhere((row) => row['id'] == last.id)['position'], 0);
+      expect(rows.singleWhere((row) => row['id'] == first.id)['position'], 2);
 
       final transaction = await database.powersync.getNextCrudTransaction();
       expect(transaction, isNotNull);
@@ -92,44 +83,47 @@ void main() {
     },
   );
 
-  test('stale or duplicate active sets never partially rewrite positions', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/stale.db',
-    );
-    addTearDown(database.close);
-    final repository = PowerSyncGoalRepository(
-      database: database.powersync,
-      ownerId: 'owner-1',
-      deviceId: 'device-1',
-      uuid: const Uuid(),
-    );
-    final orderer = PowerSyncGoalOrderer(
-      database: database.powersync,
-      ownerId: 'owner-1',
-    );
-    final first = await repository.create(
-      title: 'First Goal',
-      mode: GoalMode.mixed,
-    );
-    final second = await repository.create(
-      title: 'Second Goal',
-      mode: GoalMode.mixed,
-    );
+  test(
+    'stale or duplicate active sets never partially rewrite positions',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/stale.db',
+      );
+      addTearDown(database.close);
+      final repository = PowerSyncGoalRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+        uuid: const Uuid(),
+      );
+      final orderer = PowerSyncGoalOrderer(
+        database: database.powersync,
+        ownerId: 'owner-1',
+      );
+      final first = await repository.create(
+        title: 'First Goal',
+        mode: GoalMode.mixed,
+      );
+      final second = await repository.create(
+        title: 'Second Goal',
+        mode: GoalMode.mixed,
+      );
 
-    final before = await _positions(database.powersync);
-    await expectLater(
-      orderer.reorderActive([first.id]),
-      throwsA(isA<StateError>()),
-    );
-    expect(await _positions(database.powersync), before);
+      final before = await _positions(database.powersync);
+      await expectLater(
+        orderer.reorderActive([first.id]),
+        throwsA(isA<StateError>()),
+      );
+      expect(await _positions(database.powersync), before);
 
-    await expectLater(
-      orderer.reorderActive([first.id, first.id]),
-      throwsA(isA<ArgumentError>()),
-    );
-    expect(await _positions(database.powersync), before);
-    expect(second.id, isNot(first.id));
-  });
+      await expectLater(
+        orderer.reorderActive([first.id, first.id]),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(await _positions(database.powersync), before);
+      expect(second.id, isNot(first.id));
+    },
+  );
 }
 
 Future<Map<String, int>> _positions(PowerSyncDatabase database) async {
