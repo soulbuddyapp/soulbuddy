@@ -131,26 +131,17 @@ class _FirstPrayerScreenState extends State<FirstPrayerScreen> {
       onChoose: (choice) {
         if (choice == 'Write') {
           _next(FirstPrayerPreviewStep.detail);
-        } else if (choice == 'Speak') {
-          _next(FirstPrayerPreviewStep.preparing);
         } else {
-          _preparePreview();
+          _next(FirstPrayerPreviewStep.preparing);
         }
       },
     ),
     FirstPrayerPreviewStep.detail => FirstPrayerDetailPage(
-      onContinue: (_) => _preparePreview(),
-      onSkip: _preparePreview,
+      onContinue: (_) => _next(FirstPrayerPreviewStep.preparing),
+      onSkip: () => _next(FirstPrayerPreviewStep.preparing),
     ),
     FirstPrayerPreviewStep.preparing => _PreparingPrayer(onPrepared: () {}),
   };
-
-  Future<void> _preparePreview() async {
-    final choice = await _confirmPrayerProcessing(context);
-    if (choice != null && mounted) {
-      _next(FirstPrayerPreviewStep.preparing);
-    }
-  }
 
   void _back() {
     _next(switch (_step) {
@@ -249,7 +240,7 @@ class _LiveFirstPrayer extends ConsumerWidget {
               choices: const ['Speak', 'Write', 'Not now'],
               onChoose: (choice) {
                 if (choice == 'Not now') {
-                  _prepareWithConsent(context, controller);
+                  controller.usePreparedPrayer();
                 } else {
                   controller.openDetail(speak: choice == 'Speak');
                 }
@@ -258,21 +249,13 @@ class _LiveFirstPrayer extends ConsumerWidget {
             FirstPrayerStage.detail =>
               flow.detailByVoice
                   ? FirstPrayerSpeechPage(
-                      onContinue: (detail) => _prepareWithConsent(
-                        context,
-                        controller,
-                        detail: detail,
-                      ),
+                      onContinue: (_) => controller.usePreparedPrayer(),
                       onWriteInstead: () => controller.openDetail(speak: false),
-                      onSkip: () => _prepareWithConsent(context, controller),
+                      onSkip: controller.usePreparedPrayer,
                     )
                   : FirstPrayerDetailPage(
-                      onContinue: (detail) => _prepareWithConsent(
-                        context,
-                        controller,
-                        detail: detail,
-                      ),
-                      onSkip: () => _prepareWithConsent(context, controller),
+                      onContinue: (_) => controller.usePreparedPrayer(),
+                      onSkip: controller.usePreparedPrayer,
                     ),
             FirstPrayerStage.preparing => _PreparingPrayer(
               onPrepared: controller.usePreparedPrayer,
@@ -353,55 +336,6 @@ class _LiveFirstPrayer extends ConsumerWidget {
       ),
     );
   }
-}
-
-Future<void> _prepareWithConsent(
-  BuildContext context,
-  FirstPrayerController controller, {
-  String? detail,
-}) async {
-  final useExternalService = await _confirmPrayerProcessing(context);
-  if (useExternalService == null || !context.mounted) return;
-  if (useExternalService) {
-    await controller.prepare(detail: detail, externalProcessingConsent: true);
-  } else {
-    await controller.usePreparedPrayer();
-  }
-}
-
-Future<bool?> _confirmPrayerProcessing(BuildContext context) {
-  return showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Prepare your prayer',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'SoulBuddy sends your choices and any words you add to an external prayer-writing service. Choose a prepared prayer to keep this step on your device.',
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Prepare prayer'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Choose a prepared prayer'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 class _FirstPrayerAudioRemembrance extends StatefulWidget {
