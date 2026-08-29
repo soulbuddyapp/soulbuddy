@@ -87,7 +87,9 @@ void main() {
       'next_step',
     });
     expect(
-      actions.singleWhere((row) => row['action_kind'] == 'accountability')['body'],
+      actions.singleWhere(
+        (row) => row['action_kind'] == 'accountability',
+      )['body'],
       'Contact a trusted person',
     );
     expect(actions.every((row) => row['schedule_type'] == 'today'), isTrue);

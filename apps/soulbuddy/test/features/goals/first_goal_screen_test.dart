@@ -52,7 +52,10 @@ void main() {
     expect(find.text('What would help today?'), findsOneWidget);
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
-    expect(find.text('What do you need to put between you and this?'), findsOneWidget);
+    expect(
+      find.text('What do you need to guard against or remove?'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
     expect(find.text('Who can walk with you?'), findsOneWidget);
