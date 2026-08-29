@@ -27,15 +27,13 @@ class PowerSyncPrayerRepository implements PrayerRepository {
            canonical.helpful_count
     FROM library_prayers AS canonical
     WHERE canonical.published_at IS NOT NULL
+      AND datetime(canonical.published_at) <= datetime('now')
       AND canonical.archived_at IS NULL
       AND NOT EXISTS (
         SELECT 1
-        FROM bundled_prayers AS bundled
-        JOIN editorial_items AS editorial ON editorial.id = bundled.id
-        WHERE bundled.id = canonical.id
+        FROM editorial_items AS editorial
+        WHERE editorial.id = canonical.id
           AND editorial.content_kind = 'prepared_prayer'
-          AND editorial.review_state = 'approved'
-          AND editorial.published_at IS NOT NULL
       )
     UNION ALL
     SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
@@ -51,35 +49,43 @@ class PowerSyncPrayerRepository implements PrayerRepository {
             AND editorial.content_kind = 'prepared_prayer'
             AND editorial.review_state = 'approved'
             AND editorial.published_at IS NOT NULL
+            AND datetime(editorial.published_at) <= datetime('now')
             AND editorial.archived_at IS NULL
         )
-        OR NOT EXISTS (
-          SELECT 1 FROM library_prayers AS canonical
-          WHERE canonical.id = bundled.id
-            AND canonical.published_at IS NOT NULL
-            AND canonical.archived_at IS NULL
+        OR (
+          NOT EXISTS (
+            SELECT 1
+            FROM editorial_items AS editorial
+            WHERE editorial.id = bundled.id
+              AND editorial.content_kind = 'prepared_prayer'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM library_prayers AS canonical
+            WHERE canonical.id = bundled.id
+              AND canonical.published_at IS NOT NULL
+              AND datetime(canonical.published_at) <= datetime('now')
+              AND canonical.archived_at IS NULL
+          )
         )
       )
   ''';
 
   // Historical references must remain resolvable after an editorial item is
-  // archived. This projection intentionally ignores archived_at while still
-  // preserving reviewed bundled wording over an unprovenanced same-ID server
-  // row. New library selection always uses _mergedPrayers above.
+  // archived. This projection ignores archived_at for content that was already
+  // published, while editorial ownership still prevents a same-ID canonical
+  // row from replacing reviewed wording. New selection uses _mergedPrayers.
   static const _readablePrayers = '''
     SELECT canonical.id, canonical.title, canonical.body, canonical.grounding,
            canonical.language_style, canonical.purpose, canonical.action,
            canonical.helpful_count
     FROM library_prayers AS canonical
     WHERE canonical.published_at IS NOT NULL
+      AND datetime(canonical.published_at) <= datetime('now')
       AND NOT EXISTS (
         SELECT 1
-        FROM bundled_prayers AS bundled
-        JOIN editorial_items AS editorial ON editorial.id = bundled.id
-        WHERE bundled.id = canonical.id
+        FROM editorial_items AS editorial
+        WHERE editorial.id = canonical.id
           AND editorial.content_kind = 'prepared_prayer'
-          AND editorial.review_state = 'approved'
-          AND editorial.published_at IS NOT NULL
       )
     UNION ALL
     SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
@@ -93,11 +99,21 @@ class PowerSyncPrayerRepository implements PrayerRepository {
           AND editorial.content_kind = 'prepared_prayer'
           AND editorial.review_state = 'approved'
           AND editorial.published_at IS NOT NULL
+          AND datetime(editorial.published_at) <= datetime('now')
       )
-      OR NOT EXISTS (
-        SELECT 1 FROM library_prayers AS canonical
-        WHERE canonical.id = bundled.id
-          AND canonical.published_at IS NOT NULL
+      OR (
+        NOT EXISTS (
+          SELECT 1
+          FROM editorial_items AS editorial
+          WHERE editorial.id = bundled.id
+            AND editorial.content_kind = 'prepared_prayer'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM library_prayers AS canonical
+          WHERE canonical.id = bundled.id
+            AND canonical.published_at IS NOT NULL
+            AND datetime(canonical.published_at) <= datetime('now')
+        )
       )
   ''';
 
