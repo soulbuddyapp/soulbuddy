@@ -22,18 +22,45 @@ class PowerSyncPrayerRepository implements PrayerRepository {
   final Uuid _uuid;
 
   static const _mergedPrayers = '''
-    SELECT id, title, body, grounding, language_style, purpose, action, helpful_count
-    FROM library_prayers
-    WHERE published_at IS NOT NULL AND archived_at IS NULL
+    SELECT canonical.id, canonical.title, canonical.body, canonical.grounding,
+           canonical.language_style, canonical.purpose, canonical.action,
+           canonical.helpful_count
+    FROM library_prayers AS canonical
+    WHERE canonical.published_at IS NOT NULL
+      AND canonical.archived_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bundled_prayers AS bundled
+        JOIN editorial_items AS editorial ON editorial.id = bundled.id
+        WHERE bundled.id = canonical.id
+          AND bundled.archived_at IS NULL
+          AND editorial.content_kind = 'prepared_prayer'
+          AND editorial.review_state = 'approved'
+          AND editorial.published_at IS NOT NULL
+          AND editorial.archived_at IS NULL
+      )
     UNION ALL
     SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
            bundled.language_style,
            bundled.purpose, bundled.action, bundled.helpful_count
     FROM bundled_prayers AS bundled
     WHERE bundled.archived_at IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM library_prayers AS canonical
-        WHERE canonical.id = bundled.id
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM editorial_items AS editorial
+          WHERE editorial.id = bundled.id
+            AND editorial.content_kind = 'prepared_prayer'
+            AND editorial.review_state = 'approved'
+            AND editorial.published_at IS NOT NULL
+            AND editorial.archived_at IS NULL
+        )
+        OR NOT EXISTS (
+          SELECT 1 FROM library_prayers AS canonical
+          WHERE canonical.id = bundled.id
+            AND canonical.published_at IS NOT NULL
+            AND canonical.archived_at IS NULL
+        )
       )
   ''';
 
