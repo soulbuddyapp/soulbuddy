@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Circles\CircleLifecycle;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCircleRequest;
 use App\Http\Requests\UpdateCircleRequest;
@@ -14,6 +15,7 @@ use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CircleController extends Controller
 {
@@ -117,6 +119,10 @@ class CircleController extends Controller
     {
         Gate::authorize('update', $circle);
         $validated = $request->validated();
+        if (array_key_exists('status', $validated)
+            && ! CircleLifecycle::ownerCanTransition($circle->status, $validated['status'])) {
+            throw ValidationException::withMessages(['status' => ['invalid_transition']]);
+        }
 
         DB::transaction(function () use ($circle, $validated): void {
             $attributes = [];
