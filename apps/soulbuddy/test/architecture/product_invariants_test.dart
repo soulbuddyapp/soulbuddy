@@ -33,6 +33,16 @@ void main() {
       }
     });
 
+    test('retired generated-prayer request routes stay unreachable', () {
+      final router = File('lib/app/router.dart').readAsStringSync();
+
+      expect(router, isNot(contains("path: 'requests/:requestId'")));
+      expect(router, isNot(contains('PersonalizedPrayerScreen')));
+      expect(router, isNot(contains('PrayerDraftScreen')));
+      expect(router, contains("path: 'create'"));
+      expect(router, contains("path: 'saved/:prayerId'"));
+    });
+
     test('retired prayer generation cannot be re-enabled by client config', () {
       final config = File('lib/core/config/app_config.dart').readAsStringSync();
 
@@ -43,6 +53,19 @@ void main() {
         config,
         isNot(contains('SOULBUDDY_PRAYER_REQUEST_CREATION_ENABLED')),
       );
+    });
+
+    test('historical generation storage is read-only in production', () {
+      final repository = File(
+        'lib/features/prayers/data/powersync_prayer_generation_repository.dart',
+      ).readAsStringSync();
+
+      expect(repository, contains('watch(String id)'));
+      expect(repository, contains('watchPending() =>'));
+      expect(repository, contains('throw _retired()'));
+      expect(repository, isNot(contains('INSERT INTO prayer_generation_requests')));
+      expect(repository, isNot(contains('UPDATE prayer_generation_requests')));
+      expect(repository, isNot(contains('DELETE FROM prayer_generation_contexts')));
     });
 
     test('SyntheticSpiritualContent legacy runtime boundary does not expand', () {
