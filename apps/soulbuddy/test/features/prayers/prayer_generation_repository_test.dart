@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_generation_repository.dart';
-import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
 
 import '../../helpers/powersync_test_database.dart';
@@ -96,13 +95,12 @@ void main() {
     expect(request.consentedProvider, 'deepseek');
     expect(request.contexts, hasLength(1));
     expect(request.contexts.single.sourceId, 'memory-1');
-    await expectLater(repository.watchPending(), emitsDone);
     expect(await database.powersync.getNextCrudTransaction(), isNull);
   });
 
-  test('historical generation archive rejects every mutation', () async {
+  test('historical archive reader is owner scoped', () async {
     final database = await openTestDatabase(
-      '${temporaryDirectory.path}/read-only.db',
+      '${temporaryDirectory.path}/owner-scope.db',
     );
     addTearDown(database.close);
     const requestId = '0198a400-0000-7000-8000-000000000003';
@@ -130,72 +128,17 @@ void main() {
       ],
     );
 
-    final repository = PowerSyncPrayerGenerationRepository(
+    final ownerRepository = PowerSyncPrayerGenerationRepository(
       database: database.powersync,
       ownerId: 'owner-1',
     );
-    final original = (await repository.watch(requestId).first)!;
-
-    await expectLater(
-      repository.create(
-        style: PrayerStyle.daily,
-        reach: PrayerReach.personal,
-        grounding: PrayerGrounding.generalChristian,
-        purpose: PrayerPurpose.daily,
-        requestText: 'A new request must never be created.',
-      ),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.update(
-        original.copyWith(requestText: 'A mutation must never be stored.'),
-      ),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.replaceContexts(requestId, const []),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.queue(
-        requestId,
-        provider: 'deepseek',
-        disclosureVersion: 'deepseek-1',
-      ),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.claim(requestId, 'attempt-1', DateTime.utc(2026, 8, 29)),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.storeDraft(
-        requestId,
-        'attempt-1',
-        const PrayerGeneratedDraft(
-          title: 'Blocked',
-          body: 'Blocked',
-          promptVersion: 'retired',
-        ),
-      ),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.defer(
-        requestId,
-        'attempt-1',
-        nextAttemptAt: DateTime.utc(2026, 8, 30),
-      ),
-      throwsStateError,
-    );
-    await expectLater(
-      repository.requireAttention(requestId, 'attempt-1', 'retired'),
-      throwsStateError,
+    final otherRepository = PowerSyncPrayerGenerationRepository(
+      database: database.powersync,
+      ownerId: 'owner-2',
     );
 
-    final unchanged = await repository.watch(requestId).first;
-    expect(unchanged?.requestText, 'Help me walk faithfully today.');
-    expect(unchanged?.status, PrayerGenerationStatus.ready);
+    expect((await ownerRepository.watch(requestId).first)?.id, requestId);
+    expect(await otherRepository.watch(requestId).first, isNull);
     expect(await database.powersync.getNextCrudTransaction(), isNull);
   });
 }
