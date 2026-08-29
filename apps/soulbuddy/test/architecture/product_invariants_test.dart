@@ -33,6 +33,18 @@ void main() {
       }
     });
 
+    test('retired prayer generation cannot be re-enabled by client config', () {
+      final config = File('lib/core/config/app_config.dart').readAsStringSync();
+
+      expect(config, contains('prayerGenerationEnabled = false'));
+      expect(config, contains('prayerRequestCreationEnabled = false'));
+      expect(config, isNot(contains('SOULBUDDY_PRAYER_GENERATION_ENABLED')));
+      expect(
+        config,
+        isNot(contains('SOULBUDDY_PRAYER_REQUEST_CREATION_ENABLED')),
+      );
+    });
+
     test('SyntheticSpiritualContent legacy runtime boundary does not expand', () {
       const markers = [
         'PrayerDraftApi',
