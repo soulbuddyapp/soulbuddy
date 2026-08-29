@@ -54,12 +54,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       AsyncData(:final value) => value.activeGoalCount == 0,
       _ => false,
     };
-    final showStartGuide =
-        todayPrayer is AsyncData<TodayPrayer?> &&
-        dailyMemory is AsyncData &&
-        todayPrayer.value == null &&
-        dailyMemory.value == null &&
-        goalsKnownEmpty;
+    final showStartGuide = goalsKnownEmpty;
+    final showLegacyPrayer =
+        !showStartGuide ||
+        goalSnapshot?.resources.legacyTodayOutsideActiveGoals != null;
+    final showDailyMemory =
+        !showStartGuide ||
+        switch (dailyMemory) {
+          AsyncData(:final value) => value != null,
+          AsyncError() => true,
+          _ => false,
+        };
 
     return SafeArea(
       child: Align(
@@ -154,15 +159,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 TodayStartGuide(
                   onStartGoal: () => context.push('/welcome/goal'),
                   onRecordMemory: () => context.go('/record'),
-                )
-              else
+                ),
+              if (showLegacyPrayer) ...[
+                if (showStartGuide) const SizedBox(height: AppSpacing.md),
                 _legacyTodayContent(
                   todayPrayer: todayPrayer,
                   dailyPractices: dailyPractices,
                   goalSnapshot: goalSnapshot,
                 ),
-              if (!showStartGuide) const SizedBox(height: AppSpacing.lg),
-              if (!showStartGuide)
+              ],
+              if (showDailyMemory) ...[
+                const SizedBox(height: AppSpacing.lg),
                 dailyMemory.when(
                   loading: () => const SizedBox.shrink(),
                   error: (_, _) => Align(
@@ -183,6 +190,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         )
                       : DailyRemembranceCard(dailyMemory: daily),
                 ),
+              ],
             ],
           ),
         ),

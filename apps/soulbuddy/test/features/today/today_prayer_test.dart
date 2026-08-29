@@ -131,29 +131,31 @@ void main() {
     expect(find.text('Record destination'), findsOneWidget);
   });
 
-  testWidgets(
-    'selection shows the full prayer and can choose a different one',
-    (tester) async {
-      final repository = _repository(includeAction: true);
-      addTearDown(repository.close);
-      await _pumpToday(tester, repository: repository);
+  testWidgets('no Goal keeps the Goal-first path above an existing prayer', (
+    tester,
+  ) async {
+    final repository = _repository(includeAction: true);
+    addTearDown(repository.close);
+    await _pumpToday(tester, repository: repository);
 
-      expect(find.text(_prayer.title), findsOneWidget);
-      expect(find.text(_prayer.body), findsOneWidget);
-      expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
-      expect(find.text('Family · General Christian'), findsOneWidget);
-      expect(find.text('I prayed this'), findsOneWidget);
-      expect(find.text('Choose a different prayer'), findsOneWidget);
-      expect(find.byType(Card), findsOneWidget);
+    expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
+    expect(find.text('What would you like help with?'), findsOneWidget);
+    expect(find.text('Start a Goal'), findsOneWidget);
+    expect(find.text(_prayer.title), findsOneWidget);
+    expect(find.text(_prayer.body), findsOneWidget);
+    expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
+    expect(find.text('Family · General Christian'), findsOneWidget);
+    expect(find.text('I prayed this'), findsOneWidget);
+    expect(find.text('Choose a different prayer'), findsOneWidget);
+    expect(find.byType(Card), findsOneWidget);
 
-      await _scrollTo(tester, const Key('choose-different-prayer'));
-      await tester.tap(find.byKey(const Key('choose-different-prayer')));
-      await tester.pumpAndSettle();
+    await _scrollTo(tester, const Key('choose-different-prayer'));
+    await tester.tap(find.byKey(const Key('choose-different-prayer')));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Prayer library destination'), findsOneWidget);
-      _expectNoGamification(tester);
-    },
-  );
+    expect(find.text('Prayer library destination'), findsOneWidget);
+    _expectNoGamification(tester);
+  });
 
   testWidgets('included practical action persists completion and re-renders', (
     tester,
