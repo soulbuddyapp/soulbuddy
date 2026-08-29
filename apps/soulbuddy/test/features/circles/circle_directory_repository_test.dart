@@ -42,6 +42,7 @@ void main() {
     expect(captured.url.queryParameters['limit'], '12');
     expect(page.items.single.name, 'Walk together');
     expect(page.items.single.provider, CircleProvider.telegram);
+    expect(page.items.single.directoryListed, isTrue);
     expect(page.nextCursor, 'next-page');
   });
 
@@ -103,17 +104,69 @@ void main() {
       );
     },
   );
+
+  test('rejects hostile or provider-mismatched handoff URLs from the API', () async {
+    for (final unsafeUrl in [
+      'https://example.com/not-telegram',
+      'https://chat.whatsapp.com/not-telegram',
+      'https://user:pass@t.me/+credentialed',
+      'https://t.me:8443/+wrong-port',
+      'http://t.me/+not-https',
+      'https://t.me/',
+    ]) {
+      final repository = LaravelCircleDirectoryRepository(
+        apiBaseUri: Uri.parse('https://sbuddy.example'),
+        tokenReader: () async => 'session-token',
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode(_circleJson(openUrl: unsafeUrl)),
+            200,
+          ),
+        ),
+      );
+
+      await expectLater(
+        repository.get('circle-1'),
+        throwsA(isA<CircleDirectoryUnavailable>()),
+        reason: unsafeUrl,
+      );
+    }
+  });
+
+  test('accepts only the matching provider host family', () {
+    expect(
+      CircleProvider.telegram.allows(Uri.parse('https://t.me/+group')),
+      isTrue,
+    );
+    expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://chat.whatsapp.com/group'),
+      ),
+      isFalse,
+    );
+    expect(
+      CircleProvider.whatsappLink.allows(
+        Uri.parse('https://chat.whatsapp.com/group'),
+      ),
+      isTrue,
+    );
+    expect(
+      CircleProvider.whatsappLink.allows(Uri.parse('https://wa.me/2348012345678')),
+      isTrue,
+    );
+  });
 }
 
-Map<String, dynamic> _circleJson() => {
+Map<String, dynamic> _circleJson({String? openUrl}) => {
   'public_id': '0198b100-0000-7000-8000-000000000001',
   'name': 'Walk together',
   'category': 'accountability',
   'description': 'Honest accountability and prayer.',
   'visibility': 'public',
   'status': 'active',
+  'directory_listed': true,
   'provider': 'telegram',
-  'open_url': 'https://t.me/+soulbuddy-test',
+  'open_url': openUrl ?? 'https://t.me/+soulbuddy-test',
   'capabilities': ['open_link'],
   'member_count': null,
   'is_owner': false,
