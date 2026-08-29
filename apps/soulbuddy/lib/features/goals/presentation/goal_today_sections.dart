@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../guards/presentation/return_sheet.dart';
 import '../application/goal_today_composer.dart';
 import '../application/goal_today_resource_adapter.dart';
+import '../domain/goal.dart';
 import '../domain/goal_action.dart';
 import '../providers/goal_today_providers.dart';
 
@@ -12,10 +14,12 @@ class GoalTodaySections extends StatefulWidget {
     required this.onCompleteAction,
     required this.onOpenResource,
     required this.onCompleteResource,
+    this.onReturn,
     super.key,
   });
 
   final GoalTodaySnapshot snapshot;
+  final Future<void> Function(Goal goal)? onReturn;
   final Future<void> Function(GoalTodayActionItem item) onCompleteAction;
   final Future<void> Function(
     GoalTodayResourceItem item,
@@ -49,6 +53,18 @@ class _GoalTodaySectionsState extends State<GoalTodaySections> {
             section: widget.snapshot.sections[index],
             resources: widget.snapshot.resources,
             busyKeys: _busyKeys,
+            returnAvailable: widget.snapshot.returnGoalIds.contains(
+              widget.snapshot.sections[index].goal.id,
+            ),
+            onReturn: (goal) => _run('return:${goal.id}', () async {
+              final callback = widget.onReturn;
+              if (callback != null) {
+                await callback(goal);
+                return;
+              }
+              if (!mounted) return;
+              await showReturnSheet(context, goalId: goal.id);
+            }),
             onCompleteAction: (item) =>
                 _run(item.stableKey, () => widget.onCompleteAction(item)),
             onOpenResource: (item, handle) =>
@@ -81,6 +97,8 @@ class _GoalTodaySectionCard extends StatelessWidget {
     required this.section,
     required this.resources,
     required this.busyKeys,
+    required this.returnAvailable,
+    required this.onReturn,
     required this.onCompleteAction,
     required this.onOpenResource,
     required this.onCompleteResource,
@@ -89,6 +107,8 @@ class _GoalTodaySectionCard extends StatelessWidget {
   final GoalTodaySection section;
   final GoalTodayResourceProjection resources;
   final Set<String> busyKeys;
+  final bool returnAvailable;
+  final Future<void> Function(Goal goal) onReturn;
   final Future<void> Function(GoalTodayActionItem item) onCompleteAction;
   final Future<void> Function(
     GoalTodayResourceItem item,
@@ -103,6 +123,7 @@ class _GoalTodaySectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final returnBusy = busyKeys.contains('return:${section.goal.id}');
     return Card(
       key: ValueKey('goal-today-section-${section.goal.id}'),
       child: Padding(
@@ -117,7 +138,21 @@ class _GoalTodaySectionCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            if (returnAvailable) ...[
+              const SizedBox(height: AppSpacing.sm),
+              FilledButton.tonalIcon(
+                key: ValueKey('goal-today-return-${section.goal.id}'),
+                onPressed: returnBusy ? null : () => onReturn(section.goal),
+                icon: returnBusy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.reply_outlined, size: 18),
+                label: const Text('Return'),
+              ),
+            ],
+            if (section.items.isNotEmpty) const SizedBox(height: AppSpacing.sm),
             for (var index = 0; index < section.items.length; index++) ...[
               _GoalTodayItemRow(
                 item: section.items[index],

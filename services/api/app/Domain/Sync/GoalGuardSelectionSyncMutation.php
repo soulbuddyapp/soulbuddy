@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Validator;
 final class GoalGuardSelectionSyncMutation
 {
     /**
-     * @param Collection<int, array<string, mixed>> $allOperations
-     * @param Collection<int, array<string, mixed>> $guardOperations
+     * @param  Collection<int, array<string, mixed>>  $allOperations
+     * @param  Collection<int, array<string, mixed>>  $guardOperations
      */
     public function validate(User $user, Collection $allOperations, Collection $guardOperations): ?string
     {

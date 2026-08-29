@@ -19,12 +19,14 @@ class GoalTodaySnapshot {
     required this.activeGoalCount,
     required this.sections,
     required this.resources,
+    this.returnGoalIds = const <String>{},
   });
 
   final DateTime localDate;
   final int activeGoalCount;
   final List<GoalTodaySection> sections;
   final GoalTodayResourceProjection resources;
+  final Set<String> returnGoalIds;
 }
 
 final activeGoalTodayLinksProvider = StreamProvider.autoDispose<List<GoalLink>>(
@@ -50,6 +52,53 @@ final activeGoalTodayLinksProvider = StreamProvider.autoDispose<List<GoalLink>>(
         .map((rows) => List.unmodifiable(rows.map(GoalLink.fromRow)));
   },
 );
+
+/// One owner-scoped projection for every active Goal that can expose Return.
+///
+/// This deliberately uses the existing compound indexes and avoids one Return
+/// provider subscription per Goal card on Today.
+final activeReturnGoalIdsProvider = StreamProvider.autoDispose<Set<String>>((
+  ref,
+) async* {
+  final database = await ref.watch(appDatabaseProvider.future);
+  final identity = await ref.watch(localIdentityProvider.future);
+  yield* database.powersync
+      .watch(
+        '''
+        SELECT goal.id AS goal_id
+        FROM goals AS goal
+        WHERE goal.owner_id = ?
+          AND goal.status = 'active'
+          AND goal.archived_at IS NULL
+          AND (
+            goal.starter_key = 'stop_control'
+            OR EXISTS (
+              SELECT 1
+              FROM goal_actions AS action
+              WHERE action.owner_id = goal.owner_id
+                AND action.goal_id = goal.id
+                AND action.action_kind = 'guard'
+                AND action.enabled = 1
+                AND action.archived_at IS NULL
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM goal_guard_selections AS selection
+              WHERE selection.owner_id = goal.owner_id
+                AND selection.goal_id = goal.id
+                AND selection.archived_at IS NULL
+            )
+          )
+        ORDER BY goal.position ASC, goal.updated_at DESC, goal.id ASC
+        ''',
+        parameters: [identity.ownerId],
+      )
+      .map(
+        (rows) => Set<String>.unmodifiable(
+          rows.map((row) => row['goal_id'] as String),
+        ),
+      );
+});
 
 /// Small, read-only display projection for Goal-linked prayer titles.
 ///
@@ -179,6 +228,14 @@ final goalTodaySnapshotProvider =
         AsyncData(:final value) => value,
         _ => const <PrayerReference, String>{},
       };
+      final returnGoalIds = switch (ref.watch(activeReturnGoalIdsProvider)) {
+        AsyncData(:final value) => value,
+        _ => Set<String>.unmodifiable(
+          goals
+              .where((goal) => goal.starterKey == GoalStarterKey.stopControl)
+              .map((goal) => goal.id),
+        ),
+      };
 
       final resources = const GoalTodayResourceAdapter().project(
         activeGoalLinks: links,
@@ -186,10 +243,15 @@ final goalTodaySnapshotProvider =
         prayerTitles: prayerTitles,
         legacyToday: legacyToday,
       );
-      final sections = const GoalTodayComposer().compose(
+      final composedSections = const GoalTodayComposer().compose(
         goals: goals,
         dueActions: actions,
         resources: resources.candidates,
+      );
+      final sections = _includeReturnOnlySections(
+        goals: goals,
+        sections: composedSections,
+        returnGoalIds: returnGoalIds,
       );
       return AsyncData(
         GoalTodaySnapshot(
@@ -197,6 +259,23 @@ final goalTodaySnapshotProvider =
           activeGoalCount: goals.length,
           sections: sections,
           resources: resources,
+          returnGoalIds: returnGoalIds,
         ),
       );
     });
+
+List<GoalTodaySection> _includeReturnOnlySections({
+  required List<Goal> goals,
+  required List<GoalTodaySection> sections,
+  required Set<String> returnGoalIds,
+}) {
+  if (returnGoalIds.isEmpty) return sections;
+  final sectionsByGoalId = <String, GoalTodaySection>{
+    for (final section in sections) section.goal.id: section,
+  };
+  return List.unmodifiable([
+    for (final goal in goals)
+      if (sectionsByGoalId.containsKey(goal.id) || returnGoalIds.contains(goal.id))
+        sectionsByGoalId[goal.id] ?? GoalTodaySection(goal: goal, items: const []),
+  ]);
+}

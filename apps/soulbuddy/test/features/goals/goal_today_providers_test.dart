@@ -31,6 +31,9 @@ void main() {
           activeGoalPrayerTitlesProvider.overrideWith(
             (ref) => Stream.value(const <PrayerReference, String>{}),
           ),
+          activeReturnGoalIdsProvider.overrideWith(
+            (ref) => Stream.value(const <String>{}),
+          ),
           dueGoalActionsProvider.overrideWith(
             (ref, localDate) => Stream.value([
               _occurrence(_action('action-1', goal.id), localDate),
@@ -74,6 +77,9 @@ void main() {
           activeGoalPrayerTitlesProvider.overrideWith(
             (ref) => Stream.value(const <PrayerReference, String>{}),
           ),
+          activeReturnGoalIdsProvider.overrideWith(
+            (ref) => Stream.value(const <String>{}),
+          ),
           dueGoalActionsProvider.overrideWith(
             (ref, localDate) => Stream.value(const <GoalActionOccurrence>[]),
           ),
@@ -112,6 +118,9 @@ void main() {
           activeGoalPrayerTitlesProvider.overrideWith(
             (ref) => Stream.value(const <PrayerReference, String>{}),
           ),
+          activeReturnGoalIdsProvider.overrideWith(
+            (ref) => Stream.value(const <String>{}),
+          ),
           duePrayerOccurrencesProvider.overrideWith(
             (ref) => Stream.value(const []),
           ),
@@ -122,6 +131,75 @@ void main() {
 
       await expectLater(_nextSnapshot(container), throwsStateError);
     },
+  );
+
+  test(
+    'stop-control Goal remains on Today for Return with no due items',
+    () async {
+      final goal = _goal('goal-return', starterKey: GoalStarterKey.stopControl);
+      final container = _quietGoalContainer(
+        goal,
+        returnIds: Stream.value({goal.id}),
+      );
+      addTearDown(container.dispose);
+
+      final snapshot = await _nextSnapshot(
+        container,
+        where: (value) => value.returnGoalIds.contains(goal.id),
+      );
+
+      expect(snapshot.sections, hasLength(1));
+      expect(snapshot.sections.single.goal.id, goal.id);
+      expect(snapshot.sections.single.items, isEmpty);
+      expect(snapshot.returnGoalIds, contains(goal.id));
+    },
+  );
+
+  test(
+    'Return relevance failure still keeps explicit stop-control Goal usable',
+    () async {
+      final goal = _goal('goal-return', starterKey: GoalStarterKey.stopControl);
+      final container = _quietGoalContainer(
+        goal,
+        returnIds: Stream.error(StateError('return projection unavailable')),
+      );
+      addTearDown(container.dispose);
+
+      final snapshot = await _nextSnapshot(
+        container,
+        where: (value) => value.returnGoalIds.contains(goal.id),
+      );
+
+      expect(snapshot.sections, hasLength(1));
+      expect(snapshot.sections.single.goal.id, goal.id);
+      expect(snapshot.sections.single.items, isEmpty);
+    },
+  );
+}
+
+ProviderContainer _quietGoalContainer(
+  Goal goal, {
+  required Stream<Set<String>> returnIds,
+}) {
+  return ProviderContainer(
+    overrides: [
+      todayPrayerDateProvider.overrideWith(
+        (ref) => Stream.value((year: 2026, month: 8, day: 28)),
+      ),
+      activeGoalsProvider.overrideWith((ref) => Stream.value([goal])),
+      activeGoalTodayLinksProvider.overrideWith(
+        (ref) => Stream.value(const <GoalLink>[]),
+      ),
+      activeGoalPrayerTitlesProvider.overrideWith(
+        (ref) => Stream.value(const <PrayerReference, String>{}),
+      ),
+      activeReturnGoalIdsProvider.overrideWith((ref) => returnIds),
+      dueGoalActionsProvider.overrideWith(
+        (ref, localDate) => Stream.value(const <GoalActionOccurrence>[]),
+      ),
+      duePrayerOccurrencesProvider.overrideWith((ref) => Stream.value(const [])),
+      todayPrayerProvider.overrideWith((ref) => Stream.value(null)),
+    ],
   );
 }
 
@@ -149,9 +227,10 @@ Future<GoalTodaySnapshot> _nextSnapshot(
   }
 }
 
-Goal _goal(String id) => Goal(
+Goal _goal(String id, {GoalStarterKey? starterKey}) => Goal(
   id: id,
   ownerId: 'owner-1',
+  starterKey: starterKey,
   mode: GoalMode.mixed,
   status: GoalStatus.active,
   currentRevisionId: 'revision-$id',

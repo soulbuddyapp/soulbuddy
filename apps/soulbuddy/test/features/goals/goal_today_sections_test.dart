@@ -44,6 +44,26 @@ void main() {
     },
   );
 
+  testWidgets('quiet Return Goal exposes direct Return action', (tester) async {
+    var returned = 0;
+    final snapshot = _snapshot(const [], returnGoalIds: const {'goal-1'});
+
+    await tester.pumpWidget(
+      _host(snapshot, onReturn: (_) async => returned++),
+    );
+
+    expect(find.text('Stay close to God'), findsOneWidget);
+    expect(find.text('Return'), findsOneWidget);
+    final button = find.byKey(const ValueKey('goal-today-return-goal-1'));
+    expect(button.hitTestable(), findsOneWidget);
+
+    await tester.tap(button);
+    await tester.pump();
+
+    expect(returned, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'legacy Goal prayer exposes Open and I prayed this through typed handle',
     (tester) async {
@@ -121,33 +141,37 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(320, 640));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
-      final snapshot = _snapshot([
-        GoalTodayActionItem(
-          GoalActionOccurrence(
-            action: _action('guard-1', 'goal-1'),
-            occurrenceKey: 'guard-1:2026-08-28',
+      final snapshot = _snapshot(
+        [
+          GoalTodayActionItem(
+            GoalActionOccurrence(
+              action: _action('guard-1', 'goal-1'),
+              occurrenceKey: 'guard-1:2026-08-28',
+            ),
           ),
-        ),
-        const GoalTodayResourceItem(
-          GoalTodayResourceCandidate(
-            goalId: 'goal-1',
-            stableKey: 'scripture-1',
-            dedupeKey: 'scripture:RSVCE:James:1:5:6',
-            kind: GoalTodayResourceKind.scripture,
-            label: 'James 1:5-6',
+          const GoalTodayResourceItem(
+            GoalTodayResourceCandidate(
+              goalId: 'goal-1',
+              stableKey: 'scripture-1',
+              dedupeKey: 'scripture:RSVCE:James:1:5:6',
+              kind: GoalTodayResourceKind.scripture,
+              label: 'James 1:5-6',
+            ),
           ),
-        ),
-      ]);
+        ],
+        returnGoalIds: const {'goal-1'},
+      );
 
       await tester.pumpWidget(
         MediaQuery(
           data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: _host(snapshot),
+          child: _host(snapshot, onReturn: (_) async {}),
         ),
       );
       await tester.pump();
 
       expect(find.byType(Scrollable), findsWidgets);
+      expect(find.text('Return'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -155,6 +179,7 @@ void main() {
 
 Widget _host(
   GoalTodaySnapshot snapshot, {
+  Future<void> Function(Goal)? onReturn,
   Future<void> Function(GoalTodayActionItem)? onCompleteAction,
   Future<void> Function(GoalTodayResourceItem, GoalTodayResourceHandle?)?
   onOpenResource,
@@ -166,6 +191,7 @@ Widget _host(
       body: SingleChildScrollView(
         child: GoalTodaySections(
           snapshot: snapshot,
+          onReturn: onReturn,
           onCompleteAction: onCompleteAction ?? (_) async {},
           onOpenResource: onOpenResource ?? (_, _) async {},
           onCompleteResource: onCompleteResource ?? (_, _) async {},
@@ -175,7 +201,10 @@ Widget _host(
   );
 }
 
-GoalTodaySnapshot _snapshot(List<GoalTodayItem> items) => GoalTodaySnapshot(
+GoalTodaySnapshot _snapshot(
+  List<GoalTodayItem> items, {
+  Set<String> returnGoalIds = const <String>{},
+}) => GoalTodaySnapshot(
   localDate: DateTime(2026, 8, 28),
   activeGoalCount: 1,
   sections: [GoalTodaySection(goal: _goal(), items: items)],
@@ -183,6 +212,7 @@ GoalTodaySnapshot _snapshot(List<GoalTodayItem> items) => GoalTodaySnapshot(
     candidates: [],
     handlesByStableKey: {},
   ),
+  returnGoalIds: returnGoalIds,
 );
 
 Goal _goal() => Goal(

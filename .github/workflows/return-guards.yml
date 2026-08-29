@@ -9,8 +9,11 @@ on:
       - 'apps/soulbuddy/lib/features/goals/domain/**'
       - 'apps/soulbuddy/lib/features/goals/providers/**'
       - 'apps/soulbuddy/lib/features/goals/presentation/goal_detail_screen.dart'
+      - 'apps/soulbuddy/lib/features/goals/presentation/goal_today_sections.dart'
       - 'apps/soulbuddy/test/features/guards/**'
       - 'apps/soulbuddy/test/features/goals/goal_detail_screen_test.dart'
+      - 'apps/soulbuddy/test/features/goals/goal_today_providers_test.dart'
+      - 'apps/soulbuddy/test/features/goals/goal_today_sections_test.dart'
       - 'services/api/app/Domain/Sync/ApplyGoalSyncMutation.php'
       - 'services/api/app/Domain/Sync/GoalGuardSelectionSyncMutation.php'
       - 'services/api/app/Models/GoalGuardSelection.php'
@@ -27,8 +30,11 @@ on:
       - 'apps/soulbuddy/lib/features/goals/domain/**'
       - 'apps/soulbuddy/lib/features/goals/providers/**'
       - 'apps/soulbuddy/lib/features/goals/presentation/goal_detail_screen.dart'
+      - 'apps/soulbuddy/lib/features/goals/presentation/goal_today_sections.dart'
       - 'apps/soulbuddy/test/features/guards/**'
       - 'apps/soulbuddy/test/features/goals/goal_detail_screen_test.dart'
+      - 'apps/soulbuddy/test/features/goals/goal_today_providers_test.dart'
+      - 'apps/soulbuddy/test/features/goals/goal_today_sections_test.dart'
       - 'services/api/app/Domain/Sync/ApplyGoalSyncMutation.php'
       - 'services/api/app/Domain/Sync/GoalGuardSelectionSyncMutation.php'
       - 'services/api/app/Models/GoalGuardSelection.php'
@@ -79,17 +85,17 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dart format lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart test/features/guards test/features/goals/goal_detail_screen_test.dart
+          dart format lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart lib/features/goals/presentation/goal_today_sections.dart lib/features/goals/providers/goal_today_providers.dart test/features/guards test/features/goals/goal_detail_screen_test.dart test/features/goals/goal_today_providers_test.dart test/features/goals/goal_today_sections_test.dart
           git diff --check
-          git diff --exit-code -- lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart test/features/guards test/features/goals/goal_detail_screen_test.dart
+          git diff --exit-code -- lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart lib/features/goals/presentation/goal_today_sections.dart lib/features/goals/providers/goal_today_providers.dart test/features/guards test/features/goals/goal_detail_screen_test.dart test/features/goals/goal_today_providers_test.dart test/features/goals/goal_today_sections_test.dart
 
       - name: Analyze Return and guards
         id: flutter-analyze
         continue-on-error: true
-        run: flutter analyze --fatal-infos lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart test/features/guards test/features/goals/goal_detail_screen_test.dart
+        run: flutter analyze --fatal-infos lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart lib/features/goals/presentation/goal_today_sections.dart lib/features/goals/providers/goal_today_providers.dart test/features/guards test/features/goals/goal_detail_screen_test.dart test/features/goals/goal_today_providers_test.dart test/features/goals/goal_today_sections_test.dart
 
       - name: Run Return and guard tests
-        run: flutter test test/features/guards test/features/goals/goal_detail_screen_test.dart
+        run: flutter test test/features/guards test/features/goals/goal_detail_screen_test.dart test/features/goals/goal_today_providers_test.dart test/features/goals/goal_today_sections_test.dart
 
       - name: Fail on Flutter formatting or analysis drift
         if: always() && (steps.dart-format.outcome == 'failure' || steps.flutter-analyze.outcome == 'failure')
