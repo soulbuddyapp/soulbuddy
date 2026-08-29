@@ -38,13 +38,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Close the door'), findsOneWidget);
-      final scrollable = find.byType(Scrollable).first;
-      await tester.drag(scrollable, const Offset(0, -180));
-      await tester.pumpAndSettle();
-      expect(
-        find.textContaining('does not verify that a device'),
-        findsOneWidget,
-      );
+      final disclosure = find.textContaining('does not verify that a device');
+      await tester.scrollUntilVisible(disclosure, 120);
+      expect(disclosure, findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('AdGuard Family Protection'),
         120,
