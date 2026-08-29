@@ -56,6 +56,25 @@ class _ExternalCircleDetail extends ConsumerWidget {
 
   final Circle circle;
 
+  bool get _canMutate =>
+      circle.status != CircleStatus.suspended &&
+      circle.status != CircleStatus.archived;
+
+  String get _lifecycleLabel => switch (circle.status) {
+    CircleStatus.draft => 'Publish Circle',
+    CircleStatus.active => 'Pause Circle',
+    CircleStatus.paused => 'Resume Circle',
+    CircleStatus.suspended => 'Circle suspended',
+    CircleStatus.archived => 'Circle archived',
+  };
+
+  CircleStatus? get _nextLifecycleStatus => switch (circle.status) {
+    CircleStatus.draft => CircleStatus.active,
+    CircleStatus.active => CircleStatus.paused,
+    CircleStatus.paused => CircleStatus.active,
+    CircleStatus.suspended || CircleStatus.archived => null,
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => SafeArea(
     child: Align(
@@ -82,9 +101,31 @@ class _ExternalCircleDetail extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            Text('${circle.category.label} · ${circle.provider?.label ?? 'External'}'),
+            Text(
+              '${circle.category.label} · ${circle.provider?.label ?? 'External'}',
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(circle.description),
+            if (circle.isOwner && !circle.directoryListed) ...[
+              const SizedBox(height: AppSpacing.md),
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.visibility_off_outlined),
+                      SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: Text(
+                          'Not listed in SoulBuddy discovery. Your external group is unchanged. Changing visibility will not relist it.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.lg),
             Card(
               child: Padding(
@@ -116,22 +157,19 @@ class _ExternalCircleDetail extends ConsumerWidget {
               Text('Settings', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
-                onPressed: () => _edit(context, ref),
+                onPressed: _canMutate ? () => _edit(context, ref) : null,
                 child: const Text('Edit Circle'),
               ),
               const SizedBox(height: AppSpacing.sm),
               OutlinedButton(
-                onPressed: circle.status == CircleStatus.suspended
+                key: const Key('circle-lifecycle-action'),
+                onPressed: _nextLifecycleStatus == null
                     ? null
-                    : () => _togglePaused(context, ref),
-                child: Text(
-                  circle.status == CircleStatus.paused ? 'Resume Circle' : 'Pause Circle',
-                ),
+                    : () => _changeLifecycle(context, ref),
+                child: Text(_lifecycleLabel),
               ),
               TextButton(
-                onPressed: circle.status == CircleStatus.archived
-                    ? null
-                    : () => _archive(context, ref),
+                onPressed: _canMutate ? () => _archive(context, ref) : null,
                 child: const Text('Archive Circle'),
               ),
             ] else ...[
@@ -167,16 +205,14 @@ class _ExternalCircleDetail extends ConsumerWidget {
     if (saved != null) ref.invalidate(circleProvider(circle.publicId));
   }
 
-  Future<void> _togglePaused(BuildContext context, WidgetRef ref) async {
+  Future<void> _changeLifecycle(BuildContext context, WidgetRef ref) async {
+    final nextStatus = _nextLifecycleStatus;
+    if (nextStatus == null) return;
     try {
       final repository = await ref.read(circleDirectoryRepositoryProvider.future);
       await repository.update(
         circle.publicId,
-        CircleUpdate(
-          status: circle.status == CircleStatus.paused
-              ? CircleStatus.active
-              : CircleStatus.paused,
-        ),
+        CircleUpdate(status: nextStatus),
       );
       ref.invalidate(circleProvider(circle.publicId));
       ref.invalidate(ownedCirclesProvider);
@@ -211,14 +247,22 @@ class _ExternalCircleDetail extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final repository = await ref.read(circleDirectoryRepositoryProvider.future);
-    await repository.update(
-      circle.publicId,
-      const CircleUpdate(status: CircleStatus.archived),
-    );
-    ref.invalidate(ownedCirclesProvider);
-    ref.invalidate(circleDiscoveryProvider);
-    if (context.mounted) context.go('/circles');
+    try {
+      final repository = await ref.read(circleDirectoryRepositoryProvider.future);
+      await repository.update(
+        circle.publicId,
+        const CircleUpdate(status: CircleStatus.archived),
+      );
+      ref.invalidate(ownedCirclesProvider);
+      ref.invalidate(circleDiscoveryProvider);
+      if (context.mounted) context.go('/circles');
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not archive this Circle yet.')),
+        );
+      }
+    }
   }
 
   Future<void> _report(BuildContext context, WidgetRef ref) async {
@@ -241,12 +285,20 @@ class _ExternalCircleDetail extends ConsumerWidget {
       ),
     );
     if (reason == null) return;
-    final repository = await ref.read(circleDirectoryRepositoryProvider.future);
-    await repository.report(circle.publicId, reason);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report received.')),
-      );
+    try {
+      final repository = await ref.read(circleDirectoryRepositoryProvider.future);
+      await repository.report(circle.publicId, reason);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report received.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send this report yet.')),
+        );
+      }
     }
   }
 }
@@ -295,23 +347,39 @@ class _LegacyCircleDetail extends ConsumerWidget {
   );
 
   Future<void> _keep(BuildContext context, WidgetRef ref) async {
-    final service = await ref.read(legacyCircleMigrationServiceProvider.future);
-    final encounter = await service.keepAsPrivateRecord(archive.summary.id);
-    if (encounter == null) return;
-    ref.invalidate(legacyCirclesProvider);
-    ref.invalidate(encountersProvider);
-    if (context.mounted) context.go('/record');
+    try {
+      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final encounter = await service.keepAsPrivateRecord(archive.summary.id);
+      if (encounter == null) return;
+      ref.invalidate(legacyCirclesProvider);
+      ref.invalidate(encountersProvider);
+      if (context.mounted) context.go('/record');
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not keep these messages yet.')),
+        );
+      }
+    }
   }
 
   Future<void> _copy(BuildContext context, WidgetRef ref) async {
-    final service = await ref.read(legacyCircleMigrationServiceProvider.future);
-    final text = await service.copyText(archive.summary.id);
-    if (text == null) return;
-    await Clipboard.setData(ClipboardData(text: text));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Copied. The local Circle is still here.')),
-      );
+    try {
+      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final text = await service.copyText(archive.summary.id);
+      if (text == null) return;
+      await Clipboard.setData(ClipboardData(text: text));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Copied. The local Circle is still here.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not copy these messages yet.')),
+        );
+      }
     }
   }
 }
