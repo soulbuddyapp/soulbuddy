@@ -38,20 +38,16 @@ void main() {
     tester,
   ) async {
     final orderer = _RecordingGoalOrderer();
-    await _pump(
-      tester,
-      [
-        _goal(id: 'first', title: 'Grow closer to God', position: 0),
-        _goal(id: 'second', title: 'Take the next faithful step', position: 2),
-        _goal(
-          id: 'paused',
-          title: 'Discern the move',
-          status: GoalStatus.paused,
-          position: 1,
-        ),
-      ],
-      orderer: orderer,
-    );
+    await _pump(tester, [
+      _goal(id: 'first', title: 'Grow closer to God', position: 0),
+      _goal(id: 'second', title: 'Take the next faithful step', position: 2),
+      _goal(
+        id: 'paused',
+        title: 'Discern the move',
+        status: GoalStatus.paused,
+        position: 1,
+      ),
+    ], orderer: orderer);
 
     expect(find.byKey(const Key('goal-order-menu-first')), findsOneWidget);
     expect(find.byKey(const Key('goal-order-menu-second')), findsOneWidget);
@@ -74,14 +70,10 @@ void main() {
     tester,
   ) async {
     final orderer = _RecordingGoalOrderer(fail: true);
-    await _pump(
-      tester,
-      [
-        _goal(id: 'first', title: 'First Goal', position: 0),
-        _goal(id: 'second', title: 'Second Goal', position: 1),
-      ],
-      orderer: orderer,
-    );
+    await _pump(tester, [
+      _goal(id: 'first', title: 'First Goal', position: 0),
+      _goal(id: 'second', title: 'Second Goal', position: 1),
+    ], orderer: orderer);
 
     await tester.tap(find.byKey(const Key('goal-order-menu-first')));
     await tester.pumpAndSettle();
@@ -152,7 +144,10 @@ Future<void> _pump(
           (ref) async => orderer ?? _RecordingGoalOrderer(),
         ),
       ],
-      child: MaterialApp(theme: AppTheme.light(), home: child),
+      child: MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(body: child),
+      ),
     ),
   );
   await tester.pumpAndSettle();
