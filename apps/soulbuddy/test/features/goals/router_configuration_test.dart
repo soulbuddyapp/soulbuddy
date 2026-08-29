@@ -12,6 +12,34 @@ void main() {
     expect(appRouter, isNotNull);
   });
 
+  testWidgets('new prayer route opens reviewed and own-words flow', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    addTearDown(() => appRouter.go('/today'));
+
+    appRouter.go('/prayers/create');
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: appRouter,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('For this moment'), findsOneWidget);
+    expect(find.text('Choose a prayer style'), findsNothing);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      1,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('legacy prayer deep link stays inside the Goals shell branch', (
     tester,
   ) async {
