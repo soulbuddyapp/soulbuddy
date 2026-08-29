@@ -11,7 +11,6 @@ import 'package:soulbuddy/core/database/app_database.dart';
 import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
-import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
@@ -223,11 +222,9 @@ Future<void> _closeApp(
 ) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
-  final worker = await container.read(prayerGenerationWorkerProvider.future);
   final reminders = await container.read(
     prayerReminderCoordinatorProvider.future,
   );
-  await worker.dispose();
   container.dispose();
   await tester.pump();
   await reminders.dispose();

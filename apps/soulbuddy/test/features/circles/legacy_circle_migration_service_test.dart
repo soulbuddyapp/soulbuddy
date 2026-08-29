@@ -40,23 +40,26 @@ void main() {
     expect(legacy.archive, isNotNull);
   });
 
-  test('successful Keep creates a sensitive non-recalled Record then discards once', () async {
-    final legacy = _FakeLegacyRepository(_archive());
-    final encounters = _FakeEncounterRepository();
-    final service = LegacyCircleMigrationService(
-      legacyRepository: legacy,
-      encounterRepository: encounters,
-    );
+  test(
+    'successful Keep creates a sensitive non-recalled Record then discards once',
+    () async {
+      final legacy = _FakeLegacyRepository(_archive());
+      final encounters = _FakeEncounterRepository();
+      final service = LegacyCircleMigrationService(
+        legacyRepository: legacy,
+        encounterRepository: encounters,
+      );
 
-    final record = await service.keepAsPrivateRecord('legacy-circle-1');
+      final record = await service.keepAsPrivateRecord('legacy-circle-1');
 
-    expect(record?.id, 'record-1');
-    expect(encounters.lastDraft?.sensitive, isTrue);
-    expect(encounters.lastDraft?.recallEnabled, isFalse);
-    expect(encounters.lastDraft?.body, contains('Please pray for wisdom.'));
-    expect(legacy.discardCount, 1);
-    expect(legacy.archive, isNull);
-  });
+      expect(record?.id, 'record-1');
+      expect(encounters.lastDraft?.sensitive, isTrue);
+      expect(encounters.lastDraft?.recallEnabled, isFalse);
+      expect(encounters.lastDraft?.body, contains('Please pray for wisdom.'));
+      expect(legacy.discardCount, 1);
+      expect(legacy.archive, isNull);
+    },
+  );
 }
 
 LegacyCircleArchive _archive() => LegacyCircleArchive(

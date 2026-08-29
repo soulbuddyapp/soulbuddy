@@ -48,44 +48,47 @@ void main() {
     expect(page.nextCursor, 'next-page');
   });
 
-  test('create sends metadata and stable key but never a chat payload', () async {
-    Map<String, dynamic>? payload;
-    final repository = LaravelCircleDirectoryRepository(
-      apiBaseUri: Uri.parse('https://sbuddy.example'),
-      tokenReader: () async => 'session-token',
-      client: MockClient((request) async {
-        payload = jsonDecode(request.body) as Map<String, dynamic>;
-        return http.Response(jsonEncode(_circleJson()), 201);
-      }),
-    );
+  test(
+    'create sends metadata and stable key but never a chat payload',
+    () async {
+      Map<String, dynamic>? payload;
+      final repository = LaravelCircleDirectoryRepository(
+        apiBaseUri: Uri.parse('https://sbuddy.example'),
+        tokenReader: () async => 'session-token',
+        client: MockClient((request) async {
+          payload = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(jsonEncode(_circleJson()), 201);
+        }),
+      );
 
-    final draft = CircleDraft(
-      creationKey: creationKey,
-      name: 'Walk together',
-      category: CircleCategory.accountability,
-      description: 'Honest accountability and prayer.',
-      visibility: CircleVisibility.public,
-      provider: CircleProvider.telegram,
-      openUri: Uri.parse('https://t.me/+soulbuddy-test'),
-    );
-    await repository.create(draft);
+      final draft = CircleDraft(
+        creationKey: creationKey,
+        name: 'Walk together',
+        category: CircleCategory.accountability,
+        description: 'Honest accountability and prayer.',
+        visibility: CircleVisibility.public,
+        provider: CircleProvider.telegram,
+        openUri: Uri.parse('https://t.me/+soulbuddy-test'),
+      );
+      await repository.create(draft);
 
-    expect(payload?.keys.toSet(), {
-      'creation_key',
-      'name',
-      'category',
-      'description',
-      'visibility',
-      'status',
-      'provider',
-      'open_url',
-    });
-    expect(payload?['creation_key'], creationKey);
-    expect(payload?['status'], 'active');
-    expect(draft.toJson()['creation_key'], creationKey);
-    expect(payload, isNot(contains('message')));
-    expect(payload, isNot(contains('body')));
-  });
+      expect(payload?.keys.toSet(), {
+        'creation_key',
+        'name',
+        'category',
+        'description',
+        'visibility',
+        'status',
+        'provider',
+        'open_url',
+      });
+      expect(payload?['creation_key'], creationKey);
+      expect(payload?['status'], 'active');
+      expect(draft.toJson()['creation_key'], creationKey);
+      expect(payload, isNot(contains('message')));
+      expect(payload, isNot(contains('body')));
+    },
+  );
 
   test('draft creation serializes an explicit draft lifecycle state', () {
     final draft = CircleDraft(
@@ -128,36 +131,37 @@ void main() {
     },
   );
 
-  test('rejects hostile or provider-mismatched handoff URLs from the API', () async {
-    for (final unsafeUrl in [
-      'https://example.com/not-telegram',
-      'https://chat.whatsapp.com/not-telegram',
-      'https://user:pass@t.me/+credentialed',
-      'https://t.me:8443/+wrong-port',
-      'http://t.me/+not-https',
-      'https://t.me/',
-      'https://t.me/share?url=https://example.com',
-      'https://t.me/proxy?server=example.com&port=443',
-      'https://t.me/public_group/42',
-    ]) {
-      final repository = LaravelCircleDirectoryRepository(
-        apiBaseUri: Uri.parse('https://sbuddy.example'),
-        tokenReader: () async => 'session-token',
-        client: MockClient(
-          (_) async => http.Response(
-            jsonEncode(_circleJson(openUrl: unsafeUrl)),
-            200,
+  test(
+    'rejects hostile or provider-mismatched handoff URLs from the API',
+    () async {
+      for (final unsafeUrl in [
+        'https://example.com/not-telegram',
+        'https://chat.whatsapp.com/not-telegram',
+        'https://user:pass@t.me/+credentialed',
+        'https://t.me:8443/+wrong-port',
+        'http://t.me/+not-https',
+        'https://t.me/',
+        'https://t.me/share?url=https://example.com',
+        'https://t.me/proxy?server=example.com&port=443',
+        'https://t.me/public_group/42',
+      ]) {
+        final repository = LaravelCircleDirectoryRepository(
+          apiBaseUri: Uri.parse('https://sbuddy.example'),
+          tokenReader: () async => 'session-token',
+          client: MockClient(
+            (_) async =>
+                http.Response(jsonEncode(_circleJson(openUrl: unsafeUrl)), 200),
           ),
-        ),
-      );
+        );
 
-      await expectLater(
-        repository.get('circle-1'),
-        throwsA(isA<CircleDirectoryUnavailable>()),
-        reason: unsafeUrl,
-      );
-    }
-  });
+        await expectLater(
+          repository.get('circle-1'),
+          throwsA(isA<CircleDirectoryUnavailable>()),
+          reason: unsafeUrl,
+        );
+      }
+    },
+  );
 
   test('rejects malformed directory fields uniformly', () async {
     for (final malformed in [
@@ -170,7 +174,9 @@ void main() {
       final repository = LaravelCircleDirectoryRepository(
         apiBaseUri: Uri.parse('https://sbuddy.example'),
         tokenReader: () async => 'session-token',
-        client: MockClient((_) async => http.Response(jsonEncode(malformed), 200)),
+        client: MockClient(
+          (_) async => http.Response(jsonEncode(malformed), 200),
+        ),
       );
 
       await expectLater(
@@ -186,9 +192,7 @@ void main() {
       isTrue,
     );
     expect(
-      CircleProvider.telegram.allows(
-        Uri.parse('https://t.me/joinchat/group'),
-      ),
+      CircleProvider.telegram.allows(Uri.parse('https://t.me/joinchat/group')),
       isTrue,
     );
     expect(
@@ -208,7 +212,9 @@ void main() {
       isTrue,
     );
     expect(
-      CircleProvider.whatsappLink.allows(Uri.parse('https://wa.me/2348012345678')),
+      CircleProvider.whatsappLink.allows(
+        Uri.parse('https://wa.me/2348012345678'),
+      ),
       isFalse,
     );
   });

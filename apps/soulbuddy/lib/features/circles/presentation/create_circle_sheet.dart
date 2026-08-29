@@ -129,10 +129,7 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
               SegmentedButton<CircleProvider>(
                 segments: [
                   for (final provider in CircleProvider.values)
-                    ButtonSegment(
-                      value: provider,
-                      label: Text(provider.label),
-                    ),
+                    ButtonSegment(value: provider, label: Text(provider.label)),
                 ],
                 selected: {_provider},
                 onSelectionChanged: _saving
@@ -197,9 +194,7 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
       return;
     }
     if (link == null || !_provider.allows(link)) {
-      setState(
-        () => _error = 'Use a valid ${_provider.label} group link.',
-      );
+      setState(() => _error = 'Use a valid ${_provider.label} group link.');
       return;
     }
     setState(() {
@@ -207,7 +202,9 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
       _error = null;
     });
     try {
-      final repository = await ref.read(circleDirectoryRepositoryProvider.future);
+      final repository = await ref.read(
+        circleDirectoryRepositoryProvider.future,
+      );
       final Circle circle;
       if (widget.initialCircle case final existing?) {
         circle = await repository.update(
@@ -242,7 +239,8 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _error = 'Could not save this Circle. Check the group link and try again.';
+          _error =
+              'Could not save this Circle. Check the group link and try again.';
         });
       }
     }

@@ -11,7 +11,6 @@ import 'package:soulbuddy/core/database/app_database.dart';
 import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
-import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_coordinator.dart';
 import 'package:soulbuddy/features/prayers/application/browser_prayer_reminder_scheduler.dart';
@@ -304,11 +303,6 @@ Future<void> _closeApp(
 ) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
-  final worker = await _awaitStage(
-    'reading the prayer worker during close',
-    container.read(prayerGenerationWorkerProvider.future),
-  );
-  await _awaitStage('disposing the prayer worker', worker.dispose());
   container.dispose();
   await tester.pump();
   await _awaitStage(

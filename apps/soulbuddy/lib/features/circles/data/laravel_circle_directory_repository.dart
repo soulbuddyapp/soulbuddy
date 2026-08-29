@@ -36,8 +36,7 @@ class LaravelCircleDirectoryRepository implements CircleDirectoryRepository {
   @override
   Future<CirclePage> discover(CircleDiscoveryQuery query) async {
     final parameters = <String, String>{
-      if (query.category case final category?)
-        'category': category.wireValue,
+      if (query.category case final category?) 'category': category.wireValue,
       if (query.search?.trim() case final search? when search.isNotEmpty)
         'q': search,
       if (query.cursor case final cursor?) 'cursor': cursor,
@@ -107,10 +106,7 @@ class LaravelCircleDirectoryRepository implements CircleDirectoryRepository {
     );
   }
 
-  Future<http.Response> _get(
-    String path, {
-    Map<String, String>? query,
-  }) {
+  Future<http.Response> _get(String path, {Map<String, String>? query}) {
     return _request('GET', path, query: query);
   }
 

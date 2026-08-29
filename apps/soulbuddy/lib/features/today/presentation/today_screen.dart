@@ -152,7 +152,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               SizedBox(height: showStartGuide ? AppSpacing.sm : AppSpacing.md),
               if (showStartGuide)
                 TodayStartGuide(
-                  onChoosePrayer: () => context.go('/prayers'),
+                  onStartGoal: () => context.push('/welcome/goal'),
                   onRecordMemory: () => context.go('/record'),
                 )
               else

@@ -54,7 +54,10 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
               AppSpacing.xxl,
             ),
             children: [
-              Text('Circles', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                'Circles',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Find people to walk with.',
@@ -130,7 +133,8 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
                   child: Center(child: CircularProgressIndicator()),
                 ),
                 error: (_, _) => _DirectoryUnavailable(
-                  onRetry: () => ref.invalidate(circleDiscoveryProvider(_query)),
+                  onRetry: () =>
+                      ref.invalidate(circleDiscoveryProvider(_query)),
                 ),
                 data: (page) => _DiscoveryPage(
                   page: page,
@@ -182,7 +186,9 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
 
   Future<void> _keepLegacy(LegacyCircleSummary circle) async {
     try {
-      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final service = await ref.read(
+        legacyCircleMigrationServiceProvider.future,
+      );
       final kept = await service.keepAsPrivateRecord(circle.id);
       if (kept == null) return;
       ref.invalidate(legacyCirclesProvider);
@@ -203,13 +209,17 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
 
   Future<void> _copyLegacy(LegacyCircleSummary circle) async {
     try {
-      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final service = await ref.read(
+        legacyCircleMigrationServiceProvider.future,
+      );
       final text = await service.copyText(circle.id);
       if (text == null) return;
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Copied. The local Circle is still here.')),
+          const SnackBar(
+            content: Text('Copied. The local Circle is still here.'),
+          ),
         );
       }
     } catch (_) {
@@ -251,7 +261,9 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not discard this local Circle yet.')),
+          const SnackBar(
+            content: Text('Could not discard this local Circle yet.'),
+          ),
         );
       }
     }
@@ -304,7 +316,10 @@ class _DiscoveryPage extends StatelessWidget {
     if (page.items.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-        child: Text('No Circles match this search.', textAlign: TextAlign.center),
+        child: Text(
+          'No Circles match this search.',
+          textAlign: TextAlign.center,
+        ),
       );
     }
     return Column(
@@ -317,7 +332,10 @@ class _DiscoveryPage extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (onFirst != null)
-              TextButton(onPressed: onFirst, child: const Text('First results')),
+              TextButton(
+                onPressed: onFirst,
+                child: const Text('First results'),
+              ),
             if (onNext != null)
               TextButton(onPressed: onNext, child: const Text('Next results')),
           ],
@@ -405,7 +423,10 @@ class _LegacyMigrationSection extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text('Saved on this device', style: Theme.of(context).textTheme.titleLarge),
+      Text(
+        'Saved on this device',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
       const SizedBox(height: AppSpacing.xs),
       const Text(
         'These are from the old local Circles. Nothing here will be sent to Telegram or WhatsApp.',
@@ -418,7 +439,10 @@ class _LegacyMigrationSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(circle.name, style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  circle.name,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 Text('${circle.messageCount} saved local messages'),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(

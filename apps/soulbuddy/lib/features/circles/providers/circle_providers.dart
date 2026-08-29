@@ -36,11 +36,15 @@ final circleDirectoryRepositoryProvider =
 
 final circleDiscoveryProvider = FutureProvider.autoDispose
     .family<CirclePage, CircleDiscoveryQuery>((ref, query) async {
-      final repository = await ref.watch(circleDirectoryRepositoryProvider.future);
+      final repository = await ref.watch(
+        circleDirectoryRepositoryProvider.future,
+      );
       return repository.discover(query);
     });
 
-final ownedCirclesProvider = FutureProvider.autoDispose<List<Circle>>((ref) async {
+final ownedCirclesProvider = FutureProvider.autoDispose<List<Circle>>((
+  ref,
+) async {
   final repository = await ref.watch(circleDirectoryRepositoryProvider.future);
   return repository.listOwned();
 });
@@ -63,14 +67,13 @@ final legacyCircleMigrationRepositoryProvider =
       );
     });
 
-final legacyCirclesProvider = FutureProvider.autoDispose<List<LegacyCircleSummary>>((
-  ref,
-) async {
-  final repository = await ref.watch(
-    legacyCircleMigrationRepositoryProvider.future,
-  );
-  return repository.list();
-});
+final legacyCirclesProvider =
+    FutureProvider.autoDispose<List<LegacyCircleSummary>>((ref) async {
+      final repository = await ref.watch(
+        legacyCircleMigrationRepositoryProvider.future,
+      );
+      return repository.list();
+    });
 
 final legacyCircleArchiveProvider = FutureProvider.autoDispose
     .family<LegacyCircleArchive?, String>((ref, circleId) async {
@@ -86,7 +89,9 @@ final legacyCircleMigrationServiceProvider =
         legacyRepository: await ref.watch(
           legacyCircleMigrationRepositoryProvider.future,
         ),
-        encounterRepository: await ref.watch(encounterRepositoryProvider.future),
+        encounterRepository: await ref.watch(
+          encounterRepositoryProvider.future,
+        ),
       );
     });
 

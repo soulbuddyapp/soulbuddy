@@ -20,20 +20,19 @@ class CircleDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final circle = ref.watch(circleProvider(circleId));
     final legacy = ref.watch(legacyCircleArchiveProvider(circleId));
-    if (circle.hasError && legacy.value != null) {
-      return _LegacyCircleDetail(archive: legacy.requireValue);
+    final legacyArchive = legacy.value;
+    if (circle.hasError && legacyArchive != null) {
+      return _LegacyCircleDetail(archive: legacyArchive);
     }
     return circle.when(
-      loading: () => const SafeArea(
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const SafeArea(child: Center(child: CircularProgressIndicator())),
       error: (_, _) => legacy.when(
         data: (archive) => archive == null
             ? const _CircleUnavailable()
             : _LegacyCircleDetail(archive: archive),
-        loading: () => const SafeArea(
-          child: Center(child: CircularProgressIndicator()),
-        ),
+        loading: () =>
+            const SafeArea(child: Center(child: CircularProgressIndicator())),
         error: (_, _) => const _CircleUnavailable(),
       ),
       data: (value) => value == null
@@ -188,7 +187,8 @@ class _ExternalCircleDetail extends ConsumerWidget {
   Future<void> _open(BuildContext context, WidgetRef ref) async {
     final uri = circle.openUri;
     if (uri == null) return;
-    if (!await ref.read(circleExternalLauncherProvider)(uri) && context.mounted) {
+    if (!await ref.read(circleExternalLauncherProvider)(uri) &&
+        context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open this Circle.')),
       );
@@ -209,7 +209,9 @@ class _ExternalCircleDetail extends ConsumerWidget {
     final nextStatus = _nextLifecycleStatus;
     if (nextStatus == null) return;
     try {
-      final repository = await ref.read(circleDirectoryRepositoryProvider.future);
+      final repository = await ref.read(
+        circleDirectoryRepositoryProvider.future,
+      );
       await repository.update(
         circle.publicId,
         CircleUpdate(status: nextStatus),
@@ -248,7 +250,9 @@ class _ExternalCircleDetail extends ConsumerWidget {
     );
     if (confirmed != true) return;
     try {
-      final repository = await ref.read(circleDirectoryRepositoryProvider.future);
+      final repository = await ref.read(
+        circleDirectoryRepositoryProvider.future,
+      );
       await repository.update(
         circle.publicId,
         const CircleUpdate(status: CircleStatus.archived),
@@ -286,12 +290,14 @@ class _ExternalCircleDetail extends ConsumerWidget {
     );
     if (reason == null) return;
     try {
-      final repository = await ref.read(circleDirectoryRepositoryProvider.future);
+      final repository = await ref.read(
+        circleDirectoryRepositoryProvider.future,
+      );
       await repository.report(circle.publicId, reason);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report received.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Report received.')));
       }
     } catch (_) {
       if (context.mounted) {
@@ -353,7 +359,9 @@ class _LegacyCircleDetail extends ConsumerWidget {
 
   Future<void> _keep(BuildContext context, WidgetRef ref) async {
     try {
-      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final service = await ref.read(
+        legacyCircleMigrationServiceProvider.future,
+      );
       final encounter = await service.keepAsPrivateRecord(archive.summary.id);
       if (encounter == null) return;
       ref.invalidate(legacyCirclesProvider);
@@ -370,13 +378,17 @@ class _LegacyCircleDetail extends ConsumerWidget {
 
   Future<void> _copy(BuildContext context, WidgetRef ref) async {
     try {
-      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final service = await ref.read(
+        legacyCircleMigrationServiceProvider.future,
+      );
       final text = await service.copyText(archive.summary.id);
       if (text == null) return;
       await Clipboard.setData(ClipboardData(text: text));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Copied. The local Circle is still here.')),
+          const SnackBar(
+            content: Text('Copied. The local Circle is still here.'),
+          ),
         );
       }
     } catch (_) {
@@ -420,7 +432,9 @@ class _LegacyCircleDetail extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not discard this local Circle yet.')),
+          const SnackBar(
+            content: Text('Could not discard this local Circle yet.'),
+          ),
         );
       }
     }

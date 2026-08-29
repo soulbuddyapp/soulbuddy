@@ -51,8 +51,7 @@ class LegacyCircleMigrationService {
     return buffer.toString();
   }
 
-  DateTime _latestDate(LegacyCircleArchive archive) =>
-      archive.messages.isEmpty
+  DateTime _latestDate(LegacyCircleArchive archive) => archive.messages.isEmpty
       ? archive.summary.updatedAt
       : archive.messages.last.createdAt;
 }

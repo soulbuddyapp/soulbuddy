@@ -32,7 +32,7 @@ void main() {
       ),
     );
 
-    for (final label in ['Today', 'Prayers', 'Record', 'Remember', 'Circles']) {
+    for (final label in ['Today', 'Goals', 'Record', 'Remember', 'Circles']) {
       expect(find.text(label), findsWidgets);
     }
 
@@ -43,13 +43,14 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('opens personalized prayer creation from the library choice', (
+  testWidgets('opens reviewed or own-words prayer creation from the library', (
     tester,
   ) async {
     final encounters = InMemoryEncounterRepository();
     final prayers = InMemoryPrayerRepository(prayers: const []);
     addTearDown(encounters.close);
     addTearDown(prayers.close);
+    appRouter.go('/prayers');
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -61,13 +62,14 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Prayers').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('personalized-choice')));
+    await tester.tap(find.byKey(const Key('for-this-moment-choice')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Choose a prayer style'), findsOneWidget);
-    expect(find.text('Daily / affirming'), findsOneWidget);
+    expect(find.text('For this moment'), findsOneWidget);
+    expect(
+      find.text('Choose a reviewed prayer or use your own words.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('ordinary notification tap opens the owned saved prayer', (

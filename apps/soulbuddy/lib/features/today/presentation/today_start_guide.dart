@@ -7,12 +7,12 @@ import '../../../core/design/app_spacing.dart';
 /// the first viewport.
 class TodayStartGuide extends StatelessWidget {
   const TodayStartGuide({
-    required this.onChoosePrayer,
+    required this.onStartGoal,
     required this.onRecordMemory,
     super.key,
   });
 
-  final VoidCallback onChoosePrayer;
+  final VoidCallback onStartGoal;
   final VoidCallback onRecordMemory;
 
   @override
@@ -23,14 +23,13 @@ class TodayStartGuide extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Begin today\'s communion.',
+          'What would you like help with?',
           style: theme.textTheme.titleLarge,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Pray with attention. Carry one faithful step. Keep what God gives '
-          'you.',
+          'Begin with one thing you want to seek, change, or carry.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             height: 1.35,
@@ -39,10 +38,10 @@ class TodayStartGuide extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         FilledButton.icon(
-          key: const Key('choose-prayer'),
-          onPressed: onChoosePrayer,
-          icon: const Icon(Icons.menu_book_outlined),
-          label: const Text('Choose a prayer'),
+          key: const Key('start-first-goal'),
+          onPressed: onStartGoal,
+          icon: const Icon(Icons.add),
+          label: const Text('Start a Goal'),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(

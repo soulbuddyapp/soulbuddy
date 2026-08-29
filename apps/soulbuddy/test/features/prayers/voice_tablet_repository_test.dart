@@ -140,36 +140,36 @@ void main() {
     expect(await repository.ownedStorageKeys(), {'voice/full-replacement.m4a'});
   });
 
-  test('archives metadata and returns local assets for explicit cleanup', () async {
-    final saved = await repository.create(
-      VoiceTabletCreateRequest(
-        source: VoiceTabletSource.personal(
-          prayerId: 'prayer-1',
-          revisionId: 'revision-1',
+  test(
+    'archives metadata and returns local assets for explicit cleanup',
+    () async {
+      final saved = await repository.create(
+        VoiceTabletCreateRequest(
+          source: VoiceTabletSource.personal(
+            prayerId: 'prayer-1',
+            revisionId: 'revision-1',
+          ),
+          title: 'Morning surrender',
+          fullRecording: _attachment(
+            id: 'full-archive',
+            key: 'voice/full-archive.m4a',
+            duration: const Duration(seconds: 30),
+          ),
+          refrain: _attachment(
+            id: 'refrain-archive',
+            key: 'voice/refrain-archive.m4a',
+            duration: const Duration(seconds: 15),
+          ),
         ),
-        title: 'Morning surrender',
-        fullRecording: _attachment(
-          id: 'full-archive',
-          key: 'voice/full-archive.m4a',
-          duration: const Duration(seconds: 30),
-        ),
-        refrain: _attachment(
-          id: 'refrain-archive',
-          key: 'voice/refrain-archive.m4a',
-          duration: const Duration(seconds: 15),
-        ),
-      ),
-    );
+      );
 
-    final keys = await repository.archive(saved.id);
+      final keys = await repository.archive(saved.id);
 
-    expect(keys, {
-      'voice/full-archive.m4a',
-      'voice/refrain-archive.m4a',
-    });
-    expect(await repository.watch(saved.id).first, isNull);
-    expect(await repository.ownedStorageKeys(), isEmpty);
-  });
+      expect(keys, {'voice/full-archive.m4a', 'voice/refrain-archive.m4a'});
+      expect(await repository.watch(saved.id).first, isNull);
+      expect(await repository.ownedStorageKeys(), isEmpty);
+    },
+  );
 }
 
 VoiceTabletAudioAttachment _attachment({

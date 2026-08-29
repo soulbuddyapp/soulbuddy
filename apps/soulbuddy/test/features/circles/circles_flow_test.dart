@@ -18,7 +18,9 @@ import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 
 void main() {
-  testWidgets('discovers external Circles and exposes no chat composer', (tester) async {
+  testWidgets('discovers external Circles and exposes no chat composer', (
+    tester,
+  ) async {
     final repository = _FakeDirectoryRepository([_publicCircle()]);
     await _pumpCircles(tester, repository: repository);
 
@@ -32,37 +34,46 @@ void main() {
     expect(find.byKey(const Key('send-circle-message')), findsNothing);
   });
 
-  testWidgets('Circle detail opens the external provider and explains ownership', (
+  testWidgets(
+    'Circle detail opens the external provider and explains ownership',
+    (tester) async {
+      final repository = _FakeDirectoryRepository([_publicCircle()]);
+      Uri? opened;
+      await _pumpCircles(
+        tester,
+        repository: repository,
+        initialLocation: '/circles/circle-public-1',
+        launcher: (uri) async {
+          opened = uri;
+          return true;
+        },
+      );
+
+      expect(
+        find.textContaining('Conversation happens in Telegram'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('not its chat'), findsOneWidget);
+      expect(find.byKey(const Key('circle-message-field')), findsNothing);
+      await tester.tap(find.byKey(const Key('open-external-circle')));
+      await tester.pump();
+      expect(opened, Uri.parse('https://t.me/+walk-together'));
+    },
+  );
+
+  testWidgets('creates a Circle from purpose and external group link', (
     tester,
   ) async {
-    final repository = _FakeDirectoryRepository([_publicCircle()]);
-    Uri? opened;
-    await _pumpCircles(
-      tester,
-      repository: repository,
-      initialLocation: '/circles/circle-public-1',
-      launcher: (uri) async {
-        opened = uri;
-        return true;
-      },
-    );
-
-    expect(find.textContaining('Conversation happens in Telegram'), findsOneWidget);
-    expect(find.textContaining('not its chat'), findsOneWidget);
-    expect(find.byKey(const Key('circle-message-field')), findsNothing);
-    await tester.tap(find.byKey(const Key('open-external-circle')));
-    await tester.pump();
-    expect(opened, Uri.parse('https://t.me/+walk-together'));
-  });
-
-  testWidgets('creates a Circle from purpose and external group link', (tester) async {
     final repository = _FakeDirectoryRepository([]);
     await _pumpCircles(tester, repository: repository);
 
     await tester.tap(find.byKey(const Key('create-circle')));
     await tester.pumpAndSettle();
     expect(find.text('Create a Circle'), findsWidgets);
-    await tester.enterText(find.byKey(const Key('circle-name-field')), 'Close friends');
+    await tester.enterText(
+      find.byKey(const Key('circle-name-field')),
+      'Close friends',
+    );
     await tester.enterText(
       find.byKey(const Key('circle-description-field')),
       'Walk together through a difficult season.',
@@ -71,7 +82,9 @@ void main() {
       find.byKey(const Key('circle-open-url-field')),
       'https://t.me/+close-friends',
     );
-    await tester.tap(find.byKey(const Key('confirm-create-circle')));
+    final createButton = find.byKey(const Key('confirm-create-circle'));
+    await tester.ensureVisible(createButton);
+    await tester.tap(createButton);
     await tester.pumpAndSettle();
 
     expect(repository.created?.name, 'Close friends');
@@ -82,29 +95,35 @@ void main() {
     expect(find.byKey(const Key('circle-message-field')), findsNothing);
   });
 
-  testWidgets('rejects a provider-mismatched group link before repository create', (
-    tester,
-  ) async {
-    final repository = _FakeDirectoryRepository([]);
-    await _pumpCircles(tester, repository: repository);
+  testWidgets(
+    'rejects a provider-mismatched group link before repository create',
+    (tester) async {
+      final repository = _FakeDirectoryRepository([]);
+      await _pumpCircles(tester, repository: repository);
 
-    await tester.tap(find.byKey(const Key('create-circle')));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('circle-name-field')), 'Close friends');
-    await tester.enterText(
-      find.byKey(const Key('circle-description-field')),
-      'Walk together through a difficult season.',
-    );
-    await tester.enterText(
-      find.byKey(const Key('circle-open-url-field')),
-      'https://chat.whatsapp.com/not-telegram',
-    );
-    await tester.tap(find.byKey(const Key('confirm-create-circle')));
-    await tester.pump();
+      await tester.tap(find.byKey(const Key('create-circle')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('circle-name-field')),
+        'Close friends',
+      );
+      await tester.enterText(
+        find.byKey(const Key('circle-description-field')),
+        'Walk together through a difficult season.',
+      );
+      await tester.enterText(
+        find.byKey(const Key('circle-open-url-field')),
+        'https://chat.whatsapp.com/not-telegram',
+      );
+      final createButton = find.byKey(const Key('confirm-create-circle'));
+      await tester.ensureVisible(createButton);
+      await tester.tap(createButton);
+      await tester.pump();
 
-    expect(find.text('Use a valid Telegram group link.'), findsOneWidget);
-    expect(repository.created, isNull);
-  });
+      expect(find.text('Use a valid Telegram group link.'), findsOneWidget);
+      expect(repository.created, isNull);
+    },
+  );
 
   testWidgets('publishes an owned draft without undoing moderator delisting', (
     tester,
@@ -139,29 +158,30 @@ void main() {
     );
   });
 
-  testWidgets('keeps legacy messages as a sensitive private Record before deleting them', (
-    tester,
-  ) async {
-    final legacy = _FakeLegacyRepository(_legacyArchive());
-    final encounters = _FakeEncounterRepository();
-    await _pumpCircles(
-      tester,
-      repository: _FakeDirectoryRepository([]),
-      legacyRepository: legacy,
-      encounterRepository: encounters,
-    );
+  testWidgets(
+    'keeps legacy messages as a sensitive private Record before deleting them',
+    (tester) async {
+      final legacy = _FakeLegacyRepository(_legacyArchive());
+      final encounters = _FakeEncounterRepository();
+      await _pumpCircles(
+        tester,
+        repository: _FakeDirectoryRepository([]),
+        legacyRepository: legacy,
+        encounterRepository: encounters,
+      );
 
-    expect(find.text('Saved on this device'), findsOneWidget);
-    expect(find.text('2 saved local messages'), findsOneWidget);
-    await tester.tap(find.text('Keep as private Record'));
-    await tester.pumpAndSettle();
+      expect(find.text('Saved on this device'), findsOneWidget);
+      expect(find.text('2 saved local messages'), findsOneWidget);
+      await tester.tap(find.text('Keep as private Record'));
+      await tester.pumpAndSettle();
 
-    expect(encounters.lastDraft?.sensitive, isTrue);
-    expect(encounters.lastDraft?.recallEnabled, isFalse);
-    expect(encounters.lastDraft?.body, contains('Please pray for wisdom.'));
-    expect(legacy.archive, isNull);
-    expect(find.text('Kept as a private Record.'), findsOneWidget);
-  });
+      expect(encounters.lastDraft?.sensitive, isTrue);
+      expect(encounters.lastDraft?.recallEnabled, isFalse);
+      expect(encounters.lastDraft?.body, contains('Please pray for wisdom.'));
+      expect(legacy.archive, isNull);
+      expect(find.text('Kept as a private Record.'), findsOneWidget);
+    },
+  );
 
   testWidgets('old Circle deep link falls back to explicit local migration', (
     tester,
@@ -175,7 +195,10 @@ void main() {
     );
 
     expect(find.text('Old accountability'), findsOneWidget);
-    expect(find.textContaining('old Circle saved only on this device'), findsOneWidget);
+    expect(
+      find.textContaining('old Circle saved only on this device'),
+      findsOneWidget,
+    );
     expect(find.text('Keep messages as private Record'), findsOneWidget);
     expect(find.byKey(const Key('circle-message-field')), findsNothing);
   });
@@ -242,8 +265,12 @@ Future<void> _pumpCircles(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        circleDirectoryRepositoryProvider.overrideWith((ref) async => repository),
-        legacyCircleMigrationRepositoryProvider.overrideWith((ref) async => legacy),
+        circleDirectoryRepositoryProvider.overrideWith(
+          (ref) async => repository,
+        ),
+        legacyCircleMigrationRepositoryProvider.overrideWith(
+          (ref) async => legacy,
+        ),
         encounterRepositoryProvider.overrideWith((ref) async => encounters),
         circleExternalLauncherProvider.overrideWith(
           (ref) => launcher ?? ((_) async => true),

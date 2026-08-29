@@ -25,10 +25,7 @@ class LegacyCircleMessage {
 }
 
 class LegacyCircleArchive {
-  const LegacyCircleArchive({
-    required this.summary,
-    required this.messages,
-  });
+  const LegacyCircleArchive({required this.summary, required this.messages});
 
   final LegacyCircleSummary summary;
   final List<LegacyCircleMessage> messages;

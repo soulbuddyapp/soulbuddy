@@ -18,41 +18,44 @@ void main() {
     await temporaryDirectory.delete(recursive: true);
   });
 
-  test('reads legacy Circle messages locally and discards only on request', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/legacy.db',
-    );
-    addTearDown(database.close);
-    await _seedLegacyCircle(database.powersync, ownerId: 'owner-1');
-    final repository = PowerSyncLegacyCircleMigrationRepository(
-      database: database.powersync,
-      ownerId: 'owner-1',
-    );
+  test(
+    'reads legacy Circle messages locally and discards only on request',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/legacy.db',
+      );
+      addTearDown(database.close);
+      await _seedLegacyCircle(database.powersync, ownerId: 'owner-1');
+      final repository = PowerSyncLegacyCircleMigrationRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+      );
 
-    final summaries = await repository.list();
-    final archive = await repository.read('legacy-circle-1');
+      final summaries = await repository.list();
+      final archive = await repository.read('legacy-circle-1');
 
-    expect(summaries, hasLength(1));
-    expect(summaries.single.name, 'Old accountability');
-    expect(summaries.single.messageCount, 2);
-    expect(archive?.messages.map((item) => item.body), [
-      'Please pray for wisdom.',
-      'I will check in tomorrow.',
-    ]);
-    expect(await database.powersync.getNextCrudTransaction(), isNull);
+      expect(summaries, hasLength(1));
+      expect(summaries.single.name, 'Old accountability');
+      expect(summaries.single.messageCount, 2);
+      expect(archive?.messages.map((item) => item.body), [
+        'Please pray for wisdom.',
+        'I will check in tomorrow.',
+      ]);
+      expect(await database.powersync.getNextCrudTransaction(), isNull);
 
-    await repository.discard('legacy-circle-1');
+      await repository.discard('legacy-circle-1');
 
-    expect(await repository.list(), isEmpty);
-    expect(
-      await database.powersync.getAll(
-        'SELECT id FROM circle_messages WHERE circle_id = ?',
-        ['legacy-circle-1'],
-      ),
-      isEmpty,
-    );
-    expect(await database.powersync.getNextCrudTransaction(), isNull);
-  });
+      expect(await repository.list(), isEmpty);
+      expect(
+        await database.powersync.getAll(
+          'SELECT id FROM circle_messages WHERE circle_id = ?',
+          ['legacy-circle-1'],
+        ),
+        isEmpty,
+      );
+      expect(await database.powersync.getNextCrudTransaction(), isNull);
+    },
+  );
 
   test('legacy migration remains owner scoped', () async {
     final database = await openTestDatabase(
@@ -70,10 +73,9 @@ void main() {
     await repository.discard('legacy-circle-1');
 
     expect(
-      await database.powersync.getAll(
-        'SELECT id FROM circles WHERE id = ?',
-        ['legacy-circle-1'],
-      ),
+      await database.powersync.getAll('SELECT id FROM circles WHERE id = ?', [
+        'legacy-circle-1',
+      ]),
       hasLength(1),
     );
   });
@@ -101,7 +103,11 @@ Future<void> _seedLegacyCircle(
   );
   for (final message in const [
     ('legacy-message-1', 'Please pray for wisdom.', '2026-08-12T08:01:00.000Z'),
-    ('legacy-message-2', 'I will check in tomorrow.', '2026-08-12T08:02:00.000Z'),
+    (
+      'legacy-message-2',
+      'I will check in tomorrow.',
+      '2026-08-12T08:02:00.000Z',
+    ),
   ]) {
     await database.execute(
       '''

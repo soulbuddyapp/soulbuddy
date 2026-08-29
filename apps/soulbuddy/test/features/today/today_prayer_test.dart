@@ -28,7 +28,7 @@ void main() {
     expect(todayPrayerProvider.isAutoDispose, isTrue);
   });
 
-  testWidgets('no selection offers a calm guided start', (tester) async {
+  testWidgets('no Goal offers the guided first-Goal path', (tester) async {
     final semantics = tester.ensureSemantics();
     final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
     addTearDown(repository.close);
@@ -39,18 +39,16 @@ void main() {
     expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
     expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
     expect(find.byType(CovenantSlabs), findsOneWidget);
-    expect(find.text('Begin today\'s communion.'), findsOneWidget);
+    expect(find.text('What would you like help with?'), findsOneWidget);
     expect(
-      find.text(
-        'Pray with attention. Carry one faithful step. Keep what God gives '
-        'you.',
-      ),
+      find.text('Begin with one thing you want to seek, change, or carry.'),
       findsOneWidget,
     );
-    expect(find.text('Choose a prayer'), findsOneWidget);
+    expect(find.text('Start a Goal'), findsOneWidget);
+    expect(find.text('Choose a prayer'), findsNothing);
     expect(find.text('Record something'), findsOneWidget);
     expect(
-      find.byKey(const Key('choose-prayer')).hitTestable(),
+      find.byKey(const Key('start-first-goal')).hitTestable(),
       findsOneWidget,
     );
     final viewportHeight =
@@ -60,11 +58,11 @@ void main() {
       lessThanOrEqualTo(viewportHeight),
     );
 
-    await _scrollTo(tester, const Key('choose-prayer'));
-    await tester.tap(find.byKey(const Key('choose-prayer')));
+    await _scrollTo(tester, const Key('start-first-goal'));
+    await tester.tap(find.byKey(const Key('start-first-goal')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Prayer library destination'), findsOneWidget);
+    expect(find.text('First Goal destination'), findsOneWidget);
     _expectNoGamification(tester);
     semantics.dispose();
   });
@@ -90,7 +88,7 @@ void main() {
         .dy;
     expect(guideBottom, lessThanOrEqualTo(navigationTop));
     expect(
-      find.byKey(const Key('choose-prayer')).hitTestable(),
+      find.byKey(const Key('start-first-goal')).hitTestable(),
       findsOneWidget,
     );
     expect(
@@ -662,6 +660,11 @@ Future<void> _pumpToday(
         path: '/record',
         builder: (context, state) =>
             const Scaffold(body: Center(child: Text('Record destination'))),
+      ),
+      GoRoute(
+        path: '/welcome/goal',
+        builder: (context, state) =>
+            const Scaffold(body: Center(child: Text('First Goal destination'))),
       ),
     ],
   );

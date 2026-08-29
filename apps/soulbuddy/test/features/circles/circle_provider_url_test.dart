@@ -8,9 +8,7 @@ void main() {
       isTrue,
     );
     expect(
-      CircleProvider.telegram.allows(
-        Uri.parse('https://t.me/joinchat/group'),
-      ),
+      CircleProvider.telegram.allows(Uri.parse('https://t.me/joinchat/group')),
       isTrue,
     );
     expect(
@@ -48,9 +46,7 @@ void main() {
       isFalse,
     );
     expect(
-      CircleProvider.telegram.allows(
-        Uri.parse('https://t.me/public_group/42'),
-      ),
+      CircleProvider.telegram.allows(Uri.parse('https://t.me/public_group/42')),
       isFalse,
     );
     expect(
