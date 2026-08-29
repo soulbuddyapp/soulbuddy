@@ -107,7 +107,9 @@ class _PrayerAppLifecycleObserver extends WidgetsBindingObserver {
   }
 }
 
-final editorialPrayerContentBootstrapProvider = FutureProvider<void>((ref) async {
+final editorialPrayerContentBootstrapProvider = FutureProvider<void>((
+  ref,
+) async {
   final database = await ref.watch(appDatabaseProvider.future);
   await BundledPrayerImporter().ensureLoaded(database.powersync);
   await BundledEditorialImporter().ensureLoaded(database.powersync);
