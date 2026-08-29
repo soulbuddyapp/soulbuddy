@@ -23,9 +23,8 @@ class _LegacyFirstPrayerMigrationScreenState
   Widget build(BuildContext context) {
     final flow = ref.watch(firstPrayerControllerProvider);
     return flow.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (_, _) => _MigrationMessage(
         busy: _clearing,
         onContinue: _continueReviewed,
