@@ -56,7 +56,11 @@ void main() {
         ) VALUES (?, 'prepared_prayer', 1, 'soulbuddy_editorial', ?,
           'approved', '2026-08-29', '2026-08-29T00:00:00.000Z', NULL, ?)
         ''',
-        [prayerId, 'fixture:archive-v1', jsonEncode(['prayer', 'daily'])],
+        [
+          prayerId,
+          'fixture:archive-v1',
+          jsonEncode(['prayer', 'daily']),
+        ],
       );
       await database.powersync.execute(
         '''
