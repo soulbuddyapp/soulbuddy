@@ -49,7 +49,7 @@ enum CircleStatus {
 
 enum CircleProvider {
   telegram('telegram', 'Telegram', {'t.me', 'telegram.me'}),
-  whatsappLink('whatsapp_link', 'WhatsApp', {'chat.whatsapp.com', 'wa.me'});
+  whatsappLink('whatsapp_link', 'WhatsApp', {'chat.whatsapp.com'});
 
   const CircleProvider(this.wireValue, this.label, this.allowedHosts);
 
