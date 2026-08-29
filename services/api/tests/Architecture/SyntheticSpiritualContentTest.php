@@ -54,4 +54,11 @@ it('has no server runtime synthetic prayer generation surface', function () {
         ->not->toContain('DEEPSEEK_')
         ->not->toContain('PRAYER_GENERATION_ENABLED')
         ->not->toContain('PRAYER_DRAFT_');
+
+    $promptFiles = glob($root.'/resources/prompts/*') ?: [];
+    $draftPrompts = array_values(array_filter(
+        $promptFiles,
+        fn (string $path): bool => str_contains(strtolower(basename($path)), 'prayer_draft'),
+    ));
+    expect($draftPrompts)->toBe([]);
 });
