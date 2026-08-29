@@ -40,6 +40,7 @@ class CircleDraft {
     required this.visibility,
     required this.provider,
     required this.openUri,
+    this.status = CircleStatus.active,
   });
 
   final String name;
@@ -48,12 +49,14 @@ class CircleDraft {
   final CircleVisibility visibility;
   final CircleProvider provider;
   final Uri openUri;
+  final CircleStatus status;
 
   Map<String, dynamic> toJson() => {
     'name': name.trim(),
     'category': category.wireValue,
     'description': description.trim(),
     'visibility': visibility.wireValue,
+    'status': status.wireValue,
     'provider': provider.wireValue,
     'open_url': openUri.toString(),
   };
