@@ -8,6 +8,16 @@ void main() {
       isTrue,
     );
     expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://t.me/joinchat/group'),
+      ),
+      isTrue,
+    );
+    expect(
+      CircleProvider.telegram.allows(Uri.parse('https://t.me/public_group')),
+      isTrue,
+    );
+    expect(
       CircleProvider.whatsappLink.allows(
         Uri.parse('https://chat.whatsapp.com/group'),
       ),
@@ -22,6 +32,30 @@ void main() {
     expect(
       CircleProvider.telegram.allows(
         Uri.parse('https://chat.whatsapp.com/group'),
+      ),
+      isFalse,
+    );
+    expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://t.me/share?url=https://example.com'),
+      ),
+      isFalse,
+    );
+    expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://t.me/proxy?server=example.com&port=443'),
+      ),
+      isFalse,
+    );
+    expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://t.me/public_group/42'),
+      ),
+      isFalse,
+    );
+    expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://t.me/public_group?start=payload'),
       ),
       isFalse,
     );

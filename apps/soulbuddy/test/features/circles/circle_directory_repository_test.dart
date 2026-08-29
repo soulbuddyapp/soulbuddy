@@ -136,6 +136,9 @@ void main() {
       'https://t.me:8443/+wrong-port',
       'http://t.me/+not-https',
       'https://t.me/',
+      'https://t.me/share?url=https://example.com',
+      'https://t.me/proxy?server=example.com&port=443',
+      'https://t.me/public_group/42',
     ]) {
       final repository = LaravelCircleDirectoryRepository(
         apiBaseUri: Uri.parse('https://sbuddy.example'),
@@ -156,10 +159,11 @@ void main() {
     }
   });
 
-  test('rejects malformed directory booleans and timestamps uniformly', () async {
+  test('rejects malformed directory fields uniformly', () async {
     for (final malformed in [
       {..._circleJson(), 'is_owner': 'yes'},
       {..._circleJson(), 'directory_listed': 1},
+      {..._circleJson(), 'member_count': -1},
       {..._circleJson(), 'updated_at': 123},
       {..._circleJson(), 'updated_at': 'not-a-date'},
     ]) {
@@ -176,9 +180,19 @@ void main() {
     }
   });
 
-  test('accepts only the matching group-link provider host family', () {
+  test('accepts only matching provider group-link shapes', () {
     expect(
       CircleProvider.telegram.allows(Uri.parse('https://t.me/+group')),
+      isTrue,
+    );
+    expect(
+      CircleProvider.telegram.allows(
+        Uri.parse('https://t.me/joinchat/group'),
+      ),
+      isTrue,
+    );
+    expect(
+      CircleProvider.telegram.allows(Uri.parse('https://t.me/public_group')),
       isTrue,
     );
     expect(

@@ -93,42 +93,38 @@ class CircleController extends Controller
             $creationKey,
             $fingerprint,
         ): array {
-            $existing = Circle::query()
-                ->with('providerBinding')
-                ->where('owner_user_id', $user->id)
-                ->where('creation_key', $creationKey)
-                ->lockForUpdate()
-                ->first();
-            if ($existing !== null) {
-                if (! hash_equals($existing->creation_fingerprint, $fingerprint)) {
-                    throw ValidationException::withMessages([
-                        'creation_key' => ['idempotency_conflict'],
-                    ]);
-                }
-
-                return [$existing, false];
+            $circle = Circle::query()->firstOrCreate(
+                [
+                    'owner_user_id' => $user->id,
+                    'creation_key' => $creationKey,
+                ],
+                [
+                    'creation_fingerprint' => $fingerprint,
+                    'name' => trim($validated['name']),
+                    'category' => $validated['category'],
+                    'description' => trim($validated['description']),
+                    'visibility' => $validated['visibility'],
+                    'status' => $validated['status'] ?? 'active',
+                    'directory_listed' => true,
+                ],
+            );
+            $created = $circle->wasRecentlyCreated;
+            if (! hash_equals($circle->creation_fingerprint, $fingerprint)) {
+                throw ValidationException::withMessages([
+                    'creation_key' => ['idempotency_conflict'],
+                ]);
+            }
+            if ($created) {
+                $circle->providerBinding()->create([
+                    'provider' => $validated['provider'],
+                    'open_url' => trim($validated['open_url']),
+                    'capabilities' => ['open_link'],
+                    'binding_status' => 'ready',
+                    'bound_at' => now(),
+                ]);
             }
 
-            $circle = Circle::create([
-                'owner_user_id' => $user->id,
-                'creation_key' => $creationKey,
-                'creation_fingerprint' => $fingerprint,
-                'name' => trim($validated['name']),
-                'category' => $validated['category'],
-                'description' => trim($validated['description']),
-                'visibility' => $validated['visibility'],
-                'status' => $validated['status'] ?? 'active',
-                'directory_listed' => true,
-            ]);
-            $circle->providerBinding()->create([
-                'provider' => $validated['provider'],
-                'open_url' => trim($validated['open_url']),
-                'capabilities' => ['open_link'],
-                'binding_status' => 'ready',
-                'bound_at' => now(),
-            ]);
-
-            return [$circle->load('providerBinding'), true];
+            return [$circle->load('providerBinding'), $created];
         });
 
         return response()->json($this->payload($circle, $user), $created ? 201 : 200);

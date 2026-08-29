@@ -53,6 +53,37 @@ enum CircleProvider {
 
   const CircleProvider(this.wireValue, this.label, this.allowedHosts);
 
+  static const _telegramServicePaths = {
+    'a',
+    'addemoji',
+    'addlist',
+    'addstickers',
+    'addstyle',
+    'addtheme',
+    'auction',
+    'auth',
+    'boost',
+    'c',
+    'call',
+    'confirmphone',
+    'contact',
+    'giftcode',
+    'invoice',
+    'iv',
+    'k',
+    'login',
+    'm',
+    'msg',
+    'nft',
+    'oauth',
+    'proxy',
+    'setlanguage',
+    'share',
+    'socks',
+    'web',
+    'z',
+  };
+
   final String wireValue;
   final String label;
   final Set<String> allowedHosts;
@@ -70,11 +101,34 @@ enum CircleProvider {
 
   bool allows(Uri uri) {
     final host = uri.host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
-    return uri.scheme.toLowerCase() == 'https' &&
-        uri.userInfo.isEmpty &&
-        allowedHosts.contains(host) &&
-        (!uri.hasPort || uri.port == 443) &&
-        uri.pathSegments.any((segment) => segment.trim().isNotEmpty);
+    if (uri.scheme.toLowerCase() != 'https' ||
+        uri.userInfo.isNotEmpty ||
+        !allowedHosts.contains(host) ||
+        (uri.hasPort && uri.port != 443)) {
+      return false;
+    }
+    final segments = uri.pathSegments
+        .where((segment) => segment.trim().isNotEmpty)
+        .toList(growable: false);
+
+    return switch (this) {
+      CircleProvider.telegram => _allowsTelegram(segments, uri),
+      CircleProvider.whatsappLink => segments.length == 1,
+    };
+  }
+
+  static bool _allowsTelegram(List<String> segments, Uri uri) {
+    if (uri.hasQuery || uri.fragment.isNotEmpty) return false;
+    if (segments.length == 2 && segments.first.toLowerCase() == 'joinchat') {
+      return segments.last.trim().isNotEmpty;
+    }
+    if (segments.length != 1) return false;
+
+    final target = segments.single.trim();
+    if (target.startsWith('+')) return target.length > 1;
+    return target.isNotEmpty &&
+        target.toLowerCase() != 'joinchat' &&
+        !_telegramServicePaths.contains(target.toLowerCase());
   }
 }
 
@@ -109,8 +163,7 @@ class Circle {
   final bool isOwner;
   final DateTime? updatedAt;
 
-  bool get canOpen =>
-      openUri != null && capabilities.contains('open_link');
+  bool get canOpen => openUri != null && capabilities.contains('open_link');
 
   factory Circle.fromJson(Map<String, dynamic> json) {
     final capabilities = json['capabilities'];
@@ -135,9 +188,11 @@ class Circle {
       capabilities: List.unmodifiable(capabilities.cast<String>()),
       memberCount: memberCount == null
           ? null
-          : memberCount is int
+          : memberCount is int && memberCount >= 0
           ? memberCount
-          : throw const FormatException('Circle member count must be an int.'),
+          : throw const FormatException(
+              'Circle member count must be a non-negative int.',
+            ),
       isOwner: _requiredBool(json, 'is_owner'),
       updatedAt: _optionalUtcDateTime(json['updated_at']),
     );
