@@ -9,6 +9,8 @@ on:
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
       - 'apps/soulbuddy/lib/features/scripture/**'
+      - 'apps/soulbuddy/lib/features/prayers/data/personal_prayer_repository.dart'
+      - 'apps/soulbuddy/lib/features/prayers/data/powersync_personal_prayer_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/data/prayer_generation_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/data/powersync_prayer_generation_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/providers/personal_prayer_providers.dart'
@@ -18,7 +20,7 @@ on:
       - 'apps/soulbuddy/test/features/goals/**'
       - 'apps/soulbuddy/test/features/scripture/**'
       - 'apps/soulbuddy/test/features/today/today_prayer_test.dart'
-      - 'apps/soulbuddy/test/features/prayers/prayer_generation_kill_switch_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/personal_prayer_repository_test.dart'
       - 'apps/soulbuddy/test/features/prayers/prayer_generation_repository_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
@@ -46,6 +48,8 @@ on:
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
       - 'apps/soulbuddy/lib/features/scripture/**'
+      - 'apps/soulbuddy/lib/features/prayers/data/personal_prayer_repository.dart'
+      - 'apps/soulbuddy/lib/features/prayers/data/powersync_personal_prayer_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/data/prayer_generation_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/data/powersync_prayer_generation_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/providers/personal_prayer_providers.dart'
@@ -55,7 +59,7 @@ on:
       - 'apps/soulbuddy/test/features/goals/**'
       - 'apps/soulbuddy/test/features/scripture/**'
       - 'apps/soulbuddy/test/features/today/today_prayer_test.dart'
-      - 'apps/soulbuddy/test/features/prayers/prayer_generation_kill_switch_test.dart'
+      - 'apps/soulbuddy/test/features/prayers/personal_prayer_repository_test.dart'
       - 'apps/soulbuddy/test/features/prayers/prayer_generation_repository_test.dart'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
@@ -108,9 +112,8 @@ jobs:
         shell: pwsh
         run: |
           # The production RSVCE database is generated locally from an approved
-          # source and is intentionally ignored by Git. Focused picker tests use
-          # a fake repository; Flutter still requires every declared asset to
-          # exist while constructing the test bundle.
+          # source and is intentionally ignored by Git. Focused tests use fakes;
+          # Flutter still requires every declared asset to exist in the bundle.
           New-Item -ItemType Directory -Force assets/scripture | Out-Null
           if (-not (Test-Path assets/scripture/rsvce.db)) {
             New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
@@ -121,15 +124,15 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dart format lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/scripture lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/prayer_generation_kill_switch_test.dart test/features/prayers/prayer_generation_repository_test.dart
+          dart format lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
           git diff --check
-          git diff --exit-code -- lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/scripture lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/prayer_generation_kill_switch_test.dart test/features/prayers/prayer_generation_repository_test.dart
+          git diff --exit-code -- lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
 
       - name: Analyze onboarding
         run: flutter analyze --fatal-infos lib/features/onboarding lib/features/goals
 
       - name: Analyze Scripture and legacy archive integration
-        run: flutter analyze --fatal-infos lib/features/scripture lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart
+        run: flutter analyze --fatal-infos lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart
 
       - name: Analyze Goal-linked Today integration
         run: flutter analyze --fatal-infos lib/features/today/presentation/today_screen.dart
@@ -138,7 +141,7 @@ jobs:
         run: flutter analyze --fatal-infos lib/app lib/core/database
 
       - name: Run focused onboarding / Goals tests
-        run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/prayer_generation_kill_switch_test.dart test/features/prayers/prayer_generation_repository_test.dart
+        run: flutter test test/architecture/product_invariants_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
 
       - name: Fail on committed formatting drift
         if: always() && steps.dart-format.outcome == 'failure'
