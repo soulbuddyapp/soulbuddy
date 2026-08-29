@@ -34,6 +34,7 @@ class CirclePage {
 
 class CircleDraft {
   const CircleDraft({
+    required this.creationKey,
     required this.name,
     required this.category,
     required this.description,
@@ -43,6 +44,7 @@ class CircleDraft {
     this.status = CircleStatus.active,
   });
 
+  final String creationKey;
   final String name;
   final CircleCategory category;
   final String description;
@@ -52,6 +54,7 @@ class CircleDraft {
   final CircleStatus status;
 
   Map<String, dynamic> toJson() => {
+    'creation_key': creationKey,
     'name': name.trim(),
     'category': category.wireValue,
     'description': description.trim(),
