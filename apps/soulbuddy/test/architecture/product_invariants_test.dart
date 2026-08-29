@@ -87,9 +87,15 @@ void main() {
         expect(contract, isNot(contains(marker)));
       }
       expect(archive, contains('watch(String id)'));
-      expect(archive, isNot(contains('INSERT INTO prayer_generation_requests')));
+      expect(
+        archive,
+        isNot(contains('INSERT INTO prayer_generation_requests')),
+      );
       expect(archive, isNot(contains('UPDATE prayer_generation_requests')));
-      expect(archive, isNot(contains('DELETE FROM prayer_generation_contexts')));
+      expect(
+        archive,
+        isNot(contains('DELETE FROM prayer_generation_contexts')),
+      );
       expect(
         personal,
         isNot(contains('UPDATE prayer_generation_requests')),
