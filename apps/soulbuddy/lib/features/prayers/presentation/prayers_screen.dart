@@ -51,7 +51,7 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               PrayerLibraryIntro(
-                onPersonalized: () => context.go('/prayers/create'),
+                onForThisMoment: () => context.go('/prayers/create'),
               ),
               const SizedBox(height: AppSpacing.lg),
               Card(
