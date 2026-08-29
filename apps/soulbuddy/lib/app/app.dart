@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/design/app_theme.dart';
 import '../core/design/app_spacing.dart';
-import '../features/prayers/providers/personal_prayer_providers.dart';
 import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
@@ -21,7 +20,6 @@ class SoulBuddyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(prayerGenerationWorkerProvider);
     ref.watch(prayerReminderCoordinatorProvider);
     ref.watch(altarReminderCoordinatorProvider);
     ref.watch(privateAudioStartupCleanupProvider);
