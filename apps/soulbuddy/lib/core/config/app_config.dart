@@ -12,6 +12,10 @@ abstract final class AppConfig {
     'SOULBUDDY_PRAYER_GENERATION_ENABLED',
     defaultValue: false,
   );
+  static const prayerRequestCreationEnabled = bool.fromEnvironment(
+    'SOULBUDDY_PRAYER_REQUEST_CREATION_ENABLED',
+    defaultValue: false,
+  );
   static const prayerDraftProvider = String.fromEnvironment(
     'SOULBUDDY_PRAYER_DRAFT_PROVIDER',
     defaultValue: 'deepseek',
