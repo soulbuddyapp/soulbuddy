@@ -9,32 +9,35 @@ import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 
 void main() {
-  test('first Goal reads only the reviewed editorial prayer provider', () async {
-    final repository = _FixtureEditorialPrayerRepository({
-      PrayerPurpose.guidance: [
-        _editorialPrayer(
-          id: '0198a100-0000-7000-8000-000000000003',
-          title: 'For guidance',
-          purpose: PrayerPurpose.guidance,
-        ),
-      ],
-    });
-    final container = ProviderContainer(
-      overrides: [
-        editorialPrayerRepositoryProvider.overrideWith(
-          (ref) async => repository,
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'first Goal reads only the reviewed editorial prayer provider',
+    () async {
+      final repository = _FixtureEditorialPrayerRepository({
+        PrayerPurpose.guidance: [
+          _editorialPrayer(
+            id: '0198a100-0000-7000-8000-000000000003',
+            title: 'For guidance',
+            purpose: PrayerPurpose.guidance,
+          ),
+        ],
+      });
+      final container = ProviderContainer(
+        overrides: [
+          editorialPrayerRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final prayers = await container.read(
-      firstGoalPrayerOptionsProvider(GoalStarterKey.direction).future,
-    );
+      final prayers = await container.read(
+        firstGoalPrayerOptionsProvider(GoalStarterKey.direction).future,
+      );
 
-    expect(prayers.map((prayer) => prayer.title), ['For guidance']);
-    expect(repository.purposes, [PrayerPurpose.guidance]);
-  });
+      expect(prayers.map((prayer) => prayer.title), ['For guidance']);
+      expect(repository.purposes, [PrayerPurpose.guidance]);
+    },
+  );
 
   test('first Goal fallback remains reviewed and capped at three', () async {
     final fallback = List.generate(
