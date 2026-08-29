@@ -2,6 +2,9 @@ name: External Circles
 
 on:
   pull_request:
+    branches:
+      - main
+      - agent/seek-goals-circles-redesign-20260828
     paths:
       - '.github/workflows/external-circles.yml'
       - 'apps/soulbuddy/lib/features/circles/**'
@@ -21,7 +24,6 @@ on:
   push:
     branches:
       - main
-      - 'agent/**'
     paths:
       - '.github/workflows/external-circles.yml'
       - 'apps/soulbuddy/lib/features/circles/**'
