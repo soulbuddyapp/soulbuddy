@@ -118,7 +118,7 @@ enum CircleProvider {
   }
 
   static bool _allowsTelegram(List<String> segments, Uri uri) {
-    if (uri.hasQuery || uri.fragment.isNotEmpty) return false;
+    if (uri.query.isNotEmpty || uri.fragment.isNotEmpty) return false;
     if (segments.length == 2 && segments.first.toLowerCase() == 'joinchat') {
       return segments.last.trim().isNotEmpty;
     }
@@ -172,7 +172,6 @@ class Circle {
       throw const FormatException('Circle capabilities must be strings.');
     }
     final provider = CircleProvider.fromWire(json['provider']);
-    final memberCount = json['member_count'];
     return Circle(
       publicId: _requiredString(json, 'public_id'),
       name: _requiredString(json, 'name'),
@@ -186,13 +185,7 @@ class Circle {
       provider: provider,
       openUri: _providerOpenUri(provider, json['open_url']),
       capabilities: List.unmodifiable(capabilities.cast<String>()),
-      memberCount: memberCount == null
-          ? null
-          : memberCount is int && memberCount >= 0
-          ? memberCount
-          : throw const FormatException(
-              'Circle member count must be a non-negative int.',
-            ),
+      memberCount: _optionalMemberCount(json['member_count']),
       isOwner: _requiredBool(json, 'is_owner'),
       updatedAt: _optionalUtcDateTime(json['updated_at']),
     );
@@ -209,6 +202,16 @@ Uri? _providerOpenUri(CircleProvider? provider, Object? value) {
     throw const FormatException('Circle provider URL is invalid.');
   }
   return uri;
+}
+
+int? _optionalMemberCount(Object? value) {
+  if (value == null) return null;
+  if (value is! int || value < 0) {
+    throw const FormatException(
+      'Circle member count must be a non-negative int.',
+    );
+  }
+  return value;
 }
 
 DateTime? _optionalUtcDateTime(Object? value) {
