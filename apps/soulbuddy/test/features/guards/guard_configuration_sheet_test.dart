@@ -18,9 +18,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            goalGuardSelectionsProvider(goal.id).overrideWith(
-              (ref) => Stream.value(const <GoalGuardSelection>[]),
-            ),
+            goalGuardSelectionsProvider(
+              goal.id,
+            ).overrideWith((ref) => Stream.value(const <GoalGuardSelection>[])),
           ],
           child: MaterialApp(
             theme: AppTheme.light(),

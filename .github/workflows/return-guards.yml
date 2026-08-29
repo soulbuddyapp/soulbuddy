@@ -74,7 +74,7 @@ jobs:
             New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
           }
 
-      - name: Check focused formatting
+      - name: Normalize and check focused formatting
         id: dart-format
         continue-on-error: true
         shell: pwsh
@@ -84,13 +84,15 @@ jobs:
           git diff --exit-code -- lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart test/features/guards test/features/goals/goal_detail_screen_test.dart
 
       - name: Analyze Return and guards
+        id: flutter-analyze
+        continue-on-error: true
         run: flutter analyze --fatal-infos lib/features/guards lib/features/goals/data/goal_schema.dart lib/features/goals/presentation/goal_detail_screen.dart test/features/guards test/features/goals/goal_detail_screen_test.dart
 
       - name: Run Return and guard tests
         run: flutter test test/features/guards test/features/goals/goal_detail_screen_test.dart
 
-      - name: Fail on committed formatting drift
-        if: always() && steps.dart-format.outcome == 'failure'
+      - name: Fail on Flutter formatting or analysis drift
+        if: always() && (steps.dart-format.outcome == 'failure' || steps.flutter-analyze.outcome == 'failure')
         shell: pwsh
         run: exit 1
 
@@ -122,8 +124,17 @@ jobs:
           cp .env.example .env
           php artisan key:generate --ansi
 
-      - name: Check focused PHP style
-        run: ./vendor/bin/pint --test app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalGuardSelectionSyncMutation.php app/Models/GoalGuardSelection.php database/migrations/*goal_guard*.php tests/Feature/Goals/GoalGuardSelectionSyncTest.php
+      - name: Normalize and check focused PHP style
+        id: php-format
+        continue-on-error: true
+        run: |
+          ./vendor/bin/pint app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalGuardSelectionSyncMutation.php app/Models/GoalGuardSelection.php database/migrations/*goal_guard*.php tests/Feature/Goals/GoalGuardSelectionSyncTest.php
+          git diff --check
+          git diff --exit-code -- app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalGuardSelectionSyncMutation.php app/Models/GoalGuardSelection.php database/migrations/*goal_guard*.php tests/Feature/Goals/GoalGuardSelectionSyncTest.php
 
       - name: Run guard sync tests
         run: php artisan test tests/Feature/Goals/GoalGuardSelectionSyncTest.php
+
+      - name: Fail on committed PHP formatting drift
+        if: always() && steps.php-format.outcome == 'failure'
+        run: exit 1

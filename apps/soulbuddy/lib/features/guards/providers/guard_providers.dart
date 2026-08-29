@@ -23,6 +23,8 @@ final guardSelectionRepositoryProvider =
 
 final goalGuardSelectionsProvider = StreamProvider.autoDispose
     .family<List<GoalGuardSelection>, String>((ref, goalId) async* {
-      final repository = await ref.watch(guardSelectionRepositoryProvider.future);
+      final repository = await ref.watch(
+        guardSelectionRepositoryProvider.future,
+      );
       yield* repository.watchForGoal(goalId);
     });

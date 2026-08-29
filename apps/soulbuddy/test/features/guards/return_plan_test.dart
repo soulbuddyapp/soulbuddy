@@ -6,28 +6,41 @@ import 'package:soulbuddy/features/guards/application/return_plan.dart';
 import 'package:soulbuddy/features/guards/domain/guard_definition.dart';
 
 void main() {
-  test('stop-control Goal is Return-relevant before every step is configured', () {
-    final plan = ReturnPlanBuilder.build(
-      goal: _goal(starterKey: GoalStarterKey.stopControl),
-      actions: const [],
-      links: const [],
-      guardSelections: const [],
-    );
+  test(
+    'stop-control Goal is Return-relevant before every step is configured',
+    () {
+      final plan = ReturnPlanBuilder.build(
+        goal: _goal(starterKey: GoalStarterKey.stopControl),
+        actions: const [],
+        links: const [],
+        guardSelections: const [],
+      );
 
-    expect(plan.relevant, isTrue);
-    expect(plan.hasCloseTheDoorStep, isFalse);
-    expect(plan.hasReturnToGodStep, isFalse);
-    expect(plan.hasReplacementStep, isFalse);
-    expect(plan.hasDoNotHideStep, isFalse);
-  });
+      expect(plan.relevant, isTrue);
+      expect(plan.hasCloseTheDoorStep, isFalse);
+      expect(plan.hasReturnToGodStep, isFalse);
+      expect(plan.hasReplacementStep, isFalse);
+      expect(plan.hasDoNotHideStep, isFalse);
+    },
+  );
 
   test('Return plan reuses Goal actions, links, and selected guards', () {
     final goal = _goal(starterKey: GoalStarterKey.stopControl);
     final plan = ReturnPlanBuilder.build(
       goal: goal,
       actions: [
-        _action('guard', goal.id, GoalActionKind.guard, 'Leave the phone outside'),
-        _action('replacement', goal.id, GoalActionKind.nextStep, 'Walk outside'),
+        _action(
+          'guard',
+          goal.id,
+          GoalActionKind.guard,
+          'Leave the phone outside',
+        ),
+        _action(
+          'replacement',
+          goal.id,
+          GoalActionKind.nextStep,
+          'Walk outside',
+        ),
         _action(
           'accountability',
           goal.id,
@@ -101,15 +114,19 @@ Goal _goal({GoalStarterKey? starterKey}) => Goal(
   updatedAt: DateTime.utc(2026, 8, 29),
 );
 
-GoalAction _action(String id, String goalId, GoalActionKind kind, String body) =>
-    GoalAction(
-      id: id,
-      goalId: goalId,
-      ownerId: 'owner-1',
-      body: body,
-      kind: kind,
-      scheduleType: GoalScheduleType.none,
-      enabled: true,
-      createdAt: DateTime.utc(2026, 8, 29),
-      updatedAt: DateTime.utc(2026, 8, 29),
-    );
+GoalAction _action(
+  String id,
+  String goalId,
+  GoalActionKind kind,
+  String body,
+) => GoalAction(
+  id: id,
+  goalId: goalId,
+  ownerId: 'owner-1',
+  body: body,
+  kind: kind,
+  scheduleType: GoalScheduleType.none,
+  enabled: true,
+  createdAt: DateTime.utc(2026, 8, 29),
+  updatedAt: DateTime.utc(2026, 8, 29),
+);

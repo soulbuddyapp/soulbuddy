@@ -12,87 +12,90 @@ import 'package:soulbuddy/features/guards/providers/guard_providers.dart';
 import 'package:soulbuddy/features/guards/providers/return_providers.dart';
 
 void main() {
-  test('optional Return provider failures keep a stop-control Goal usable', () async {
-    final goal = _goal();
-    final container = ProviderContainer(
-      overrides: [
-        goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
-        goalReturnActionsProvider(goal.id).overrideWith(
-          (ref) => Stream.error(StateError('actions unavailable')),
-        ),
-        goalReturnLinksProvider(goal.id).overrideWith(
-          (ref) => Stream.error(StateError('links unavailable')),
-        ),
-        goalGuardSelectionsProvider(goal.id).overrideWith(
-          (ref) => Stream.error(StateError('guards unavailable')),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'optional Return provider failures keep a stop-control Goal usable',
+    () async {
+      final goal = _goal();
+      final container = ProviderContainer(
+        overrides: [
+          goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
+          goalReturnActionsProvider(goal.id).overrideWith(
+            (ref) => Stream.error(StateError('actions unavailable')),
+          ),
+          goalReturnLinksProvider(goal.id).overrideWith(
+            (ref) => Stream.error(StateError('links unavailable')),
+          ),
+          goalGuardSelectionsProvider(goal.id).overrideWith(
+            (ref) => Stream.error(StateError('guards unavailable')),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final plan = await _nextPlan(
-      container,
-      goal.id,
-      where: (value) => value.unavailableParts.length == 3,
-    );
+      final plan = await _nextPlan(
+        container,
+        goal.id,
+        where: (value) => value.unavailableParts.length == 3,
+      );
 
-    expect(plan.relevant, isTrue);
-    expect(plan.barrierAction, isNull);
-    expect(plan.spiritualResource, isNull);
-    expect(plan.replacementAction, isNull);
-    expect(plan.accountabilityAction, isNull);
-    expect(plan.guardSelections, isEmpty);
-    expect(
-      plan.unavailableParts,
-      {
+      expect(plan.relevant, isTrue);
+      expect(plan.barrierAction, isNull);
+      expect(plan.spiritualResource, isNull);
+      expect(plan.replacementAction, isNull);
+      expect(plan.accountabilityAction, isNull);
+      expect(plan.guardSelections, isEmpty);
+      expect(plan.unavailableParts, {
         ReturnPlanPart.actions,
         ReturnPlanPart.spiritualResources,
         ReturnPlanPart.guards,
-      },
-    );
-  });
+      });
+    },
+  );
 
-  test('available Return data replaces loading fallbacks deterministically', () async {
-    final goal = _goal();
-    final actionController = StreamController<List<GoalAction>>();
-    final linkController = StreamController<List<GoalLink>>();
-    final guardController = StreamController<List<GoalGuardSelection>>();
-    addTearDown(actionController.close);
-    addTearDown(linkController.close);
-    addTearDown(guardController.close);
+  test(
+    'available Return data replaces loading fallbacks deterministically',
+    () async {
+      final goal = _goal();
+      final actionController = StreamController<List<GoalAction>>();
+      final linkController = StreamController<List<GoalLink>>();
+      final guardController = StreamController<List<GoalGuardSelection>>();
+      addTearDown(actionController.close);
+      addTearDown(linkController.close);
+      addTearDown(guardController.close);
 
-    final container = ProviderContainer(
-      overrides: [
-        goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
-        goalReturnActionsProvider(goal.id).overrideWith(
-          (ref) => actionController.stream,
-        ),
-        goalReturnLinksProvider(goal.id).overrideWith(
-          (ref) => linkController.stream,
-        ),
-        goalGuardSelectionsProvider(goal.id).overrideWith(
-          (ref) => guardController.stream,
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
+          goalReturnActionsProvider(
+            goal.id,
+          ).overrideWith((ref) => actionController.stream),
+          goalReturnLinksProvider(
+            goal.id,
+          ).overrideWith((ref) => linkController.stream),
+          goalGuardSelectionsProvider(
+            goal.id,
+          ).overrideWith((ref) => guardController.stream),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final first = await _nextPlan(container, goal.id);
-    expect(first.relevant, isTrue);
-    expect(first.unavailableParts, isEmpty);
+      final first = await _nextPlan(container, goal.id);
+      expect(first.relevant, isTrue);
+      expect(first.unavailableParts, isEmpty);
 
-    actionController.add([_action(goal.id)]);
-    linkController.add(const []);
-    guardController.add(const []);
+      actionController.add([_action(goal.id)]);
+      linkController.add(const []);
+      guardController.add(const []);
 
-    final resolved = await _nextPlan(
-      container,
-      goal.id,
-      where: (value) => value.barrierAction != null,
-    );
-    expect(resolved.barrierAction?.body, 'Leave the room');
-    expect(resolved.unavailableParts, isEmpty);
-  });
+      final resolved = await _nextPlan(
+        container,
+        goal.id,
+        where: (value) => value.barrierAction != null,
+      );
+      expect(resolved.barrierAction?.body, 'Leave the room');
+      expect(resolved.unavailableParts, isEmpty);
+    },
+  );
 }
 
 Future<ReturnPlan> _nextPlan(

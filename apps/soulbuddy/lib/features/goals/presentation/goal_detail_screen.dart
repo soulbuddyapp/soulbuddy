@@ -111,10 +111,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                             key: const Key('goal-return'),
                             onPressed: _working
                                 ? null
-                                : () => showReturnSheet(
-                                    context,
-                                    goalId: goal.id,
-                                  ),
+                                : () =>
+                                      showReturnSheet(context, goalId: goal.id),
                             icon: const Icon(Icons.reply_outlined),
                             label: const Text('Return'),
                           ),

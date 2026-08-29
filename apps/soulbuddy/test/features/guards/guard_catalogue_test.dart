@@ -7,7 +7,10 @@ void main() {
     final definitions = BundledGuardCatalogue.definitions;
 
     expect(definitions, isNotEmpty);
-    expect(definitions.map((definition) => definition.id).toSet(), hasLength(definitions.length));
+    expect(
+      definitions.map((definition) => definition.id).toSet(),
+      hasLength(definitions.length),
+    );
     for (final definition in definitions) {
       expect(definition.id, matches(RegExp(r'^[a-z0-9][a-z0-9-]*$')));
       expect(definition.contentVersion, greaterThan(0));

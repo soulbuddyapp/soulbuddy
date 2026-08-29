@@ -15,13 +15,11 @@ import '../../record/providers/encounter_providers.dart';
 import '../application/return_plan.dart';
 import '../data/bundled_guard_catalogue.dart';
 import '../domain/guard_definition.dart';
+import '../providers/guard_providers.dart';
 import '../providers/return_providers.dart';
 import 'guard_configuration_sheet.dart';
 
-Future<void> showReturnSheet(
-  BuildContext context, {
-  required String goalId,
-}) {
+Future<void> showReturnSheet(BuildContext context, {required String goalId}) {
   return showModalBottomSheet<void>(
     context: context,
     useSafeArea: true,
@@ -92,7 +90,8 @@ class _ReturnContent extends ConsumerWidget {
               _ReturnStepCard(
                 number: 2,
                 title: 'Close the door',
-                body: plan.barrierAction?.body ?? 'No barrier action configured.',
+                body:
+                    plan.barrierAction?.body ?? 'No barrier action configured.',
                 details: [
                   for (final selection in plan.guardSelections)
                     _GuardSummary(
@@ -105,10 +104,8 @@ class _ReturnContent extends ConsumerWidget {
                 ],
                 action: OutlinedButton.icon(
                   key: const Key('return-configure-walls'),
-                  onPressed: () => showGuardConfigurationSheet(
-                    context,
-                    goal: plan.goal,
-                  ),
+                  onPressed: () =>
+                      showGuardConfigurationSheet(context, goal: plan.goal),
                   icon: const Icon(Icons.shield_outlined),
                   label: const Text('Configure walls'),
                 ),
@@ -175,9 +172,9 @@ class _ReturnContent extends ConsumerWidget {
       builder: (context) => const _ReturnReflectionSheet(),
     );
     if (saved != true || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Record saved.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Record saved.')));
   }
 }
 
@@ -466,10 +463,7 @@ class _ReturnNotRelevant extends StatelessWidget {
   );
 }
 
-Future<void> _openSpiritualResource(
-  BuildContext context,
-  GoalLink link,
-) async {
+Future<void> _openSpiritualResource(BuildContext context, GoalLink link) async {
   switch (link.type) {
     case GoalLinkType.personalPrayer:
       final id = link.personalPrayerId;
@@ -491,9 +485,7 @@ Future<void> _openSpiritualResource(
       if (book == null || chapter == null) break;
       final router = GoRouter.of(context);
       Navigator.pop(context);
-      router.go(
-        '/remember/scripture/${Uri.encodeComponent(book)}/$chapter',
-      );
+      router.go('/remember/scripture/${Uri.encodeComponent(book)}/$chapter');
       return;
     case GoalLinkType.voiceTablet:
       final id = link.voiceTabletId;
@@ -556,7 +548,8 @@ class _ReturnVoiceTabletSheet extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (_, _) => Center(
                 child: OutlinedButton(
-                  onPressed: () => ref.invalidate(voiceTabletProvider(tabletId)),
+                  onPressed: () =>
+                      ref.invalidate(voiceTabletProvider(tabletId)),
                   child: const Text('Try Voice Tablet again'),
                 ),
               ),
@@ -603,10 +596,7 @@ String _scriptureLabel(GoalLink link) {
   return '$book $chapter:$verses';
 }
 
-GuardDefinition? _definitionFor(
-  List<GuardDefinition> definitions,
-  String id,
-) {
+GuardDefinition? _definitionFor(List<GuardDefinition> definitions, String id) {
   for (final definition in definitions) {
     if (definition.id == id) return definition;
   }

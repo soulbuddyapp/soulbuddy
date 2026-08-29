@@ -33,9 +33,7 @@ class PowerSyncGuardSelectionRepository implements GuardSelectionRepository {
           ''',
           parameters: [normalizedGoalId, ownerId],
         )
-        .map(
-          (rows) => List.unmodifiable(rows.map(GoalGuardSelection.fromRow)),
-        );
+        .map((rows) => List.unmodifiable(rows.map(GoalGuardSelection.fromRow)));
   }
 
   @override
@@ -121,9 +119,9 @@ class PowerSyncGuardSelectionRepository implements GuardSelectionRepository {
       }
     });
 
-    return (await watchForGoal(normalizedGoalId).first).singleWhere(
-      (selection) => selection.id == selectionId,
-    );
+    return (await watchForGoal(
+      normalizedGoalId,
+    ).first).singleWhere((selection) => selection.id == selectionId);
   }
 
   @override
@@ -166,7 +164,11 @@ String? _optionalText(String? value, String name, int maximum) {
   final normalized = value.trim();
   if (normalized.isEmpty) return null;
   if (normalized.runes.length > maximum) {
-    throw ArgumentError.value(value, name, 'must not exceed $maximum characters');
+    throw ArgumentError.value(
+      value,
+      name,
+      'must not exceed $maximum characters',
+    );
   }
   return normalized;
 }

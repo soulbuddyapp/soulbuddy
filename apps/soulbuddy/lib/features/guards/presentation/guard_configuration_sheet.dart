@@ -66,18 +66,12 @@ class GuardConfigurationSheet extends ConsumerWidget {
                     for (var index = 0; index < catalogue.length; index++) ...[
                       _GuardCard(
                         definition: catalogue[index],
-                        selection: _selectionFor(
-                          value,
-                          catalogue[index].id,
-                        ),
+                        selection: _selectionFor(value, catalogue[index].id),
                         onReview: () => _openEditor(
                           context,
                           ref,
                           definition: catalogue[index],
-                          selection: _selectionFor(
-                            value,
-                            catalogue[index].id,
-                          ),
+                          selection: _selectionFor(value, catalogue[index].id),
                         ),
                         onRemove: (selection) =>
                             _remove(context, ref, selection),
@@ -114,7 +108,9 @@ class GuardConfigurationSheet extends ConsumerWidget {
     if (note == null || !context.mounted) return;
 
     try {
-      final repository = await ref.read(guardSelectionRepositoryProvider.future);
+      final repository = await ref.read(
+        guardSelectionRepositoryProvider.future,
+      );
       await repository.select(
         goalId: goal.id,
         definition: definition,
@@ -123,9 +119,7 @@ class GuardConfigurationSheet extends ConsumerWidget {
     } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('This wall could not be saved just now.'),
-        ),
+        const SnackBar(content: Text('This wall could not be saved just now.')),
       );
     }
   }
@@ -136,7 +130,9 @@ class GuardConfigurationSheet extends ConsumerWidget {
     GoalGuardSelection selection,
   ) async {
     try {
-      final repository = await ref.read(guardSelectionRepositoryProvider.future);
+      final repository = await ref.read(
+        guardSelectionRepositoryProvider.future,
+      );
       await repository.archive(selection.id);
     } catch (_) {
       if (!context.mounted) return;
@@ -372,10 +368,8 @@ class _GuardEditorState extends State<_GuardEditor> {
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
               key: const Key('guard-mark-configured'),
-              onPressed: () => Navigator.pop(
-                context,
-                _noteController.text.trim(),
-              ),
+              onPressed: () =>
+                  Navigator.pop(context, _noteController.text.trim()),
               child: Text(widget.configured ? 'Save' : 'Mark configured'),
             ),
           ],

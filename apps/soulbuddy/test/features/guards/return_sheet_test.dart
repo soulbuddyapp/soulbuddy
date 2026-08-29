@@ -8,63 +8,64 @@ import 'package:soulbuddy/features/guards/presentation/return_sheet.dart';
 import 'package:soulbuddy/features/guards/providers/return_providers.dart';
 
 void main() {
-  testWidgets('Return keeps all five steps usable at 320px and 200 percent text', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(320, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    final goal = _goal();
-    final plan = ReturnPlanBuilder.build(
-      goal: goal,
-      actions: const [],
-      links: const [],
-      guardSelections: const [],
-    );
+  testWidgets(
+    'Return keeps all five steps usable at 320px and 200 percent text',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final goal = _goal();
+      final plan = ReturnPlanBuilder.build(
+        goal: goal,
+        actions: const [],
+        links: const [],
+        guardSelections: const [],
+      );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          goalReturnPlanProvider(
-            goal.id,
-          ).overrideWith((ref) => AsyncData(plan)),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          home: MediaQuery(
-            data: const MediaQueryData(
-              size: Size(320, 640),
-              textScaler: TextScaler.linear(2),
-              disableAnimations: true,
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            goalReturnPlanProvider(
+              goal.id,
+            ).overrideWith((ref) => AsyncData(plan)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light(),
+            home: MediaQuery(
+              data: const MediaQueryData(
+                size: Size(320, 640),
+                textScaler: TextScaler.linear(2),
+                disableAnimations: true,
+              ),
+              child: Scaffold(body: ReturnSheet(goalId: goal.id)),
             ),
-            child: Scaffold(body: ReturnSheet(goalId: goal.id)),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    for (final title in const [
-      'Move',
-      'Close the door',
-      'Return to God',
-      'Do the replacement',
-      'Do not hide',
-    ]) {
-      await tester.scrollUntilVisible(find.text(title), 160);
-      expect(find.text(title), findsOneWidget);
+      for (final title in const [
+        'Move',
+        'Close the door',
+        'Return to God',
+        'Do the replacement',
+        'Do not hide',
+      ]) {
+        await tester.scrollUntilVisible(find.text(title), 160);
+        expect(find.text(title), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('return-record-open-door')),
+        160,
+      );
+      expect(
+        find.byKey(const Key('return-record-open-door')).hitTestable(),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
-    }
-
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('return-record-open-door')),
-      160,
-    );
-    expect(
-      find.byKey(const Key('return-record-open-door')).hitTestable(),
-      findsOneWidget,
-    );
-    expect(tester.takeException(), isNull);
-  });
+    },
+  );
 
   testWidgets('Return remains usable when optional data is degraded', (
     tester,

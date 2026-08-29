@@ -22,49 +22,55 @@ void main() {
     await temporaryDirectory.delete(recursive: true);
   });
 
-  test('selected guard survives reopen and updates without duplicates', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/guards.db',
-    );
-    addTearDown(database.close);
-    var now = DateTime.utc(2026, 8, 29, 8);
-    final goals = PowerSyncGoalRepository(
-      database: database.powersync,
-      ownerId: 'owner-1',
-      deviceId: 'device-1',
-      now: () => now,
-      uuid: const Uuid(),
-    );
-    final repository = PowerSyncGuardSelectionRepository(
-      database: database.powersync,
-      ownerId: 'owner-1',
-      now: () => now,
-      uuid: const Uuid(),
-    );
-    final goal = await goals.create(
-      title: 'Stop watching pornography',
-      mode: GoalMode.actionable,
-      starterKey: GoalStarterKey.stopControl,
-    );
-    final definition = BundledGuardCatalogue.find('dns-adguard-family')!;
+  test(
+    'selected guard survives reopen and updates without duplicates',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/guards.db',
+      );
+      addTearDown(database.close);
+      var now = DateTime.utc(2026, 8, 29, 8);
+      final goals = PowerSyncGoalRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+        now: () => now,
+        uuid: const Uuid(),
+      );
+      final repository = PowerSyncGuardSelectionRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        now: () => now,
+        uuid: const Uuid(),
+      );
+      final goal = await goals.create(
+        title: 'Stop watching pornography',
+        mode: GoalMode.actionable,
+        starterKey: GoalStarterKey.stopControl,
+      );
+      final definition = BundledGuardCatalogue.find('dns-adguard-family')!;
 
-    final first = await repository.select(
-      goalId: goal.id,
-      definition: definition,
-      privateNote: 'Router DNS changed; spouse keeps the admin password.',
-    );
-    now = now.add(const Duration(minutes: 5));
-    final updated = await repository.select(
-      goalId: goal.id,
-      definition: definition,
-      privateNote: 'Router and phone now use the family resolver.',
-    );
+      final first = await repository.select(
+        goalId: goal.id,
+        definition: definition,
+        privateNote: 'Router DNS changed; spouse keeps the admin password.',
+      );
+      now = now.add(const Duration(minutes: 5));
+      final updated = await repository.select(
+        goalId: goal.id,
+        definition: definition,
+        privateNote: 'Router and phone now use the family resolver.',
+      );
 
-    expect(updated.id, first.id);
-    expect(updated.privateNote, 'Router and phone now use the family resolver.');
-    expect(updated.guardContentVersion, definition.contentVersion);
-    expect(await repository.watchForGoal(goal.id).first, hasLength(1));
-  });
+      expect(updated.id, first.id);
+      expect(
+        updated.privateNote,
+        'Router and phone now use the family resolver.',
+      );
+      expect(updated.guardContentVersion, definition.contentVersion);
+      expect(await repository.watchForGoal(goal.id).first, hasLength(1));
+    },
+  );
 
   test('owner isolation and archive keep the selection private', () async {
     final database = await openTestDatabase(
@@ -87,7 +93,10 @@ void main() {
       ownerId: 'owner-2',
       uuid: const Uuid(),
     );
-    final goal = await goals.create(title: 'Close the door', mode: GoalMode.mixed);
+    final goal = await goals.create(
+      title: 'Close the door',
+      mode: GoalMode.mixed,
+    );
     final selection = await owner.select(
       goalId: goal.id,
       definition: BundledGuardCatalogue.find('physical-boundary')!,
