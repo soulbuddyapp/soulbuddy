@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "0198a100-0000-7000-8000-000000000001",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "daily"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000002",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "gratitude"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000003",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "guidance"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000004",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "family"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000005",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "healing"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000006",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "work"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000007",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "forgiveness"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000008",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-08-29",
+      "published_at": "2026-08-29T00:00:00.000Z",
+      "tags": ["prayer", "difficult_time"]
+    }
+  ]
+}
