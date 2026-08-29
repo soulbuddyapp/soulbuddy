@@ -1,8 +1,6 @@
 import 'package:powersync/powersync.dart';
 
-import '../domain/library_prayer.dart';
 import '../domain/prayer_generation_request.dart';
-import '../domain/prayer_language.dart';
 import 'prayer_generation_repository.dart';
 
 class PowerSyncPrayerGenerationRepository
@@ -49,63 +47,6 @@ class PowerSyncPrayerGenerationRepository
         });
   }
 
-  @override
-  Stream<List<PrayerGenerationRequest>> watchPending() =>
-      const Stream<List<PrayerGenerationRequest>>.empty();
-
-  @override
-  Future<PrayerGenerationRequest> create({
-    required PrayerStyle style,
-    required PrayerReach reach,
-    required PrayerGrounding grounding,
-    required PrayerPurpose purpose,
-    PrayerLanguagePreference? languagePreference,
-    required String requestText,
-  }) async => throw _retired();
-
-  @override
-  Future<void> update(PrayerGenerationRequest request) async =>
-      throw _retired();
-
-  @override
-  Future<void> replaceContexts(
-    String requestId,
-    List<PrayerGenerationContext> contexts,
-  ) async => throw _retired();
-
-  @override
-  Future<void> queue(
-    String requestId, {
-    required String provider,
-    required String disclosureVersion,
-  }) async => throw _retired();
-
-  @override
-  Future<bool> claim(String requestId, String attemptId, DateTime now) async =>
-      throw _retired();
-
-  @override
-  Future<void> storeDraft(
-    String requestId,
-    String attemptId,
-    PrayerGeneratedDraft draft,
-  ) async => throw _retired();
-
-  @override
-  Future<void> defer(
-    String requestId,
-    String attemptId, {
-    required DateTime nextAttemptAt,
-    String? failureCode,
-  }) async => throw _retired();
-
-  @override
-  Future<void> requireAttention(
-    String requestId,
-    String attemptId,
-    String failureCode,
-  ) async => throw _retired();
-
   List<PrayerGenerationRequest> _decodeWatchedRequests(
     Iterable<Map<String, dynamic>> rows,
   ) {
@@ -141,7 +82,3 @@ class PowerSyncPrayerGenerationRepository
     ]);
   }
 }
-
-StateError _retired() => StateError(
-  'Prayer generation is retired. Historical generation requests are read-only.',
-);
