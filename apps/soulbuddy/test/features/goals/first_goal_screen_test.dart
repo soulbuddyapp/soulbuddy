@@ -32,7 +32,8 @@ void main() {
       find.byKey(const Key('first-goal-text-field')),
       'Stop watching pornography',
     );
-    await tester.tap(find.text('Continue'));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('first-goal-text-continue')));
     await tester.pumpAndSettle();
     expect(find.text('What is happening now?'), findsOneWidget);
     expect(find.text('Speak'), findsOneWidget);
