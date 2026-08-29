@@ -131,6 +131,29 @@ const goalTables = <Table>[
       ]),
     ],
   ),
+  Table(
+    'goal_guard_selections',
+    [
+      Column.text('goal_id'),
+      Column.text('owner_id'),
+      Column.text('guard_definition_id'),
+      Column.integer('guard_content_version'),
+      Column.text('private_note'),
+      Column.text('configured_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('goal_guard_selections_goal', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('goal_id'),
+        IndexedColumn('archived_at'),
+      ]),
+      Index('goal_guard_selections_definition', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('guard_definition_id'),
+      ]),
+    ],
+  ),
   Table.localOnly('goal_onboarding_progress', [
     Column.text('stage'),
     Column.text('starter_key'),
