@@ -16,11 +16,13 @@ final class ApplyGoalSyncMutation
         'goal_links',
         'goal_actions',
         'goal_action_events',
+        'goal_guard_selections',
     ];
 
     public function __construct(
         private readonly GoalSyncMutationValidator $validator,
         private readonly GoalSyncMutationWriter $writer,
+        private readonly GoalGuardSelectionSyncMutation $guards,
     ) {}
 
     public static function supports(string $table): bool
@@ -76,11 +78,30 @@ final class ApplyGoalSyncMutation
             $error = DB::transaction(function () use ($user, $pending): ?string {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
-                if (($error = $this->validator->validate($user, $pending)) !== null) {
+                $guardOperations = $pending
+                    ->where('table', 'goal_guard_selections')
+                    ->values();
+                $coreOperations = $pending
+                    ->reject(
+                        fn (array $operation): bool => $operation['table'] === 'goal_guard_selections',
+                    )
+                    ->values();
+
+                if ($coreOperations->isNotEmpty()
+                    && ($error = $this->validator->validate($user, $coreOperations)) !== null) {
+                    return $error;
+                }
+                if ($guardOperations->isNotEmpty()
+                    && ($error = $this->guards->validate($user, $pending, $guardOperations)) !== null) {
                     return $error;
                 }
 
-                $this->writer->apply($user, $pending);
+                if ($coreOperations->isNotEmpty()) {
+                    $this->writer->apply($user, $coreOperations);
+                }
+                if ($guardOperations->isNotEmpty()) {
+                    $this->guards->apply($user, $guardOperations);
+                }
                 foreach ($pending as $operation) {
                     SyncOperation::create([
                         'operation_id' => $operation['operation_id'],
