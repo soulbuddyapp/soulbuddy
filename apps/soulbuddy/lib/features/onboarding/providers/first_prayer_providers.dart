@@ -4,14 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../prayers/domain/library_prayer.dart';
-import '../../prayers/domain/prayer_generation_request.dart';
 import '../../prayers/domain/prayer_reference.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
@@ -123,8 +121,6 @@ class FirstPrayerState {
 }
 
 class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
-  var _preparationEpoch = 0;
-
   @override
   Future<FirstPrayerState> build() async {
     final progressRepository = await ref.watch(
@@ -223,67 +219,17 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
     String? detail,
     required bool externalProcessingConsent,
   }) async {
-    if (!externalProcessingConsent) {
-      await usePreparedPrayer();
-      return;
-    }
-    final preparationEpoch = ++_preparationEpoch;
     final answers = _value.progress.answers.copyWith(
       detail: detail,
       clearDetail: detail == null || detail.trim().isEmpty,
     );
-    await _advance(answers: answers, stage: FirstPrayerStage.preparing);
-    try {
-      final generationRepository = await ref.read(
-        prayerGenerationRepositoryProvider.future,
-      );
-      var request = await generationRepository.create(
-        style: answers.style,
-        reach: answers.reach,
-        grounding: answers.grounding,
-        purpose: answers.prayerPurpose,
-        languagePreference: answers.language,
-        requestText: answers.requestText,
-      );
-      if (answers.style == PrayerStyle.situational) {
-        request = request.copyWith(
-          beneficiaryChoice: answers.beneficiaryChoice,
-          surrenderChoice: 'all',
-          responsibilityChoice: 'act_faithfully',
-          alignmentChoice: 'no_conflict_seen',
-        );
-        await generationRepository.update(request);
-      }
-      await generationRepository.queue(
-        request.id,
-        provider: AppConfig.prayerDraftProvider,
-        disclosureVersion: AppConfig.prayerDraftDisclosureVersion,
-      );
-      await _saveProgress(_value.progress.copyWith(requestId: request.id));
-      final dispatcher = await ref.read(
-        prayerGenerationDispatcherProvider.future,
-      );
-      await dispatcher.dispatch(request.id);
-      if (preparationEpoch != _preparationEpoch) return;
-      final completed = await generationRepository.watch(request.id).first;
-      if (preparationEpoch != _preparationEpoch) return;
-      if (completed?.status == PrayerGenerationStatus.ready &&
-          completed?.draftBody?.trim().isNotEmpty == true) {
-        await _showGenerated(completed!);
-        return;
-      }
-    } on Object {
-      // A prepared prayer is always the quiet offline path.
-    }
-    if (preparationEpoch == _preparationEpoch) {
-      await _usePreparedPrayer(cancelInFlight: false);
-    }
+    await _saveProgress(_value.progress.copyWith(answers: answers));
+    await _usePreparedPrayer();
   }
 
-  Future<void> usePreparedPrayer() => _usePreparedPrayer(cancelInFlight: true);
+  Future<void> usePreparedPrayer() => _usePreparedPrayer();
 
-  Future<void> _usePreparedPrayer({required bool cancelInFlight}) async {
-    if (cancelInFlight) _preparationEpoch++;
+  Future<void> _usePreparedPrayer() async {
     try {
       final answers = _value.progress.answers;
       final repository = await ref.read(prayerRepositoryProvider.future);
@@ -542,28 +488,6 @@ class FirstPrayerController extends AsyncNotifier<FirstPrayerState> {
           .read(appFeedbackServiceProvider)
           .emit(intent, preferences: preferences),
     );
-  }
-
-  Future<void> _showGenerated(PrayerGenerationRequest request) async {
-    final result = FirstPrayerResult(
-      title: request.draftTitle?.trim().isNotEmpty == true
-          ? request.draftTitle!.trim()
-          : 'Your prayer',
-      body: request.draftBody!.trim(),
-      action: request.draftAction,
-      grounding: request.grounding,
-      purpose: request.purpose,
-      reference: PrayerReference.personal(request.id),
-      requestId: request.id,
-    );
-    final progress = _value.progress.copyWith(
-      stage: FirstPrayerStage.prayer,
-      requestId: request.id,
-      selectedPrayerType: 'generated',
-      selectedPrayerId: request.id,
-    );
-    state = AsyncData(_value.copyWith(progress: progress, result: result));
-    await _persist(progress);
   }
 
   Future<void> _showLibrary(LibraryPrayer prayer) async {
