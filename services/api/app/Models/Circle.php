@@ -19,8 +19,10 @@ class Circle extends Model
         });
 
         static::updating(function (Circle $circle): void {
-            if ($circle->isDirty('public_id')) {
-                $circle->public_id = $circle->getOriginal('public_id');
+            foreach (['public_id', 'owner_user_id', 'creation_key', 'creation_fingerprint'] as $field) {
+                if ($circle->isDirty($field)) {
+                    $circle->{$field} = $circle->getOriginal($field);
+                }
             }
         });
     }
