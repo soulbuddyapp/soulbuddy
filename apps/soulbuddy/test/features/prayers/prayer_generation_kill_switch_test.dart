@@ -13,8 +13,9 @@ import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart
 import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
 
 void main() {
-  test('prayer generation is disabled unless explicitly enabled', () {
+  test('prayer generation and request creation are permanently disabled', () {
     expect(AppConfig.prayerGenerationEnabled, isFalse);
+    expect(AppConfig.prayerRequestCreationEnabled, isFalse);
   });
 
   test('local kill switch never calls the prayer draft API', () async {
