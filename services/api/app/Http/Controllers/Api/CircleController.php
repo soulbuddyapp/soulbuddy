@@ -119,8 +119,10 @@ class CircleController extends Controller
     {
         Gate::authorize('update', $circle);
         $validated = $request->validated();
-        if (array_key_exists('status', $validated)
-            && ! CircleLifecycle::ownerCanTransition($circle->status, $validated['status'])) {
+        if (
+            array_key_exists('status', $validated)
+            && ! CircleLifecycle::ownerCanTransition($circle->status, $validated['status'])
+        ) {
             throw ValidationException::withMessages(['status' => ['invalid_transition']]);
         }
 
