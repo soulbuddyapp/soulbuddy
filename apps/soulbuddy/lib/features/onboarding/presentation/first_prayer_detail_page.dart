@@ -54,7 +54,7 @@ class _FirstPrayerDetailPageState extends State<FirstPrayerDetailPage> {
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: () => widget.onContinue(_controller.text.trim()),
-              child: const Text('Prepare prayer'),
+              child: const Text('Use reviewed prayer'),
             ),
             const SizedBox(height: AppSpacing.sm),
             TextButton(onPressed: widget.onSkip, child: const Text('Not now')),
