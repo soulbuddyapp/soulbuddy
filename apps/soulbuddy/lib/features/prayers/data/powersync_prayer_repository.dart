@@ -64,6 +64,45 @@ class PowerSyncPrayerRepository implements PrayerRepository {
       )
   ''';
 
+  // Historical references must remain resolvable after an editorial item is
+  // archived. This projection intentionally ignores archived_at while still
+  // preserving reviewed bundled wording over an unprovenanced same-ID server
+  // row. New library selection always uses _mergedPrayers above.
+  static const _readablePrayers = '''
+    SELECT canonical.id, canonical.title, canonical.body, canonical.grounding,
+           canonical.language_style, canonical.purpose, canonical.action,
+           canonical.helpful_count
+    FROM library_prayers AS canonical
+    WHERE canonical.published_at IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bundled_prayers AS bundled
+        JOIN editorial_items AS editorial ON editorial.id = bundled.id
+        WHERE bundled.id = canonical.id
+          AND editorial.content_kind = 'prepared_prayer'
+          AND editorial.review_state = 'approved'
+          AND editorial.published_at IS NOT NULL
+      )
+    UNION ALL
+    SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
+           bundled.language_style,
+           bundled.purpose, bundled.action, bundled.helpful_count
+    FROM bundled_prayers AS bundled
+    WHERE EXISTS (
+        SELECT 1
+        FROM editorial_items AS editorial
+        WHERE editorial.id = bundled.id
+          AND editorial.content_kind = 'prepared_prayer'
+          AND editorial.review_state = 'approved'
+          AND editorial.published_at IS NOT NULL
+      )
+      OR NOT EXISTS (
+        SELECT 1 FROM library_prayers AS canonical
+        WHERE canonical.id = bundled.id
+          AND canonical.published_at IS NOT NULL
+      )
+  ''';
+
   @override
   Stream<List<LibraryPrayer>> watchLibrary({
     PrayerGrounding? grounding,
@@ -122,14 +161,14 @@ class PowerSyncPrayerRepository implements PrayerRepository {
     return database
         .watch(
           '''
-          WITH merged AS ($_mergedPrayers)
-          SELECT merged.*,
+          WITH readable AS ($_readablePrayers)
+          SELECT readable.*,
                  EXISTS(
                    SELECT 1 FROM prayer_votes AS vote
-                   WHERE vote.owner_id = ? AND vote.prayer_id = merged.id
+                   WHERE vote.owner_id = ? AND vote.prayer_id = readable.id
                  ) AS viewer_marked_helpful
-          FROM merged
-          WHERE merged.id = ?
+          FROM readable
+          WHERE readable.id = ?
           LIMIT 1
           ''',
           parameters: [ownerId, id],
@@ -224,20 +263,20 @@ class PowerSyncPrayerRepository implements PrayerRepository {
     return database
         .watch(
           '''
-          WITH merged AS ($_mergedPrayers), selected AS (
-          SELECT 'library' AS source, merged.id, merged.title, merged.body,
-                 merged.grounding, merged.purpose, merged.action,
-                 merged.helpful_count,
+          WITH readable AS ($_readablePrayers), selected AS (
+          SELECT 'library' AS source, readable.id, readable.title, readable.body,
+                 readable.grounding, readable.purpose, readable.action,
+                 readable.helpful_count,
                  EXISTS(
                    SELECT 1 FROM prayer_votes AS vote
-                   WHERE vote.owner_id = ? AND vote.prayer_id = merged.id
+                   WHERE vote.owner_id = ? AND vote.prayer_id = readable.id
                  ) AS viewer_marked_helpful,
                  today.include_action,
                  today.action_completed,
                  today.local_date,
                  NULL AS prayer_revision_id
           FROM today_prayers AS today
-          JOIN merged ON merged.id = today.prayer_id
+          JOIN readable ON readable.id = today.prayer_id
           WHERE today.owner_id = ? AND today.local_date = ?
           UNION ALL
           SELECT 'personal' AS source, personal.id, personal.title,
