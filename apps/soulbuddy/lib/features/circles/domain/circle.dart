@@ -47,13 +47,14 @@ enum CircleStatus {
 }
 
 enum CircleProvider {
-  telegram('telegram', 'Telegram'),
-  whatsappLink('whatsapp_link', 'WhatsApp');
+  telegram('telegram', 'Telegram', {'t.me', 'telegram.me'}),
+  whatsappLink('whatsapp_link', 'WhatsApp', {'chat.whatsapp.com', 'wa.me'});
 
-  const CircleProvider(this.wireValue, this.label);
+  const CircleProvider(this.wireValue, this.label, this.allowedHosts);
 
   final String wireValue;
   final String label;
+  final Set<String> allowedHosts;
 
   static CircleProvider? fromWire(Object? value) {
     if (value == null) return null;
@@ -65,6 +66,15 @@ enum CircleProvider {
       orElse: () => throw FormatException('Unknown Circle provider: $value'),
     );
   }
+
+  bool allows(Uri uri) {
+    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'\.$'), '');
+    return uri.scheme.toLowerCase() == 'https' &&
+        uri.userInfo.isEmpty &&
+        allowedHosts.contains(host) &&
+        uri.port == 443 &&
+        uri.pathSegments.any((segment) => segment.trim().isNotEmpty);
+  }
 }
 
 class Circle {
@@ -75,6 +85,7 @@ class Circle {
     required this.description,
     required this.visibility,
     required this.status,
+    required this.directoryListed,
     required this.capabilities,
     required this.isOwner,
     this.provider,
@@ -89,6 +100,7 @@ class Circle {
   final String description;
   final CircleVisibility visibility;
   final CircleStatus status;
+  final bool directoryListed;
   final CircleProvider? provider;
   final Uri? openUri;
   final List<String> capabilities;
@@ -105,7 +117,13 @@ class Circle {
         capabilities.any((item) => item is! String)) {
       throw const FormatException('Circle capabilities must be strings.');
     }
+    final directoryListed = json['directory_listed'];
+    if (directoryListed is! bool) {
+      throw const FormatException('Circle directory state must be a boolean.');
+    }
+    final provider = CircleProvider.fromWire(json['provider']);
     final openUrl = json['open_url'];
+    final openUri = _providerOpenUri(provider, openUrl);
     final memberCount = json['member_count'];
     final updatedAt = json['updated_at'];
     return Circle(
@@ -117,11 +135,9 @@ class Circle {
         _requiredString(json, 'visibility'),
       ),
       status: CircleStatus.fromWire(_requiredString(json, 'status')),
-      provider: CircleProvider.fromWire(json['provider']),
-      openUri: openUrl == null
-          ? null
-          : Uri.tryParse(openUrl is String ? openUrl : '')
-                ?.takeIf((uri) => uri.hasScheme),
+      directoryListed: directoryListed,
+      provider: provider,
+      openUri: openUri,
       capabilities: List.unmodifiable(capabilities.cast<String>()),
       memberCount: memberCount == null
           ? null
@@ -136,14 +152,22 @@ class Circle {
   }
 }
 
+Uri? _providerOpenUri(CircleProvider? provider, Object? value) {
+  if (value == null) return null;
+  if (provider == null || value is! String) {
+    throw const FormatException('Circle provider URL is invalid.');
+  }
+  final uri = Uri.tryParse(value.trim());
+  if (uri == null || !provider.allows(uri)) {
+    throw const FormatException('Circle provider URL is invalid.');
+  }
+  return uri;
+}
+
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is! String || value.trim().isEmpty) {
     throw FormatException('Circle $key is required.');
   }
   return value;
-}
-
-extension<T> on T {
-  T? takeIf(bool Function(T value) predicate) => predicate(this) ? this : null;
 }
