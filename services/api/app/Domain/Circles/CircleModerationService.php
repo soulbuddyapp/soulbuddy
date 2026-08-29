@@ -20,8 +20,16 @@ class CircleModerationService
     public function delist(Circle $circle, ?User $actor, string $reasonCode): void
     {
         DB::transaction(function () use ($circle, $actor, $reasonCode): void {
-            $circle->forceFill(['visibility' => 'unlisted'])->save();
+            $circle->forceFill(['directory_listed' => false])->save();
             $this->event($circle, $actor, 'delisted', $reasonCode);
+        });
+    }
+
+    public function relist(Circle $circle, ?User $actor, string $reasonCode): void
+    {
+        DB::transaction(function () use ($circle, $actor, $reasonCode): void {
+            $circle->forceFill(['directory_listed' => true])->save();
+            $this->event($circle, $actor, 'relisted', $reasonCode);
         });
     }
 
