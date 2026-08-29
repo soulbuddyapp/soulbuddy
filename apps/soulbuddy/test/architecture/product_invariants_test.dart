@@ -41,7 +41,6 @@ void main() {
         'prayerGenerationWorkerProvider',
       ];
       const allowed = {
-        'lib/app/app.dart',
         'lib/core/config/app_config.dart',
         'lib/features/onboarding/providers/first_prayer_providers.dart',
         'lib/features/prayers/application/prayer_generation_dispatcher.dart',
