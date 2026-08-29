@@ -23,19 +23,28 @@ to the same commit during a deployment or rollback.
 Deployments install production Composer dependencies, link `.env` and
 `storage`, run migrations and `PrayerLibrarySeeder`, optimize Laravel, switch
 `current`, then restart `soulbuddy-api`. Rollback switches `current` to the
-previous release and restarts the same container. Never place provider keys in
-Git, build arguments, the Flutter binary, or shell history.
+previous release and restarts the same container. Never place narration or
+infrastructure secrets in Git, build arguments, the Flutter binary, or shell
+history.
 
 Production choices:
 
 - `DB_CONNECTION=mariadb` with `DB_SOCKET=/run/mysqld/mysqld.sock`
 - file cache and sessions; synchronous jobs until a durable worker is needed
-- DeepSeek V4 Flash in non-thinking mode for formulated prayer drafts
-- Deepgram Aura 2 for consented, server-loaded prayer narration with model
-  improvement opt-out; encrypted audio remains in private Laravel storage
+- no generative prayer provider or LLM credential; new spiritual copy comes
+  from Scripture, reviewed editorial content, or the user's own words
+- Deepgram Aura 2 remains available only for consented, server-loaded prayer
+  narration with model-improvement opt-out; encrypted audio remains in private
+  Laravel storage
 - release Flutter builds default to `https://sbuddy.elbiblio.com`
 - Android's main manifest owns `INTERNET`; keeping it only in debug/profile
   manifests produces a local-only release APK and is covered by a regression
   test
-- PowerSync remains an optional later service; authenticated mutation flushes
-  support current server-authoritative AI and narration flows without it
+- PowerSync and authenticated mutation flushes support private synchronized
+  records and narration; retired prayer-generation routes are not deployed
+
+Historical local prayer-generation records exist only as a compatibility
+archive on devices that created them before retirement. The server exposes no
+prayer-draft generation route, prompt, provider configuration, or retry worker.
+Accepted historical personal prayers remain ordinary private personal-prayer
+records and must not be rewritten or deleted during deployment.
