@@ -26,14 +26,16 @@ final goalOnboardingFinalizerProvider = FutureProvider<GoalOnboardingFinalizer>(
 
 final firstGoalPrayerOptionsProvider = FutureProvider.autoDispose
     .family<List<LibraryPrayer>, GoalStarterKey>((ref, starterKey) async {
-      final repository = await ref.watch(prayerRepositoryProvider.future);
+      final repository = await ref.watch(
+        editorialPrayerRepositoryProvider.future,
+      );
       var prayers = await repository
-          .watchLibrary(purpose: prayerPurposeForGoalStarter(starterKey))
+          .watchApproved(purpose: prayerPurposeForGoalStarter(starterKey))
           .first;
       if (prayers.isEmpty) {
-        prayers = await repository.watchLibrary().first;
+        prayers = await repository.watchApproved().first;
       }
-      return List.unmodifiable(prayers.take(3));
+      return List.unmodifiable(prayers.map((item) => item.prayer).take(3));
     });
 
 final goalOnboardingControllerProvider =
