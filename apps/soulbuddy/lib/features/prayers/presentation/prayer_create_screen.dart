@@ -279,7 +279,7 @@ class _ReviewedPrayerCard extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Reviewed · ${item.editorial.provenance}',
+                'Reviewed · SoulBuddy editorial · v${item.editorial.contentVersion}',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
