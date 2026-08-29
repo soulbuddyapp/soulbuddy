@@ -33,11 +33,9 @@ class PowerSyncPrayerRepository implements PrayerRepository {
         FROM bundled_prayers AS bundled
         JOIN editorial_items AS editorial ON editorial.id = bundled.id
         WHERE bundled.id = canonical.id
-          AND bundled.archived_at IS NULL
           AND editorial.content_kind = 'prepared_prayer'
           AND editorial.review_state = 'approved'
           AND editorial.published_at IS NOT NULL
-          AND editorial.archived_at IS NULL
       )
     UNION ALL
     SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
