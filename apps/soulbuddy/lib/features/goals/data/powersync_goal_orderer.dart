@@ -62,10 +62,10 @@ class PowerSyncGoalOrderer implements GoalOrderer {
         }
       }
 
-      var nextPosition = rows.fold<int>(
+      var nextPosition =
+          rows.fold<int>(
             -1,
-            (maximum, row) =>
-                ((row['position'] as num).toInt() > maximum)
+            (maximum, row) => ((row['position'] as num).toInt() > maximum)
                 ? (row['position'] as num).toInt()
                 : maximum,
           ) +
@@ -106,11 +106,7 @@ class PowerSyncGoalOrderer implements GoalOrderer {
 String _requiredGoalId(String value) {
   final normalized = value.trim();
   if (normalized.isEmpty || normalized.runes.length > 120) {
-    throw ArgumentError.value(
-      value,
-      'goalId',
-      'must contain 1-120 characters',
-    );
+    throw ArgumentError.value(value, 'goalId', 'must contain 1-120 characters');
   }
   return normalized;
 }
