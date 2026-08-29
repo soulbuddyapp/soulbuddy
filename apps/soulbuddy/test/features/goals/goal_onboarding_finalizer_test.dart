@@ -39,7 +39,7 @@ void main() {
       agencyChoice: GoalAgencyChoice.stepsICanTake,
       todayAction: 'Charge my phone outside the bedroom',
       guardNote: 'Keep content filtering enabled',
-      accountabilityChoice: GoalAccountabilityChoice.notNow,
+      accountabilityChoice: GoalAccountabilityChoice.trustedPerson,
       prayerSource: GoalOnboardingPrayerSource.ownWords,
       ownPrayerText: 'Jesus, keep me close to you and help me act faithfully.',
     );
@@ -76,15 +76,20 @@ void main() {
     expect(prayers, hasLength(1));
     expect(prayerRevisions, hasLength(1));
     expect(links, hasLength(1));
-    expect(actions, hasLength(2));
+    expect(actions, hasLength(3));
     expect(goals.single['current_revision_id'], revisions.single['id']);
     expect(prayers.single['current_revision_id'], prayerRevisions.single['id']);
     expect(links.single['goal_id'], result.goalId);
     expect(links.single['personal_prayer_id'], result.createdPersonalPrayerId);
     expect(actions.map((row) => row['action_kind']).toSet(), {
+      'accountability',
       'guard',
       'next_step',
     });
+    expect(
+      actions.singleWhere((row) => row['action_kind'] == 'accountability')['body'],
+      'Contact a trusted person',
+    );
     expect(actions.every((row) => row['schedule_type'] == 'today'), isTrue);
     expect(await database.powersync.getCrudBatch(), isNotNull);
   });

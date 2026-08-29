@@ -89,14 +89,8 @@ class GoalOnboardingController extends AsyncNotifier<GoalOnboardingProgress> {
     await _persist(next);
   }
 
-  Future<void> setGuardNote(String? guardNote) async {
-    var next = GoalOnboardingFlow.setGuardNote(_value, guardNote);
-    next = GoalOnboardingFlow.chooseAccountability(
-      next,
-      GoalAccountabilityChoice.notNow,
-    );
-    await _persist(next);
-  }
+  Future<void> setGuardNote(String? guardNote) =>
+      _persist(GoalOnboardingFlow.setGuardNote(_value, guardNote));
 
   Future<void> chooseAccountability(GoalAccountabilityChoice choice) =>
       _persist(GoalOnboardingFlow.chooseAccountability(_value, choice));

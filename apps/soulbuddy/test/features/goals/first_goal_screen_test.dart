@@ -46,6 +46,19 @@ void main() {
     expect(find.text('There are steps I can take'), findsOneWidget);
     expect(find.text('Mostly pray and wait'), findsOneWidget);
     expect(find.text("I'm not sure"), findsOneWidget);
+
+    await tester.tap(find.text('There are steps I can take'));
+    await tester.pumpAndSettle();
+    expect(find.text('What would help today?'), findsOneWidget);
+    await tester.tap(find.text('Not now'));
+    await tester.pumpAndSettle();
+    expect(find.text('What do you need to put between you and this?'), findsOneWidget);
+    await tester.tap(find.text('Not now'));
+    await tester.pumpAndSettle();
+    expect(find.text('Who can walk with you?'), findsOneWidget);
+    expect(find.text('A trusted person'), findsOneWidget);
+    expect(find.text('A Circle'), findsOneWidget);
+    expect(find.text('Not now'), findsOneWidget);
   });
 
   testWidgets('required Goal title cannot continue blank', (tester) async {

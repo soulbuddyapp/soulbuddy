@@ -288,6 +288,20 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
       if (guardNote != null) {
         await insertTodayAction(guardNote, GoalActionKind.guard);
       }
+      switch (checked.accountabilityChoice) {
+        case GoalAccountabilityChoice.trustedPerson:
+          await insertTodayAction(
+            'Contact a trusted person',
+            GoalActionKind.accountability,
+          );
+        case GoalAccountabilityChoice.circle:
+          await insertTodayAction(
+            'Check in with my Circle',
+            GoalActionKind.accountability,
+          );
+        case GoalAccountabilityChoice.notNow || null:
+          break;
+      }
 
       await transaction.execute(
         'DELETE FROM goal_onboarding_progress WHERE id = ?',
