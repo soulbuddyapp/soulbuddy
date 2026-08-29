@@ -8,6 +8,8 @@ import 'package:soulbuddy/features/circles/data/laravel_circle_directory_reposit
 import 'package:soulbuddy/features/circles/domain/circle.dart';
 
 void main() {
+  const creationKey = '0198b100-1000-7000-8000-000000000001';
+
   test('discovers typed Circles with bearer auth and cursor filters', () async {
     late http.Request captured;
     final repository = LaravelCircleDirectoryRepository(
@@ -46,7 +48,7 @@ void main() {
     expect(page.nextCursor, 'next-page');
   });
 
-  test('create sends metadata only and never a chat message payload', () async {
+  test('create sends metadata and stable key but never a chat payload', () async {
     Map<String, dynamic>? payload;
     final repository = LaravelCircleDirectoryRepository(
       apiBaseUri: Uri.parse('https://sbuddy.example'),
@@ -57,18 +59,19 @@ void main() {
       }),
     );
 
-    await repository.create(
-      CircleDraft(
-        name: 'Walk together',
-        category: CircleCategory.accountability,
-        description: 'Honest accountability and prayer.',
-        visibility: CircleVisibility.public,
-        provider: CircleProvider.telegram,
-        openUri: Uri.parse('https://t.me/+soulbuddy-test'),
-      ),
+    const draft = CircleDraft(
+      creationKey: creationKey,
+      name: 'Walk together',
+      category: CircleCategory.accountability,
+      description: 'Honest accountability and prayer.',
+      visibility: CircleVisibility.public,
+      provider: CircleProvider.telegram,
+      openUri: Uri.parse('https://t.me/+soulbuddy-test'),
     );
+    await repository.create(draft);
 
     expect(payload?.keys.toSet(), {
+      'creation_key',
       'name',
       'category',
       'description',
@@ -77,13 +80,16 @@ void main() {
       'provider',
       'open_url',
     });
+    expect(payload?['creation_key'], creationKey);
     expect(payload?['status'], 'active');
+    expect(draft.toJson()['creation_key'], creationKey);
     expect(payload, isNot(contains('message')));
     expect(payload, isNot(contains('body')));
   });
 
   test('draft creation serializes an explicit draft lifecycle state', () {
-    final payload = CircleDraft(
+    const draft = CircleDraft(
+      creationKey: creationKey,
       name: 'Walk together',
       category: CircleCategory.accountability,
       description: 'Honest accountability and prayer.',
@@ -91,9 +97,10 @@ void main() {
       provider: CircleProvider.telegram,
       openUri: Uri.parse('https://t.me/+soulbuddy-test'),
       status: CircleStatus.draft,
-    ).toJson();
+    );
 
-    expect(payload['status'], 'draft');
+    expect(draft.toJson()['status'], 'draft');
+    expect(draft.toJson()['creation_key'], creationKey);
   });
 
   test(
@@ -169,7 +176,7 @@ void main() {
     }
   });
 
-  test('accepts only the matching provider host family', () {
+  test('accepts only the matching group-link provider host family', () {
     expect(
       CircleProvider.telegram.allows(Uri.parse('https://t.me/+group')),
       isTrue,
@@ -188,7 +195,7 @@ void main() {
     );
     expect(
       CircleProvider.whatsappLink.allows(Uri.parse('https://wa.me/2348012345678')),
-      isTrue,
+      isFalse,
     );
   });
 }
