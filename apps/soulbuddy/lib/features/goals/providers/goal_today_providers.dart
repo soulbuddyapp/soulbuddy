@@ -275,7 +275,9 @@ List<GoalTodaySection> _includeReturnOnlySections({
   };
   return List.unmodifiable([
     for (final goal in goals)
-      if (sectionsByGoalId.containsKey(goal.id) || returnGoalIds.contains(goal.id))
-        sectionsByGoalId[goal.id] ?? GoalTodaySection(goal: goal, items: const []),
+      if (sectionsByGoalId.containsKey(goal.id) ||
+          returnGoalIds.contains(goal.id))
+        sectionsByGoalId[goal.id] ??
+            GoalTodaySection(goal: goal, items: const []),
   ]);
 }

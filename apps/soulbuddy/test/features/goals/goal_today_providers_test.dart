@@ -197,7 +197,9 @@ ProviderContainer _quietGoalContainer(
       dueGoalActionsProvider.overrideWith(
         (ref, localDate) => Stream.value(const <GoalActionOccurrence>[]),
       ),
-      duePrayerOccurrencesProvider.overrideWith((ref) => Stream.value(const [])),
+      duePrayerOccurrencesProvider.overrideWith(
+        (ref) => Stream.value(const []),
+      ),
       todayPrayerProvider.overrideWith((ref) => Stream.value(null)),
     ],
   );

@@ -48,9 +48,7 @@ void main() {
     var returned = 0;
     final snapshot = _snapshot(const [], returnGoalIds: const {'goal-1'});
 
-    await tester.pumpWidget(
-      _host(snapshot, onReturn: (_) async => returned++),
-    );
+    await tester.pumpWidget(_host(snapshot, onReturn: (_) async => returned++));
 
     expect(find.text('Stay close to God'), findsOneWidget);
     expect(find.text('Return'), findsOneWidget);

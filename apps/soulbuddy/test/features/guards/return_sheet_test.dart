@@ -55,14 +55,11 @@ void main() {
         expect(tester.takeException(), isNull);
       }
 
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('return-record-open-door')),
-        160,
-      );
-      expect(
-        find.byKey(const Key('return-record-open-door')).hitTestable(),
-        findsOneWidget,
-      );
+      final reflection = find.byKey(const Key('return-record-open-door'));
+      await tester.scrollUntilVisible(reflection, 240);
+      await tester.ensureVisible(reflection);
+      await tester.pumpAndSettle();
+      expect(reflection.hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
