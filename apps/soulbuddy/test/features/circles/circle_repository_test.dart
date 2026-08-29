@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soulbuddy/features/circles/data/powersync_circle_repository.dart';
+import 'package:soulbuddy/features/circles/data/powersync_legacy_circle_migration_repository.dart';
 
 import '../../helpers/powersync_test_database.dart';
 
@@ -10,7 +10,7 @@ void main() {
 
   setUp(() async {
     temporaryDirectory = await Directory.systemTemp.createTemp(
-      'soulbuddy-circles-',
+      'soulbuddy-legacy-circles-',
     );
   });
 
@@ -18,115 +18,106 @@ void main() {
     await temporaryDirectory.delete(recursive: true);
   });
 
-  test('creates a private Circle with its owner membership', () async {
+  test('reads legacy Circle messages locally and discards only on request', () async {
     final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
+      '${temporaryDirectory.path}/legacy.db',
     );
     addTearDown(database.close);
-    final repository = PowerSyncCircleRepository(
+    await _seedLegacyCircle(database.powersync, ownerId: 'owner-1');
+    final repository = PowerSyncLegacyCircleMigrationRepository(
       database: database.powersync,
       ownerId: 'owner-1',
-      deviceId: 'device-1',
-      now: () => DateTime.utc(2026, 8, 12, 10),
     );
 
-    final circleId = await repository.createCircle('  Family prayer  ');
-    final circles = await repository.watchCircles().first;
-    final members = await database.powersync.getAll(
-      'SELECT circle_id, owner_id, role FROM circle_members',
-    );
+    final summaries = await repository.list();
+    final archive = await repository.read('legacy-circle-1');
 
-    expect(circles.single.id, circleId);
-    expect(circles.single.name, 'Family prayer');
-    expect(circles.single.memberCount, 1);
-    expect(members.single['circle_id'], circleId);
-    expect(members.single['owner_id'], 'owner-1');
-    expect(members.single['role'], 'owner');
+    expect(summaries, hasLength(1));
+    expect(summaries.single.name, 'Old accountability');
+    expect(summaries.single.messageCount, 2);
+    expect(archive?.messages.map((item) => item.body), [
+      'Please pray for wisdom.',
+      'I will check in tomorrow.',
+    ]);
+    expect(await database.powersync.getNextCrudTransaction(), isNull);
+
+    await repository.discard('legacy-circle-1');
+
+    expect(await repository.list(), isEmpty);
+    expect(
+      await database.powersync.getAll(
+        'SELECT id FROM circle_messages WHERE circle_id = ?',
+        ['legacy-circle-1'],
+      ),
+      isEmpty,
+    );
     expect(await database.powersync.getNextCrudTransaction(), isNull);
   });
 
-  test('sends ordered messages and keeps them after reopen', () async {
-    final path = '${temporaryDirectory.path}/soulbuddy.db';
-    final firstDatabase = await openTestDatabase(path);
-    final firstRepository = PowerSyncCircleRepository(
-      database: firstDatabase.powersync,
-      ownerId: 'owner-1',
-      deviceId: 'device-1',
-      now: () => DateTime.utc(2026, 8, 12, 10),
-    );
-    final circleId = await firstRepository.createCircle('Friends');
-    await firstRepository.sendMessage(circleId, 'Please pray for wisdom.');
-    await firstDatabase.close();
-
-    final reopenedDatabase = await openTestDatabase(path);
-    addTearDown(reopenedDatabase.close);
-    final reopenedRepository = PowerSyncCircleRepository(
-      database: reopenedDatabase.powersync,
-      ownerId: 'owner-1',
-      deviceId: 'device-1',
-    );
-
-    final circle = await reopenedRepository.watchCircle(circleId).first;
-    final messages = await reopenedRepository.watchMessages(circleId).first;
-
-    expect(circle?.name, 'Friends');
-    expect(messages.single.body, 'Please pray for wisdom.');
-    expect(messages.single.isMine, isTrue);
-    expect(messages.single.delivery, CircleMessageDelivery.onThisDevice);
-  });
-
-  test('keeps Circles and messages owner-scoped', () async {
+  test('legacy migration remains owner scoped', () async {
     final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
+      '${temporaryDirectory.path}/owner.db',
     );
     addTearDown(database.close);
-    final ownerOne = PowerSyncCircleRepository(
+    await _seedLegacyCircle(database.powersync, ownerId: 'owner-2');
+    final repository = PowerSyncLegacyCircleMigrationRepository(
       database: database.powersync,
       ownerId: 'owner-1',
-      deviceId: 'device-1',
-    );
-    final ownerTwo = PowerSyncCircleRepository(
-      database: database.powersync,
-      ownerId: 'owner-2',
-      deviceId: 'device-2',
-    );
-    final circleId = await ownerOne.createCircle('Private');
-    await ownerOne.sendMessage(circleId, 'Only mine.');
-
-    expect(await ownerTwo.watchCircles().first, isEmpty);
-    expect(await ownerTwo.watchCircle(circleId).first, isNull);
-    expect(await ownerTwo.watchMessages(circleId).first, isEmpty);
-    await expectLater(
-      ownerTwo.sendMessage(circleId, 'Not allowed'),
-      throwsA(isA<StateError>()),
-    );
-  });
-
-  test('validates names and messages before writing', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
-    final repository = PowerSyncCircleRepository(
-      database: database.powersync,
-      ownerId: 'owner-1',
-      deviceId: 'device-1',
     );
 
-    await expectLater(repository.createCircle('   '), throwsArgumentError);
-    final circleId = await repository.createCircle('Church family');
-    await expectLater(
-      repository.sendMessage(circleId, '   '),
-      throwsArgumentError,
-    );
-    await expectLater(
-      repository.sendMessage(circleId, 'x' * 2001),
-      throwsArgumentError,
-    );
+    expect(await repository.list(), isEmpty);
+    expect(await repository.read('legacy-circle-1'), isNull);
+    await repository.discard('legacy-circle-1');
 
     expect(
-      await database.powersync.getAll('SELECT id FROM circle_messages'),
-      isEmpty,
+      await database.powersync.getAll(
+        'SELECT id FROM circles WHERE id = ?',
+        ['legacy-circle-1'],
+      ),
+      hasLength(1),
     );
   });
+}
+
+Future<void> _seedLegacyCircle(
+  dynamic database, {
+  required String ownerId,
+}) async {
+  const createdAt = '2026-08-12T08:00:00.000Z';
+  await database.execute(
+    '''
+    INSERT INTO circles(id, owner_id, name, created_at, updated_at, archived_at)
+    VALUES (?, ?, ?, ?, ?, NULL)
+    ''',
+    ['legacy-circle-1', ownerId, 'Old accountability', createdAt, createdAt],
+  );
+  await database.execute(
+    '''
+    INSERT INTO circle_members(
+      id, circle_id, owner_id, display_name, role, joined_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ''',
+    ['legacy-member-1', 'legacy-circle-1', ownerId, 'Me', 'owner', createdAt],
+  );
+  for (final message in const [
+    ('legacy-message-1', 'Please pray for wisdom.', '2026-08-12T08:01:00.000Z'),
+    ('legacy-message-2', 'I will check in tomorrow.', '2026-08-12T08:02:00.000Z'),
+  ]) {
+    await database.execute(
+      '''
+      INSERT INTO circle_messages(
+        id, circle_id, owner_id, body, created_at, device_id, delivery
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ''',
+      [
+        message.$1,
+        'legacy-circle-1',
+        ownerId,
+        message.$2,
+        message.$3,
+        'device-1',
+        'on_this_device',
+      ],
+    );
+  }
 }

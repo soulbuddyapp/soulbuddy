@@ -5,214 +5,137 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
-import 'package:soulbuddy/features/circles/data/circle_repository.dart';
+import 'package:soulbuddy/features/circles/data/circle_directory_repository.dart';
+import 'package:soulbuddy/features/circles/data/legacy_circle_migration_repository.dart';
 import 'package:soulbuddy/features/circles/domain/circle.dart';
-import 'package:soulbuddy/features/circles/domain/circle_message.dart';
+import 'package:soulbuddy/features/circles/domain/legacy_circle.dart';
 import 'package:soulbuddy/features/circles/presentation/circle_detail_screen.dart';
 import 'package:soulbuddy/features/circles/presentation/circles_screen.dart';
 import 'package:soulbuddy/features/circles/providers/circle_providers.dart';
+import 'package:soulbuddy/features/record/data/encounter_repository.dart';
+import 'package:soulbuddy/features/record/domain/encounter.dart';
+import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
+import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 
 void main() {
-  testWidgets('guides a new user into a private Circle', (tester) async {
-    final repository = _InMemoryCircleRepository();
-    addTearDown(repository.close);
+  testWidgets('discovers external Circles and exposes no chat composer', (tester) async {
+    final repository = _FakeDirectoryRepository([_publicCircle()]);
     await _pumpCircles(tester, repository: repository);
 
-    expect(find.text('Circles'), findsOneWidget);
-    expect(find.byKey(const Key('circles-living-vine')), findsNothing);
-    expect(
-      find.byKey(const Key('circles-gathered-inscription')),
-      findsOneWidget,
-    );
-    expect(find.text('A private place to begin'), findsOneWidget);
-    expect(find.text('Only you · saved on this device'), findsOneWidget);
-    expect(find.text('Create a Circle'), findsOneWidget);
-    expect(
-      find.byKey(const Key('create-circle')).hitTestable(),
-      findsOneWidget,
-    );
-    final copy = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((widget) => widget.data ?? '')
-        .join(' ')
-        .toLowerCase();
-    for (final word in ['vine', 'branch', 'blossom', 'fruit', 'olive tree']) {
-      expect(copy, isNot(contains(word)));
-    }
-    final viewportHeight =
-        tester.view.physicalSize.height / tester.view.devicePixelRatio;
-    expect(
-      tester.getBottomLeft(find.byKey(const Key('circles-start-guide-end'))).dy,
-      lessThanOrEqualTo(viewportHeight),
-    );
-
-    await tester.ensureVisible(find.byKey(const Key('create-circle')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('create-circle')));
-    await tester.pumpAndSettle();
-    expect(find.text('Name your Circle'), findsOneWidget);
-    expect(
-      find.text('Nothing is shared from your private records.'),
-      findsOneWidget,
-    );
-
-    await tester.enterText(
-      find.byKey(const Key('circle-name-field')),
-      'Family prayer',
-    );
-    await tester.tap(find.byKey(const Key('confirm-create-circle')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Family prayer'), findsOneWidget);
-    expect(find.text('Only you · this device'), findsOneWidget);
-    expect(find.text('Begin the conversation'), findsOneWidget);
-    expect(find.text('Invite'), findsOneWidget);
-    expect(find.text('Share'), findsOneWidget);
-  });
-
-  testWidgets('sends a message and labels its local delivery honestly', (
-    tester,
-  ) async {
-    final repository = _InMemoryCircleRepository(
-      initialCircles: [
-        Circle(
-          id: 'circle-1',
-          name: 'Family prayer',
-          memberCount: 1,
-          createdAt: DateTime.utc(2026, 8, 12),
-          updatedAt: DateTime.utc(2026, 8, 12),
-        ),
-      ],
-    );
-    addTearDown(repository.close);
-    await _pumpCircles(tester, repository: repository);
-
-    await tester.tap(find.text('Family prayer'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('circle-message-field')),
-      'Please pray for wisdom.',
-    );
-    await tester.tap(find.byKey(const Key('send-circle-message')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Please pray for wisdom.'), findsOneWidget);
-    expect(find.text('Saved on this device'), findsOneWidget);
-    expect(repository.lastMessage, 'Please pray for wisdom.');
-  });
-
-  testWidgets('keeps Circle creation open while the local write is pending', (
-    tester,
-  ) async {
-    final repository = _DelayedCircleRepository();
-    addTearDown(repository.release);
-    addTearDown(repository.close);
-    await _pumpCircles(tester, repository: repository);
-
-    await tester.ensureVisible(find.byKey(const Key('create-circle')));
-    await tester.tap(find.byKey(const Key('create-circle')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('circle-name-field')),
-      'Close friends',
-    );
-    await tester.tap(find.byKey(const Key('confirm-create-circle')));
-    await tester.pump();
-    await repository.started.future;
-
-    await tester.tapAt(const Offset(8, 8));
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    expect(find.text('Name your Circle'), findsOneWidget);
-    expect(find.text('Creating…'), findsOneWidget);
-
-    repository.release();
-    await tester.pumpAndSettle();
-    expect(find.text('Close friends'), findsOneWidget);
-    expect(find.text('Begin the conversation'), findsOneWidget);
-  });
-
-  testWidgets('does not create twice when submit is repeated', (tester) async {
-    final repository = _DelayedCircleRepository();
-    addTearDown(repository.release);
-    addTearDown(repository.close);
-    await _pumpCircles(tester, repository: repository);
-
-    await tester.tap(find.byKey(const Key('create-circle')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('circle-name-field')),
-      'Close friends',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-    await repository.started.future;
-
-    expect(repository.createCalls, 1);
-    repository.release();
-    await tester.pumpAndSettle();
-    expect(find.text('Close friends'), findsOneWidget);
-  });
-
-  testWidgets('does not expose a composer for an unavailable Circle', (
-    tester,
-  ) async {
-    final repository = _InMemoryCircleRepository();
-    addTearDown(repository.close);
-    await _pumpCircles(
-      tester,
-      repository: repository,
-      initialLocation: '/circles/not-mine',
-    );
-
-    expect(find.text('Circle unavailable'), findsOneWidget);
+    expect(find.text('Find people to walk with.'), findsOneWidget);
+    expect(find.text('Accountability'), findsWidgets);
+    expect(find.text('Daily Exhortation'), findsOneWidget);
+    expect(find.text('Bible Study'), findsOneWidget);
+    expect(find.text('Walk together'), findsOneWidget);
+    expect(find.text('Conversation happens in Telegram'), findsNothing);
     expect(find.byKey(const Key('circle-message-field')), findsNothing);
     expect(find.byKey(const Key('send-circle-message')), findsNothing);
   });
 
-  testWidgets('fits the normal empty state above the real shell navigation', (
+  testWidgets('Circle detail opens the external provider and explains ownership', (
     tester,
   ) async {
-    final repository = _InMemoryCircleRepository();
-    addTearDown(repository.close);
-    await tester.binding.setSurfaceSize(const Size(320, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repository = _FakeDirectoryRepository([_publicCircle()]);
+    Uri? opened;
     await _pumpCircles(
       tester,
       repository: repository,
-      includeShellNavigation: true,
+      initialLocation: '/circles/circle-public-1',
+      launcher: (uri) async {
+        opened = uri;
+        return true;
+      },
     );
 
-    final guideBottom = tester
-        .getBottomLeft(find.byKey(const Key('circles-start-guide-end')))
-        .dy;
-    final navigationTop = tester
-        .getTopLeft(find.byKey(const Key('test-shell-navigation')))
-        .dy;
-    expect(guideBottom, lessThanOrEqualTo(navigationTop));
-    expect(
-      find.byKey(const Key('create-circle')).hitTestable(),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Conversation happens in Telegram'), findsOneWidget);
+    expect(find.textContaining('not its chat'), findsOneWidget);
+    expect(find.byKey(const Key('circle-message-field')), findsNothing);
+    await tester.tap(find.byKey(const Key('open-external-circle')));
+    await tester.pump();
+    expect(opened, Uri.parse('https://t.me/+walk-together'));
   });
 
-  testWidgets('remains usable at 200% text scale on a small phone', (
+  testWidgets('creates a Circle from purpose and external group link', (tester) async {
+    final repository = _FakeDirectoryRepository([]);
+    await _pumpCircles(tester, repository: repository);
+
+    await tester.tap(find.byKey(const Key('create-circle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Create a Circle'), findsWidgets);
+    await tester.enterText(find.byKey(const Key('circle-name-field')), 'Close friends');
+    await tester.enterText(
+      find.byKey(const Key('circle-description-field')),
+      'Walk together through a difficult season.',
+    );
+    await tester.enterText(
+      find.byKey(const Key('circle-open-url-field')),
+      'https://t.me/+close-friends',
+    );
+    await tester.tap(find.byKey(const Key('confirm-create-circle')));
+    await tester.pumpAndSettle();
+
+    expect(repository.created?.name, 'Close friends');
+    expect(repository.created?.visibility, CircleVisibility.unlisted);
+    expect(find.text('Close friends'), findsOneWidget);
+    expect(find.textContaining('not its chat'), findsOneWidget);
+    expect(find.byKey(const Key('circle-message-field')), findsNothing);
+  });
+
+  testWidgets('keeps legacy messages as a sensitive private Record before deleting them', (
     tester,
   ) async {
-    final repository = _InMemoryCircleRepository();
-    addTearDown(repository.close);
+    final legacy = _FakeLegacyRepository(_legacyArchive());
+    final encounters = _FakeEncounterRepository();
+    await _pumpCircles(
+      tester,
+      repository: _FakeDirectoryRepository([]),
+      legacyRepository: legacy,
+      encounterRepository: encounters,
+    );
+
+    expect(find.text('Saved on this device'), findsOneWidget);
+    expect(find.text('2 saved local messages'), findsOneWidget);
+    await tester.tap(find.text('Keep as private Record'));
+    await tester.pumpAndSettle();
+
+    expect(encounters.lastDraft?.sensitive, isTrue);
+    expect(encounters.lastDraft?.recallEnabled, isFalse);
+    expect(encounters.lastDraft?.body, contains('Please pray for wisdom.'));
+    expect(legacy.archive, isNull);
+    expect(find.text('Kept as a private Record.'), findsOneWidget);
+  });
+
+  testWidgets('old Circle deep link falls back to explicit local migration', (
+    tester,
+  ) async {
+    final legacy = _FakeLegacyRepository(_legacyArchive());
+    await _pumpCircles(
+      tester,
+      repository: _FakeDirectoryRepository([]),
+      legacyRepository: legacy,
+      initialLocation: '/circles/legacy-circle-1',
+    );
+
+    expect(find.text('Old accountability'), findsOneWidget);
+    expect(find.textContaining('old Circle saved only on this device'), findsOneWidget);
+    expect(find.text('Keep messages as private Record'), findsOneWidget);
+    expect(find.byKey(const Key('circle-message-field')), findsNothing);
+  });
+
+  testWidgets('Circles remains usable at 200 percent text on a small phone', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await _pumpCircles(
       tester,
-      repository: repository,
+      repository: _FakeDirectoryRepository([_publicCircle()]),
       textScaler: const TextScaler.linear(2),
     );
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('create-circle')),
-      220,
+      200,
       scrollable: find.byType(Scrollable).first,
     );
     expect(
@@ -221,71 +144,33 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
-
-  testWidgets('Circle detail remains usable at 200% text scale', (
-    tester,
-  ) async {
-    final repository = _InMemoryCircleRepository(
-      initialCircles: [
-        Circle(
-          id: 'circle-1',
-          name: 'Family prayer',
-          memberCount: 1,
-          createdAt: DateTime.utc(2026, 8, 12),
-          updatedAt: DateTime.utc(2026, 8, 12),
-        ),
-      ],
-    );
-    addTearDown(repository.close);
-    await tester.binding.setSurfaceSize(const Size(320, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await _pumpCircles(
-      tester,
-      repository: repository,
-      initialLocation: '/circles/circle-1',
-      textScaler: const TextScaler.linear(2),
-    );
-
-    expect(find.text('Only you · this device'), findsOneWidget);
-    expect(find.byKey(const Key('circle-message-field')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
 }
 
 Future<void> _pumpCircles(
   WidgetTester tester, {
-  required CircleRepository repository,
-  TextScaler textScaler = TextScaler.noScaling,
+  required CircleDirectoryRepository repository,
+  LegacyCircleMigrationRepository? legacyRepository,
+  EncounterRepository? encounterRepository,
   String initialLocation = '/circles',
-  bool includeShellNavigation = false,
+  TextScaler textScaler = TextScaler.noScaling,
+  Future<bool> Function(Uri)? launcher,
 }) async {
+  final legacy = legacyRepository ?? _FakeLegacyRepository(null);
+  final encounters = encounterRepository ?? _FakeEncounterRepository();
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
       GoRoute(
+        path: '/record',
+        builder: (_, _) => const Scaffold(body: Text('Record')),
+      ),
+      GoRoute(
         path: '/circles',
-        builder: (context, state) => Scaffold(
-          body: const CirclesScreen(),
-          bottomNavigationBar: includeShellNavigation
-              ? NavigationBar(
-                  key: Key('test-shell-navigation'),
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.circle_outlined),
-                      label: 'Circles',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.settings_outlined),
-                      label: 'Settings',
-                    ),
-                  ],
-                )
-              : null,
-        ),
+        builder: (_, _) => const Scaffold(body: CirclesScreen()),
         routes: [
           GoRoute(
             path: ':circleId',
-            builder: (context, state) => Scaffold(
+            builder: (_, state) => Scaffold(
               body: CircleDetailScreen(
                 circleId: state.pathParameters['circleId']!,
               ),
@@ -299,7 +184,12 @@ Future<void> _pumpCircles(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        circleRepositoryProvider.overrideWith((ref) async => repository),
+        circleDirectoryRepositoryProvider.overrideWith((ref) async => repository),
+        legacyCircleMigrationRepositoryProvider.overrideWith((ref) async => legacy),
+        encounterRepositoryProvider.overrideWith((ref) async => encounters),
+        circleExternalLauncherProvider.overrideWith(
+          (ref) => launcher ?? ((_) async => true),
+        ),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -314,95 +204,183 @@ Future<void> _pumpCircles(
   await tester.pumpAndSettle();
 }
 
-class _InMemoryCircleRepository implements CircleRepository {
-  _InMemoryCircleRepository({List<Circle> initialCircles = const []})
-    : _circles = List.of(initialCircles) {
-    _circlesController.add(List.unmodifiable(_circles));
-  }
+Circle _publicCircle({bool isOwner = false}) => Circle(
+  publicId: 'circle-public-1',
+  name: 'Walk together',
+  category: CircleCategory.accountability,
+  description: 'Honest accountability and prayer.',
+  visibility: CircleVisibility.public,
+  status: CircleStatus.active,
+  provider: CircleProvider.telegram,
+  openUri: Uri.parse('https://t.me/+walk-together'),
+  capabilities: const ['open_link'],
+  isOwner: isOwner,
+  updatedAt: DateTime.utc(2026, 8, 29),
+);
 
-  final _circlesController = StreamController<List<Circle>>.broadcast();
-  final _messageControllers = <String, StreamController<List<CircleMessage>>>{};
-  final List<Circle> _circles;
-  String? lastMessage;
+LegacyCircleArchive _legacyArchive() => LegacyCircleArchive(
+  summary: LegacyCircleSummary(
+    id: 'legacy-circle-1',
+    name: 'Old accountability',
+    messageCount: 2,
+    updatedAt: DateTime.utc(2026, 8, 12, 8, 2),
+  ),
+  messages: [
+    LegacyCircleMessage(
+      id: 'message-1',
+      body: 'Please pray for wisdom.',
+      createdAt: DateTime.utc(2026, 8, 12, 8, 1),
+    ),
+    LegacyCircleMessage(
+      id: 'message-2',
+      body: 'I will check in tomorrow.',
+      createdAt: DateTime.utc(2026, 8, 12, 8, 2),
+    ),
+  ],
+);
+
+class _FakeDirectoryRepository implements CircleDirectoryRepository {
+  _FakeDirectoryRepository(List<Circle> circles) : circles = List.of(circles);
+
+  final List<Circle> circles;
+  CircleDraft? created;
+  String? reportedReason;
 
   @override
-  Future<String> createCircle(String name) async {
+  Future<Circle> create(CircleDraft draft) async {
+    created = draft;
     final circle = Circle(
-      id: 'circle-${_circles.length + 1}',
-      name: name.trim(),
-      memberCount: 1,
-      createdAt: DateTime.utc(2026, 8, 12),
-      updatedAt: DateTime.utc(2026, 8, 12),
+      publicId: 'created-circle-1',
+      name: draft.name,
+      category: draft.category,
+      description: draft.description,
+      visibility: draft.visibility,
+      status: CircleStatus.active,
+      provider: draft.provider,
+      openUri: draft.openUri,
+      capabilities: const ['open_link'],
+      isOwner: true,
+      updatedAt: DateTime.utc(2026, 8, 29),
     );
-    _circles.add(circle);
-    _circlesController.add(List.unmodifiable(_circles));
-    return circle.id;
+    circles.add(circle);
+    return circle;
   }
 
   @override
-  Future<void> sendMessage(String circleId, String body) async {
-    lastMessage = body.trim();
-    final controller = _messageController(circleId);
-    controller.add([
-      CircleMessage(
-        id: 'message-1',
-        circleId: circleId,
-        body: lastMessage!,
-        createdAt: DateTime.utc(2026, 8, 12),
-        isMine: true,
-        delivery: CircleMessageDelivery.onThisDevice,
-      ),
-    ]);
-  }
-
-  @override
-  Stream<Circle?> watchCircle(String circleId) async* {
-    yield _circles.where((circle) => circle.id == circleId).firstOrNull;
-    yield* _circlesController.stream.map(
-      (circles) => circles.where((circle) => circle.id == circleId).firstOrNull,
+  Future<CirclePage> discover(CircleDiscoveryQuery query) async {
+    final search = query.search?.toLowerCase();
+    return CirclePage(
+      items: circles
+          .where(
+            (circle) =>
+                circle.visibility == CircleVisibility.public &&
+                circle.status == CircleStatus.active &&
+                (query.category == null || circle.category == query.category) &&
+                (search == null ||
+                    circle.name.toLowerCase().contains(search) ||
+                    circle.description.toLowerCase().contains(search)),
+          )
+          .toList(growable: false),
     );
   }
 
   @override
-  Stream<List<Circle>> watchCircles() async* {
-    yield List.unmodifiable(_circles);
-    yield* _circlesController.stream;
+  Future<Circle?> get(String publicId) async =>
+      circles.where((item) => item.publicId == publicId).firstOrNull;
+
+  @override
+  Future<List<Circle>> listOwned() async =>
+      circles.where((item) => item.isOwner).toList(growable: false);
+
+  @override
+  Future<void> report(String publicId, String reason) async {
+    reportedReason = reason;
   }
 
   @override
-  Stream<List<CircleMessage>> watchMessages(String circleId) async* {
-    yield const [];
-    yield* _messageController(circleId).stream;
-  }
-
-  StreamController<List<CircleMessage>> _messageController(String circleId) =>
-      _messageControllers.putIfAbsent(
-        circleId,
-        () => StreamController<List<CircleMessage>>.broadcast(),
-      );
-
-  Future<void> close() async {
-    await _circlesController.close();
-    for (final controller in _messageControllers.values) {
-      await controller.close();
-    }
+  Future<Circle> update(String publicId, CircleUpdate update) async {
+    final index = circles.indexWhere((item) => item.publicId == publicId);
+    final existing = circles[index];
+    final next = Circle(
+      publicId: existing.publicId,
+      name: update.name ?? existing.name,
+      category: update.category ?? existing.category,
+      description: update.description ?? existing.description,
+      visibility: update.visibility ?? existing.visibility,
+      status: update.status ?? existing.status,
+      provider: update.provider ?? existing.provider,
+      openUri: update.openUri ?? existing.openUri,
+      capabilities: existing.capabilities,
+      memberCount: existing.memberCount,
+      isOwner: existing.isOwner,
+      updatedAt: DateTime.utc(2026, 8, 29, 1),
+    );
+    circles[index] = next;
+    return next;
   }
 }
 
-class _DelayedCircleRepository extends _InMemoryCircleRepository {
-  final started = Completer<void>();
-  final _release = Completer<void>();
-  var createCalls = 0;
+class _FakeLegacyRepository implements LegacyCircleMigrationRepository {
+  _FakeLegacyRepository(this.archive);
+
+  LegacyCircleArchive? archive;
 
   @override
-  Future<String> createCircle(String name) async {
-    createCalls += 1;
-    if (!started.isCompleted) started.complete();
-    await _release.future;
-    return super.createCircle(name);
+  Future<void> discard(String circleId) async {
+    if (archive?.summary.id == circleId) archive = null;
   }
 
-  void release() {
-    if (!_release.isCompleted) _release.complete();
+  @override
+  Future<List<LegacyCircleSummary>> list() async =>
+      archive == null ? const [] : [archive!.summary];
+
+  @override
+  Future<LegacyCircleArchive?> read(String circleId) async =>
+      archive?.summary.id == circleId ? archive : null;
+}
+
+class _FakeEncounterRepository implements EncounterRepository {
+  EncounterDraft? lastDraft;
+
+  @override
+  Future<Encounter> create(EncounterDraft draft) async {
+    lastDraft = draft;
+    return Encounter(
+      id: 'record-1',
+      ownerId: 'owner-1',
+      title: draft.title,
+      body: draft.body,
+      occurredOn: draft.occurredOn,
+      isAltar: draft.isAltar,
+      createdAt: DateTime.utc(2026, 8, 29),
+      updatedAt: DateTime.utc(2026, 8, 29),
+      currentRevisionId: 'revision-1',
+      syncState: EncounterSyncState.pending,
+      memoryType: draft.memoryType,
+      sensitive: draft.sensitive,
+      recallEnabled: draft.recallEnabled,
+      recallPaused: draft.recallPaused,
+      recallIntervalDays: draft.recallIntervalDays,
+    );
   }
+
+  @override
+  Future<MemoryReflection> addReflection(
+    String encounterId, {
+    required String body,
+    required String localDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> archive(String encounterId) async {}
+
+  @override
+  Future<void> markAsAltar(String encounterId, {required bool value}) async {}
+
+  @override
+  Stream<List<Encounter>> watchAll() => const Stream.empty();
+
+  @override
+  Stream<List<MemoryReflection>> watchReflections(String encounterId) =>
+      const Stream.empty();
 }
