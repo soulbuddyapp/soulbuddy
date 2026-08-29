@@ -31,6 +31,7 @@ enum CircleVisibility {
 }
 
 enum CircleStatus {
+  draft('draft'),
   active('active'),
   paused('paused'),
   suspended('suspended'),
@@ -72,7 +73,7 @@ enum CircleProvider {
     return uri.scheme.toLowerCase() == 'https' &&
         uri.userInfo.isEmpty &&
         allowedHosts.contains(host) &&
-        uri.port == 443 &&
+        (!uri.hasPort || uri.port == 443) &&
         uri.pathSegments.any((segment) => segment.trim().isNotEmpty);
   }
 }
