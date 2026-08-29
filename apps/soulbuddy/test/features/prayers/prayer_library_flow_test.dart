@@ -36,8 +36,8 @@ void main() {
     expect(find.byKey(const Key('prayers-living-vine')), findsNothing);
     expect(find.text('Prayer is communion'), findsNothing);
     expect(find.text('Library'), findsOneWidget);
-    expect(find.text('Personalized'), findsOneWidget);
-    expect(find.byKey(const Key('personalized-choice')), findsOneWidget);
+    expect(find.text('For this moment'), findsOneWidget);
+    expect(find.byKey(const Key('for-this-moment-choice')), findsOneWidget);
     expect(find.byKey(const Key('prayer-filter-disclosure')), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('Library')).dy,
@@ -117,7 +117,7 @@ void main() {
       textScaler: const TextScaler.linear(2),
     );
 
-    for (final key in ['personalized-choice', 'prayer-filter-disclosure']) {
+    for (final key in ['for-this-moment-choice', 'prayer-filter-disclosure']) {
       await tester.scrollUntilVisible(
         find.byKey(Key(key)),
         200,
