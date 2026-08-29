@@ -2,10 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_personal_prayer_repository.dart';
-import 'package:soulbuddy/features/prayers/data/powersync_prayer_generation_repository.dart';
 import 'package:soulbuddy/features/prayers/data/powersync_prayer_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
-import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:uuid/uuid.dart';
 
@@ -49,7 +47,9 @@ void main() {
     expect(prayer.style, PrayerStyle.situational.wireValue);
     expect(prayer.reach, PrayerReach.personal.wireValue);
     expect(
-      await database.powersync.getAll('SELECT id FROM prayer_generation_requests'),
+      await database.powersync.getAll(
+        'SELECT id FROM prayer_generation_requests',
+      ),
       isEmpty,
     );
     final rows = await database.powersync.getAll(
@@ -66,52 +66,55 @@ void main() {
   });
 
   test(
-    'accepts one draft as prayer revision and explicit links atomically',
+    'accepts historical draft idempotently without mutating legacy archive',
     () async {
       final database = await openTestDatabase(
         '${temporaryDirectory.path}/accept.db',
       );
       addTearDown(database.close);
-      final generationRepository = PowerSyncPrayerGenerationRepository(
-        database: database.powersync,
-        ownerId: 'owner-1',
-        now: () => DateTime.utc(2026, 8, 11, 8),
-        uuid: const Uuid(),
+      const requestId = '0198a400-0000-7000-8000-000000000010';
+      const createdAt = '2026-08-11T08:00:00.000Z';
+      await database.powersync.execute(
+        '''
+        INSERT INTO prayer_generation_requests(
+          id, owner_id, style, reach, grounding, purpose, request_text,
+          status, draft_title, draft_body, draft_action, attempt_count,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          requestId,
+          'owner-1',
+          'situational',
+          'encompassing',
+          'general_christian',
+          'family',
+          'Give us wisdom as we care for our family.',
+          'ready',
+          'For wisdom in my family',
+          'Father, give us wisdom and make us ready to act in love. Amen.',
+          'Call and listen without defending myself.',
+          1,
+          createdAt,
+          createdAt,
+        ],
       );
-      final request = await generationRepository.create(
-        style: PrayerStyle.situational,
-        reach: PrayerReach.encompassing,
-        grounding: PrayerGrounding.generalChristian,
-        purpose: PrayerPurpose.family,
-        requestText: 'Give us wisdom as we care for our family.',
-      );
-      await generationRepository.replaceContexts(request.id, const [
-        PrayerGenerationContext.encounter(
-          sourceId: '0198a400-0000-7000-8000-000000000001',
-          displayLabel: 'A conversation I remember',
-          excerptSnapshot: 'We chose to speak truthfully and forgive.',
-        ),
-      ]);
-      await generationRepository.queue(
-        request.id,
-        provider: 'deepseek',
-        disclosureVersion: '2026-08-11',
-      );
-      await generationRepository.claim(
-        request.id,
-        'attempt-1',
-        DateTime.utc(2026, 8, 11, 8),
-      );
-      await generationRepository.storeDraft(
-        request.id,
-        'attempt-1',
-        const PrayerGeneratedDraft(
-          title: 'For wisdom in my family',
-          body:
-              'Father, give us wisdom and make us ready to act in love. Amen.',
-          action: 'Call and listen without defending myself.',
-          promptVersion: 'prayer-v1',
-        ),
+      await database.powersync.execute(
+        '''
+        INSERT INTO prayer_generation_contexts(
+          id, request_id, context_type, source_id, display_label,
+          excerpt_snapshot, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          '0198a400-0000-7000-8000-000000000011',
+          requestId,
+          'encounter',
+          '0198a400-0000-7000-8000-000000000001',
+          'A conversation I remember',
+          'We chose to speak truthfully and forgive.',
+          createdAt,
+        ],
       );
       final repository = PowerSyncPersonalPrayerRepository(
         database: database.powersync,
@@ -122,18 +125,19 @@ void main() {
       );
 
       final accepted = await repository.accept(
-        requestId: request.id,
+        requestId: requestId,
         title: 'For wisdom in my family',
         body: 'Father, give us wisdom and make us ready to act in love. Amen.',
         action: 'Call and listen without defending myself.',
       );
       final replayed = await repository.accept(
-        requestId: request.id,
+        requestId: requestId,
         title: 'For wisdom in my family',
         body: 'Father, give us wisdom and make us ready to act in love. Amen.',
         action: 'Call and listen without defending myself.',
       );
 
+      expect(accepted.id, requestId);
       expect(accepted.currentRevisionId, isNotEmpty);
       expect(replayed.id, accepted.id);
       expect(
@@ -155,10 +159,16 @@ void main() {
         '0198a400-0000-7000-8000-000000000001',
       );
       expect(links.single['excerpt_snapshot'], isNull);
-      expect(
-        (await generationRepository.watch(request.id).first)?.status,
-        PrayerGenerationStatus.ready,
+      final legacy = await database.powersync.get(
+        '''
+        SELECT accepted_prayer_id, updated_at
+        FROM prayer_generation_requests
+        WHERE id = ?
+        ''',
+        [requestId],
       );
+      expect(legacy['accepted_prayer_id'], isNull);
+      expect(legacy['updated_at'], createdAt);
     },
   );
 
