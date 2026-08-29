@@ -60,10 +60,10 @@ dev_dependencies:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set used by the package is
-  # activated in the `analysis_options.yaml` file located at the root of the
-  # package. See that file for information on deactivating specific lint rules
-  # and activating additional ones.
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
   flutter_lints: ^5.0.0
   alchemist: ^0.14.0
   accessibility_tools: ^2.7.1
@@ -84,7 +84,7 @@ dependency_overrides:
 flutter:
 
   # The following line ensures that the Material Icons font is
-  # included with the application, so that you can use the icons in
+  # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
 
@@ -112,13 +112,15 @@ flutter:
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
 
-  # To add custom fonts to your application, add a fonts section in this
-  # "flutter" section. Each entry in this list should have a "family" key with
-  # the font family name, and a "fonts" key with a list giving the asset and
-  # other descriptors for the font. For example:
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
   # fonts:
   #   - family: Schyler
   #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
   #       - asset: fonts/Schyler-Italic.ttf
   #         style: italic
   #   - family: Trajan Pro
