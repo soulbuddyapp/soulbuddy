@@ -202,14 +202,22 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
   }
 
   Future<void> _copyLegacy(LegacyCircleSummary circle) async {
-    final service = await ref.read(legacyCircleMigrationServiceProvider.future);
-    final text = await service.copyText(circle.id);
-    if (text == null) return;
-    await Clipboard.setData(ClipboardData(text: text));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Copied. The local Circle is still here.')),
-      );
+    try {
+      final service = await ref.read(legacyCircleMigrationServiceProvider.future);
+      final text = await service.copyText(circle.id);
+      if (text == null) return;
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Copied. The local Circle is still here.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not copy these messages yet.')),
+        );
+      }
     }
   }
 
@@ -234,11 +242,19 @@ class _CirclesScreenState extends ConsumerState<CirclesScreen> {
       ),
     );
     if (confirmed != true) return;
-    final repository = await ref.read(
-      legacyCircleMigrationRepositoryProvider.future,
-    );
-    await repository.discard(circle.id);
-    ref.invalidate(legacyCirclesProvider);
+    try {
+      final repository = await ref.read(
+        legacyCircleMigrationRepositoryProvider.future,
+      );
+      await repository.discard(circle.id);
+      ref.invalidate(legacyCirclesProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not discard this local Circle yet.')),
+        );
+      }
+    }
   }
 }
 
@@ -317,6 +333,18 @@ class _CircleCard extends StatelessWidget {
   final Circle circle;
   final VoidCallback onOpen;
 
+  String? get _ownerState {
+    if (!circle.isOwner) return null;
+    if (!circle.directoryListed) return 'Not listed';
+    return switch (circle.status) {
+      CircleStatus.draft => 'Draft',
+      CircleStatus.paused => 'Paused',
+      CircleStatus.suspended => 'Suspended',
+      CircleStatus.archived => 'Archived',
+      CircleStatus.active => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) => Card(
     child: InkWell(
@@ -329,7 +357,13 @@ class _CircleCard extends StatelessWidget {
           children: [
             Text(circle.name, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: AppSpacing.xs),
-            Text('${circle.category.label} · ${circle.provider?.label ?? 'External'}'),
+            Text(
+              [
+                circle.category.label,
+                circle.provider?.label ?? 'External',
+                if (_ownerState case final state?) state,
+              ].join(' · '),
+            ),
             const SizedBox(height: AppSpacing.xs),
             Text(circle.description),
             if (circle.memberCount case final count?) ...[
