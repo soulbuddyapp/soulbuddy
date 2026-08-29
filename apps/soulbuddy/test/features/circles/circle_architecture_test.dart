@@ -37,4 +37,28 @@ void main() {
       );
     }
   });
+
+  test('Circle boundaries contain no direct logging or analytics sink', () {
+    final source = Directory('lib/features/circles')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .map((file) => file.readAsStringSync())
+        .join('\n');
+
+    for (final marker in const [
+      'print(',
+      'debugPrint(',
+      'developer.log(',
+      'FirebaseAnalytics',
+      'logEvent(',
+      'analytics.log',
+    ]) {
+      expect(
+        source,
+        isNot(contains(marker)),
+        reason: 'Circle metadata or legacy messages must not enter $marker',
+      );
+    }
+  });
 }
