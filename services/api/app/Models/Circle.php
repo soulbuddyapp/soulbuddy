@@ -25,6 +25,13 @@ class Circle extends Model
         });
     }
 
+    protected function casts(): array
+    {
+        return [
+            'directory_listed' => 'boolean',
+        ];
+    }
+
     public function getRouteKeyName(): string
     {
         return 'public_id';
