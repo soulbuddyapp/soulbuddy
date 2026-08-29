@@ -117,15 +117,8 @@ class Circle {
         capabilities.any((item) => item is! String)) {
       throw const FormatException('Circle capabilities must be strings.');
     }
-    final directoryListed = json['directory_listed'];
-    if (directoryListed is! bool) {
-      throw const FormatException('Circle directory state must be a boolean.');
-    }
     final provider = CircleProvider.fromWire(json['provider']);
-    final openUrl = json['open_url'];
-    final openUri = _providerOpenUri(provider, openUrl);
     final memberCount = json['member_count'];
-    final updatedAt = json['updated_at'];
     return Circle(
       publicId: _requiredString(json, 'public_id'),
       name: _requiredString(json, 'name'),
@@ -135,19 +128,17 @@ class Circle {
         _requiredString(json, 'visibility'),
       ),
       status: CircleStatus.fromWire(_requiredString(json, 'status')),
-      directoryListed: directoryListed,
+      directoryListed: _requiredBool(json, 'directory_listed'),
       provider: provider,
-      openUri: openUri,
+      openUri: _providerOpenUri(provider, json['open_url']),
       capabilities: List.unmodifiable(capabilities.cast<String>()),
       memberCount: memberCount == null
           ? null
           : memberCount is int
           ? memberCount
           : throw const FormatException('Circle member count must be an int.'),
-      isOwner: json['is_owner'] == true,
-      updatedAt: updatedAt == null
-          ? null
-          : DateTime.parse(updatedAt as String).toUtc(),
+      isOwner: _requiredBool(json, 'is_owner'),
+      updatedAt: _optionalUtcDateTime(json['updated_at']),
     );
   }
 }
@@ -162,6 +153,26 @@ Uri? _providerOpenUri(CircleProvider? provider, Object? value) {
     throw const FormatException('Circle provider URL is invalid.');
   }
   return uri;
+}
+
+DateTime? _optionalUtcDateTime(Object? value) {
+  if (value == null) return null;
+  if (value is! String) {
+    throw const FormatException('Circle timestamp must be a string.');
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    throw const FormatException('Circle timestamp is invalid.');
+  }
+  return parsed.toUtc();
+}
+
+bool _requiredBool(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value is! bool) {
+    throw FormatException('Circle $key must be a boolean.');
+  }
+  return value;
 }
 
 String _requiredString(Map<String, dynamic> json, String key) {
