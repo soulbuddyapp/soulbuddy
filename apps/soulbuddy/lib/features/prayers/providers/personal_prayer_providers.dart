@@ -7,8 +7,6 @@ import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../record/domain/encounter.dart';
-import '../../scripture/data/bundled_scripture_source.dart';
-import '../../scripture/data/scripture_repository.dart';
 import '../../scripture/domain/scripture_passage.dart';
 import '../application/prayer_generation_dispatcher.dart';
 import '../application/prayer_generation_worker.dart';
@@ -94,10 +92,6 @@ final prayerGenerationWorkerProvider = FutureProvider<PrayerGenerationWorker>((
   ref.onDispose(() => unawaited(worker.dispose()));
   return worker;
 });
-
-final scriptureRepositoryProvider = Provider<ScriptureRepository>(
-  (ref) => const BundledScriptureRepository(),
-);
 
 final personalizedPrayerControllerProvider = AsyncNotifierProvider.autoDispose
     .family<PersonalizedPrayerController, PersonalizedPrayerFlowState, String?>(
