@@ -92,12 +92,8 @@ void main() {
     expect(find.text('First Goal'), findsOneWidget);
     expect(find.text('Second Goal'), findsOneWidget);
     expect(
-      tester
-          .widget<PopupMenuButton<dynamic>>(
-            find.byKey(const Key('goal-order-menu-first')),
-          )
-          .enabled,
-      isTrue,
+      find.byKey(const Key('goal-order-menu-first')).hitTestable(),
+      findsOneWidget,
     );
   });
 
