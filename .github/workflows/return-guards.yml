@@ -1,0 +1,125 @@
+name: Return and Guards
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/return-guards.yml'
+      - 'apps/soulbuddy/lib/features/guards/**'
+      - 'apps/soulbuddy/lib/features/goals/data/goal_schema.dart'
+      - 'apps/soulbuddy/lib/features/goals/domain/**'
+      - 'apps/soulbuddy/lib/features/goals/providers/**'
+      - 'apps/soulbuddy/test/features/guards/**'
+      - 'services/api/app/Domain/Sync/ApplyGoalSyncMutation.php'
+      - 'services/api/app/Domain/Sync/GoalGuardSelectionSyncMutation.php'
+      - 'services/api/app/Models/GoalGuardSelection.php'
+      - 'services/api/database/migrations/*goal_guard*'
+      - 'services/api/tests/Feature/Goals/GoalGuardSelectionSyncTest.php'
+  push:
+    branches:
+      - main
+      - 'agent/**'
+    paths:
+      - '.github/workflows/return-guards.yml'
+      - 'apps/soulbuddy/lib/features/guards/**'
+      - 'apps/soulbuddy/lib/features/goals/data/goal_schema.dart'
+      - 'apps/soulbuddy/lib/features/goals/domain/**'
+      - 'apps/soulbuddy/lib/features/goals/providers/**'
+      - 'apps/soulbuddy/test/features/guards/**'
+      - 'services/api/app/Domain/Sync/ApplyGoalSyncMutation.php'
+      - 'services/api/app/Domain/Sync/GoalGuardSelectionSyncMutation.php'
+      - 'services/api/app/Models/GoalGuardSelection.php'
+      - 'services/api/database/migrations/*goal_guard*'
+      - 'services/api/tests/Feature/Goals/GoalGuardSelectionSyncTest.php'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: return-guards-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-return-guards:
+    name: Flutter Return / guards
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.35.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Prepare ignored Scripture asset placeholder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets/scripture | Out-Null
+          if (-not (Test-Path assets/scripture/rsvce.db)) {
+            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
+          }
+
+      - name: Check focused formatting
+        id: dart-format
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dart format lib/features/guards lib/features/goals/data/goal_schema.dart test/features/guards
+          git diff --check
+          git diff --exit-code -- lib/features/guards lib/features/goals/data/goal_schema.dart test/features/guards
+
+      - name: Analyze Return and guards
+        run: flutter analyze --fatal-infos lib/features/guards lib/features/goals/data/goal_schema.dart
+
+      - name: Run Return and guard tests
+        run: flutter test test/features/guards
+
+      - name: Fail on committed formatting drift
+        if: always() && steps.dart-format.outcome == 'failure'
+        shell: pwsh
+        run: exit 1
+
+  laravel-return-guards:
+    name: Laravel Return / guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Laravel dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Check focused PHP style
+        run: ./vendor/bin/pint --test app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalGuardSelectionSyncMutation.php app/Models/GoalGuardSelection.php database/migrations/*goal_guard*.php tests/Feature/Goals/GoalGuardSelectionSyncTest.php
+
+      - name: Run guard sync tests
+        run: php artisan test tests/Feature/Goals/GoalGuardSelectionSyncTest.php
