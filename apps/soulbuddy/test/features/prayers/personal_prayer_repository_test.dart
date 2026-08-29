@@ -44,8 +44,8 @@ void main() {
 
     expect(prayer.body, 'Father, give me wisdom for the next faithful step.');
     expect(prayer.purpose, PrayerPurpose.guidance);
-    expect(prayer.style, PrayerStyle.situational.wireValue);
-    expect(prayer.reach, PrayerReach.personal.wireValue);
+    expect(prayer.style, 'situational');
+    expect(prayer.reach, 'personal');
     expect(
       await database.powersync.getAll(
         'SELECT id FROM prayer_generation_requests',
