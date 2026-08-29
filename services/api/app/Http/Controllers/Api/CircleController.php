@@ -82,10 +82,29 @@ class CircleController extends Controller
         $user = $this->user($request);
         Gate::authorize('create', Circle::class);
         $validated = $request->validated();
+        $fingerprint = $this->creationFingerprint($validated);
 
-        $circle = DB::transaction(function () use ($user, $validated): Circle {
+        [$circle, $created] = DB::transaction(function () use ($user, $validated, $fingerprint): array {
+            $existing = Circle::query()
+                ->with('providerBinding')
+                ->where('owner_user_id', $user->id)
+                ->where('creation_key', $validated['creation_key'])
+                ->lockForUpdate()
+                ->first();
+            if ($existing !== null) {
+                if (! hash_equals($existing->creation_fingerprint, $fingerprint)) {
+                    throw ValidationException::withMessages([
+                        'creation_key' => ['idempotency_conflict'],
+                    ]);
+                }
+
+                return [$existing, false];
+            }
+
             $circle = Circle::create([
                 'owner_user_id' => $user->id,
+                'creation_key' => $validated['creation_key'],
+                'creation_fingerprint' => $fingerprint,
                 'name' => trim($validated['name']),
                 'category' => $validated['category'],
                 'description' => trim($validated['description']),
@@ -101,10 +120,10 @@ class CircleController extends Controller
                 'bound_at' => now(),
             ]);
 
-            return $circle->load('providerBinding');
+            return [$circle->load('providerBinding'), true];
         });
 
-        return response()->json($this->payload($circle, $user), 201);
+        return response()->json($this->payload($circle, $user), $created ? 201 : 200);
     }
 
     public function show(Request $request, Circle $circle): JsonResponse
@@ -156,6 +175,21 @@ class CircleController extends Controller
         return response()->json(
             $this->payload($circle->fresh()->load('providerBinding'), $this->user($request)),
         );
+    }
+
+    private function creationFingerprint(array $validated): string
+    {
+        $payload = [
+            'name' => trim($validated['name']),
+            'category' => $validated['category'],
+            'description' => trim($validated['description']),
+            'visibility' => $validated['visibility'],
+            'status' => $validated['status'] ?? 'active',
+            'provider' => $validated['provider'],
+            'open_url' => trim($validated['open_url']),
+        ];
+
+        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 
     private function payload(Circle $circle, User $viewer): array
