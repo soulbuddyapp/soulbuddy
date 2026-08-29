@@ -76,9 +76,67 @@ void main() {
 
     expect(repository.created?.name, 'Close friends');
     expect(repository.created?.visibility, CircleVisibility.unlisted);
+    expect(repository.created?.status, CircleStatus.active);
     expect(find.text('Close friends'), findsOneWidget);
     expect(find.textContaining('not its chat'), findsOneWidget);
     expect(find.byKey(const Key('circle-message-field')), findsNothing);
+  });
+
+  testWidgets('rejects a provider-mismatched group link before repository create', (
+    tester,
+  ) async {
+    final repository = _FakeDirectoryRepository([]);
+    await _pumpCircles(tester, repository: repository);
+
+    await tester.tap(find.byKey(const Key('create-circle')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('circle-name-field')), 'Close friends');
+    await tester.enterText(
+      find.byKey(const Key('circle-description-field')),
+      'Walk together through a difficult season.',
+    );
+    await tester.enterText(
+      find.byKey(const Key('circle-open-url-field')),
+      'https://chat.whatsapp.com/not-telegram',
+    );
+    await tester.tap(find.byKey(const Key('confirm-create-circle')));
+    await tester.pump();
+
+    expect(find.text('Use a valid Telegram group link.'), findsOneWidget);
+    expect(repository.created, isNull);
+  });
+
+  testWidgets('publishes an owned draft without undoing moderator delisting', (
+    tester,
+  ) async {
+    final repository = _FakeDirectoryRepository([
+      _publicCircle(
+        isOwner: true,
+        status: CircleStatus.draft,
+        directoryListed: false,
+      ),
+    ]);
+    await _pumpCircles(
+      tester,
+      repository: repository,
+      initialLocation: '/circles/circle-public-1',
+    );
+
+    expect(find.text('Publish Circle'), findsOneWidget);
+    expect(
+      find.textContaining('Not listed in SoulBuddy discovery'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('circle-lifecycle-action')));
+    await tester.pumpAndSettle();
+
+    expect(repository.circles.single.status, CircleStatus.active);
+    expect(repository.circles.single.directoryListed, isFalse);
+    expect(find.text('Pause Circle'), findsOneWidget);
+    expect(
+      find.textContaining('Not listed in SoulBuddy discovery'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeps legacy messages as a sensitive private Record before deleting them', (
@@ -204,14 +262,18 @@ Future<void> _pumpCircles(
   await tester.pumpAndSettle();
 }
 
-Circle _publicCircle({bool isOwner = false}) => Circle(
+Circle _publicCircle({
+  bool isOwner = false,
+  CircleStatus status = CircleStatus.active,
+  bool directoryListed = true,
+}) => Circle(
   publicId: 'circle-public-1',
   name: 'Walk together',
   category: CircleCategory.accountability,
   description: 'Honest accountability and prayer.',
   visibility: CircleVisibility.public,
-  status: CircleStatus.active,
-  directoryListed: true,
+  status: status,
+  directoryListed: directoryListed,
   provider: CircleProvider.telegram,
   openUri: Uri.parse('https://t.me/+walk-together'),
   capabilities: const ['open_link'],
@@ -256,7 +318,7 @@ class _FakeDirectoryRepository implements CircleDirectoryRepository {
       category: draft.category,
       description: draft.description,
       visibility: draft.visibility,
-      status: CircleStatus.active,
+      status: draft.status,
       directoryListed: true,
       provider: draft.provider,
       openUri: draft.openUri,
