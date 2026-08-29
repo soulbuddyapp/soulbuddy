@@ -44,17 +44,11 @@ void main() {
     expect(find.text('Not now'), findsOneWidget);
 
     await tester.tap(find.text('Not now'));
-    await tester.pumpAndSettle();
-    expect(find.text('Prepare your prayer'), findsOneWidget);
-    expect(
-      find.textContaining('external prayer-writing service'),
-      findsOneWidget,
-    );
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.textContaining('external prayer-writing service'), findsNothing);
     expect(find.textContaining('DeepSeek'), findsNothing);
-    await tester.tap(find.text('Prepare prayer'));
-    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Preparing your prayer…'), findsOneWidget);
-    expect(find.text('Choose a prepared prayer'), findsWidgets);
+    expect(find.text('Choose a prepared prayer'), findsOneWidget);
   });
 
   testWidgets('written detail is short and optional', (tester) async {
@@ -72,7 +66,8 @@ void main() {
     await tester.tap(find.text('Write'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('first-prayer-detail')), findsOneWidget);
-    expect(find.text('Prepare prayer'), findsOneWidget);
+    expect(find.text('Use reviewed prayer'), findsOneWidget);
+    expect(find.text('Prepare prayer'), findsNothing);
     expect(find.text('Not now'), findsOneWidget);
   });
 }
