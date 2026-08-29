@@ -68,12 +68,15 @@ void main() {
       expect(result.prayer.body, 'Father, keep me near you today. Amen.');
       expect(result.editorial.provenance, 'soulbuddy_editorial');
       expect(result.editorial.reviewState, EditorialReviewState.approved);
-      expect(result.editorial.isSelectable, isTrue);
+      expect(
+        result.editorial.isSelectableAt(DateTime.utc(2026, 8, 29, 12)),
+        isTrue,
+      );
     },
   );
 
   test(
-    'only approved published non-archived editorial prayers are selectable',
+    'only approved already-published non-archived editorial prayers are selectable',
     () async {
       final database = await openTestDatabase(
         '${temporaryDirectory.path}/selection.db',
@@ -101,6 +104,13 @@ void main() {
           'approved',
           '2026-08-29T00:00:00.000Z',
           '2026-08-30T00:00:00.000Z',
+        ),
+        (
+          '0198a100-0000-7000-8000-000000000015',
+          'Scheduled',
+          'approved',
+          '2099-01-01T00:00:00.000Z',
+          null,
         ),
       ];
       for (final item in cases) {
