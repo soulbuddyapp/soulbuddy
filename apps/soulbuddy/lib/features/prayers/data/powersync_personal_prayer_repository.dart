@@ -157,15 +157,15 @@ class PowerSyncPersonalPrayerRepository implements PersonalPrayerRepository {
         throw StateError('Prayer draft is not ready');
       }
 
-      final acceptedPrayerId = request['accepted_prayer_id'] as String?;
-      if (acceptedPrayerId != null) {
+      final legacyAcceptedPrayerId = request['accepted_prayer_id'] as String?;
+      if (legacyAcceptedPrayerId != null) {
         final existing = await transaction.getOptional(
           '''
           $_projection
           WHERE prayer.id = ? AND prayer.owner_id = ?
           LIMIT 1
           ''',
-          [acceptedPrayerId, ownerId],
+          [legacyAcceptedPrayerId, ownerId],
         );
         if (existing == null) {
           throw StateError('Accepted prayer is unavailable');
@@ -173,7 +173,22 @@ class PowerSyncPersonalPrayerRepository implements PersonalPrayerRepository {
         return PersonalPrayer.fromRow(existing);
       }
 
-      final prayerId = _uuid.v7();
+      // New acceptance of a historical generated draft must not mutate the
+      // retired request archive. Reusing the globally unique request id makes
+      // acceptance idempotent without an accepted_prayer_id write-back.
+      final existing = await transaction.getOptional(
+        '''
+        $_projection
+        WHERE prayer.id = ? AND prayer.owner_id = ?
+        LIMIT 1
+        ''',
+        [requestId, ownerId],
+      );
+      if (existing != null) {
+        return PersonalPrayer.fromRow(existing);
+      }
+
+      final prayerId = requestId;
       final revisionId = _uuid.v7();
       final timestamp = _now().toUtc().toIso8601String();
       await transaction.execute(
@@ -247,15 +262,6 @@ class PowerSyncPersonalPrayerRepository implements PersonalPrayerRepository {
           ],
         );
       }
-
-      await transaction.execute(
-        '''
-        UPDATE prayer_generation_requests
-        SET accepted_prayer_id = ?, updated_at = ?
-        WHERE id = ? AND owner_id = ? AND accepted_prayer_id IS NULL
-        ''',
-        [prayerId, timestamp, requestId, ownerId],
-      );
 
       return PersonalPrayer(
         id: prayerId,
