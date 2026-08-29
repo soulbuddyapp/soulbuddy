@@ -22,7 +22,7 @@ class StoreCircleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'creation_key' => ['required', 'uuid'],
+            'creation_key' => ['sometimes', 'required', 'uuid'],
             'name' => ['required', 'string', 'max:80'],
             'category' => ['required', Rule::in(['accountability', 'daily_exhortation', 'bible_study'])],
             'description' => ['required', 'string', 'max:280'],
