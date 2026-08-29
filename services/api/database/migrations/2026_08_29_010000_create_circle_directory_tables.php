@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->uuid('public_id')->unique();
             $table->foreignId('owner_user_id')->constrained('users')->cascadeOnDelete();
+            $table->uuid('creation_key');
             $table->string('name', 80);
             $table->string('category', 32);
             $table->string('description', 280);
@@ -20,6 +21,10 @@ return new class extends Migration
             $table->boolean('directory_listed')->default(true);
             $table->timestamps();
 
+            $table->unique(
+                ['owner_user_id', 'creation_key'],
+                'circles_owner_creation_key_unique',
+            );
             $table->index(
                 ['directory_listed', 'visibility', 'status', 'category', 'public_id'],
                 'circles_directory_index',
