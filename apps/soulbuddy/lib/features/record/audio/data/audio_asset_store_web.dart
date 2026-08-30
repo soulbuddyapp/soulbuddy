@@ -118,9 +118,6 @@ class WebAudioAssetStore
       database.close();
     }
 
-    if (stagedStorageKey == null) {
-      await _releaseTemporary(temporary.locator);
-    }
     return CommittedAudio(storageKey: storageKey, byteSize: bytes.length);
   }
 

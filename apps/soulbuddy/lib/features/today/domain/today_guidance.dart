@@ -2,6 +2,8 @@ import 'daily_practice_state.dart';
 
 enum TodayGuidanceKey {
   duePrayer,
+  dueAltar,
+  duePerson,
   dueAction,
   dueRemembrance,
   circleAccountability,
@@ -13,10 +15,13 @@ enum TodayGuidanceKey {
   quietReturn,
 }
 
+enum TodayPrayerAttention { altar, person }
+
 class TodayGuidanceSnapshot {
   const TodayGuidanceSnapshot({
     this.duePractices = const {},
     this.completedPractices = const {},
+    this.prayerAttention,
     this.missedScheduledRoutineCount,
     this.joinedCircle,
     this.usedGoals = false,
@@ -28,6 +33,7 @@ class TodayGuidanceSnapshot {
 
   final Set<DailyPractice> duePractices;
   final Set<DailyPractice> completedPractices;
+  final TodayPrayerAttention? prayerAttention;
   final int? missedScheduledRoutineCount;
   final bool? joinedCircle;
   final bool usedGoals;

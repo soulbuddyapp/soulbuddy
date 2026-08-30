@@ -188,6 +188,13 @@ class PowerSyncEncounterRepository implements EncounterRepository {
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
+    if (draft.audio case final audio?) {
+      try {
+        await audioAssetStore!.discardTemporary(audio.temporaryKey);
+      } catch (_) {
+        // Startup cleanup removes a redundant temporary copy later.
+      }
+    }
 
     return Encounter(
       id: encounterId,

@@ -67,20 +67,91 @@ void main() {
     await pumpEventQueue();
     expect(scheduler.cancelled, contains(notification.platformNotificationId));
   });
+
+  test(
+    'invalid stored timezone falls back and later reconciles continue',
+    () async {
+      final repository = _Repository();
+      final scheduler = _Scheduler()..scheduleFailures = 1;
+      final coordinator = PersonPrayerReminderCoordinator(
+        repository: repository,
+        scheduler: scheduler,
+        timezoneName: () async => 'UTC',
+        clock: () => DateTime.utc(2026, 8, 30, 6),
+      );
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+
+      repository.people.add([_person(timezoneName: 'Unavailable/Zone')]);
+      await pumpEventQueue();
+      repository.people.add([_person(timezoneName: 'Unavailable/Zone')]);
+      await pumpEventQueue();
+
+      expect(scheduler.scheduled, hasLength(1));
+      expect(scheduler.scheduled.single.timeZoneName, 'UTC');
+    },
+  );
+
+  test('buffers a cold-launch response until its Person is loaded', () async {
+    final repository = _Repository();
+    final scheduler = _Scheduler()
+      ..responseOnInitialize = const PrayerReminderResponse(
+        reminderId: 'person-1',
+        occurrenceKey: 'person-1@cold-launch',
+        action: PrayerReminderAction.open,
+        kind: ReminderNotificationKind.person,
+      );
+    final coordinator = PersonPrayerReminderCoordinator(
+      repository: repository,
+      scheduler: scheduler,
+      timezoneName: () async => 'UTC',
+    );
+    addTearDown(coordinator.dispose);
+
+    await coordinator.start();
+    repository.people.add([_person()]);
+    final opened = await coordinator.events.first;
+
+    expect(opened.personId, 'person-1');
+  });
+
+  test(
+    'enable reports scheduling failure while preserving queue recovery',
+    () async {
+      final repository = _Repository();
+      final scheduler = _Scheduler()
+        ..permission = NotificationPermissionStatus.denied
+        ..scheduleFailures = 1;
+      final coordinator = PersonPrayerReminderCoordinator(
+        repository: repository,
+        scheduler: scheduler,
+        timezoneName: () async => 'UTC',
+      );
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+      repository.people.add([_person()]);
+      await pumpEventQueue();
+
+      await expectLater(coordinator.enable(), throwsStateError);
+      await coordinator.enable();
+      expect(scheduler.scheduled, hasLength(1));
+    },
+  );
 }
 
-PrayerPerson _person({DateTime? archivedAt}) => PrayerPerson(
-  id: 'person-1',
-  ownerId: 'owner-1',
-  name: 'Mum',
-  cadence: PersonPrayerCadence.daily,
-  localTime: '07:00',
-  timezone: 'UTC',
-  weekdaysMask: 0,
-  createdAt: DateTime.utc(2026, 8, 30),
-  updatedAt: DateTime.utc(2026, 8, 30),
-  archivedAt: archivedAt,
-);
+PrayerPerson _person({DateTime? archivedAt, String timezoneName = 'UTC'}) =>
+    PrayerPerson(
+      id: 'person-1',
+      ownerId: 'owner-1',
+      name: 'Mum',
+      cadence: PersonPrayerCadence.daily,
+      localTime: '07:00',
+      timezone: timezoneName,
+      weekdaysMask: 0,
+      createdAt: DateTime.utc(2026, 8, 30),
+      updatedAt: DateTime.utc(2026, 8, 30),
+      archivedAt: archivedAt,
+    );
 
 class _Repository implements PersonRepository {
   final people = StreamController<List<PrayerPerson>>.broadcast();
@@ -138,6 +209,10 @@ class _Scheduler implements PrayerReminderScheduler {
       StreamController<PrayerReminderResponse>.broadcast();
   final scheduled = <PrayerScheduledNotification>[];
   final cancelled = <int>[];
+  int scheduleFailures = 0;
+  NotificationPermissionStatus permission =
+      NotificationPermissionStatus.granted;
+  PrayerReminderResponse? responseOnInitialize;
 
   @override
   Stream<PrayerReminderResponse> get responses => responsesController.stream;
@@ -151,17 +226,26 @@ class _Scheduler implements PrayerReminderScheduler {
   }
 
   @override
-  Future<void> initialize() async {}
+  Future<void> initialize() async {
+    final response = responseOnInitialize;
+    if (response != null) responsesController.add(response);
+  }
 
   @override
-  Future<NotificationPermissionStatus> permissionStatus() async =>
-      NotificationPermissionStatus.granted;
+  Future<NotificationPermissionStatus> permissionStatus() async => permission;
 
   @override
-  Future<bool> requestPermission() async => true;
+  Future<bool> requestPermission() async {
+    permission = NotificationPermissionStatus.granted;
+    return true;
+  }
 
   @override
   Future<void> schedule(PrayerScheduledNotification notification) async {
+    if (scheduleFailures > 0) {
+      scheduleFailures--;
+      throw StateError('scheduler');
+    }
     scheduled.add(notification);
   }
 

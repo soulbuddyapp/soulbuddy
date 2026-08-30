@@ -25,8 +25,12 @@ final class ApplyPersonPrayerMutation
     }
 
     /** @param Collection<int, array<string, mixed>> $operations */
-    public function validate(User $user, Collection $operations): ?string
-    {
+    public function validate(
+        User $user,
+        Collection $operations,
+        ?Collection $pendingEncounterIds = null,
+    ): ?string {
+        $pendingEncounterIds ??= collect();
         $pendingPeople = $operations->where('table', 'prayer_people')->where('type', 'put')->pluck('id');
         foreach ($operations as $operation) {
             if (! in_array($operation['type'], ['put', 'patch', 'delete'], true)) {
@@ -75,7 +79,7 @@ final class ApplyPersonPrayerMutation
             if ($operation['table'] === 'encounter_person_links') {
                 $encounter = Encounter::query()->whereKey($operation['data']['encounter_id'])
                     ->where('user_id', $user->id)->whereNull('archived_at')->exists();
-                if (! $encounter) {
+                if (! $encounter && ! $pendingEncounterIds->contains($operation['data']['encounter_id'])) {
                     return 'inaccessible_record';
                 }
             }

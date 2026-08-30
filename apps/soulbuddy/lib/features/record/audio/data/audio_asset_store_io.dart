@@ -72,7 +72,6 @@ class IoAudioAssetStore implements AudioAssetStore {
         await durable.close();
       }
       await partial.rename(target.path);
-      await source.delete();
     } catch (_) {
       if (await partial.exists()) await partial.delete();
       rethrow;

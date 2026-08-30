@@ -195,14 +195,22 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
       return;
     }
     setState(() => _saving = true);
+    PrayerPerson? savedPerson;
+    String? reminderNotice;
+    final localTime = _time == null
+        ? null
+        : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}';
+    String? timezone;
+    if (localTime != null) {
+      try {
+        timezone = await ref.read(prayerDeviceTimezoneProvider)();
+      } catch (_) {
+        reminderNotice =
+            'Person saved. Check the prayer reminder time on this device.';
+      }
+    }
     try {
       final repository = await ref.read(personRepositoryProvider.future);
-      final localTime = _time == null
-          ? null
-          : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}';
-      final timezone = localTime == null
-          ? null
-          : await ref.read(prayerDeviceTimezoneProvider)();
       final draft = PrayerPersonDraft(
         name: name,
         relationship: _relationship.text,
@@ -211,20 +219,37 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
         timezone: timezone,
         weekdaysMask: _weekdaysMask,
       );
-      final person = widget.existing == null
+      savedPerson = widget.existing == null
           ? await repository.create(draft)
           : await repository.update(widget.existing!.id, draft);
-      if (localTime != null) {
-        await ref.read(enablePersonPrayerRemindersProvider)();
-      }
-      ref.invalidate(prayerPeopleProvider);
-      if (mounted) context.go('/persons/${person.id}');
     } catch (_) {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not save this person yet.')),
         );
+      }
+      return;
+    }
+
+    if (localTime != null) {
+      try {
+        final allowed = await ref.read(enablePersonPrayerRemindersProvider)();
+        if (!allowed) {
+          reminderNotice =
+              'Person saved. Allow notifications to receive prayer reminders.';
+        }
+      } catch (_) {
+        reminderNotice =
+            'Person saved. The prayer reminder could not be scheduled yet.';
+      }
+    }
+    ref.invalidate(prayerPeopleProvider);
+    if (mounted) {
+      final messenger = ScaffoldMessenger.of(context);
+      context.go('/persons/${savedPerson.id}');
+      if (reminderNotice case final notice?) {
+        messenger.showSnackBar(SnackBar(content: Text(notice)));
       }
     }
   }

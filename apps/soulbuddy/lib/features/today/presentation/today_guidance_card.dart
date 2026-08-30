@@ -56,12 +56,14 @@ class TodayGuidanceCard extends StatelessWidget {
 
 IconData _icon(TodayGuidanceKey key) => switch (key) {
   TodayGuidanceKey.duePrayer ||
+  TodayGuidanceKey.dueAltar ||
   TodayGuidanceKey.beginPrayer => Icons.volunteer_activism_outlined,
   TodayGuidanceKey.dueAction ||
   TodayGuidanceKey.startGoal => Icons.flag_outlined,
   TodayGuidanceKey.dueRemembrance ||
   TodayGuidanceKey.keepMemory => Icons.bookmark_outline,
   TodayGuidanceKey.circleAccountability => Icons.people_outline,
+  TodayGuidanceKey.duePerson ||
   TodayGuidanceKey.rememberPerson => Icons.person_outline,
   TodayGuidanceKey.remainClose ||
   TodayGuidanceKey.quietReturn => Icons.light_mode_outlined,

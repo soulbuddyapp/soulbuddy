@@ -22,12 +22,11 @@ List<GoalActionSuggestion> reviewedGoalActionSuggestions(
       'Use an available account limit or self-exclusion control',
       'Tell one trusted person what access still needs to close',
     ],
-    (GoalStarterKey.stopControl, GoalStopBehaviorKey.nicotineTobacco) =>
-      const [
-        'Write down when the strongest urge usually appears',
-        'Remove one easy source of tobacco or nicotine today',
-        'Ask a qualified health professional about a safe quit plan',
-      ],
+    (GoalStarterKey.stopControl, GoalStopBehaviorKey.nicotineTobacco) => const [
+      'Write down when the strongest urge usually appears',
+      'Remove one easy source of tobacco or nicotine today',
+      'Ask a qualified health professional about a safe quit plan',
+    ],
     (GoalStarterKey.stopControl, GoalStopBehaviorKey.alcohol) => const [
       'Ask a qualified health professional what a safe next step is',
       'Tell one trusted person what support you need today',

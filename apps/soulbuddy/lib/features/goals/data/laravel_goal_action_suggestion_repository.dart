@@ -24,11 +24,11 @@ class LaravelGoalActionSuggestionRepository
   Future<List<GoalActionSuggestion>> suggest(
     GoalActionSuggestionRequest request,
   ) async {
-    final token = await tokenReader();
-    if (token == null || token.isEmpty) {
-      throw const GoalActionSuggestionUnavailable();
-    }
     try {
+      final token = await tokenReader();
+      if (token == null || token.isEmpty) {
+        throw const GoalActionSuggestionUnavailable();
+      }
       final response = await client
           .post(
             _resolve('/api/goal-action-suggestions'),

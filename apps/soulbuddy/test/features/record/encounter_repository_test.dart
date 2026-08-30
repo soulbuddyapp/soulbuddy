@@ -168,6 +168,7 @@ void main() {
       expect(rows.single['duration_ms'], 7000);
       expect(rows.single['byte_size'], 4);
       expect(assets.committedLocators, ['/private/take-1.m4a']);
+      expect(assets.discardedLocators, ['/private/take-1.m4a']);
       expect(assets.deletedKeys, isEmpty);
 
       final crud = await database.powersync.getCrudBatch();
@@ -360,6 +361,7 @@ class _FakeAudioAssetStore implements AudioAssetStore {
   final committedLocators = <String>[];
   final committedKeys = <String>[];
   final deletedKeys = <String>[];
+  final discardedLocators = <String>[];
 
   @override
   Future<TemporaryAudio> allocateTemporary({
@@ -385,7 +387,8 @@ class _FakeAudioAssetStore implements AudioAssetStore {
   Future<void> delete(String storageKey) async => deletedKeys.add(storageKey);
 
   @override
-  Future<void> discardTemporary(String locator) async {}
+  Future<void> discardTemporary(String locator) async =>
+      discardedLocators.add(locator);
 
   @override
   Future<AudioPlaybackSource?> open(String storageKey) async => null;

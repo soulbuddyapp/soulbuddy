@@ -4,20 +4,30 @@ namespace App\Domain\GoalGuidance;
 
 class GoalActionSuggestionService
 {
-    public function __construct(private GoalActionSuggestionProvider $provider) {}
+    public function __construct(
+        private GoalActionSuggestionProvider $provider,
+        private ReviewedGoalActionCatalogue $catalogue,
+    ) {}
 
     /** @return list<string> */
     public function suggest(array $context): array
     {
+        $reviewed = $this->catalogue->for($context);
         $result = [];
         $seen = [];
 
-        foreach ($this->provider->suggest($context) as $candidate) {
+        foreach ($this->provider->suggest([
+            ...$context,
+            'allowed_suggestions' => $reviewed,
+        ]) as $candidate) {
             if (! is_string($candidate)) {
                 continue;
             }
             $text = preg_replace('/\s+/u', ' ', trim($candidate));
-            if (! is_string($text) || $text === '' || mb_strlen($text) > 160 || ! $this->isPractical($text)) {
+            if (! is_string($text)
+                || $text === ''
+                || mb_strlen($text) > 160
+                || ! in_array($text, $reviewed, true)) {
                 continue;
             }
             $identity = mb_strtolower($text);
@@ -36,13 +46,5 @@ class GoalActionSuggestionService
         }
 
         return $result;
-    }
-
-    private function isPractical(string $text): bool
-    {
-        return preg_match(
-            '/\b(god|the lord|jesus)\s+(told|tells|said|says|wants|revealed|promises|will)\b|\b(pray|prayer|scripture|bible verse|prophecy)\b/ui',
-            $text,
-        ) !== 1;
     }
 }

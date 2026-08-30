@@ -23,36 +23,52 @@ class PersonPrayerReminderCoordinator {
        _timezoneName = timezoneName,
        _clock = clock ?? DateTime.now {
     timezone_data.initializeTimeZones();
+    _events = StreamController<PersonPrayerReminderOpened>.broadcast(
+      onListen: _flushPendingOpen,
+    );
   }
 
   final PersonRepository _repository;
   final PrayerReminderScheduler _scheduler;
   final Future<String> Function() _timezoneName;
   final DateTime Function() _clock;
-  final _events = StreamController<PersonPrayerReminderOpened>.broadcast();
+  late final StreamController<PersonPrayerReminderOpened> _events;
+  String? _pendingOpenPersonId;
   final _scheduled = <String, Map<int, String>>{};
   StreamSubscription<List<PrayerPerson>>? _peopleSubscription;
   StreamSubscription<PrayerReminderResponse>? _responseSubscription;
   List<PrayerPerson> _people = const [];
+  final _pendingResponses = <PrayerReminderResponse>[];
   Future<void> _serial = Future.value();
   bool _allowed = false;
+  bool _peopleLoaded = false;
 
   Stream<PersonPrayerReminderOpened> get events => _events.stream;
 
   Future<void> start() async {
+    _responseSubscription = _scheduler.responses
+        .where((response) => response.kind == ReminderNotificationKind.person)
+        .listen((response) {
+          _pendingResponses.add(response);
+          _enqueueInBackground(_drainResponses);
+        });
+    _peopleSubscription = _repository.watchForReminders().listen((people) {
+      _people = people;
+      _peopleLoaded = true;
+      _enqueueInBackground(() async {
+        await _drainResponses();
+        await _reconcile();
+      });
+    });
     await _scheduler.initialize();
     _allowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.permissionStatus() ==
             NotificationPermissionStatus.granted;
-    _responseSubscription = _scheduler.responses
-        .where((response) => response.kind == ReminderNotificationKind.person)
-        .listen((response) => _enqueue(() => _handle(response)));
-    _peopleSubscription = _repository.watchForReminders().listen((people) {
-      _people = people;
-      _enqueue(_reconcile);
+    await _enqueue(() async {
+      await _drainResponses();
+      await _reconcile();
     });
-    await _reconcile();
   }
 
   Future<bool> enable() async {
@@ -66,7 +82,7 @@ class PersonPrayerReminderCoordinator {
   Future<void> _reconcile() async {
     if (!_allowed || !_scheduler.supportsSystemNotifications) return;
     final observed = <String>{};
-    final fallbackTimezone = await _timezoneName();
+    final fallbackTimezone = await _fallbackTimezone();
     final now = _clock().toUtc();
     for (final person in _people) {
       observed.add(person.id);
@@ -111,7 +127,7 @@ class PersonPrayerReminderCoordinator {
     String fallbackTimezone,
     DateTime nowUtc,
   ) {
-    final zoneName = person.timezone ?? fallbackTimezone;
+    final zoneName = _validTimezone(person.timezone) ?? fallbackTimezone;
     final parts = person.localTime!.split(':');
     final hour = int.parse(parts[0]);
     final minute = int.parse(parts[1]);
@@ -199,7 +215,31 @@ class PersonPrayerReminderCoordinator {
       await _repository.recordPrayer(person.id, localDate: _clock());
     } else if (response.action == PrayerReminderAction.open &&
         !_events.isClosed) {
-      _events.add(PersonPrayerReminderOpened(person.id));
+      if (_events.hasListener) {
+        _events.add(PersonPrayerReminderOpened(person.id));
+      } else {
+        _pendingOpenPersonId = person.id;
+      }
+    }
+  }
+
+  void _flushPendingOpen() {
+    final personId = _pendingOpenPersonId;
+    if (personId == null || _events.isClosed) return;
+    _pendingOpenPersonId = null;
+    scheduleMicrotask(() {
+      if (!_events.isClosed) {
+        _events.add(PersonPrayerReminderOpened(personId));
+      }
+    });
+  }
+
+  Future<void> _drainResponses() async {
+    if (!_peopleLoaded || _pendingResponses.isEmpty) return;
+    final responses = List<PrayerReminderResponse>.of(_pendingResponses);
+    _pendingResponses.clear();
+    for (final response in responses) {
+      await _handle(response);
     }
   }
 
@@ -223,8 +263,34 @@ class PersonPrayerReminderCoordinator {
       '${item.recurrence.name}:${item.timeZoneName}:${item.scheduledAtUtc.toIso8601String()}';
 
   Future<void> _enqueue(Future<void> Function() action) {
-    _serial = _serial.then((_) => action());
-    return _serial;
+    final operation = _serial.then((_) => action());
+    _serial = operation.catchError((_) {
+      // One invalid schedule or platform failure must not poison every later
+      // Person reminder reconciliation.
+    });
+    return operation;
+  }
+
+  void _enqueueInBackground(Future<void> Function() action) {
+    unawaited(_enqueue(action).catchError((_) {}));
+  }
+
+  Future<String> _fallbackTimezone() async {
+    try {
+      return _validTimezone(await _timezoneName()) ?? 'UTC';
+    } catch (_) {
+      return 'UTC';
+    }
+  }
+
+  String? _validTimezone(String? name) {
+    if (name == null || name.trim().isEmpty) return null;
+    try {
+      timezone.getLocation(name);
+      return name;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> dispose() async {

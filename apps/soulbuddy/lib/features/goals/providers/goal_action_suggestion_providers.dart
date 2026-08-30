@@ -31,9 +31,9 @@ final goalActionSuggestionRepositoryProvider =
     });
 
 final goalActionSuggestionsProvider = FutureProvider.autoDispose
-    .family<
-      List<GoalActionSuggestion>,
-      GoalActionSuggestionRequest
-    >((ref, request) {
+    .family<List<GoalActionSuggestion>, GoalActionSuggestionRequest>((
+      ref,
+      request,
+    ) {
       return ref.watch(goalActionSuggestionRepositoryProvider).suggest(request);
     });

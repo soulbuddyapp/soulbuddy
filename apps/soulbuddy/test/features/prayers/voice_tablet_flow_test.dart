@@ -175,6 +175,68 @@ void main() {
     expect(repository.created, hasLength(1));
   });
 
+  testWidgets('system Back cleans a failed Voice Tablet draft', (tester) async {
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final store = _CommittingAudioStore();
+    final recorder = _CaptureRecorder(['temporary/full.m4a']);
+    final repository = _VoiceTabletRepository()..failuresRemaining = 1;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          voiceTabletRepositoryProvider.overrideWith((ref) async => repository),
+          voiceTabletAudioCaptureControllerProvider.overrideWith((ref, kind) {
+            return AudioCaptureController(
+              recorder: recorder,
+              allocateTemporary: () async => const TemporaryAudio(
+                key: 'temporary/full.m4a',
+                locator: 'temporary/full.m4a',
+              ),
+            );
+          }),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: FilledButton(
+                onPressed: () => showVoiceTabletSheet(
+                  context,
+                  source: VoiceTabletSourceTest.personal,
+                  title: 'Morning surrender',
+                  prayerBody: 'Father, keep me in your truth today.',
+                ),
+                child: const Text('Open Voice Tablet'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open Voice Tablet'));
+    await _settle(tester);
+    await tester.ensureVisible(find.text('Begin recording'));
+    await tester.tap(find.text('Begin recording'));
+    await tester.pump();
+    await tester.tap(find.text('Stop'));
+    await _settle(tester);
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
+    await _settle(tester);
+    await tester.tap(find.text('Save without a refrain'));
+    await _settle(tester);
+
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+
+    expect(find.text('Voice Tablet'), findsNothing);
+    expect(store.deletedStorageKeys, hasLength(1));
+    expect(store.discardedTemporaryKeys, ['temporary/full.m4a']);
+  });
+
   testWidgets('listening never records prayer without I prayed', (
     tester,
   ) async {
@@ -380,6 +442,12 @@ class _CaptureRecorder implements AudioRecorderGateway {
 class _CommittingAudioStore extends _FakeAudioStore {
   final committedTemporaryKeys = <String>[];
   final deletedStorageKeys = <String>[];
+  final discardedTemporaryKeys = <String>[];
+
+  @override
+  Future<void> discardTemporary(String locator) async {
+    discardedTemporaryKeys.add(locator);
+  }
 
   @override
   Future<CommittedAudio> commitTemporary(

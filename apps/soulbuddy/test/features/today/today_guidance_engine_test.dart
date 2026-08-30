@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/today/application/today_guidance_engine.dart';
 import 'package:soulbuddy/features/today/domain/daily_practice_state.dart';
 import 'package:soulbuddy/features/today/domain/today_guidance.dart';
+import 'package:soulbuddy/features/today/providers/today_guidance_providers.dart';
+import 'package:soulbuddy/features/altar/domain/altar_ritual.dart';
 
 void main() {
   const engine = TodayGuidanceEngine();
@@ -17,6 +19,40 @@ void main() {
       ),
     );
     expect(card.key, TodayGuidanceKey.duePrayer);
+  });
+
+  test('preserves the actionable destination for due prayer attention', () {
+    final altar = engine.select(
+      const TodayGuidanceSnapshot(prayerAttention: TodayPrayerAttention.altar),
+    );
+    final person = engine.select(
+      const TodayGuidanceSnapshot(prayerAttention: TodayPrayerAttention.person),
+    );
+
+    expect(altar.key, TodayGuidanceKey.dueAltar);
+    expect(altar.route, '/today?focus=altar');
+    expect(person.key, TodayGuidanceKey.duePerson);
+    expect(person.route, '/persons');
+  });
+
+  test('does not call an upcoming or snoozed Altar ritual ready', () {
+    for (final status in [
+      AltarRitualLocalStatus.upcoming,
+      AltarRitualLocalStatus.snoozed,
+      AltarRitualLocalStatus.missingAudio,
+    ]) {
+      expect(
+        selectTodayPrayerAttention(altarStatus: status, hasDuePerson: false),
+        isNull,
+      );
+    }
+    expect(
+      selectTodayPrayerAttention(
+        altarStatus: AltarRitualLocalStatus.due,
+        hasDuePerson: false,
+      ),
+      TodayPrayerAttention.altar,
+    );
   });
 
   test('recommends a Circle only for verified repeated misses', () {

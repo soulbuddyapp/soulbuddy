@@ -129,3 +129,60 @@ it('links only an owned encounter to an owned person', function () {
         ->assertOk()->assertJsonPath('code', 'inaccessible_record');
     expect(EncounterPersonLink::count())->toBe(0);
 });
+
+it('accepts a new encounter and its person link in the same offline batch', function () {
+    $user = User::factory()->create();
+    $personId = '0198c000-0000-7000-8000-000000000050';
+    $encounterId = '0198c000-0000-7000-8000-000000000051';
+    $revisionId = '0198c000-0000-7000-8000-000000000052';
+    $linkId = '0198c000-0000-7000-8000-000000000053';
+
+    $operations = [
+        personPut($personId, '0198c004-0000-7000-8000-000000000001'),
+        personOperation(
+            '0198c004-0000-7000-8000-000000000002',
+            'encounter_person_links',
+            'put',
+            $linkId,
+            [
+                'owner_id' => 'offline-owner',
+                'encounter_id' => $encounterId,
+                'person_id' => $personId,
+                'created_at' => '2026-08-30T08:00:00.000Z',
+            ],
+        ),
+        personOperation(
+            '0198c004-0000-7000-8000-000000000003',
+            'encounters',
+            'put',
+            $encounterId,
+            [
+                'title' => 'Help for Mum',
+                'body' => 'I remembered her in prayer.',
+                'occurred_on' => '2026-08-30',
+                'is_altar' => false,
+                'current_revision_id' => $revisionId,
+            ],
+        ),
+        personOperation(
+            '0198c004-0000-7000-8000-000000000004',
+            'encounter_revisions',
+            'put',
+            $revisionId,
+            [
+                'encounter_id' => $encounterId,
+                'title' => 'Help for Mum',
+                'body' => 'I remembered her in prayer.',
+                'device_id' => 'device-1',
+            ],
+        ),
+    ];
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', ['operations' => $operations])
+        ->assertOk()
+        ->assertJsonPath('accepted', 4)
+        ->assertJsonPath('rejected', 0);
+
+    expect(Encounter::find($encounterId)?->user_id)->toBe($user->id)
+        ->and(EncounterPersonLink::find($linkId)?->user_id)->toBe($user->id);
+});

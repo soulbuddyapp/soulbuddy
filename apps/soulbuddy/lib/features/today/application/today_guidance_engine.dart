@@ -5,6 +5,9 @@ class TodayGuidanceEngine {
   const TodayGuidanceEngine();
 
   TodayGuidanceCardValue select(TodayGuidanceSnapshot snapshot) {
+    if (snapshot.prayerAttention case final attention?) {
+      return _prayerAttention(attention);
+    }
     for (final practice in DailyPractice.values) {
       if (snapshot.outstanding.contains(practice)) return _due(practice);
     }
@@ -78,6 +81,24 @@ class TodayGuidanceEngine {
       route: '/goals',
     );
   }
+
+  TodayGuidanceCardValue _prayerAttention(TodayPrayerAttention attention) =>
+      switch (attention) {
+        TodayPrayerAttention.altar => const TodayGuidanceCardValue(
+          key: TodayGuidanceKey.dueAltar,
+          title: 'Return to your Altar',
+          body: 'A prayer ritual is ready now.',
+          actionLabel: 'Open Altar',
+          route: '/today?focus=altar',
+        ),
+        TodayPrayerAttention.person => const TodayGuidanceCardValue(
+          key: TodayGuidanceKey.duePerson,
+          title: 'Remember someone in prayer',
+          body: 'Someone you planned to pray for is due today.',
+          actionLabel: 'Open Persons',
+          route: '/persons',
+        ),
+      };
 
   TodayGuidanceCardValue _due(DailyPractice practice) => switch (practice) {
     DailyPractice.pray => const TodayGuidanceCardValue(

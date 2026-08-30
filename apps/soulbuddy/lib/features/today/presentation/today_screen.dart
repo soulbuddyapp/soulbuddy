@@ -32,7 +32,9 @@ import '../providers/today_guidance_providers.dart';
 import 'today_guidance_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
-  const TodayScreen({super.key});
+  const TodayScreen({this.focusAltar = false, super.key});
+
+  final bool focusAltar;
 
   @override
   ConsumerState<TodayScreen> createState() => _TodayScreenState();
@@ -41,6 +43,36 @@ class TodayScreen extends ConsumerStatefulWidget {
 class _TodayScreenState extends ConsumerState<TodayScreen> {
   var _updatingAction = false;
   var _recordingPrayer = false;
+  final _altarKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusAltarIfRequested();
+  }
+
+  @override
+  void didUpdateWidget(covariant TodayScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusAltar && !oldWidget.focusAltar) {
+      _focusAltarIfRequested();
+    }
+  }
+
+  void _focusAltarIfRequested() {
+    if (!widget.focusAltar) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final altarContext = _altarKey.currentContext;
+      if (altarContext != null) {
+        Scrollable.ensureVisible(
+          altarContext,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.08,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +198,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         .isNotEmpty)
                   const SizedBox(height: AppSpacing.md),
               ],
-              const AltarTodaySection(),
+              KeyedSubtree(key: _altarKey, child: const AltarTodaySection()),
               SizedBox(height: showStartGuide ? AppSpacing.sm : AppSpacing.md),
               if (showStartGuide)
                 TodayStartGuide(

@@ -106,6 +106,11 @@ class ApplySyncMutation
             ->filter(fn (array $operation): bool => ApplyVoiceTabletAltarMutation::supports($operation['table']));
         $personPrayerOperations = $pending
             ->filter(fn (array $operation): bool => ApplyPersonPrayerMutation::supports($operation['table']));
+        $pendingEncounterIds = collect($encounterOperations)
+            ->where('table', 'encounters')
+            ->where('type', 'put')
+            ->filter(fn (array $operation): bool => ($operation['data']['archived_at'] ?? null) === null)
+            ->pluck('id');
 
         $encounterTargetError = $this->validateTargets($user, $encounterOperations);
         if ($encounterTargetError !== null) {
@@ -136,7 +141,7 @@ class ApplySyncMutation
         }
 
         $personPrayerError = app(ApplyPersonPrayerMutation::class)
-            ->validate($user, $personPrayerOperations);
+            ->validate($user, $personPrayerOperations, $pendingEncounterIds);
         if ($personPrayerError !== null) {
             return $this->result($duplicates, $pending->count(), $duplicates, $personPrayerError);
         }
@@ -194,12 +199,6 @@ class ApplySyncMutation
                     return $voiceTabletAltarError;
                 }
 
-                $personPrayerError = app(ApplyPersonPrayerMutation::class)
-                    ->apply($user, $personPrayerOperations);
-                if ($personPrayerError !== null) {
-                    return $personPrayerError;
-                }
-
                 foreach ($pending->sortBy(fn (array $operation) => $operation['table'] === 'encounters' ? 0 : 1) as $operation) {
                     if (! ApplyPersonalPrayerMutation::supports($operation['table'])
                         && ! ApplyPrayerPracticeMutation::supports($operation['table'])
@@ -221,7 +220,15 @@ class ApplySyncMutation
                             ),
                         };
                     }
+                }
 
+                $personPrayerError = app(ApplyPersonPrayerMutation::class)
+                    ->apply($user, $personPrayerOperations);
+                if ($personPrayerError !== null) {
+                    return $personPrayerError;
+                }
+
+                foreach ($pending as $operation) {
                     $this->storeSyncOperation($user, $operation);
                 }
 

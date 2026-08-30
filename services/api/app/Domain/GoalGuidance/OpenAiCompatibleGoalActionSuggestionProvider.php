@@ -27,7 +27,7 @@ class OpenAiCompatibleGoalActionSuggestionProvider implements GoalActionSuggesti
                     'messages' => [
                         [
                             'role' => 'system',
-                            'content' => 'Return JSON {"suggestions":["...","...","..."]}. Suggest three short, concrete, safe actions the person could take soon. Do not write prayer, Scripture, spiritual direction, medical treatment, diagnosis, promises, shame, or claims about God. Phrase each as an option and keep each under 160 characters.',
+                            'content' => 'Return JSON {"suggestions":["...","...","..."]}. Rank the allowed_suggestions for the person. Return only exact strings from allowed_suggestions, without edits or additions. Never create new advice.',
                         ],
                         [
                             'role' => 'user',

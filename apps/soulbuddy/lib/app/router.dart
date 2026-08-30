@@ -55,7 +55,9 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/today',
-              builder: (context, state) => const TodayScreen(),
+              builder: (context, state) => TodayScreen(
+                focusAltar: state.uri.queryParameters['focus'] == 'altar',
+              ),
             ),
           ],
         ),
@@ -133,12 +135,14 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'capture',
                   builder: (context, state) {
+                    final personId = state.uri.queryParameters['person'];
                     final mode = switch (state.uri.queryParameters['mode']) {
                       'speak' => RecordStartMode.speak,
                       'write' => RecordStartMode.write,
+                      _ when personId != null && personId.isNotEmpty =>
+                        RecordStartMode.person,
                       _ => RecordStartMode.choices,
                     };
-                    final personId = state.uri.queryParameters['person'];
                     return RecordScreen(
                       key: ValueKey(
                         'remember-capture-${mode.name}-${personId ?? ''}',

@@ -23,7 +23,7 @@ import '../../persons/domain/prayer_person.dart';
 
 enum _RecordView { choices, memoryTypes, capture, form, saved }
 
-enum RecordStartMode { choices, speak, write }
+enum RecordStartMode { choices, speak, write, person }
 
 class RecordScreen extends ConsumerStatefulWidget {
   const RecordScreen({
@@ -44,8 +44,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     RecordStartMode.choices => _RecordView.choices,
     RecordStartMode.speak => _RecordView.capture,
     RecordStartMode.write => _RecordView.memoryTypes,
+    RecordStartMode.person => _RecordView.form,
   };
-  var _memoryType = MemoryType.encounter;
+  late var _memoryType = widget.startMode == RecordStartMode.person
+      ? MemoryType.person
+      : MemoryType.encounter;
   MemoryAudioDraft? _audioDraft;
 
   @override
@@ -62,7 +65,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       _RecordView.form => repository.when(
         data: (value) => EncounterForm(
           memoryType: _memoryType,
-          allowMemoryTypeChoice: _audioDraft != null,
+          allowMemoryTypeChoice:
+              _audioDraft != null || widget.startMode == RecordStartMode.person,
           initialTitle: _audioDraft == null
               ? null
               : _voiceMemoryTitle(DateTime.now()),

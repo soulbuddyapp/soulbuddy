@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/app_spacing.dart';
 import '../domain/goal_action_suggestion.dart';
 import '../providers/goal_action_suggestion_providers.dart';
+import '../data/reviewed_goal_action_suggestions.dart';
 
 class GoalActionSuggestionPanel extends ConsumerStatefulWidget {
   const GoalActionSuggestionPanel({
@@ -50,40 +51,48 @@ class _GoalActionSuggestionPanelState
         Text('A few ideas', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.xs),
         suggestions.when(
-          loading: () => const LinearProgressIndicator(),
+          loading: () => _choices(
+            reviewedGoalActionSuggestions(widget.request),
+            allowRefresh: false,
+          ),
           error: (_, _) => TextButton(
             onPressed: () =>
                 ref.invalidate(goalActionSuggestionsProvider(widget.request)),
             child: const Text('Try suggestions again'),
           ),
-          data: (items) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final item in items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                  child: OutlinedButton(
-                    onPressed: () => widget.onChoose(item.text),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(item.text),
-                    ),
-                  ),
-                ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  key: const Key('refresh-goal-action-suggestions'),
-                  onPressed: () => ref.invalidate(
-                    goalActionSuggestionsProvider(widget.request),
-                  ),
-                  child: const Text('Show other ideas'),
-                ),
-              ),
-            ],
-          ),
+          data: (items) => _choices(items, allowRefresh: true),
         ),
       ],
     );
   }
+
+  Widget _choices(
+    List<GoalActionSuggestion> items, {
+    required bool allowRefresh,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final item in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+          child: OutlinedButton(
+            onPressed: () => widget.onChoose(item.text),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(item.text),
+            ),
+          ),
+        ),
+      if (allowRefresh)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: const Key('refresh-goal-action-suggestions'),
+            onPressed: () =>
+                ref.invalidate(goalActionSuggestionsProvider(widget.request)),
+            child: const Text('Show other ideas'),
+          ),
+        ),
+    ],
+  );
 }

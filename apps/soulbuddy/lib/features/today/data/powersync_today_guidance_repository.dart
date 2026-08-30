@@ -23,8 +23,10 @@ class PowerSyncTodayGuidanceRepository implements TodayGuidanceRepository {
           EXISTS(SELECT 1 FROM encounters WHERE owner_id = ?) AS used_memory,
           EXISTS(SELECT 1 FROM prayer_people WHERE owner_id = ?) AS used_persons,
           EXISTS(SELECT 1 FROM altar_items WHERE owner_id = ?) AS used_altar,
-          EXISTS(SELECT 1 FROM circle_members WHERE owner_id = ?) AS joined_circle
-        ''', parameters: List.filled(8, ownerId))
+          EXISTS(SELECT 1 FROM circle_members WHERE owner_id = ?) AS joined_circle,
+          EXISTS(SELECT 1 FROM goal_actions WHERE owner_id = ?) AS observed_goal_actions,
+          EXISTS(SELECT 1 FROM goal_action_events WHERE owner_id = ?) AS observed_goal_action_events
+        ''', parameters: List.filled(10, ownerId))
       .asyncMap((rows) async {
         final row = rows.single;
         int? missed;
@@ -35,7 +37,7 @@ class PowerSyncTodayGuidanceRepository implements TodayGuidanceRepository {
         }
         return TodayGuidanceSnapshot(
           missedScheduledRoutineCount: missed,
-          joinedCircle: row['joined_circle'] == 1,
+          joinedCircle: row['joined_circle'] == 1 ? true : null,
           usedGoals: row['used_goals'] == 1,
           usedPrayer: row['used_prayer'] == 1,
           usedMemory: row['used_memory'] == 1,
@@ -54,12 +56,16 @@ class PowerSyncTodayGuidanceRepository implements TodayGuidanceRepository {
     final lastDate = today.subtract(const Duration(days: 1));
     final actions = await database.getAll(
       '''
-      SELECT id, schedule_type, weekdays_mask, created_at, archived_at
-      FROM goal_actions
-      WHERE owner_id = ? AND enabled = 1
-        AND schedule_type IN ('daily', 'selected_days')
-        AND date(created_at) <= ?
-        AND (archived_at IS NULL OR date(archived_at) >= ?)
+      SELECT action.id, action.schedule_type, action.weekdays_mask,
+             action.created_at, action.archived_at
+      FROM goal_actions AS action
+      JOIN goals AS goal
+        ON goal.id = action.goal_id AND goal.owner_id = action.owner_id
+      WHERE action.owner_id = ? AND action.enabled = 1
+        AND goal.status = 'active' AND goal.archived_at IS NULL
+        AND action.schedule_type IN ('daily', 'selected_days')
+        AND date(action.created_at) <= ?
+        AND (action.archived_at IS NULL OR date(action.archived_at) >= ?)
       ''',
       [ownerId, _dateKey(lastDate), _dateKey(firstDate)],
     );

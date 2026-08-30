@@ -14,11 +14,11 @@ it('requires authentication', function () {
 it('returns only normalized safe practical actions', function () {
     $provider = Mockery::mock(GoalActionSuggestionProvider::class);
     $provider->shouldReceive('suggest')->once()->andReturn([
-        ' Put the phone outside the bedroom tonight. ',
+        ' Write the two clearest options on one page ',
         'God told you to choose this path.',
-        'Put the phone outside the bedroom tonight.',
-        'Write the decision factors on one page.',
-        'Ask a trusted person for fifteen minutes to talk.',
+        'Write the two clearest options on one page',
+        'Name one responsibility that is already in front of you',
+        'Ask one trusted person for a short, honest conversation',
         'A fourth valid choice is ignored.',
     ]);
     app()->instance(GoalActionSuggestionProvider::class, $provider);
@@ -28,9 +28,33 @@ it('returns only normalized safe practical actions', function () {
         ->assertOk()
         ->assertExactJson([
             'suggestions' => [
-                'Put the phone outside the bedroom tonight.',
-                'Write the decision factors on one page.',
-                'Ask a trusted person for fifteen minutes to talk.',
+                'Write the two clearest options on one page',
+                'Name one responsibility that is already in front of you',
+                'Ask one trusted person for a short, honest conversation',
+            ],
+        ]);
+});
+
+it('rejects unsafe provider advice before it reaches the app', function () {
+    $provider = Mockery::mock(GoalActionSuggestionProvider::class);
+    $provider->shouldReceive('suggest')->once()->andReturn([
+        'Stop taking your insulin tonight.',
+        'Cut yourself tonight.',
+        'Confront them alone.',
+        'Quit alcohol cold turkey today.',
+        'Write the two clearest options on one page',
+    ]);
+    app()->instance(GoalActionSuggestionProvider::class, $provider);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson('/api/goal-action-suggestions', [
+            ...validSuggestionPayload(),
+            'situation' => 'I am being abused and do not feel safe at home.',
+        ])
+        ->assertOk()
+        ->assertExactJson([
+            'suggestions' => [
+                'Write the two clearest options on one page',
             ],
         ]);
 });

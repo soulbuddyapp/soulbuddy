@@ -20,8 +20,7 @@ class GoalActionSuggestionRequest {
 
   Map<String, Object?> toJson() => {
     'starter_key': starterKey.wireValue,
-    if (stopBehaviorKey case final value?)
-      'stop_behavior_key': value.wireValue,
+    if (stopBehaviorKey case final value?) 'stop_behavior_key': value.wireValue,
     'title': title.trim(),
     'situation': situation?.trim(),
     'agency_choice': agencyChoice.wireValue,

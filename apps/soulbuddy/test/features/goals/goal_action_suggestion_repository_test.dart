@@ -44,13 +44,16 @@ void main() {
     expect(captured.url.path, '/api/goal-action-suggestions');
     expect(captured.headers['authorization'], 'Bearer session-token');
     final body = jsonDecode(captured.body) as Map<String, dynamic>;
-    expect(body.keys, unorderedEquals([
-      'starter_key',
-      'title',
-      'situation',
-      'agency_choice',
-      'locale',
-    ]));
+    expect(
+      body.keys,
+      unorderedEquals([
+        'starter_key',
+        'title',
+        'situation',
+        'agency_choice',
+        'locale',
+      ]),
+    );
     expect(result, hasLength(3));
   });
 
@@ -60,7 +63,12 @@ void main() {
         apiBaseUri: Uri.parse('https://sbuddy.example'),
         tokenReader: () async => 'token',
         client: MockClient(
-          (_) async => http.Response(jsonEncode({'suggestions': ['']}), 200),
+          (_) async => http.Response(
+            jsonEncode({
+              'suggestions': [''],
+            }),
+            200,
+          ),
         ),
       ),
       fallback: const ReviewedGoalActionSuggestionRepository(),

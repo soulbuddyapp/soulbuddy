@@ -47,6 +47,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   var _recallEnabled = true;
   late var _memoryType = widget.memoryType;
   String? _saveError;
+  var _canceling = false;
   late MemoryAudioDraft? _audioDraft = widget.audio;
   late final Set<String> _personIds = widget.initialPersonIds.toSet();
 
@@ -114,210 +115,216 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _isSaving ? null : widget.onCancel,
-                      icon: const Icon(Icons.arrow_back),
-                      label: const Text('Remember'),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      'Record ${_memoryTypeLabel(_memoryType)}',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  if (widget.allowMemoryTypeChoice) ...[
-                    Text(
-                      'What kind of memory is this?',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        for (final type in MemoryType.values)
-                          ChoiceChip(
-                            label: Text(_memoryTypeChipLabel(type)),
-                            selected: _memoryType == type,
-                            onSelected: _isSaving
-                                ? null
-                                : (_) => setState(() {
-                                    _memoryType = type;
-                                    if (type == MemoryType.leftBehind) {
-                                      _sensitive = true;
-                                    }
-                                  }),
-                          ),
-                      ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cancel();
+      },
+      child: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _isSaving ? null : _cancel,
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Remember'),
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                  ],
-                  SwitchListTile(
-                    title: const Text('Sensitive'),
-                    subtitle: const Text(
-                      'Hide the excerpt on the Remember list.',
-                    ),
-                    value: _sensitive,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _sensitive = value),
-                  ),
-                  SwitchListTile(
-                    title: const Text('Include in daily remembrance'),
-                    subtitle: const Text(
-                      'SoulBuddy may bring this back for quiet recall.',
-                    ),
-                    value: _recallEnabled,
-                    onChanged: _isSaving
-                        ? null
-                        : (value) => setState(() => _recallEnabled = value),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextFormField(
-                    key: const Key('encounter-title'),
-                    controller: _titleController,
-                    enabled: !_isSaving,
-                    maxLength: 120,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Title'),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Add a short title.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextFormField(
-                    key: const Key('encounter-body'),
-                    controller: _bodyController,
-                    enabled: !_isSaving,
-                    maxLength: 4000,
-                    minLines: 4,
-                    maxLines: 10,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'What happened? (optional)',
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      key: const Key('encounter-add-audio'),
-                      onPressed: _isSaving ? null : _recordWhatHappened,
-                      icon: Icon(
-                        _audioDraft == null ? Icons.mic_none : Icons.mic,
-                      ),
-                      label: Text(
-                        _audioDraft == null
-                            ? 'Record what happened'
-                            : 'Replace voice recording',
-                      ),
-                    ),
-                  ),
-                  if (_audioDraft != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    Semantics(
+                      header: true,
                       child: Text(
-                        'Voice recording added',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        'Record ${_memoryTypeLabel(_memoryType)}',
+                        style: Theme.of(context).textTheme.headlineMedium,
                       ),
                     ),
-                  if (widget.people.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'Who is this about? (optional)',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Wrap(
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        for (final person in widget.people)
-                          FilterChip(
-                            label: Text(person.name),
-                            selected: _personIds.contains(person.id),
-                            onSelected: _isSaving
-                                ? null
-                                : (selected) => setState(() {
-                                    if (selected) {
-                                      _personIds.add(person.id);
-                                    } else {
-                                      _personIds.remove(person.id);
-                                    }
-                                  }),
-                          ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.md),
-                  TextFormField(
-                    key: const Key('encounter-date'),
-                    controller: _dateController,
-                    readOnly: true,
-                    enabled: !_isSaving,
-                    onTap: _chooseDate,
-                    decoration: const InputDecoration(
-                      labelText: 'Date',
-                      suffixIcon: Icon(Icons.calendar_today_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      border: Border.all(color: colors.outlineVariant),
-                      borderRadius: BorderRadius.circular(
-                        AppSpacing.componentRadius,
+                    if (widget.allowMemoryTypeChoice) ...[
+                      Text(
+                        'What kind of memory is this?',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ),
-                    child: SwitchListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.xs,
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          for (final type in MemoryType.values)
+                            ChoiceChip(
+                              label: Text(_memoryTypeChipLabel(type)),
+                              selected: _memoryType == type,
+                              onSelected: _isSaving
+                                  ? null
+                                  : (_) => setState(() {
+                                      _memoryType = type;
+                                      if (type == MemoryType.leftBehind) {
+                                        _sensitive = true;
+                                      }
+                                    }),
+                            ),
+                        ],
                       ),
-                      title: const Text('Keep this as an Altar'),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+                    SwitchListTile(
+                      title: const Text('Sensitive'),
                       subtitle: const Text(
-                        'Mark an encounter you want to return to and remember.',
+                        'Hide the excerpt on the Remember list.',
                       ),
-                      value: _isAltar,
+                      value: _sensitive,
                       onChanged: _isSaving
                           ? null
-                          : (value) => setState(() => _isAltar = value),
+                          : (value) => setState(() => _sensitive = value),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  if (_saveError case final error?) ...[
-                    Text(error, key: const Key('encounter-save-error')),
+                    SwitchListTile(
+                      title: const Text('Include in daily remembrance'),
+                      subtitle: const Text(
+                        'SoulBuddy may bring this back for quiet recall.',
+                      ),
+                      value: _recallEnabled,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) => setState(() => _recallEnabled = value),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    TextFormField(
+                      key: const Key('encounter-title'),
+                      controller: _titleController,
+                      enabled: !_isSaving,
+                      maxLength: 120,
+                      textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(labelText: 'Title'),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Add a short title.';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: AppSpacing.md),
+                    TextFormField(
+                      key: const Key('encounter-body'),
+                      controller: _bodyController,
+                      enabled: !_isSaving,
+                      maxLength: 4000,
+                      minLines: 4,
+                      maxLines: 10,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'What happened? (optional)',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        key: const Key('encounter-add-audio'),
+                        onPressed: _isSaving ? null : _recordWhatHappened,
+                        icon: Icon(
+                          _audioDraft == null ? Icons.mic_none : Icons.mic,
+                        ),
+                        label: Text(
+                          _audioDraft == null
+                              ? 'Record what happened'
+                              : 'Replace voice recording',
+                        ),
+                      ),
+                    ),
+                    if (_audioDraft != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Text(
+                          'Voice recording added',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    if (widget.people.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Who is this about? (optional)',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          for (final person in widget.people)
+                            FilterChip(
+                              label: Text(person.name),
+                              selected: _personIds.contains(person.id),
+                              onSelected: _isSaving
+                                  ? null
+                                  : (selected) => setState(() {
+                                      if (selected) {
+                                        _personIds.add(person.id);
+                                      } else {
+                                        _personIds.remove(person.id);
+                                      }
+                                    }),
+                            ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.md),
+                    TextFormField(
+                      key: const Key('encounter-date'),
+                      controller: _dateController,
+                      readOnly: true,
+                      enabled: !_isSaving,
+                      onTap: _chooseDate,
+                      decoration: const InputDecoration(
+                        labelText: 'Date',
+                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        border: Border.all(color: colors.outlineVariant),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.componentRadius,
+                        ),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.xs,
+                        ),
+                        title: const Text('Keep this as an Altar'),
+                        subtitle: const Text(
+                          'Mark an encounter you want to return to and remember.',
+                        ),
+                        value: _isAltar,
+                        onChanged: _isSaving
+                            ? null
+                            : (value) => setState(() => _isAltar = value),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    if (_saveError case final error?) ...[
+                      Text(error, key: const Key('encounter-save-error')),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+                    FilledButton(
+                      onPressed: _isSaving ? null : _save,
+                      child: Text(_isSaving ? 'Saving…' : 'Save'),
+                    ),
                   ],
-                  FilledButton(
-                    onPressed: _isSaving ? null : _save,
-                    child: Text(_isSaving ? 'Saving…' : 'Save'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -327,35 +334,60 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   }
 
   Future<void> _recordWhatHappened() async {
-    final controller = await ref.read(audioCaptureControllerProvider.future);
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: 0.9,
-        child: AudioCapturePanel(
-          controller: controller,
-          introHeading: 'Record what happened',
-          introDescription: 'Speak freely. You can keep writing too.',
-          alternativeLabel: 'Keep writing',
-          onWriteInstead: () async {
-            await _leaveAudioCapture(controller);
-            if (sheetContext.mounted) Navigator.pop(sheetContext);
-          },
-          onContinue: (recording) async {
-            final previous = _audioDraft;
-            if (previous != null && previous != widget.audio) {
-              final store = await ref.read(audioAssetStoreProvider.future);
-              await store.discardTemporary(previous.temporaryKey);
-            }
-            if (mounted) setState(() => _audioDraft = recording);
-            if (sheetContext.mounted) Navigator.pop(sheetContext);
-          },
-        ),
-      ),
+    final keepAlive = ref.listenManual(
+      audioCaptureControllerProvider,
+      (_, _) {},
+      fireImmediately: true,
     );
+    try {
+      final controller = await ref.read(audioCaptureControllerProvider.future);
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => FractionallySizedBox(
+          heightFactor: 0.9,
+          child: AudioCapturePanel(
+            controller: controller,
+            introHeading: 'Record what happened',
+            introDescription: 'Speak freely. You can keep writing too.',
+            alternativeLabel: 'Keep writing',
+            onWriteInstead: () async {
+              await _leaveAudioCapture(controller);
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+            },
+            onContinue: (recording) async {
+              final previous = _audioDraft;
+              if (previous != null) {
+                final store = await ref.read(audioAssetStoreProvider.future);
+                await store.discardTemporary(previous.temporaryKey);
+              }
+              if (mounted) setState(() => _audioDraft = recording);
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+            },
+          ),
+        ),
+      );
+    } finally {
+      keepAlive.close();
+    }
+  }
+
+  Future<void> _cancel() async {
+    if (_isSaving || _canceling) return;
+    _canceling = true;
+    final recording = _audioDraft;
+    if (recording != null) {
+      try {
+        final store = await ref.read(audioAssetStoreProvider.future);
+        await store.discardTemporary(recording.temporaryKey);
+      } catch (_) {
+        // Old temporary recordings are also removed by startup cleanup. A
+        // cleanup failure should never trap someone in the memory form.
+      }
+    }
+    if (mounted) widget.onCancel();
   }
 
   Future<void> _leaveAudioCapture(AudioCaptureController controller) async {

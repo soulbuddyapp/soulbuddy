@@ -12,6 +12,8 @@ import '../../prayers/providers/prayer_providers.dart';
 import '../../goals/application/goal_today_composer.dart';
 import '../../goals/providers/goal_today_providers.dart';
 import '../../persons/providers/person_providers.dart';
+import '../../altar/providers/altar_ritual_providers.dart';
+import '../../altar/domain/altar_ritual.dart';
 
 final todayGuidanceRepositoryProvider = FutureProvider<TodayGuidanceRepository>(
   (ref) async {
@@ -57,6 +59,7 @@ final todayGuidanceProvider = Provider<AsyncValue<TodayGuidanceCardValue>>((
     duePractices.add(DailyPractice.act);
   }
   final localDate = ref.watch(todayPrayerDateProvider).value;
+  var hasDuePerson = false;
   if (localDate != null) {
     final people = ref.watch(
       duePersonPrayersProvider(
@@ -64,14 +67,24 @@ final todayGuidanceProvider = Provider<AsyncValue<TodayGuidanceCardValue>>((
       ),
     );
     if (people case AsyncData(:final value) when value.isNotEmpty) {
-      duePractices.add(DailyPractice.pray);
+      hasDuePerson = true;
     }
   }
+  final dueAltar = ref.watch(dueAltarRitualProvider);
+  final altarStatus = switch (dueAltar) {
+    AsyncData(:final value) => value?.localStatus,
+    _ => null,
+  };
+  final prayerAttention = selectTodayPrayerAttention(
+    altarStatus: altarStatus,
+    hasDuePerson: hasDuePerson,
+  );
   return AsyncData(
     const TodayGuidanceEngine().select(
       TodayGuidanceSnapshot(
         duePractices: duePractices,
         completedPractices: state.completed,
+        prayerAttention: prayerAttention,
         missedScheduledRoutineCount: fact.missedScheduledRoutineCount,
         joinedCircle: fact.joinedCircle,
         usedGoals: fact.usedGoals,
@@ -83,3 +96,14 @@ final todayGuidanceProvider = Provider<AsyncValue<TodayGuidanceCardValue>>((
     ),
   );
 });
+
+TodayPrayerAttention? selectTodayPrayerAttention({
+  required AltarRitualLocalStatus? altarStatus,
+  required bool hasDuePerson,
+}) {
+  if (altarStatus == AltarRitualLocalStatus.due) {
+    return TodayPrayerAttention.altar;
+  }
+  if (hasDuePerson) return TodayPrayerAttention.person;
+  return null;
+}
