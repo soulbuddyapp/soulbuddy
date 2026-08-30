@@ -52,7 +52,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('first-goal-text-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('What is happening now?'), findsOneWidget);
+    expect(find.text('Why now? What needs to change?'), findsOneWidget);
 
     await tester.tap(find.text('Not now'));
     await tester.pumpAndSettle();
@@ -225,6 +225,48 @@ void main() {
 
     expect(find.text('What can you do about this?'), findsOneWidget);
     expect(find.text('Find direction'), findsNothing);
+  });
+
+  testWidgets('uses reviewed context to suggest an action when unsure', (
+    tester,
+  ) async {
+    final repository = _MemoryGoalProgressRepository();
+    await _pump(tester, repository);
+
+    await tester.tap(find.text('Grow closer to God'));
+    await tester.pumpAndSettle();
+    expect(find.text('Why now? What needs to change?'), findsOneWidget);
+
+    await tester.tap(find.text('Write'));
+    await tester.pumpAndSettle();
+    expect(find.text('Why now? What needs to change?'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('first-goal-text-field')),
+      'I rush through every morning.',
+    );
+    await tester.tap(find.byKey(const Key('first-goal-text-continue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("I'm not sure"));
+    await tester.pumpAndSettle();
+
+    expect(find.text('What would help today?'), findsOneWidget);
+    expect(find.text('A few ideas'), findsOneWidget);
+    expect(
+      find.text('Set aside ten quiet minutes before opening another app'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.text('Set aside ten quiet minutes before opening another app'),
+    );
+    await tester.pump();
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('first-goal-text-field')),
+    );
+    expect(
+      field.controller?.text,
+      'Set aside ten quiet minutes before opening another app',
+    );
   });
 
   testWidgets('starter remains usable at 200 percent text on a small phone', (
