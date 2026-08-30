@@ -75,6 +75,21 @@ void main() {
     }
   });
 
+  testWidgets('keeps an empty state factual without visible dead-end copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testHost(
+        const CovenantSlabs(
+          state: DailyPracticeState(available: {}, completed: {}),
+        ),
+      ),
+    );
+
+    expect(find.text('No practices available today'), findsNothing);
+    expect(find.bySemanticsLabel('No daily routines are set'), findsOneWidget);
+  });
+
   testWidgets('excludes an unavailable action from the daily count', (
     tester,
   ) async {

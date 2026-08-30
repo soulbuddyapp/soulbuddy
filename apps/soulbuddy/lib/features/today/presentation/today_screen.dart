@@ -28,6 +28,8 @@ import '../../remember/providers/daily_memory_providers.dart';
 import '../domain/daily_practice_state.dart';
 import '../providers/daily_practice_providers.dart';
 import 'today_start_guide.dart';
+import '../providers/today_guidance_providers.dart';
+import 'today_guidance_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -46,6 +48,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final dailyMemory = ref.watch(dailyMemoryProvider);
     final dailyPractices = ref.watch(dailyPracticeStateProvider);
     final goalToday = ref.watch(goalTodaySnapshotProvider);
+    final guidance = ref.watch(todayGuidanceProvider);
     final goalSnapshot = switch (goalToday) {
       AsyncData(:final value) => value,
       _ => null,
@@ -107,6 +110,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   animate: true,
                   height: showStartGuide ? 86 : 104,
                 ),
+              ),
+              guidance.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+                data: (value) => showStartGuide
+                    ? const SizedBox.shrink()
+                    : TodayGuidanceCard(
+                        guidance: value,
+                        onOpen: () => context.go(value.route),
+                      ),
               ),
               const SizedBox(height: AppSpacing.md),
               if (goalSnapshot != null) ...[
