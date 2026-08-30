@@ -32,11 +32,11 @@ final class ApplyPersonPrayerMutation
             if (! in_array($operation['type'], ['put', 'patch', 'delete'], true)) {
                 return 'unsupported_operation';
             }
-            if ($operation['table'] !== 'prayer_people' && $operation['type'] !== 'put') {
+            if ($operation['table'] === 'person_prayer_occurrences' && $operation['type'] !== 'put') {
                 return 'immutable_occurrence';
             }
             if ($operation['type'] === 'delete') {
-                if ($operation['data'] !== []) {
+                if ($operation['data'] !== [] || $operation['table'] === 'person_prayer_occurrences') {
                     return 'invalid_data';
                 }
             } else {
@@ -52,7 +52,7 @@ final class ApplyPersonPrayerMutation
                 if ($existing->user_id !== $user->id) {
                     return 'inaccessible_record';
                 }
-                if ($operation['table'] !== 'prayer_people') {
+                if ($operation['table'] === 'person_prayer_occurrences') {
                     return 'immutable_occurrence';
                 }
             } elseif ($operation['type'] !== 'put') {
@@ -92,7 +92,11 @@ final class ApplyPersonPrayerMutation
                 $modelClass = $this->modelFor($table);
                 $model = $modelClass::query()->lockForUpdate()->find($operation['id']);
                 if ($operation['type'] === 'delete') {
-                    $model->forceFill(['archived_at' => now()])->save();
+                    if ($table === 'prayer_people') {
+                        $model->forceFill(['archived_at' => now()])->save();
+                    } else {
+                        $model->delete();
+                    }
 
                     continue;
                 }

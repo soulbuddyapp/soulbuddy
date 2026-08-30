@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../domain/encounter_draft.dart';
 import '../domain/encounter.dart';
 import '../audio/domain/memory_audio.dart';
+import '../audio/application/audio_capture_controller.dart';
+import '../audio/presentation/audio_capture_panel.dart';
+import '../audio/providers/memory_audio_providers.dart';
+import '../../persons/domain/prayer_person.dart';
 
-class EncounterForm extends StatefulWidget {
+class EncounterForm extends ConsumerStatefulWidget {
   const EncounterForm({
     required this.onSave,
     required this.onCancel,
@@ -13,6 +18,8 @@ class EncounterForm extends StatefulWidget {
     this.allowMemoryTypeChoice = false,
     this.initialTitle,
     this.audio,
+    this.people = const [],
+    this.initialPersonIds = const [],
     super.key,
   });
 
@@ -22,12 +29,14 @@ class EncounterForm extends StatefulWidget {
   final bool allowMemoryTypeChoice;
   final String? initialTitle;
   final MemoryAudioDraft? audio;
+  final List<PrayerPerson> people;
+  final List<String> initialPersonIds;
 
   @override
-  State<EncounterForm> createState() => _EncounterFormState();
+  ConsumerState<EncounterForm> createState() => _EncounterFormState();
 }
 
-class _EncounterFormState extends State<EncounterForm> {
+class _EncounterFormState extends ConsumerState<EncounterForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   final _bodyController = TextEditingController();
@@ -38,6 +47,8 @@ class _EncounterFormState extends State<EncounterForm> {
   var _recallEnabled = true;
   late var _memoryType = widget.memoryType;
   String? _saveError;
+  late MemoryAudioDraft? _audioDraft = widget.audio;
+  late final Set<String> _personIds = widget.initialPersonIds.toSet();
 
   @override
   void initState() {
@@ -83,13 +94,14 @@ class _EncounterFormState extends State<EncounterForm> {
           memoryType: _memoryType,
           sensitive: _sensitive,
           recallEnabled: _recallEnabled,
-          audio: widget.audio,
+          audio: _audioDraft,
+          personIds: _personIds.toList(growable: false),
         ),
       );
     } catch (_) {
       if (mounted) {
         setState(
-          () => _saveError = widget.audio == null
+          () => _saveError = _audioDraft == null
               ? 'The memory could not be saved. Try again.'
               : 'The recording is still here. Try saving again or discard it.',
         );
@@ -119,7 +131,7 @@ class _EncounterFormState extends State<EncounterForm> {
                     child: TextButton.icon(
                       onPressed: _isSaving ? null : widget.onCancel,
                       icon: const Icon(Icons.arrow_back),
-                      label: const Text('Record'),
+                      label: const Text('Remember'),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -208,6 +220,58 @@ class _EncounterFormState extends State<EncounterForm> {
                       alignLabelWithHint: true,
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      key: const Key('encounter-add-audio'),
+                      onPressed: _isSaving ? null : _recordWhatHappened,
+                      icon: Icon(
+                        _audioDraft == null ? Icons.mic_none : Icons.mic,
+                      ),
+                      label: Text(
+                        _audioDraft == null
+                            ? 'Record what happened'
+                            : 'Replace voice recording',
+                      ),
+                    ),
+                  ),
+                  if (_audioDraft != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.xs),
+                      child: Text(
+                        'Voice recording added',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  if (widget.people.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Who is this about? (optional)',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (final person in widget.people)
+                          FilterChip(
+                            label: Text(person.name),
+                            selected: _personIds.contains(person.id),
+                            onSelected: _isSaving
+                                ? null
+                                : (selected) => setState(() {
+                                    if (selected) {
+                                      _personIds.add(person.id);
+                                    } else {
+                                      _personIds.remove(person.id);
+                                    }
+                                  }),
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     key: const Key('encounter-date'),
@@ -260,6 +324,53 @@ class _EncounterFormState extends State<EncounterForm> {
         ),
       ),
     );
+  }
+
+  Future<void> _recordWhatHappened() async {
+    final controller = await ref.read(audioCaptureControllerProvider.future);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.9,
+        child: AudioCapturePanel(
+          controller: controller,
+          introHeading: 'Record what happened',
+          introDescription: 'Speak freely. You can keep writing too.',
+          alternativeLabel: 'Keep writing',
+          onWriteInstead: () async {
+            await _leaveAudioCapture(controller);
+            if (sheetContext.mounted) Navigator.pop(sheetContext);
+          },
+          onContinue: (recording) async {
+            final previous = _audioDraft;
+            if (previous != null && previous != widget.audio) {
+              final store = await ref.read(audioAssetStoreProvider.future);
+              await store.discardTemporary(previous.temporaryKey);
+            }
+            if (mounted) setState(() => _audioDraft = recording);
+            if (sheetContext.mounted) Navigator.pop(sheetContext);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _leaveAudioCapture(AudioCaptureController controller) async {
+    switch (controller.state.phase) {
+      case AudioCapturePhase.review:
+        await controller.discard();
+        return;
+      case AudioCapturePhase.recording ||
+          AudioCapturePhase.paused ||
+          AudioCapturePhase.failure:
+        await controller.cancel();
+        return;
+      default:
+        return;
+    }
   }
 }
 

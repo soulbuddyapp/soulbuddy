@@ -32,83 +32,119 @@ class _PersonDetail extends ConsumerWidget {
   final PrayerPerson person;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Person'),
-      actions: [
-        IconButton(
-          tooltip: 'Edit',
-          onPressed: () => context.push('/persons/${person.id}/edit'),
-          icon: const Icon(Icons.edit_outlined),
-        ),
-        PopupMenuButton<String>(
-          onSelected: (value) {
-            if (value == 'archive') _archive(context, ref);
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'archive', child: Text('Archive person')),
-          ],
-        ),
-      ],
-    ),
-    body: SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    child: Text(
-                      person.name.characters.first.toUpperCase(),
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          person.name,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        if (person.relationship case final value?) Text(value),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              FilledButton.icon(
-                key: const Key('prayed-for-person'),
-                onPressed: () => _recordPrayer(context, ref),
-                icon: const Icon(Icons.check),
-                label: Text('I prayed for ${person.name}'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              OutlinedButton.icon(
-                key: const Key('remember-person'),
-                onPressed: () =>
-                    context.push('/remember/capture?person=${person.id}'),
-                icon: const Icon(Icons.mic_none),
-                label: const Text('Remember something about them'),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              Text(
-                _scheduleDescription(person),
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final memories = ref.watch(personLinkedMemoriesProvider(person.id));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Person'),
+        actions: [
+          IconButton(
+            tooltip: 'Edit',
+            onPressed: () => context.push('/persons/${person.id}/edit'),
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'archive') _archive(context, ref);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'archive', child: Text('Archive person')),
             ],
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      child: Text(
+                        person.name.characters.first.toUpperCase(),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            person.name,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          if (person.relationship case final value?)
+                            Text(value),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                FilledButton.icon(
+                  key: const Key('prayed-for-person'),
+                  onPressed: () => _recordPrayer(context, ref),
+                  icon: const Icon(Icons.check),
+                  label: Text('I prayed for ${person.name}'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                OutlinedButton.icon(
+                  key: const Key('remember-person'),
+                  onPressed: () =>
+                      context.push('/remember/capture?person=${person.id}'),
+                  icon: const Icon(Icons.mic_none),
+                  label: const Text('Remember something about them'),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  _scheduleDescription(person),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Remembered with them',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                memories.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, _) =>
+                      const Text('Memories could not be opened just now.'),
+                  data: (items) => items.isEmpty
+                      ? const Text('No linked memories yet.')
+                      : Column(
+                          children: [
+                            for (final memory in items)
+                              Card(
+                                child: ListTile(
+                                  onTap: () =>
+                                      context.push('/remember/${memory.id}'),
+                                  leading: const Icon(Icons.bookmark_outline),
+                                  title: Text(
+                                    memory.sensitive
+                                        ? 'Private memory'
+                                        : memory.title,
+                                  ),
+                                  subtitle: Text(memory.occurredOn),
+                                  trailing: const Icon(Icons.chevron_right),
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Future<void> _recordPrayer(BuildContext context, WidgetRef ref) async {
     try {

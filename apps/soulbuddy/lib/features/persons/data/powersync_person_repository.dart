@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../domain/person_prayer_occurrence.dart';
 import '../domain/prayer_person.dart';
 import 'person_repository.dart';
+import '../../record/domain/encounter.dart';
 
 class PowerSyncPersonRepository implements PersonRepository {
   PowerSyncPersonRepository({
@@ -90,6 +91,45 @@ class PowerSyncPersonRepository implements PersonRepository {
           return List.unmodifiable(due);
         });
   }
+
+  @override
+  Stream<List<Encounter>> watchLinkedMemories(String personId) => database
+      .watch(
+        '''
+        SELECT encounter.*
+        FROM encounters AS encounter
+        JOIN encounter_person_links AS link
+          ON link.encounter_id = encounter.id
+         AND link.owner_id = encounter.owner_id
+        WHERE link.person_id = ? AND link.owner_id = ?
+          AND encounter.archived_at IS NULL
+        ORDER BY encounter.occurred_on DESC, encounter.created_at DESC
+        ''',
+        parameters: [personId, ownerId],
+      )
+      .map(
+        (rows) => List.unmodifiable(
+          rows.map(
+            (row) => Encounter(
+              id: row['id'] as String,
+              ownerId: row['owner_id'] as String,
+              title: row['title'] as String,
+              body: row['body'] as String,
+              occurredOn: row['occurred_on'] as String,
+              isAltar: row['is_altar'] == 1,
+              createdAt: DateTime.parse(row['created_at'] as String),
+              updatedAt: DateTime.parse(row['updated_at'] as String),
+              currentRevisionId: row['current_revision_id'] as String,
+              syncState: EncounterSyncState.pending,
+              memoryType: MemoryType.fromWire(row['memory_type'] as String?),
+              sensitive: (row['sensitive'] as int?) == 1,
+              recallEnabled: (row['recall_enabled'] as int?) != 0,
+              recallPaused: (row['recall_paused'] as int?) == 1,
+              recallIntervalDays: (row['recall_interval_days'] as int?) ?? 7,
+            ),
+          ),
+        ),
+      );
 
   @override
   Future<PrayerPerson> create(PrayerPersonDraft draft) async {

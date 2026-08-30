@@ -13,6 +13,7 @@ class EncounterDraft {
     this.recallPaused = false,
     this.recallIntervalDays = 7,
     this.audio,
+    this.personIds = const [],
   });
 
   final String title;
@@ -25,4 +26,5 @@ class EncounterDraft {
   final bool recallPaused;
   final int recallIntervalDays;
   final MemoryAudioDraft? audio;
+  final List<String> personIds;
 }

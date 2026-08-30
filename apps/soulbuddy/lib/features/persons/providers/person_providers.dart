@@ -9,6 +9,7 @@ import '../data/powersync_person_repository.dart';
 import '../application/person_prayer_reminder_coordinator.dart';
 import '../domain/person_prayer_occurrence.dart';
 import '../domain/prayer_person.dart';
+import '../../record/domain/encounter.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 
 final personRepositoryProvider = FutureProvider<PersonRepository>((ref) async {
@@ -36,6 +37,12 @@ final duePersonPrayersProvider = StreamProvider.autoDispose
     .family<List<DuePersonPrayer>, DateTime>((ref, localDate) async* {
       final repository = await ref.watch(personRepositoryProvider.future);
       yield* repository.watchDue(localDate);
+    });
+
+final personLinkedMemoriesProvider = StreamProvider.autoDispose
+    .family<List<Encounter>, String>((ref, personId) async* {
+      final repository = await ref.watch(personRepositoryProvider.future);
+      yield* repository.watchLinkedMemories(personId);
     });
 
 final personPrayerReminderCoordinatorProvider =

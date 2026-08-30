@@ -22,6 +22,7 @@ import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
+import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
@@ -32,6 +33,7 @@ import '../features/today/presentation/today_screen.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(path: '/record', redirect: (context, state) => '/remember/capture'),
     GoRoute(
       path: '/welcome/goal',
       builder: (context, state) => const FirstGoalScreen(),
@@ -128,6 +130,27 @@ final GoRouter appRouter = GoRouter(
               path: '/remember',
               builder: (context, state) => const RememberScreen(),
               routes: [
+                GoRoute(
+                  path: 'capture',
+                  builder: (context, state) {
+                    final mode = switch (state.uri.queryParameters['mode']) {
+                      'speak' => RecordStartMode.speak,
+                      'write' => RecordStartMode.write,
+                      _ => RecordStartMode.choices,
+                    };
+                    final personId = state.uri.queryParameters['person'];
+                    return RecordScreen(
+                      key: ValueKey(
+                        'remember-capture-${mode.name}-${personId ?? ''}',
+                      ),
+                      startMode: mode,
+                      initialPersonIds: switch (personId) {
+                        final String id when id.isNotEmpty => [id],
+                        _ => const [],
+                      },
+                    );
+                  },
+                ),
                 GoRoute(
                   path: 'daily/:localDate',
                   builder: (context, state) => DailyRemembranceScreen(

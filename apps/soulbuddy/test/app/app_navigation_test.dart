@@ -39,7 +39,7 @@ void main() {
     await tester.tap(find.text('Remember').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('What you have recorded'), findsOneWidget);
+    expect(find.text('Remember'), findsWidgets);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

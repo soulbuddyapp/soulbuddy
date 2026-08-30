@@ -158,7 +158,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               if (showStartGuide)
                 TodayStartGuide(
                   onStartGoal: () => context.push('/welcome/goal'),
-                  onRecordMemory: () => context.go('/record'),
+                  onRecordMemory: () => context.go('/remember/capture'),
                 ),
               if (showLegacyPrayer) ...[
                 if (showStartGuide) const SizedBox(height: AppSpacing.md),
@@ -184,7 +184,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           alignment: Alignment.centerLeft,
                           child: OutlinedButton(
                             key: const Key('record-something-to-remember'),
-                            onPressed: () => context.go('/record'),
+                            onPressed: () => context.go('/remember/capture'),
                             child: const Text('Record something to remember'),
                           ),
                         )

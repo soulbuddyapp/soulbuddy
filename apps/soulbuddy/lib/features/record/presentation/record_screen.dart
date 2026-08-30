@@ -18,24 +18,42 @@ import '../domain/encounter_draft.dart';
 import '../domain/encounter.dart';
 import '../providers/encounter_providers.dart';
 import 'encounter_form.dart';
+import '../../persons/providers/person_providers.dart';
+import '../../persons/domain/prayer_person.dart';
 
 enum _RecordView { choices, memoryTypes, capture, form, saved }
 
+enum RecordStartMode { choices, speak, write }
+
 class RecordScreen extends ConsumerStatefulWidget {
-  const RecordScreen({super.key});
+  const RecordScreen({
+    super.key,
+    this.startMode = RecordStartMode.choices,
+    this.initialPersonIds = const [],
+  });
+
+  final RecordStartMode startMode;
+  final List<String> initialPersonIds;
 
   @override
   ConsumerState<RecordScreen> createState() => _RecordScreenState();
 }
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
-  var _view = _RecordView.choices;
+  late var _view = switch (widget.startMode) {
+    RecordStartMode.choices => _RecordView.choices,
+    RecordStartMode.speak => _RecordView.capture,
+    RecordStartMode.write => _RecordView.memoryTypes,
+  };
   var _memoryType = MemoryType.encounter;
   MemoryAudioDraft? _audioDraft;
 
   @override
   Widget build(BuildContext context) {
     final repository = ref.watch(encounterRepositoryProvider);
+    final people = _view == _RecordView.form
+        ? ref.watch(prayerPeopleProvider).value ?? const <PrayerPerson>[]
+        : const <PrayerPerson>[];
     final audioController = _view == _RecordView.capture || _audioDraft != null
         ? ref.watch(audioCaptureControllerProvider)
         : null;
@@ -49,6 +67,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               ? null
               : _voiceMemoryTitle(DateTime.now()),
           audio: _audioDraft,
+          people: people,
+          initialPersonIds: widget.initialPersonIds,
           onCancel: () => _cancelForm(audioController?.value),
           onSave: (draft) => _saveEncounter(value, draft),
         ),
@@ -74,19 +94,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         ),
       ),
       _RecordView.saved => FeaturePage(
-        title: 'Record saved',
-        description: 'It is ready for you in Remember.',
+        title: 'Memory saved',
+        description: 'It is ready when you return.',
         action: FilledButton(
           onPressed: () => setState(() {
             _audioDraft = null;
             _view = _RecordView.choices;
           }),
-          child: const Text('Record another'),
+          child: const Text('Remember another'),
         ),
       ),
       _RecordView.memoryTypes => _memoryTypes(),
       _RecordView.choices => FeaturePage(
-        title: 'Record',
+        title: 'Remember',
         description: 'Keep what you do not want to forget.',
         action: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -261,7 +281,7 @@ class _RecordUnavailable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FeaturePage(
-      title: 'Record is unavailable',
+      title: 'Remember is unavailable',
       description:
           'Your writing is still on this device. Try opening it again.',
       action: OutlinedButton(

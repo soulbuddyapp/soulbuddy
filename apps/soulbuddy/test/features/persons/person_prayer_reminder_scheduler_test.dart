@@ -6,6 +6,7 @@ import 'package:soulbuddy/features/persons/data/person_repository.dart';
 import 'package:soulbuddy/features/persons/domain/person_prayer_occurrence.dart';
 import 'package:soulbuddy/features/persons/domain/prayer_person.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
+import 'package:soulbuddy/features/record/domain/encounter.dart';
 
 void main() {
   test('schedules daily person reminder with clear private copy', () async {
@@ -125,6 +126,10 @@ class _Repository implements PersonRepository {
 
   @override
   Stream<List<DuePersonPrayer>> watchDue(DateTime localDate) =>
+      throw UnimplementedError();
+
+  @override
+  Stream<List<Encounter>> watchLinkedMemories(String personId) =>
       throw UnimplementedError();
 }
 
