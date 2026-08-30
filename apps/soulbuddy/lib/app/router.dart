@@ -15,11 +15,13 @@ import '../features/goals/presentation/first_goal_screen.dart';
 import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
 import '../features/onboarding/presentation/legacy_first_prayer_migration_screen.dart';
+import '../features/persons/presentation/person_detail_screen.dart';
+import '../features/persons/presentation/person_editor_screen.dart';
+import '../features/persons/presentation/persons_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
-import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
@@ -95,8 +97,28 @@ final GoRouter appRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/record',
-              builder: (context, state) => const RecordScreen(),
+              path: '/persons',
+              builder: (context, state) => const PersonsScreen(),
+              routes: [
+                GoRoute(
+                  path: 'new',
+                  builder: (context, state) => const PersonEditorScreen(),
+                ),
+                GoRoute(
+                  path: ':personId',
+                  builder: (context, state) => PersonDetailScreen(
+                    personId: state.pathParameters['personId']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) => PersonEditorScreen(
+                        personId: state.pathParameters['personId']!,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),
@@ -165,9 +187,9 @@ class _SoulBuddyShell extends ConsumerWidget {
       selectedIcon: Icons.flag,
     ),
     _AppDestination(
-      label: 'Record',
-      icon: Icons.add_circle_outline,
-      selectedIcon: Icons.add_circle,
+      label: 'Persons',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
     ),
     _AppDestination(
       label: 'Remember',

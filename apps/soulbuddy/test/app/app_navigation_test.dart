@@ -32,7 +32,7 @@ void main() {
       ),
     );
 
-    for (final label in ['Today', 'Goals', 'Record', 'Remember', 'Circles']) {
+    for (final label in ['Today', 'Goals', 'Persons', 'Remember', 'Circles']) {
       expect(find.text(label), findsWidgets);
     }
 
