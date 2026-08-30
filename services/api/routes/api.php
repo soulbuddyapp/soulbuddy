@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleReportController;
+use App\Http\Controllers\Api\GoalActionSuggestionController;
 use App\Http\Controllers\Api\InstallationSessionController;
 use App\Http\Controllers\Api\PowerSyncTokenController;
 use App\Http\Controllers\Api\PrayerNarrationController;
@@ -15,6 +16,9 @@ Route::post('/installations/session', InstallationSessionController::class)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sync/token', PowerSyncTokenController::class);
     Route::post('/sync/mutations', SyncMutationController::class);
+
+    Route::post('/goal-action-suggestions', GoalActionSuggestionController::class)
+        ->middleware('throttle:goal-action-suggestions');
 
     Route::get('/circles', [CircleController::class, 'index']);
     Route::get('/circles/mine', [CircleController::class, 'mine']);

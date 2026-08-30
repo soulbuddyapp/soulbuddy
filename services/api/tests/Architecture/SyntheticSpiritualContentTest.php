@@ -42,8 +42,6 @@ it('has no server runtime synthetic prayer generation surface', function () {
     $services = file_get_contents($root.'/config/services.php');
     expect($services)
         ->toBeString()
-        ->not->toContain("'deepseek'")
-        ->not->toContain('DEEPSEEK_')
         ->not->toContain('PRAYER_GENERATION_ENABLED')
         ->not->toContain('PRAYER_DRAFT_');
 
@@ -51,7 +49,6 @@ it('has no server runtime synthetic prayer generation surface', function () {
     expect($environment)
         ->toBeString()
         ->not->toContain('AI_PROVIDER')
-        ->not->toContain('DEEPSEEK_')
         ->not->toContain('PRAYER_GENERATION_ENABLED')
         ->not->toContain('PRAYER_DRAFT_');
 

@@ -39,6 +39,12 @@ return [
         'disclosure_version' => env('PRAYER_NARRATION_DISCLOSURE_VERSION', 'deepgram-aura2-1'),
     ],
 
+    'goal_guidance' => [
+        'key' => env('DEEPSEEK_API_KEY'),
+        'base_url' => env('GOAL_GUIDANCE_BASE_URL', 'https://api.deepseek.com'),
+        'model' => env('GOAL_GUIDANCE_MODEL', 'deepseek-chat'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
