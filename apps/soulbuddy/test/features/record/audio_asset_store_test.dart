@@ -41,7 +41,7 @@ void main() {
 
       expect(committed.storageKey, 'audio/asset-1.m4a');
       expect(committed.byteSize, 4);
-      expect(await File(take.locator).exists(), isFalse);
+      expect(await File(take.locator).exists(), isTrue);
       final opened = await store.open(committed.storageKey);
       expect(opened, isA<FileAudioPlaybackSource>());
       expect(
@@ -211,7 +211,7 @@ void main() {
       now: now,
     );
 
-    test('persists bytes before releasing a browser take', () async {
+    test('persists bytes while retaining a browser take for retry', () async {
       final store = createStore(databaseName: 'web-commit');
 
       final committed = await store.commitTemporary(
@@ -222,12 +222,15 @@ void main() {
 
       expect(committed.storageKey, 'audio/asset-1.webm');
       expect(committed.byteSize, 4);
-      expect(released, ['blob:first']);
+      expect(released, isEmpty);
       final opened = await store.open(committed.storageKey);
       expect(opened, isA<BytesAudioPlaybackSource>());
       final bytesSource = opened! as BytesAudioPlaybackSource;
       expect(bytesSource.bytes, [4, 3, 2, 1]);
       expect(bytesSource.mimeType, 'audio/webm');
+
+      await store.discardTemporary('blob:first');
+      expect(released, ['blob:first']);
 
       await store.delete(committed.storageKey);
       expect(await store.open(committed.storageKey), isNull);
@@ -304,7 +307,7 @@ void main() {
       );
 
       expect(temporaryBytes['blob:second'], [9, 9]);
-      expect(released, ['blob:first']);
+      expect(released, isEmpty);
       final opened = await store.open('audio/same-id.webm');
       expect((opened! as BytesAudioPlaybackSource).bytes, [4, 3, 2, 1]);
     });

@@ -2,11 +2,13 @@ import 'package:powersync/powersync.dart';
 
 import '../../features/editorial/data/editorial_schema.dart';
 import '../../features/goals/data/goal_schema.dart';
+import '../../features/persons/data/person_schema.dart';
 import 'app_schema.dart';
 
 final appRuntimeSchema = Schema([
   ...appSchema.tables,
   ...goalTables,
+  ...personTables,
   ...editorialTables,
 ]);
 

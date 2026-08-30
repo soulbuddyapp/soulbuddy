@@ -15,6 +15,9 @@ import '../features/goals/presentation/first_goal_screen.dart';
 import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
 import '../features/onboarding/presentation/legacy_first_prayer_migration_screen.dart';
+import '../features/persons/presentation/person_detail_screen.dart';
+import '../features/persons/presentation/person_editor_screen.dart';
+import '../features/persons/presentation/persons_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
@@ -30,6 +33,7 @@ import '../features/today/presentation/today_screen.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(path: '/record', redirect: (context, state) => '/remember/capture'),
     GoRoute(
       path: '/welcome/goal',
       builder: (context, state) => const FirstGoalScreen(),
@@ -51,7 +55,9 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/today',
-              builder: (context, state) => const TodayScreen(),
+              builder: (context, state) => TodayScreen(
+                focusAltar: state.uri.queryParameters['focus'] == 'altar',
+              ),
             ),
           ],
         ),
@@ -95,8 +101,28 @@ final GoRouter appRouter = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/record',
-              builder: (context, state) => const RecordScreen(),
+              path: '/persons',
+              builder: (context, state) => const PersonsScreen(),
+              routes: [
+                GoRoute(
+                  path: 'new',
+                  builder: (context, state) => const PersonEditorScreen(),
+                ),
+                GoRoute(
+                  path: ':personId',
+                  builder: (context, state) => PersonDetailScreen(
+                    personId: state.pathParameters['personId']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) => PersonEditorScreen(
+                        personId: state.pathParameters['personId']!,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),
@@ -106,6 +132,29 @@ final GoRouter appRouter = GoRouter(
               path: '/remember',
               builder: (context, state) => const RememberScreen(),
               routes: [
+                GoRoute(
+                  path: 'capture',
+                  builder: (context, state) {
+                    final personId = state.uri.queryParameters['person'];
+                    final mode = switch (state.uri.queryParameters['mode']) {
+                      'speak' => RecordStartMode.speak,
+                      'write' => RecordStartMode.write,
+                      _ when personId != null && personId.isNotEmpty =>
+                        RecordStartMode.person,
+                      _ => RecordStartMode.choices,
+                    };
+                    return RecordScreen(
+                      key: ValueKey(
+                        'remember-capture-${mode.name}-${personId ?? ''}',
+                      ),
+                      startMode: mode,
+                      initialPersonIds: switch (personId) {
+                        final String id when id.isNotEmpty => [id],
+                        _ => const [],
+                      },
+                    );
+                  },
+                ),
                 GoRoute(
                   path: 'daily/:localDate',
                   builder: (context, state) => DailyRemembranceScreen(
@@ -165,9 +214,9 @@ class _SoulBuddyShell extends ConsumerWidget {
       selectedIcon: Icons.flag,
     ),
     _AppDestination(
-      label: 'Record',
-      icon: Icons.add_circle_outline,
-      selectedIcon: Icons.add_circle,
+      label: 'Persons',
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
     ),
     _AppDestination(
       label: 'Remember',

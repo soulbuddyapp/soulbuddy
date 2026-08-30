@@ -134,10 +134,13 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
       NativeNotificationRequest(
         platformNotificationId: notification.platformNotificationId,
         scheduledAtUtc: notification.scheduledAtUtc,
-        title: altar ? 'At your Altar' : 'Prayer reminder',
-        body: altar
-            ? 'Time set aside to pray and remember'
-            : 'Time set aside for prayer',
+        title:
+            notification.title ?? (altar ? 'At your Altar' : 'Prayer reminder'),
+        body:
+            notification.body ??
+            (altar
+                ? 'Time set aside to pray and remember'
+                : 'Time set aside for prayer'),
         payload: jsonEncode({
           'reminder_id': notification.reminderId,
           'occurrence_key': notification.occurrenceKey,
@@ -147,6 +150,14 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         startsAudio: false,
         actions: altar
             ? const []
+            : notification.kind == ReminderNotificationKind.person
+            ? const [
+                NativeNotificationActionData(
+                  id: _prayedActionId,
+                  label: 'I prayed',
+                  showsUserInterface: true,
+                ),
+              ]
             : const [
                 NativeNotificationActionData(
                   id: _prayedActionId,

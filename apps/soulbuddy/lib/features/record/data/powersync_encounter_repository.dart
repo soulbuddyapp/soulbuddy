@@ -55,6 +55,10 @@ class PowerSyncEncounterRepository implements EncounterRepository {
     final revisionId = _uuid.v7();
     final audioId = draft.audio == null ? null : _uuid.v7();
     final timestamp = _now().toUtc().toIso8601String();
+    final personIds = draft.personIds.map((id) => id.trim()).toSet();
+    if (personIds.any((id) => id.isEmpty || id.length > 120)) {
+      throw ArgumentError.value(draft.personIds, 'personIds');
+    }
 
     CommittedAudio? committedAudio;
     if (draft.audio case final audio?) {
@@ -71,6 +75,14 @@ class PowerSyncEncounterRepository implements EncounterRepository {
 
     try {
       await database.writeTransaction((transaction) async {
+        for (final personId in personIds) {
+          final person = await transaction.getOptional(
+            'SELECT id FROM prayer_people WHERE id = ? AND owner_id = ? '
+            'AND archived_at IS NULL',
+            [personId, ownerId],
+          );
+          if (person == null) throw StateError('Person is not available');
+        }
         await transaction.execute(
           '''
         INSERT INTO encounters(
@@ -155,6 +167,16 @@ class PowerSyncEncounterRepository implements EncounterRepository {
             ],
           );
         }
+        for (final personId in personIds) {
+          await transaction.execute(
+            '''
+            INSERT INTO encounter_person_links(
+              id, encounter_id, person_id, owner_id, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ''',
+            [_uuid.v7(), encounterId, personId, ownerId, timestamp],
+          );
+        }
       });
     } catch (error, stackTrace) {
       if (committedAudio case final durable?) {
@@ -165,6 +187,13 @@ class PowerSyncEncounterRepository implements EncounterRepository {
         }
       }
       Error.throwWithStackTrace(error, stackTrace);
+    }
+    if (draft.audio case final audio?) {
+      try {
+        await audioAssetStore!.discardTemporary(audio.temporaryKey);
+      } catch (_) {
+        // Startup cleanup removes a redundant temporary copy later.
+      }
     }
 
     return Encounter(
@@ -201,14 +230,21 @@ class PowerSyncEncounterRepository implements EncounterRepository {
   @override
   Future<void> archive(String encounterId) async {
     final timestamp = _now().toUtc().toIso8601String();
-    await database.execute(
-      '''
-      UPDATE encounters
-      SET archived_at = ?, updated_at = ?
-      WHERE id = ? AND owner_id = ? AND archived_at IS NULL
-      ''',
-      [timestamp, timestamp, encounterId, ownerId],
-    );
+    await database.writeTransaction((transaction) async {
+      await transaction.execute(
+        '''
+        UPDATE encounters
+        SET archived_at = ?, updated_at = ?
+        WHERE id = ? AND owner_id = ? AND archived_at IS NULL
+        ''',
+        [timestamp, timestamp, encounterId, ownerId],
+      );
+      await transaction.execute(
+        'DELETE FROM encounter_person_links '
+        'WHERE encounter_id = ? AND owner_id = ?',
+        [encounterId, ownerId],
+      );
+    });
   }
 
   @override

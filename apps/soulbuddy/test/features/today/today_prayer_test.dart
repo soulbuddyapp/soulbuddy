@@ -117,7 +117,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('guided start opens Record from its secondary action', (
+  testWidgets('guided start opens Remember from its secondary action', (
     tester,
   ) async {
     final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
@@ -128,7 +128,7 @@ void main() {
     await tester.tap(find.byKey(const Key('today-record-memory')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Record destination'), findsOneWidget);
+    expect(find.text('Remember destination'), findsOneWidget);
   });
 
   testWidgets('no Goal keeps the Goal-first path above an existing prayer', (
@@ -659,9 +659,9 @@ Future<void> _pumpToday(
         ),
       ),
       GoRoute(
-        path: '/record',
+        path: '/remember/capture',
         builder: (context, state) =>
-            const Scaffold(body: Center(child: Text('Record destination'))),
+            const Scaffold(body: Center(child: Text('Remember destination'))),
       ),
       GoRoute(
         path: '/welcome/goal',

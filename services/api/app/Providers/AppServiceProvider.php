@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\GoalGuidance\GoalActionSuggestionProvider;
+use App\Domain\GoalGuidance\OpenAiCompatibleGoalActionSuggestionProvider;
 use App\Domain\PrayerNarrations\DeepgramPrayerNarrationProvider;
 use App\Domain\PrayerNarrations\PrayerNarrationProvider;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -17,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(PrayerNarrationProvider::class, DeepgramPrayerNarrationProvider::class);
+        $this->app->bind(
+            GoalActionSuggestionProvider::class,
+            OpenAiCompatibleGoalActionSuggestionProvider::class,
+        );
     }
 
     /**
@@ -35,5 +41,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('installation-sessions', fn (Request $request): array => [
             Limit::perMinute(10)->by('installation-session:'.$request->ip()),
         ]);
+        RateLimiter::for('goal-action-suggestions', function (Request $request): array {
+            $userKey = (string) ($request->user()?->public_id ?? 'guest');
+
+            return [
+                Limit::perHour(30)->by('goal-action-suggestion:user-hour:'.$userKey),
+                Limit::perHour(90)->by('goal-action-suggestion:ip-hour:'.$request->ip()),
+            ];
+        });
     }
 }

@@ -10,7 +10,7 @@ void main() {
         r"label:\s*'([^']+)'",
       ).allMatches(router).map((match) => match.group(1)).toList();
 
-      expect(labels, ['Today', 'Goals', 'Record', 'Remember', 'Circles']);
+      expect(labels, ['Today', 'Goals', 'Persons', 'Remember', 'Circles']);
       expect(router, contains("path: '/goals'"));
       expect(router, contains("path: '/prayers'"));
     });

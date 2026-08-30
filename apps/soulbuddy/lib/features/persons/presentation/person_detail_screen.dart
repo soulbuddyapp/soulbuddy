@@ -1,0 +1,229 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/design/app_spacing.dart';
+import '../domain/prayer_person.dart';
+import '../providers/person_providers.dart';
+
+class PersonDetailScreen extends ConsumerWidget {
+  const PersonDetailScreen({super.key, required this.personId});
+
+  final String personId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ref
+      .watch(prayerPersonProvider(personId))
+      .when(
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (_, _) => _Unavailable(
+          onRetry: () => ref.invalidate(prayerPersonProvider(personId)),
+        ),
+        data: (person) => person == null
+            ? const Scaffold(body: Center(child: Text('Person not found.')))
+            : _PersonDetail(person: person),
+      );
+}
+
+class _PersonDetail extends ConsumerWidget {
+  const _PersonDetail({required this.person});
+
+  final PrayerPerson person;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final memories = ref.watch(personLinkedMemoriesProvider(person.id));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Person'),
+        actions: [
+          IconButton(
+            tooltip: 'Edit',
+            onPressed: () => context.push('/persons/${person.id}/edit'),
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'archive') _archive(context, ref);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'archive', child: Text('Archive person')),
+            ],
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      child: Text(
+                        person.name.characters.first.toUpperCase(),
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            person.name,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          if (person.relationship case final value?)
+                            Text(value),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                FilledButton.icon(
+                  key: const Key('prayed-for-person'),
+                  onPressed: () => _recordPrayer(context, ref),
+                  icon: const Icon(Icons.check),
+                  label: Text('I prayed for ${person.name}'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                OutlinedButton.icon(
+                  key: const Key('remember-person'),
+                  onPressed: () =>
+                      context.push('/remember/capture?person=${person.id}'),
+                  icon: const Icon(Icons.mic_none),
+                  label: const Text('Remember something about them'),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  _scheduleDescription(person),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Remembered with them',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                memories.when(
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, _) =>
+                      const Text('Memories could not be opened just now.'),
+                  data: (items) => items.isEmpty
+                      ? const Text('No linked memories yet.')
+                      : Column(
+                          children: [
+                            for (final memory in items)
+                              Card(
+                                child: ListTile(
+                                  onTap: () =>
+                                      context.push('/remember/${memory.id}'),
+                                  leading: const Icon(Icons.bookmark_outline),
+                                  title: Text(
+                                    memory.sensitive
+                                        ? 'Private memory'
+                                        : memory.title,
+                                  ),
+                                  subtitle: Text(memory.occurredOn),
+                                  trailing: const Icon(Icons.chevron_right),
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _recordPrayer(BuildContext context, WidgetRef ref) async {
+    try {
+      final repository = await ref.read(personRepositoryProvider.future);
+      final occurrence = await repository.recordPrayer(
+        person.id,
+        localDate: DateTime.now(),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            occurrence == null
+                ? 'Already remembered today.'
+                : 'Prayer remembered.',
+          ),
+        ),
+      );
+      ref.invalidate(
+        duePersonPrayersProvider(
+          DateTime(
+            DateTime.now().year,
+            DateTime.now().month,
+            DateTime.now().day,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not record this just now.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _archive(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Archive this person?'),
+        content: const Text('Their saved memories will remain.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final repository = await ref.read(personRepositoryProvider.future);
+    await repository.archive(person.id);
+    ref.invalidate(prayerPeopleProvider);
+    if (context.mounted) context.go('/persons');
+  }
+}
+
+String _scheduleDescription(PrayerPerson person) {
+  final cadence = switch (person.cadence) {
+    PersonPrayerCadence.daily => 'Daily',
+    PersonPrayerCadence.weekly => 'Weekly',
+    PersonPrayerCadence.selectedDays => 'On selected days',
+  };
+  return person.localTime == null ? cadence : '$cadence · ${person.localTime}';
+}
+
+class _Unavailable extends StatelessWidget {
+  const _Unavailable({required this.onRetry});
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Center(
+      child: TextButton(onPressed: onRetry, child: const Text('Try again')),
+    ),
+  );
+}

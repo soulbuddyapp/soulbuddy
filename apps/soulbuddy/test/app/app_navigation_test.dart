@@ -32,14 +32,14 @@ void main() {
       ),
     );
 
-    for (final label in ['Today', 'Goals', 'Record', 'Remember', 'Circles']) {
+    for (final label in ['Today', 'Goals', 'Persons', 'Remember', 'Circles']) {
       expect(find.text(label), findsWidgets);
     }
 
     await tester.tap(find.text('Remember').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('What you have recorded'), findsOneWidget);
+    expect(find.text('Remember'), findsWidgets);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

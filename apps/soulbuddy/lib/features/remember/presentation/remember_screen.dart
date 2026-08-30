@@ -9,6 +9,7 @@ import '../../record/providers/encounter_providers.dart';
 import '../presentation/daily_remembrance_card.dart';
 import '../providers/daily_memory_providers.dart';
 import 'encounter_list_tile.dart';
+import 'forget_quickly_card.dart';
 
 class RememberScreen extends ConsumerStatefulWidget {
   const RememberScreen({super.key});
@@ -49,22 +50,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
             })
             .toList(growable: false);
         if (items.isEmpty) {
-          return FeaturePage(
-            title: 'What you have recorded',
-            description:
-                'When something happens that you do not want to forget, record it.',
-            action: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const CovenantIncisedDivider(key: Key('remember-incised-mark')),
-                const SizedBox(height: AppSpacing.md),
-                FilledButton(
-                  onPressed: () => context.go('/record'),
-                  child: const Text('Record something'),
-                ),
-              ],
-            ),
-          );
+          return const _EmptyRemember();
         }
 
         return SafeArea(
@@ -74,7 +60,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
               constraints: const BoxConstraints(maxWidth: 720),
               child: ListView.separated(
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: filtered.length + 3,
+                itemCount: filtered.length + 5,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
@@ -104,6 +90,14 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                   }
 
                   if (index == 1) {
+                    return const ForgetQuicklyCard(expanded: false);
+                  }
+
+                  if (index == 2) {
+                    return const _CaptureButtons();
+                  }
+
+                  if (index == 3) {
                     return dailyMemory.when(
                       loading: () => const SizedBox.shrink(),
                       error: (_, _) => TextButton(
@@ -116,7 +110,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                     );
                   }
 
-                  if (index == 2) {
+                  if (index == 4) {
                     return TextField(
                       key: const Key('remember-search'),
                       decoration: const InputDecoration(
@@ -127,7 +121,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                     );
                   }
 
-                  return EncounterListTile(encounter: filtered[index - 3]);
+                  return EncounterListTile(encounter: filtered[index - 5]);
                 },
               ),
             ),
@@ -136,4 +130,74 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
       },
     );
   }
+}
+
+class _EmptyRemember extends StatelessWidget {
+  const _EmptyRemember();
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Remember',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Keep what you do not want to forget.',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const CovenantIncisedDivider(key: Key('remember-incised-mark')),
+              const SizedBox(height: AppSpacing.md),
+              const Flexible(
+                child: SingleChildScrollView(
+                  physics: NeverScrollableScrollPhysics(),
+                  child: ForgetQuicklyCard(expanded: true),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const _CaptureButtons(),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _CaptureButtons extends StatelessWidget {
+  const _CaptureButtons();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: FilledButton.icon(
+          key: const Key('remember-speak'),
+          onPressed: () => context.push('/remember/capture?mode=speak'),
+          icon: const Icon(Icons.mic_none),
+          label: const Text('Speak'),
+        ),
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      Expanded(
+        child: OutlinedButton.icon(
+          key: const Key('remember-write'),
+          onPressed: () => context.push('/remember/capture?mode=write'),
+          icon: const Icon(Icons.edit_outlined),
+          label: const Text('Write'),
+        ),
+      ),
+    ],
+  );
 }

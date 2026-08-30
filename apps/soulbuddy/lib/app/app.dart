@@ -7,6 +7,8 @@ import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
 import '../features/onboarding/presentation/onboarding_gate.dart';
+import '../features/persons/application/person_prayer_reminder_coordinator.dart';
+import '../features/persons/providers/person_providers.dart';
 import '../features/record/audio/providers/private_audio_cleanup_provider.dart';
 import '../core/identity/local_identity_providers.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
@@ -22,6 +24,7 @@ class SoulBuddyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(prayerReminderCoordinatorProvider);
     ref.watch(altarReminderCoordinatorProvider);
+    ref.watch(personPrayerReminderCoordinatorProvider);
     ref.watch(privateAudioStartupCleanupProvider);
     ref.watch(installationSessionBootstrapProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
@@ -33,6 +36,13 @@ class SoulBuddyApp extends ConsumerWidget {
       if (next case AsyncData(value: AltarReminderOpened(:final ritualId))) {
         ref.read(pendingAltarOpenProvider.notifier).set(ritualId);
         appRouter.go('/today');
+      }
+    });
+    ref.listen(personPrayerReminderEventsProvider, (previous, next) {
+      if (next case AsyncData(
+        value: PersonPrayerReminderOpened(:final personId),
+      )) {
+        appRouter.go('/persons/$personId');
       }
     });
     return MaterialApp.router(

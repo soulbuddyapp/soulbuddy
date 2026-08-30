@@ -91,12 +91,14 @@ class _CovenantSlabsState extends State<CovenantSlabs>
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            status,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.labelMedium?.copyWith(color: colors.umber),
-          ),
+          if (status.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              status,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelMedium?.copyWith(color: colors.umber),
+            ),
+          ],
         ],
       ),
     );
@@ -282,7 +284,7 @@ class CovenantSlabsPainter extends CustomPainter {
 
 String _statusText(DailyPracticeState state) {
   if (state.availableCount == 0) {
-    return 'No practices available today';
+    return '';
   }
   final noun = state.availableCount == 1 ? 'practice' : 'practices';
   return '${state.completedCount} of ${state.availableCount} $noun completed';
@@ -310,7 +312,7 @@ String _semanticsLabel(DailyPracticeState state) {
     clauses.add('${_joinNames(available)} available');
   }
   if (clauses.isEmpty) {
-    return 'Today: no practices available';
+    return 'No daily routines are set';
   }
   return 'Today: ${clauses.join('; ')}';
 }

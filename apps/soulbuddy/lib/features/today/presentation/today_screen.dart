@@ -28,9 +28,13 @@ import '../../remember/providers/daily_memory_providers.dart';
 import '../domain/daily_practice_state.dart';
 import '../providers/daily_practice_providers.dart';
 import 'today_start_guide.dart';
+import '../providers/today_guidance_providers.dart';
+import 'today_guidance_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
-  const TodayScreen({super.key});
+  const TodayScreen({this.focusAltar = false, super.key});
+
+  final bool focusAltar;
 
   @override
   ConsumerState<TodayScreen> createState() => _TodayScreenState();
@@ -39,6 +43,36 @@ class TodayScreen extends ConsumerStatefulWidget {
 class _TodayScreenState extends ConsumerState<TodayScreen> {
   var _updatingAction = false;
   var _recordingPrayer = false;
+  final _altarKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusAltarIfRequested();
+  }
+
+  @override
+  void didUpdateWidget(covariant TodayScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusAltar && !oldWidget.focusAltar) {
+      _focusAltarIfRequested();
+    }
+  }
+
+  void _focusAltarIfRequested() {
+    if (!widget.focusAltar) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final altarContext = _altarKey.currentContext;
+      if (altarContext != null) {
+        Scrollable.ensureVisible(
+          altarContext,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0.08,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +80,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final dailyMemory = ref.watch(dailyMemoryProvider);
     final dailyPractices = ref.watch(dailyPracticeStateProvider);
     final goalToday = ref.watch(goalTodaySnapshotProvider);
+    final guidance = ref.watch(todayGuidanceProvider);
     final goalSnapshot = switch (goalToday) {
       AsyncData(:final value) => value,
       _ => null,
@@ -108,6 +143,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   height: showStartGuide ? 86 : 104,
                 ),
               ),
+              guidance.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, _) => const SizedBox.shrink(),
+                data: (value) => showStartGuide
+                    ? const SizedBox.shrink()
+                    : TodayGuidanceCard(
+                        guidance: value,
+                        onOpen: () => context.go(value.route),
+                      ),
+              ),
               const SizedBox(height: AppSpacing.md),
               if (goalSnapshot != null) ...[
                 if (goalSnapshot.sections.isNotEmpty)
@@ -153,12 +198,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         .isNotEmpty)
                   const SizedBox(height: AppSpacing.md),
               ],
-              const AltarTodaySection(),
+              KeyedSubtree(key: _altarKey, child: const AltarTodaySection()),
               SizedBox(height: showStartGuide ? AppSpacing.sm : AppSpacing.md),
               if (showStartGuide)
                 TodayStartGuide(
                   onStartGoal: () => context.push('/welcome/goal'),
-                  onRecordMemory: () => context.go('/record'),
+                  onRecordMemory: () => context.go('/remember/capture'),
                 ),
               if (showLegacyPrayer) ...[
                 if (showStartGuide) const SizedBox(height: AppSpacing.md),
@@ -184,7 +229,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                           alignment: Alignment.centerLeft,
                           child: OutlinedButton(
                             key: const Key('record-something-to-remember'),
-                            onPressed: () => context.go('/record'),
+                            onPressed: () => context.go('/remember/capture'),
                             child: const Text('Record something to remember'),
                           ),
                         )

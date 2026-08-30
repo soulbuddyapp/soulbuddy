@@ -12,8 +12,10 @@ import '../../onboarding/presentation/first_prayer_speech_page.dart';
 import '../../scripture/presentation/scripture_picker_sheet.dart';
 import '../application/goal_starter_content.dart';
 import '../domain/goal.dart';
+import '../domain/goal_action_suggestion.dart';
 import '../domain/goal_onboarding_progress.dart';
 import '../providers/goal_onboarding_providers.dart';
+import 'goal_action_suggestion_panel.dart';
 
 class FirstGoalScreen extends ConsumerStatefulWidget {
   const FirstGoalScreen({super.key});
@@ -149,6 +151,16 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       initialValue: progress.todayAction,
       hintText: _todayActionHint(progress),
       continueLabel: 'Keep this',
+      suggestionRequest: GoalActionSuggestionRequest(
+        starterKey: progress.starterKey!,
+        stopBehaviorKey: progress.stopBehaviorKey,
+        title: progress.title!,
+        situation: progress.currentSituation,
+        agencyChoice: progress.agencyChoice!,
+        locale: Localizations.localeOf(context).toLanguageTag(),
+      ),
+      showSuggestionsByDefault:
+          progress.agencyChoice == GoalAgencyChoice.notSure,
       onContinue: (value) => ref
           .read(goalOnboardingControllerProvider.notifier)
           .setTodayAction(value),
@@ -215,11 +227,11 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
 
     return switch (_situationInput) {
       _SituationInput.write => _GoalTextPage(
-        question: 'What is happening now?',
+        question: 'Why now? What needs to change?',
         initialValue: progress.currentSituation,
         hintText: 'A few words are enough',
         continueLabel: 'Continue',
-        maxLength: 4000,
+        maxLength: 2000,
         onContinue: (value) => ref
             .read(goalOnboardingControllerProvider.notifier)
             .setSituation(situation: value, byVoice: false),
@@ -228,8 +240,8 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
             .setSituation(situation: null, byVoice: false),
       ),
       _SituationInput.speak => FirstPrayerSpeechPage(
-        heading: 'What is happening now?',
-        description: 'Say only what would help you name the situation.',
+        heading: 'Why now? What needs to change?',
+        description: 'Say a few words. You can review them before continuing.',
         continueLabel: 'Continue',
         hintText: 'Your words will appear here',
         fieldKey: const Key('first-goal-spoken-situation'),
@@ -251,7 +263,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         },
       ),
       null => FirstPrayerChoicePage(
-        question: 'What is happening now?',
+        question: 'Why now? What needs to change?',
         choices: const ['Speak', 'Write', 'Not now'],
         onChoose: (choice) {
           if (choice == 'Not now') {
@@ -706,6 +718,8 @@ class _GoalTextPage extends StatefulWidget {
     this.maxLength = 1000,
     this.requireText = false,
     this.supporting,
+    this.suggestionRequest,
+    this.showSuggestionsByDefault = false,
   });
 
   final String question;
@@ -718,6 +732,8 @@ class _GoalTextPage extends StatefulWidget {
   final int maxLength;
   final bool requireText;
   final Widget? supporting;
+  final GoalActionSuggestionRequest? suggestionRequest;
+  final bool showSuggestionsByDefault;
 
   @override
   State<_GoalTextPage> createState() => _GoalTextPageState();
@@ -773,6 +789,19 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(hintText: widget.hintText),
             ),
+            if (widget.suggestionRequest case final request?) ...[
+              const SizedBox(height: AppSpacing.sm),
+              GoalActionSuggestionPanel(
+                request: request,
+                expandedInitially: widget.showSuggestionsByDefault,
+                onChoose: (text) {
+                  _controller.value = TextEditingValue(
+                    text: text,
+                    selection: TextSelection.collapsed(offset: text.length),
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: AppSpacing.md),
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: _controller,

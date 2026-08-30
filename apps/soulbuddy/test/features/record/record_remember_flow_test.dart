@@ -95,7 +95,7 @@ void main() {
 
       expect(repository.lastDraft!.audio, isNotNull);
       expect(repository.lastDraft!.body, isEmpty);
-      expect(find.text('Record saved'), findsOneWidget);
+      expect(find.text('Memory saved'), findsOneWidget);
     },
   );
 
@@ -156,7 +156,9 @@ void main() {
 
     expect(find.byKey(const Key('remember-living-vine')), findsNothing);
     expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
-    expect(find.text('Record something'), findsOneWidget);
+    expect(find.text('We forget quickly'), findsOneWidget);
+    expect(find.byKey(const Key('remember-speak')), findsOneWidget);
+    expect(find.byKey(const Key('remember-write')), findsOneWidget);
   });
 
   testWidgets('empty Remember action fits above shell navigation', (
@@ -194,12 +196,15 @@ void main() {
     await _settle(tester);
 
     expect(
-      tester.getBottomLeft(find.text('Record something')).dy,
+      tester.getBottomLeft(find.byKey(const Key('remember-write'))).dy,
       lessThanOrEqualTo(
         tester.getTopLeft(find.byKey(const Key('test-shell-navigation'))).dy,
       ),
     );
-    expect(find.text('Record something').hitTestable(), findsOneWidget);
+    expect(
+      find.byKey(const Key('remember-write')).hitTestable(),
+      findsOneWidget,
+    );
   });
 
   testWidgets('records an encounter and shows it in Remember immediately', (
@@ -224,9 +229,9 @@ void main() {
     );
     await _settle(tester);
 
-    await tester.tap(find.text('Record').last);
+    await tester.tap(find.text('Remember').last);
     await _settle(tester);
-    await tester.tap(find.byKey(const Key('record-write')));
+    await tester.tap(find.byKey(const Key('remember-write')));
     await _settle(tester);
     await tester.tap(find.text('Encounter'));
     await _settle(tester);
@@ -341,7 +346,7 @@ void main() {
         );
         expect(sensitive.value, isTrue);
       }
-      await tester.tap(find.text('Record').first);
+      await tester.tap(find.text('Remember').first);
       await _settle(tester);
     }
     expect(find.textContaining('Coming'), findsNothing);

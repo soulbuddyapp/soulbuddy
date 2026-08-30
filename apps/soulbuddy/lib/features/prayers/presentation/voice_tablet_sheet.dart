@@ -41,6 +41,7 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
   VoiceTabletAudioAttachment? _fullAttachment;
   VoiceTabletAudioAttachment? _refrainAttachment;
   String? _error;
+  bool _closing = false;
 
   @override
   void initState() {
@@ -54,16 +55,22 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
   @override
   Widget build(BuildContext context) {
     final height = MediaQuery.sizeOf(context).height * 0.94;
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
-        child: SizedBox(
-          height: height,
-          child: Column(
-            children: [
-              _SheetHeader(onClose: _close),
-              Expanded(child: _content()),
-            ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_close());
+      },
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          child: SizedBox(
+            height: height,
+            child: Column(
+              children: [
+                _SheetHeader(onClose: _close),
+                Expanded(child: _content()),
+              ],
+            ),
           ),
         ),
       ),
@@ -184,6 +191,7 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
           refrain: _refrainAttachment,
         ),
       );
+      await _discardSavedTemporaryCopies(store);
       if (mounted) Navigator.pop(context, tablet);
     } catch (_) {
       if (!mounted) return;
@@ -214,8 +222,20 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
     );
   }
 
+  Future<void> _discardSavedTemporaryCopies(AudioAssetStore store) async {
+    for (final draft in [_fullDraft, _refrainDraft]) {
+      if (draft == null) continue;
+      try {
+        await store.discardTemporary(draft.temporaryKey);
+      } catch (_) {
+        // Startup cleanup removes a redundant temporary copy later.
+      }
+    }
+  }
+
   Future<void> _close() async {
-    if (_step == VoiceTabletSheetStep.saving) return;
+    if (_step == VoiceTabletSheetStep.saving || _closing) return;
+    _closing = true;
     final kind = _step == VoiceTabletSheetStep.refrain
         ? VoiceTabletAudioKind.refrain
         : VoiceTabletAudioKind.fullPrayer;
@@ -234,6 +254,9 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
     if (attachment != null) {
       try {
         await store.delete(attachment.committed.storageKey);
+        if (draft != null) {
+          await store.discardTemporary(draft.temporaryKey);
+        }
       } catch (_) {
         // Startup orphan cleanup retries without exposing the private key.
       }
@@ -259,6 +282,9 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
       final store = await ref.read(audioAssetStoreProvider.future);
       try {
         await store.delete(attachment.committed.storageKey);
+        if (_refrainDraft case final previous?) {
+          await store.discardTemporary(previous.temporaryKey);
+        }
       } catch (_) {
         // Startup orphan cleanup retries without exposing the private key.
       }
@@ -273,17 +299,19 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
   }
 
   Future<void> _discardUncommittedDrafts() async {
-    final keys = <String>{
-      if (_fullAttachment == null && _fullDraft != null)
-        _fullDraft!.temporaryKey,
-      if (_refrainAttachment == null && _refrainDraft != null)
-        _refrainDraft!.temporaryKey,
-    };
-    if (keys.isEmpty) return;
     final store = await ref.read(audioAssetStoreProvider.future);
-    for (final key in keys) {
+    for (final attachment in [_fullAttachment, _refrainAttachment]) {
+      if (attachment == null) continue;
       try {
-        await store.discardTemporary(key);
+        await store.delete(attachment.committed.storageKey);
+      } catch (_) {
+        // Startup orphan cleanup retries without exposing the private key.
+      }
+    }
+    for (final draft in [_fullDraft, _refrainDraft]) {
+      if (draft == null) continue;
+      try {
+        await store.discardTemporary(draft.temporaryKey);
       } catch (_) {
         // Startup orphan cleanup retries without exposing the private key.
       }
