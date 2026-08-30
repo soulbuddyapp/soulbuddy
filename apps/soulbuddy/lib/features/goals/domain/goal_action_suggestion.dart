@@ -27,12 +27,36 @@ class GoalActionSuggestionRequest {
     'agency_choice': agencyChoice.wireValue,
     'locale': locale,
   };
+
+  @override
+  bool operator ==(Object other) =>
+      other is GoalActionSuggestionRequest &&
+      other.starterKey == starterKey &&
+      other.stopBehaviorKey == stopBehaviorKey &&
+      other.title == title &&
+      other.situation == situation &&
+      other.agencyChoice == agencyChoice &&
+      other.locale == locale;
+
+  @override
+  int get hashCode => Object.hash(
+    starterKey,
+    stopBehaviorKey,
+    title,
+    situation,
+    agencyChoice,
+    locale,
+  );
 }
 
 class GoalActionSuggestion {
   const GoalActionSuggestion(this.text);
 
   final String text;
+}
+
+class GoalActionSuggestionUnavailable implements Exception {
+  const GoalActionSuggestionUnavailable();
 }
 
 List<GoalActionSuggestion> normalizeGoalActionSuggestions(
