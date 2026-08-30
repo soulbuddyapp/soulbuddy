@@ -214,6 +214,9 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
       final person = widget.existing == null
           ? await repository.create(draft)
           : await repository.update(widget.existing!.id, draft);
+      if (localTime != null) {
+        await ref.read(enablePersonPrayerRemindersProvider)();
+      }
       ref.invalidate(prayerPeopleProvider);
       if (mounted) context.go('/persons/${person.id}');
     } catch (_) {

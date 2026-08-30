@@ -34,6 +34,18 @@ class PowerSyncPersonRepository implements PersonRepository {
       .map((rows) => List.unmodifiable(rows.map(PrayerPerson.fromRow)));
 
   @override
+  Stream<List<PrayerPerson>> watchForReminders() => database
+      .watch(
+        '''
+        SELECT * FROM prayer_people
+        WHERE owner_id = ?
+        ORDER BY updated_at ASC, id ASC
+        ''',
+        parameters: [ownerId],
+      )
+      .map((rows) => List.unmodifiable(rows.map(PrayerPerson.fromRow)));
+
+  @override
   Stream<PrayerPerson?> watch(String id) => database
       .watch(
         'SELECT * FROM prayer_people WHERE id = ? AND owner_id = ? LIMIT 1',

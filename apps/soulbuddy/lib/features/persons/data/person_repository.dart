@@ -3,6 +3,7 @@ import '../domain/prayer_person.dart';
 
 abstract interface class PersonRepository {
   Stream<List<PrayerPerson>> watchActive();
+  Stream<List<PrayerPerson>> watchForReminders();
   Stream<PrayerPerson?> watch(String id);
   Stream<List<DuePersonPrayer>> watchDue(DateTime localDate);
   Future<PrayerPerson> create(PrayerPersonDraft draft);
