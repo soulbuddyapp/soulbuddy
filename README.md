@@ -57,7 +57,7 @@ SQLite is used by default for local development and tests. Production database c
 
 Remote sync also requires `POWERSYNC_JWT_AUDIENCE`, `POWERSYNC_JWT_KID`, and a strong base64url-encoded `POWERSYNC_JWT_SECRET` matching the PowerSync client-auth key. The issuer defaults to `APP_URL`. Credentials expire after 600 seconds; configured lifetimes must remain between 60 and 3,600 seconds.
 
-No DeepSeek or other LLM configuration is required. Prayer-draft routes, provider configuration, prompts, and client generation runtime have been retired. Keep narration and infrastructure credentials only in ignored deployment environment files; never commit secrets or place them in Flutter build arguments.
+DeepSeek is optional for ranking the server-owned, reviewed catalogue of Goal actions. Configure `DEEPSEEK_API_KEY` only in the ignored Laravel environment; provider output is restricted to exact catalogue entries and the app falls back to the same reviewed actions when the provider is unavailable. DeepSeek does not author prayers or spiritual copy. Prayer-draft routes and client prayer-generation runtime remain retired. Never commit provider or infrastructure secrets or place them in Flutter build arguments.
 
 ## Verify
 

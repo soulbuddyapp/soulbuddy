@@ -31,8 +31,11 @@ Production choices:
 
 - `DB_CONNECTION=mariadb` with `DB_SOCKET=/run/mysqld/mysqld.sock`
 - file cache and sessions; synchronous jobs until a durable worker is needed
-- no generative prayer provider or LLM credential; new spiritual copy comes
-  from Scripture, reviewed editorial content, or the user's own words
+- no generative prayer provider; new spiritual copy comes from Scripture,
+  reviewed editorial content, or the user's own words
+- optional DeepSeek Goal guidance can only rank exact actions from the
+  server-owned reviewed catalogue; the app falls back locally when it is
+  unavailable, and its credential remains in the protected environment
 - Deepgram Aura 2 remains available only for consented, server-loaded prayer
   narration with model-improvement opt-out; encrypted audio remains in private
   Laravel storage
