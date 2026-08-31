@@ -25,6 +25,11 @@ it('provides MariaDB integrity implementations for every prayer migration', func
             'voice_tablets_shape',
             'altar_rituals_shape',
         ],
+        '2026_08_31_000000_create_sacred_hour_tables.php' => [
+            'createMariaDbIntegrityChecks',
+            'sacred_hours_shape_{$suffix}',
+            'NEW.duration_minutes = 60',
+        ],
     ];
 
     foreach ($migrations as $filename => $needles) {

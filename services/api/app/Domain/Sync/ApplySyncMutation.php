@@ -39,6 +39,8 @@ class ApplySyncMutation
         'prayer_people',
         'person_prayer_occurrences',
         'encounter_person_links',
+        'sacred_hours',
+        'sacred_hour_occurrences',
     ];
 
     public function apply(User $user, array $operations): array
@@ -106,6 +108,8 @@ class ApplySyncMutation
             ->filter(fn (array $operation): bool => ApplyVoiceTabletAltarMutation::supports($operation['table']));
         $personPrayerOperations = $pending
             ->filter(fn (array $operation): bool => ApplyPersonPrayerMutation::supports($operation['table']));
+        $sacredHourOperations = $pending
+            ->filter(fn (array $operation): bool => ApplySacredHourMutation::supports($operation['table']));
         $pendingEncounterIds = collect($encounterOperations)
             ->where('table', 'encounters')
             ->where('type', 'put')
@@ -146,6 +150,22 @@ class ApplySyncMutation
             return $this->result($duplicates, $pending->count(), $duplicates, $personPrayerError);
         }
 
+        $sacredHourError = app(ApplySacredHourMutation::class)->validate(
+            $user,
+            $sacredHourOperations,
+            $personalPrayerOperations
+                ->where('table', 'personal_prayers')
+                ->where('type', 'put')
+                ->pluck('id'),
+            $personPrayerOperations
+                ->where('table', 'prayer_people')
+                ->where('type', 'put')
+                ->pluck('id'),
+        );
+        if ($sacredHourError !== null) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $sacredHourError);
+        }
+
         foreach ([$encounterOperations, $prayerOperations] as $domainOperations) {
             $validationError = $this->validateData($domainOperations);
             if ($validationError !== null) {
@@ -154,7 +174,7 @@ class ApplySyncMutation
         }
 
         try {
-            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations, $practiceOperations, $voiceTabletAltarOperations, $personPrayerOperations): ?string {
+            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations, $practiceOperations, $voiceTabletAltarOperations, $personPrayerOperations, $sacredHourOperations): ?string {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $prayerContexts = [];
                 if ($prayerOperations !== []) {
@@ -203,7 +223,8 @@ class ApplySyncMutation
                     if (! ApplyPersonalPrayerMutation::supports($operation['table'])
                         && ! ApplyPrayerPracticeMutation::supports($operation['table'])
                         && ! ApplyVoiceTabletAltarMutation::supports($operation['table'])
-                        && ! ApplyPersonPrayerMutation::supports($operation['table'])) {
+                        && ! ApplyPersonPrayerMutation::supports($operation['table'])
+                        && ! ApplySacredHourMutation::supports($operation['table'])) {
                         match ($operation['table']) {
                             'encounters' => $this->applyEncounter($user, $operation),
                             'encounter_revisions' => $this->applyRevision($user, $operation),
@@ -226,6 +247,12 @@ class ApplySyncMutation
                     ->apply($user, $personPrayerOperations);
                 if ($personPrayerError !== null) {
                     return $personPrayerError;
+                }
+
+                $sacredHourError = app(ApplySacredHourMutation::class)
+                    ->apply($user, $sacredHourOperations);
+                if ($sacredHourError !== null) {
+                    return $sacredHourError;
                 }
 
                 foreach ($pending as $operation) {
