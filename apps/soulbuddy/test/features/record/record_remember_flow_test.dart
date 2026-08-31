@@ -352,6 +352,34 @@ void main() {
     expect(find.textContaining('Coming'), findsNothing);
   });
 
+  testWidgets('Sacred Hour remembrance keeps a careful opening prompt', (
+    tester,
+  ) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: RecordScreen(
+              startMode: RecordStartMode.write,
+              initialBodyPrompt: 'What may God be teaching me here?',
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text('Encounter'));
+    await _settle(tester);
+
+    expect(find.text('What may God be teaching me here?'), findsOneWidget);
+    expect(find.textContaining('God told me'), findsNothing);
+  });
+
   testWidgets('Remember filters records and masks sensitive excerpts', (
     tester,
   ) async {

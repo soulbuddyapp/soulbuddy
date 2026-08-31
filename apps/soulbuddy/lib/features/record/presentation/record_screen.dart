@@ -30,10 +30,12 @@ class RecordScreen extends ConsumerStatefulWidget {
     super.key,
     this.startMode = RecordStartMode.choices,
     this.initialPersonIds = const [],
+    this.initialBodyPrompt,
   });
 
   final RecordStartMode startMode;
   final List<String> initialPersonIds;
+  final String? initialBodyPrompt;
 
   @override
   ConsumerState<RecordScreen> createState() => _RecordScreenState();
@@ -73,6 +75,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
           audio: _audioDraft,
           people: people,
           initialPersonIds: widget.initialPersonIds,
+          bodyLabel: widget.initialBodyPrompt,
           onCancel: () => _cancelForm(audioController?.value),
           onSave: (draft) => _saveEncounter(value, draft),
         ),
