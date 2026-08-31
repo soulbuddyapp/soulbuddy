@@ -384,6 +384,74 @@ const appSchema = Schema([
     ],
   ),
   Table(
+    'sacred_hours',
+    [
+      Column.text('owner_id'),
+      Column.text('purpose_key'),
+      Column.text('name'),
+      Column.text('local_time'),
+      Column.text('timezone'),
+      Column.integer('duration_minutes'),
+      Column.integer('prayer_minutes'),
+      Column.integer('enabled'),
+      Column.text('sound_key'),
+      Column.text('prayer_type'),
+      Column.text('prayer_id'),
+      Column.text('person_id'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+      Column.text('archived_at'),
+    ],
+    indexes: [
+      Index('sacred_hours_owner_time', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('local_time'),
+        IndexedColumn('archived_at'),
+      ]),
+    ],
+  ),
+  Table(
+    'sacred_hour_occurrences',
+    [
+      Column.text('owner_id'),
+      Column.text('sacred_hour_id'),
+      Column.text('due_at'),
+      Column.text('local_date'),
+      Column.text('status'),
+      Column.text('prayer_session_id'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('sacred_hour_occurrences_owner_due', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('due_at'),
+      ]),
+    ],
+  ),
+  Table.localOnly(
+    'sacred_hour_devices',
+    [
+      Column.text('sacred_hour_id'),
+      Column.text('device_id'),
+      Column.integer('enabled_on_device'),
+      Column.text('reminder_mode'),
+      Column.text('next_occurrence_at'),
+      Column.integer('platform_notification_id'),
+      Column.text('scheduled_timezone'),
+      Column.text('snoozed_until'),
+      Column.text('dismissed_occurrence_key'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('sacred_hour_devices_due', [
+        IndexedColumn('device_id'),
+        IndexedColumn('enabled_on_device'),
+        IndexedColumn('next_occurrence_at'),
+      ]),
+    ],
+  ),
+  Table(
     'prayer_reminders',
     [
       Column.text('owner_id'),
