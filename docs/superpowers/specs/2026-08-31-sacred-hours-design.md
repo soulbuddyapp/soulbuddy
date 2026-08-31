@@ -88,6 +88,8 @@ Ship a small offline palette of original SoulBuddy sounds. Every choice has a Pl
 
 The four SoulBuddy tones are generated from deterministic synthesis recipes committed with the project and dedicated under CC0-1.0, following the existing feedback-tone asset process. Do not reuse Elbiblio sound files whose provenance manifest still contains unresolved source placeholders.
 
+The generator may render additional premium candidates during implementation. Ship an additional tone only when phone-speaker and headphone review finds that it is clearly beautiful, calm, audible, and functionally distinct from the core four. Keep the visible palette to at most eight choices, including Device sound and Silent, so sound selection remains simple.
+
 Sound selection is separate from alert precision. A louder or repeating wake behavior is never implied by selecting a tone. Android notification channels are versioned by stable sound key because channel sound becomes system-controlled after creation. iOS custom sounds are bundled in a supported local notification format. Web uses the selected sound only while SoulBuddy is open and otherwise provides an ordinary browser notification.
 
 ## Reminder behavior
