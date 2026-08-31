@@ -219,6 +219,12 @@ class _SacredHoursSettingsHost extends ConsumerWidget {
           player: player,
           reminderMode:
               delivery?.reminderMode ?? SacredHourReminderMode.ordinary,
+          onRequestPrecise: () async {
+            final coordinator = await ref.read(
+              sacredHourReminderCoordinatorProvider.future,
+            );
+            return coordinator.requestPreciseReminders();
+          },
           onSave: (value) async {
             final repository = await ref.read(
               sacredHourRepositoryProvider.future,
@@ -251,12 +257,6 @@ class _SacredHoursSettingsHost extends ConsumerWidget {
                   dismissedOccurrenceKey: updated.dismissedOccurrenceKey,
                 ),
               );
-              if (value.reminderMode == SacredHourReminderMode.precise) {
-                final coordinator = await ref.read(
-                  sacredHourReminderCoordinatorProvider.future,
-                );
-                await coordinator.requestPreciseReminders();
-              }
             }
             if (sheetContext.mounted) Navigator.pop(sheetContext);
           },

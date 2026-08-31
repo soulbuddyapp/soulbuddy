@@ -78,6 +78,7 @@ class _SacredHourSessionScreenState
 
   Future<void> _recordPrayer(SacredHour hour) async {
     final prayer = hour.prayer;
+    String? prayerSessionId;
     if (prayer != null) {
       String? revisionId;
       if (prayer.source == PrayerSource.personal) {
@@ -86,7 +87,7 @@ class _SacredHourSessionScreenState
             .then((repository) => repository.watch(prayer.id).first);
         revisionId = personal?.currentRevisionId;
       }
-      await ref
+      final session = await ref
           .read(prayerPracticeRepositoryProvider.future)
           .then(
             (repository) => repository.recordSession(
@@ -96,6 +97,7 @@ class _SacredHourSessionScreenState
               idempotencyKey: widget.occurrenceKey,
             ),
           );
+      prayerSessionId = session.id;
     }
     if (hour.personId case final personId?) {
       await ref
@@ -113,6 +115,7 @@ class _SacredHourSessionScreenState
             hour.id,
             dueAt,
             SacredHourOccurrenceStatus.completed,
+            prayerSessionId: prayerSessionId,
           ),
         );
   }
@@ -271,7 +274,7 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
             child: ChoiceChip(
               label: Align(
                 alignment: Alignment.centerLeft,
-                child: Text(_workPrompts[index]),
+                child: Text(_workPrompts[index], maxLines: 2, softWrap: true),
               ),
               selected: _selectedPrompt == index,
               onSelected: (_) => setState(() => _selectedPrompt = index),

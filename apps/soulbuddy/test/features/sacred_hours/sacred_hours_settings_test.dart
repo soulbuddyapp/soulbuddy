@@ -93,6 +93,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved?.prayerMinutes, 30);
   });
+
+  testWidgets('precise timing shows ordinary fallback and Retry when denied', (
+    tester,
+  ) async {
+    var requests = 0;
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: SacredHourEditorSheet(
+            timezone: 'Africa/Lagos',
+            existingHours: const [],
+            prayers: const [],
+            people: const [],
+            soundsEnabled: true,
+            player: _Player(),
+            reminderMode: SacredHourReminderMode.ordinary,
+            onRequestPrecise: () async {
+              requests += 1;
+              return false;
+            },
+            onSave: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('More precise timing'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('More precise timing'));
+    await tester.pump();
+    expect(requests, 1);
+    expect(
+      find.text('Using an ordinary reminder until access is allowed.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    expect(requests, 2);
+  });
 }
 
 SacredHour _hour() => SacredHour(

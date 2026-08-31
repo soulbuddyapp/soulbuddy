@@ -73,8 +73,21 @@ bool _isActive(SacredHour hour, DateTime nowUtc) {
     hour.localTime.hour,
     hour.localTime.minute,
   );
-  final end = start.add(Duration(minutes: hour.durationMinutes));
-  return !localNow.isBefore(start) && localNow.isBefore(end);
+  if (_isWithinHour(localNow, start, hour.durationMinutes)) return true;
+  final previousStart = timezone.TZDateTime(
+    location,
+    localNow.year,
+    localNow.month,
+    localNow.day - 1,
+    hour.localTime.hour,
+    hour.localTime.minute,
+  );
+  return _isWithinHour(localNow, previousStart, hour.durationMinutes);
+}
+
+bool _isWithinHour(DateTime now, DateTime start, int durationMinutes) {
+  final end = start.add(Duration(minutes: durationMinutes));
+  return !now.isBefore(start) && now.isBefore(end);
 }
 
 String _formatRange(SacredHour hour) {

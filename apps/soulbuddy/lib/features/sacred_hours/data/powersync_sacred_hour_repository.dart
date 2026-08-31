@@ -315,10 +315,14 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
   Future<void> markOccurrence(
     String id,
     DateTime dueAt,
-    SacredHourOccurrenceStatus status,
-  ) {
+    SacredHourOccurrenceStatus status, {
+    String? prayerSessionId,
+  }) {
     return database.writeTransaction((transaction) async {
       final hour = SacredHour.fromRow(await _requireHour(transaction, id));
+      final sessionId = prayerSessionId == null
+          ? null
+          : _identifier(prayerSessionId, 'prayerSessionId');
       final dueUtc = dueAt.toUtc();
       final dueWire = dueUtc.toIso8601String();
       final occurrenceId = _uuid.v5(
@@ -336,7 +340,7 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
           INSERT INTO sacred_hour_occurrences(
             id, owner_id, sacred_hour_id, due_at, local_date, status,
             prayer_session_id, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ''',
           [
             occurrenceId,
@@ -345,6 +349,7 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
             dueWire,
             _localDate(dueUtc, hour.timezone),
             status.wireValue,
+            sessionId,
             nowWire,
             nowWire,
           ],
@@ -352,10 +357,12 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
       } else {
         await transaction.execute(
           '''
-          UPDATE sacred_hour_occurrences SET status = ?, updated_at = ?
+          UPDATE sacred_hour_occurrences
+          SET status = ?, prayer_session_id = COALESCE(?, prayer_session_id),
+              updated_at = ?
           WHERE id = ? AND owner_id = ? AND sacred_hour_id = ?
           ''',
-          [status.wireValue, nowWire, occurrenceId, ownerId, id],
+          [status.wireValue, sessionId, nowWire, occurrenceId, ownerId, id],
         );
       }
     });
@@ -538,11 +545,26 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
         hour.localTime.minute,
       );
       final todayEnd = todayStart.add(Duration(minutes: hour.durationMinutes));
-      final current =
+      final previousStart = timezone.TZDateTime(
+        location,
+        localNow.year,
+        localNow.month,
+        localNow.day - 1,
+        hour.localTime.hour,
+        hour.localTime.minute,
+      );
+      final previousEnd = previousStart.add(
+        Duration(minutes: hour.durationMinutes),
+      );
+      final currentToday =
           !nowUtc.isBefore(todayStart.toUtc()) &&
           nowUtc.isBefore(todayEnd.toUtc());
+      final currentPrevious =
+          !nowUtc.isBefore(previousStart.toUtc()) &&
+          nowUtc.isBefore(previousEnd.toUtc());
+      final current = currentToday || currentPrevious;
       final nextStart = current || todayStart.toUtc().isAfter(nowUtc)
-          ? todayStart.toUtc()
+          ? (currentPrevious ? previousStart.toUtc() : todayStart.toUtc())
           : timezone.TZDateTime(
               location,
               localNow.year,

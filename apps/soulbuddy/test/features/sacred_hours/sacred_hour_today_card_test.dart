@@ -57,14 +57,33 @@ void main() {
     );
     expect(find.text('Continue'), findsOneWidget);
   });
+
+  testWidgets('keeps a Sacred Hour active when it crosses midnight', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: SacredHourTodayCard(
+            hour: _hour(localTime: PrayerLocalTime(hour: 23, minute: 30)),
+            nowUtc: DateTime.utc(2026, 8, 31, 23, 15),
+            onOpen: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Begin'), findsOneWidget);
+  });
 }
 
-SacredHour _hour() => SacredHour(
+SacredHour _hour({PrayerLocalTime? localTime}) => SacredHour(
   id: 'hour-1',
   ownerId: 'owner',
   purpose: SacredHourPurpose.morning,
   name: 'Morning Sacred Hour',
-  localTime: PrayerLocalTime(hour: 6, minute: 0),
+  localTime: localTime ?? PrayerLocalTime(hour: 6, minute: 0),
   timezone: 'Africa/Lagos',
   durationMinutes: 60,
   prayerMinutes: 15,

@@ -145,14 +145,14 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         title:
             notification.title ??
             (sacredHour
-                ? 'Sacred Hour'
+                ? 'Your Sacred Hour'
                 : altar
                 ? 'At your Altar'
                 : 'Prayer reminder'),
         body:
             notification.body ??
             (sacredHour
-                ? 'A quiet hour to pray and bring your work before God'
+                ? 'Begin with prayer. Bring this hour before God.'
                 : altar
                 ? 'Time set aside to pray and remember'
                 : 'Time set aside for prayer'),

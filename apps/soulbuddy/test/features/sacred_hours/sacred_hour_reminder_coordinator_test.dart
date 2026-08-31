@@ -239,8 +239,9 @@ class _Repository implements SacredHourRepository {
   Future<void> markOccurrence(
     String id,
     DateTime dueAt,
-    SacredHourOccurrenceStatus status,
-  ) async {
+    SacredHourOccurrenceStatus status, {
+    String? prayerSessionId,
+  }) async {
     occurrences.add(status);
   }
 

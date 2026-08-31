@@ -14,6 +14,7 @@ abstract interface class SacredHourRepository {
   Future<void> markOccurrence(
     String id,
     DateTime dueAt,
-    SacredHourOccurrenceStatus status,
-  );
+    SacredHourOccurrenceStatus status, {
+    String? prayerSessionId,
+  });
 }

@@ -83,6 +83,23 @@ void main() {
     expect(next?.purpose, SacredHourPurpose.evening);
   });
 
+  test('finds the current hour when it crosses midnight', () async {
+    await repository.ensureDefaults(timezone: 'Africa/Lagos');
+    final lateHour = await repository.save(
+      SacredHourDraft(
+        name: 'Late watch',
+        localTime: PrayerLocalTime(hour: 23, minute: 30),
+        timezone: 'Africa/Lagos',
+      ),
+    );
+
+    final current = await repository
+        .watchCurrentOrNext(DateTime.utc(2026, 8, 31, 23, 15))
+        .first;
+
+    expect(current?.id, lateHour.id);
+  });
+
   test('validates prayer and Person ownership before saving links', () async {
     await _seedLibraryPrayer(database);
     await _seedPerson(database, ownerId: ownerId);
@@ -156,6 +173,7 @@ void main() {
       hour.id,
       dueAt,
       SacredHourOccurrenceStatus.completed,
+      prayerSessionId: 'prayer-session-1',
     );
 
     final rows = await database.powersync.getAll(
@@ -164,6 +182,7 @@ void main() {
     expect(rows, hasLength(1));
     expect(rows.single['status'], 'completed');
     expect(rows.single['local_date'], '2026-08-31');
+    expect(rows.single['prayer_session_id'], 'prayer-session-1');
   });
 
   test('device delivery changes never enter the sync CRUD queue', () async {

@@ -39,6 +39,7 @@ class SacredHourEditorSheet extends StatefulWidget {
     required this.player,
     required this.reminderMode,
     required this.onSave,
+    this.onRequestPrecise,
     this.hour,
     super.key,
   });
@@ -52,6 +53,7 @@ class SacredHourEditorSheet extends StatefulWidget {
   final SacredHourSoundPlayer player;
   final SacredHourReminderMode reminderMode;
   final Future<void> Function(SacredHourEditorValue value) onSave;
+  final Future<bool> Function()? onRequestPrecise;
 
   @override
   State<SacredHourEditorSheet> createState() => _SacredHourEditorSheetState();
@@ -67,6 +69,8 @@ class _SacredHourEditorSheetState extends State<SacredHourEditorSheet> {
   String? _personId;
   bool _confirmOverlap = false;
   bool _saving = false;
+  bool _requestingPrecise = false;
+  bool? _preciseAllowed;
 
   @override
   void initState() {
@@ -139,6 +143,18 @@ class _SacredHourEditorSheetState extends State<SacredHourEditorSheet> {
       if (circularDistance < 60) return true;
     }
     return false;
+  }
+
+  Future<void> _requestPrecise() async {
+    final request = widget.onRequestPrecise;
+    if (request == null || _requestingPrecise) return;
+    setState(() => _requestingPrecise = true);
+    final allowed = await request();
+    if (!mounted) return;
+    setState(() {
+      _requestingPrecise = false;
+      _preciseAllowed = allowed;
+    });
   }
 
   @override
@@ -242,7 +258,11 @@ class _SacredHourEditorSheetState extends State<SacredHourEditorSheet> {
           RadioGroup<SacredHourReminderMode>(
             groupValue: _reminderMode,
             onChanged: (value) {
-              if (value != null) setState(() => _reminderMode = value);
+              if (value == null) return;
+              setState(() => _reminderMode = value);
+              if (value == SacredHourReminderMode.precise) {
+                _requestPrecise();
+              }
             },
             child: const Column(
               children: [
@@ -261,6 +281,21 @@ class _SacredHourEditorSheetState extends State<SacredHourEditorSheet> {
               ],
             ),
           ),
+          if (_reminderMode == SacredHourReminderMode.precise &&
+              _preciseAllowed == false)
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Using an ordinary reminder until access is allowed.',
+                  ),
+                ),
+                TextButton(
+                  onPressed: _requestingPrecise ? null : _requestPrecise,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           if (_confirmOverlap) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(

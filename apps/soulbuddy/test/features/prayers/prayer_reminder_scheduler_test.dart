@@ -126,11 +126,8 @@ void main() {
       );
 
       final gentle = client.requests[0];
-      expect(gentle.title, 'Sacred Hour');
-      expect(
-        gentle.body,
-        'A quiet hour to pray and bring your work before God',
-      );
+      expect(gentle.title, 'Your Sacred Hour');
+      expect(gentle.body, 'Begin with prayer. Bring this hour before God.');
       expect(gentle.payload, isNot(contains('prayer')));
       expect(
         gentle.scheduleMode,

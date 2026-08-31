@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/rendering.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/sacred_hours/application/sacred_hour_session_controller.dart';
@@ -69,6 +70,35 @@ void main() {
     expect(find.textContaining('streak'), findsNothing);
     await tester.tap(find.text('Speak'));
     expect(remembranceMode, 'speak');
+  });
+
+  testWidgets('wraps long work prompts on a phone-width screen', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = SacredHourSessionController(prayerMinutes: 5)
+      ..continueToWork();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SacredHourSessionView(
+          hour: _hour(),
+          controller: controller,
+          onRecordPrayer: () async {},
+          onRemember: (_) {},
+        ),
+      ),
+    );
+
+    const prompt = 'What needs patience, courage, honesty, or care?';
+    final paragraph = tester.renderObject<RenderParagraph>(find.text(prompt));
+    final boxes = paragraph.getBoxesForSelection(
+      const TextSelection(baseOffset: 0, extentOffset: prompt.length),
+    );
+    expect(boxes.map((box) => box.top.round()).toSet().length, greaterThan(1));
+    expect(tester.takeException(), isNull);
   });
 }
 

@@ -209,8 +209,9 @@ class _MemorySacredHourRepository implements SacredHourRepository {
   Future<void> markOccurrence(
     String id,
     DateTime dueAt,
-    SacredHourOccurrenceStatus status,
-  ) async {}
+    SacredHourOccurrenceStatus status, {
+    String? prayerSessionId,
+  }) async {}
   @override
   Future<void> setEnabled(String id, bool enabled) async {}
   @override
