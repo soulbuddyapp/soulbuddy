@@ -4,7 +4,7 @@ import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/onboarding/presentation/onboarding_screen.dart';
 
 void main() {
-  testWidgets('guides a new person through the three SoulBuddy scenes', (
+  testWidgets('guides a new person into a simple Sacred Hours setup', (
     tester,
   ) async {
     var beganWithGoal = false;
@@ -32,9 +32,14 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(find.text('Walk it today'), findsOneWidget);
-    expect(find.text('Begin'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
 
-    await tester.tap(find.text('Begin'));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Set apart an hour'), findsOneWidget);
+    expect(find.text('Keep these hours'), findsOneWidget);
+
+    await tester.tap(find.text('Keep these hours'));
     await tester.pumpAndSettle();
     expect(beganWithGoal, isTrue);
     expect(skipped, isFalse);

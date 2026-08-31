@@ -10,12 +10,14 @@ import 'package:timezone/timezone.dart' as timezone;
 import 'prayer_reminder_scheduler.dart';
 
 const _prayedActionId = 'PRAYED';
+const _beginActionId = 'BEGIN';
 const _snoozeActionId = 'SNOOZE_10';
 const _dismissActionId = 'DISMISS';
 const _darwinCategoryId = 'PRAYER_REMINDER';
 const _darwinAltarCategoryId = 'ALTAR_REMINDER';
+const _darwinSacredHourCategoryId = 'SACRED_HOUR_REMINDER';
 
-enum NativePrayerScheduleMode { inexactAllowWhileIdle }
+enum NativePrayerScheduleMode { inexactAllowWhileIdle, exactAllowWhileIdle }
 
 class NativeNotificationActionData {
   const NativeNotificationActionData({
@@ -38,9 +40,11 @@ class NativeNotificationRequest {
     required this.payload,
     required this.scheduleMode,
     required this.startsAudio,
+    required this.playSound,
     required this.actions,
     this.recurrence = ReminderNotificationRecurrence.once,
     this.timeZoneName,
+    this.soundKey,
   });
 
   final int platformNotificationId;
@@ -50,6 +54,8 @@ class NativeNotificationRequest {
   final String payload;
   final NativePrayerScheduleMode scheduleMode;
   final bool startsAudio;
+  final bool playSound;
+  final String? soundKey;
   final List<NativeNotificationActionData> actions;
   final ReminderNotificationRecurrence recurrence;
   final String? timeZoneName;
@@ -130,15 +136,24 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
   @override
   Future<void> schedule(PrayerScheduledNotification notification) {
     final altar = notification.kind == ReminderNotificationKind.altar;
+    final sacredHour = notification.kind == ReminderNotificationKind.sacredHour;
+    final sound = _notificationSound(notification.soundKey);
     return _client.schedule(
       NativeNotificationRequest(
         platformNotificationId: notification.platformNotificationId,
         scheduledAtUtc: notification.scheduledAtUtc,
         title:
-            notification.title ?? (altar ? 'At your Altar' : 'Prayer reminder'),
+            notification.title ??
+            (sacredHour
+                ? 'Your Sacred Hour'
+                : altar
+                ? 'At your Altar'
+                : 'Prayer reminder'),
         body:
             notification.body ??
-            (altar
+            (sacredHour
+                ? 'Begin with prayer. Bring this hour before God.'
+                : altar
                 ? 'Time set aside to pray and remember'
                 : 'Time set aside for prayer'),
         payload: jsonEncode({
@@ -146,9 +161,31 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
           'occurrence_key': notification.occurrenceKey,
           'kind': notification.kind.name,
         }),
-        scheduleMode: NativePrayerScheduleMode.inexactAllowWhileIdle,
+        scheduleMode: notification.precision == ReminderSchedulePrecision.exact
+            ? NativePrayerScheduleMode.exactAllowWhileIdle
+            : NativePrayerScheduleMode.inexactAllowWhileIdle,
         startsAudio: false,
-        actions: altar
+        playSound: sound.playSound,
+        soundKey: sound.soundKey,
+        actions: sacredHour
+            ? const [
+                NativeNotificationActionData(
+                  id: _beginActionId,
+                  label: 'Begin',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _snoozeActionId,
+                  label: 'In 10 minutes',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _dismissActionId,
+                  label: 'Not now',
+                  showsUserInterface: true,
+                ),
+              ]
+            : altar
             ? const []
             : notification.kind == ReminderNotificationKind.person
             ? const [
@@ -221,6 +258,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
       action: switch (response.actionId) {
         null || '' => PrayerReminderAction.open,
         _prayedActionId => PrayerReminderAction.prayed,
+        _beginActionId => PrayerReminderAction.begin,
         _snoozeActionId => PrayerReminderAction.snoozeTenMinutes,
         _dismissActionId => PrayerReminderAction.dismiss,
         _ => throw const FormatException('Unknown prayer reminder action.'),
@@ -230,6 +268,19 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   bool _isSafeIdentifier(Object? value) =>
       value is String && value.isNotEmpty && value.length <= 160;
+
+  ({bool playSound, String? soundKey}) _notificationSound(String? value) {
+    if (value == null || value == 'device') {
+      return (playSound: true, soundKey: null);
+    }
+    if (value == 'silent') {
+      return (playSound: false, soundKey: null);
+    }
+    if (!RegExp(r'^[a-z][a-z0-9_]{0,79}$').hasMatch(value)) {
+      throw ArgumentError.value(value, 'soundKey');
+    }
+    return (playSound: true, soundKey: value);
+  }
 }
 
 class FlutterLocalNotificationsPrayerClient
@@ -276,6 +327,26 @@ class FlutterLocalNotificationsPrayerClient
             ],
           ),
           DarwinNotificationCategory(_darwinAltarCategoryId),
+          DarwinNotificationCategory(
+            _darwinSacredHourCategoryId,
+            actions: [
+              DarwinNotificationAction.plain(
+                _beginActionId,
+                'Begin',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                _snoozeActionId,
+                'In 10 minutes',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+              DarwinNotificationAction.plain(
+                _dismissActionId,
+                'Not now',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -368,20 +439,36 @@ class FlutterLocalNotificationsPrayerClient
           ),
         )
         .toList(growable: false);
+    final sacredHour = request.actions.any(
+      (action) => action.id == _beginActionId,
+    );
+    final channelSuffix = request.playSound
+        ? request.soundKey ?? 'device'
+        : 'silent';
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        'prayer_reminders',
-        'Prayer reminders',
-        channelDescription: 'Private reminders to pray',
+        sacredHour ? 'sacred_hours_$channelSuffix' : 'prayer_reminders',
+        sacredHour ? 'Sacred Hour reminders' : 'Prayer reminders',
+        channelDescription: sacredHour
+            ? 'Private invitations into a Sacred Hour'
+            : 'Private reminders to pray',
         importance: Importance.high,
         priority: Priority.high,
         visibility: NotificationVisibility.private,
         actions: androidActions,
+        playSound: request.playSound,
+        sound: request.soundKey == null
+            ? null
+            : RawResourceAndroidNotificationSound(request.soundKey!),
       ),
       iOS: DarwinNotificationDetails(
-        categoryIdentifier: request.actions.isEmpty
+        categoryIdentifier: sacredHour
+            ? _darwinSacredHourCategoryId
+            : request.actions.isEmpty
             ? _darwinAltarCategoryId
             : _darwinCategoryId,
+        presentSound: request.playSound,
+        sound: request.soundKey == null ? null : '${request.soundKey}.wav',
       ),
     );
     await _plugin.zonedSchedule(
@@ -395,7 +482,10 @@ class FlutterLocalNotificationsPrayerClient
             : timezone.getLocation(request.timeZoneName!),
       ),
       notificationDetails: details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode:
+          request.scheduleMode == NativePrayerScheduleMode.exactAllowWhileIdle
+          ? AndroidScheduleMode.exactAllowWhileIdle
+          : AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: switch (request.recurrence) {
         ReminderNotificationRecurrence.once => null,
         ReminderNotificationRecurrence.daily => DateTimeComponents.time,

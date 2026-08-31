@@ -14,6 +14,9 @@ import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.d
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
+import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
+import 'package:soulbuddy/features/sacred_hours/providers/sacred_hour_providers.dart';
+import 'package:soulbuddy/features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
 
 import '../helpers/in_memory_encounter_repository.dart';
 import '../helpers/in_memory_prayer_repository.dart';
@@ -102,7 +105,84 @@ void main() {
     expect(find.text('Saved prayer'), findsOneWidget);
     expect(find.text('Evening prayer'), findsOneWidget);
   });
+
+  testWidgets('opens a Sacred Hour session from its stable route', (
+    tester,
+  ) async {
+    appRouter.go(
+      '/sacred-hours/hour-1?occurrence='
+      'hour-1%402026-08-31T05%3A00%3A00.000Z',
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
+          sacredHourProvider(
+            'hour-1',
+          ).overrideWith((ref) => Stream.value(_sacredHour())),
+        ],
+        child: const SoulBuddyApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Morning Sacred Hour'), findsOneWidget);
+    expect(find.text('Begin with prayer'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('Sacred Hour notification action opens its occurrence', (
+    tester,
+  ) async {
+    final events = StreamController<SacredHourOpened>();
+    addTearDown(events.close);
+    appRouter.go('/today');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
+          sacredHourReminderEventsProvider.overrideWith((ref) => events.stream),
+          sacredHourProvider(
+            'hour-1',
+          ).overrideWith((ref) => Stream.value(_sacredHour())),
+          currentOrNextSacredHourProvider.overrideWith(
+            (ref) => Stream.value(null),
+          ),
+        ],
+        child: const SoulBuddyApp(),
+      ),
+    );
+    await tester.pump();
+    events.add(
+      const SacredHourOpened(
+        hourId: 'hour-1',
+        occurrenceKey: 'hour-1@2026-08-31T05:00:00.000Z',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Morning Sacred Hour'), findsOneWidget);
+    expect(find.text('Begin with prayer'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
+
+SacredHour _sacredHour() => SacredHour(
+  id: 'hour-1',
+  ownerId: 'owner-1',
+  purpose: SacredHourPurpose.morning,
+  name: 'Morning Sacred Hour',
+  localTime: PrayerLocalTime(hour: 6, minute: 0),
+  timezone: 'Africa/Lagos',
+  durationMinutes: 60,
+  prayerMinutes: 15,
+  enabled: true,
+  sound: SacredHourSound.gentleChime,
+  createdAt: DateTime.utc(2026, 8, 31),
+  updatedAt: DateTime.utc(2026, 8, 31),
+);
 
 PersonalPrayer _personalPrayer() => PersonalPrayer(
   id: 'prayer-1',

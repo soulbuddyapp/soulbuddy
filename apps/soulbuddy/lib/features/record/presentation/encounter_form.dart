@@ -20,6 +20,7 @@ class EncounterForm extends ConsumerStatefulWidget {
     this.audio,
     this.people = const [],
     this.initialPersonIds = const [],
+    this.bodyLabel,
     super.key,
   });
 
@@ -31,6 +32,7 @@ class EncounterForm extends ConsumerStatefulWidget {
   final MemoryAudioDraft? audio;
   final List<PrayerPerson> people;
   final List<String> initialPersonIds;
+  final String? bodyLabel;
 
   @override
   ConsumerState<EncounterForm> createState() => _EncounterFormState();
@@ -221,8 +223,9 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       minLines: 4,
                       maxLines: 10,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        labelText: 'What happened? (optional)',
+                      decoration: InputDecoration(
+                        labelText:
+                            widget.bodyLabel ?? 'What happened? (optional)',
                         alignLabelWithHint: true,
                       ),
                     ),

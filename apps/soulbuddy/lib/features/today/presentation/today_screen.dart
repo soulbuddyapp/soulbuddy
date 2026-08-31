@@ -25,6 +25,8 @@ import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../remember/presentation/daily_remembrance_card.dart';
 import '../../remember/providers/daily_memory_providers.dart';
+import '../../sacred_hours/presentation/sacred_hour_today_card.dart';
+import '../../sacred_hours/providers/sacred_hour_providers.dart';
 import '../domain/daily_practice_state.dart';
 import '../providers/daily_practice_providers.dart';
 import 'today_start_guide.dart';
@@ -153,6 +155,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         onOpen: () => context.go(value.route),
                       ),
               ),
+              const _SacredHourTodaySection(),
               const SizedBox(height: AppSpacing.md),
               if (goalSnapshot != null) ...[
                 if (goalSnapshot.sections.isNotEmpty)
@@ -549,6 +552,32 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
     ref.invalidate(prayerPracticeRepositoryProvider);
     ref.invalidate(dailyPracticeStateProvider);
+  }
+}
+
+class _SacredHourTodaySection extends ConsumerWidget {
+  const _SacredHourTodaySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref
+        .watch(currentOrNextSacredHourProvider)
+        .when(
+          loading: () => const SizedBox.shrink(),
+          error: (_, _) => const SizedBox.shrink(),
+          data: (hour) => hour == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: SacredHourTodayCard(
+                    hour: hour,
+                    nowUtc:
+                        ref.watch(sacredHourClockProvider).value ??
+                        DateTime.now(),
+                    onOpen: () => context.push('/sacred-hours/${hour.id}'),
+                  ),
+                ),
+        );
   }
 }
 

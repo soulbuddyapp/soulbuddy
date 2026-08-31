@@ -27,6 +27,7 @@ import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
+import '../features/sacred_hours/presentation/sacred_hour_session_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
 
@@ -45,6 +46,13 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/sacred-hours/:hourId',
+      builder: (context, state) => SacredHourSessionScreen(
+        hourId: state.pathParameters['hourId']!,
+        occurrenceKey: state.uri.queryParameters['occurrence'],
+      ),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
@@ -152,6 +160,10 @@ final GoRouter appRouter = GoRouter(
                         final String id when id.isNotEmpty => [id],
                         _ => const [],
                       },
+                      initialBodyPrompt:
+                          state.uri.queryParameters['source'] == 'sacred-hour'
+                          ? 'What may God be teaching me here?'
+                          : null,
                     );
                   },
                 ),

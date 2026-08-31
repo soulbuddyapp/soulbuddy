@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/design/covenant_grace_tokens.dart';
+import '../../sacred_hours/presentation/sacred_hours_onboarding_page.dart';
 
 typedef OnboardingAction = Future<void> Function();
 
@@ -9,11 +10,14 @@ class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({
     required this.onBeginWithGoal,
     required this.onSkip,
+    this.onKeepSacredHours,
     super.key,
   });
 
   final OnboardingAction onBeginWithGoal;
   final OnboardingAction onSkip;
+  final Future<void> Function(SacredHoursOnboardingSelection selection)?
+  onKeepSacredHours;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -41,6 +45,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _pageController = PageController();
   var _page = 0;
   var _working = false;
+  var _sacredHours = SacredHoursOnboardingSelection.defaults();
 
   @override
   void dispose() {
@@ -50,7 +55,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _continue() async {
     if (_working) return;
-    if (_page < _scenes.length - 1) {
+    if (_page < _scenes.length) {
       final reduceMotion = MediaQuery.disableAnimationsOf(context);
       if (reduceMotion) {
         _pageController.jumpToPage(_page + 1);
@@ -62,7 +67,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
       return;
     }
-    await _run(widget.onBeginWithGoal);
+    await _run(() async {
+      await widget.onKeepSacredHours?.call(_sacredHours);
+      await widget.onBeginWithGoal();
+    });
   }
 
   Future<void> _run(OnboardingAction action) async {
@@ -116,20 +124,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: PageView.builder(
                       key: const Key('onboarding-pages'),
                       controller: _pageController,
-                      itemCount: _scenes.length,
+                      itemCount: _scenes.length + 1,
                       onPageChanged: (page) => setState(() => _page = page),
-                      itemBuilder: (context, index) => _ScenePage(
-                        scene: _scenes[index],
-                        illuminatedMarks: index + 1,
-                        index: index,
-                      ),
+                      itemBuilder: (context, index) {
+                        if (index == _scenes.length) {
+                          return SacredHoursOnboardingPage(
+                            selection: _sacredHours,
+                            onChanged: (value) =>
+                                setState(() => _sacredHours = value),
+                          );
+                        }
+                        return _ScenePage(
+                          scene: _scenes[index],
+                          illuminatedMarks: index + 1,
+                          index: index,
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      for (var index = 0; index < _scenes.length; index++)
+                      for (var index = 0; index < _scenes.length + 1; index++)
                         AnimatedContainer(
                           key: Key('onboarding-dot-$index'),
                           duration: const Duration(milliseconds: 180),
@@ -152,8 +169,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Text(
                       _working
                           ? 'Opening…'
-                          : _page == _scenes.length - 1
-                          ? 'Begin'
+                          : _page == _scenes.length
+                          ? 'Keep these hours'
                           : 'Continue',
                     ),
                   ),
