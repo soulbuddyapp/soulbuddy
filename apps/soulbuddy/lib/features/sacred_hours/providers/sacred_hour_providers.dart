@@ -23,11 +23,33 @@ final sacredHourRepositoryProvider = FutureProvider<SacredHourRepository>((
   );
 });
 
+final sacredHourClockProvider = StreamProvider<DateTime>((ref) async* {
+  yield DateTime.now();
+  yield* Stream<DateTime>.periodic(
+    const Duration(minutes: 1),
+    (_) => DateTime.now(),
+  );
+});
+
+final sacredHourBootstrapProvider = FutureProvider<void>((ref) async {
+  final timezone = await ref.watch(prayerDeviceTimezoneProvider)();
+  final repository = await ref.watch(sacredHourRepositoryProvider.future);
+  await repository.ensureDefaults(timezone: timezone);
+});
+
 final activeSacredHoursProvider = StreamProvider<List<SacredHour>>((
   ref,
 ) async* {
   final repository = await ref.watch(sacredHourRepositoryProvider.future);
   yield* repository.watchActive();
+});
+
+final currentOrNextSacredHourProvider = StreamProvider<SacredHour?>((
+  ref,
+) async* {
+  final now = ref.watch(sacredHourClockProvider).value ?? DateTime.now();
+  final repository = await ref.watch(sacredHourRepositoryProvider.future);
+  yield* repository.watchCurrentOrNext(now.toUtc());
 });
 
 final allSacredHoursProvider = StreamProvider<List<SacredHour>>((ref) async* {
@@ -50,6 +72,7 @@ final sacredHourProvider = StreamProvider.autoDispose
 
 final sacredHourReminderCoordinatorProvider =
     FutureProvider<SacredHourReminderCoordinator>((ref) async {
+      await ref.watch(sacredHourBootstrapProvider.future);
       final coordinator = SacredHourReminderCoordinator(
         repository: await ref.watch(sacredHourRepositoryProvider.future),
         scheduler: ref.watch(prayerReminderSchedulerProvider),

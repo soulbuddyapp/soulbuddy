@@ -16,6 +16,7 @@ import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 import 'package:soulbuddy/features/sacred_hours/providers/sacred_hour_providers.dart';
+import 'package:soulbuddy/features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
 
 import '../helpers/in_memory_encounter_repository.dart';
 import '../helpers/in_memory_prayer_repository.dart';
@@ -121,6 +122,42 @@ void main() {
           ).overrideWith((ref) => Stream.value(_sacredHour())),
         ],
         child: const SoulBuddyApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Morning Sacred Hour'), findsOneWidget);
+    expect(find.text('Begin with prayer'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('Sacred Hour notification action opens its occurrence', (
+    tester,
+  ) async {
+    final events = StreamController<SacredHourOpened>();
+    addTearDown(events.close);
+    appRouter.go('/today');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
+          sacredHourReminderEventsProvider.overrideWith((ref) => events.stream),
+          sacredHourProvider(
+            'hour-1',
+          ).overrideWith((ref) => Stream.value(_sacredHour())),
+          currentOrNextSacredHourProvider.overrideWith(
+            (ref) => Stream.value(null),
+          ),
+        ],
+        child: const SoulBuddyApp(),
+      ),
+    );
+    await tester.pump();
+    events.add(
+      const SacredHourOpened(
+        hourId: 'hour-1',
+        occurrenceKey: 'hour-1@2026-08-31T05:00:00.000Z',
       ),
     );
     await tester.pump();

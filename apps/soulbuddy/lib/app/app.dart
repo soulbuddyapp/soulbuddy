@@ -15,6 +15,8 @@ import '../features/altar/application/altar_reminder_coordinator.dart';
 import '../features/altar/providers/altar_ritual_providers.dart';
 import '../features/altar/presentation/altar_today_card.dart';
 import '../features/goals/providers/goal_today_providers.dart';
+import '../features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
+import '../features/sacred_hours/providers/sacred_hour_providers.dart';
 import 'router.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
@@ -27,6 +29,8 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(personPrayerReminderCoordinatorProvider);
     ref.watch(privateAudioStartupCleanupProvider);
     ref.watch(installationSessionBootstrapProvider);
+    ref.watch(sacredHourBootstrapProvider);
+    ref.watch(sacredHourReminderCoordinatorProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         appRouter.go('/prayers/saved/${occurrence!.reminder.personalPrayerId}');
@@ -43,6 +47,18 @@ class SoulBuddyApp extends ConsumerWidget {
         value: PersonPrayerReminderOpened(:final personId),
       )) {
         appRouter.go('/persons/$personId');
+      }
+    });
+    ref.listen(sacredHourReminderEventsProvider, (previous, next) {
+      if (next case AsyncData(
+        value: SacredHourOpened(:final hourId, :final occurrenceKey),
+      )) {
+        appRouter.go(
+          Uri(
+            pathSegments: ['sacred-hours', hourId],
+            queryParameters: {'occurrence': occurrenceKey},
+          ).toString(),
+        );
       }
     });
     return MaterialApp.router(
