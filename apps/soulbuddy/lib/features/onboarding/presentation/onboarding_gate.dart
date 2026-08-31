@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../goals/providers/goal_providers.dart';
+import '../../prayers/providers/prayer_practice_providers.dart';
+import '../../sacred_hours/domain/sacred_hour.dart';
+import '../../sacred_hours/providers/sacred_hour_providers.dart';
+import '../../sacred_hours/presentation/sacred_hours_onboarding_page.dart';
 import '../providers/onboarding_providers.dart';
 import '../providers/first_prayer_providers.dart';
 import 'onboarding_screen.dart';
@@ -28,6 +32,52 @@ class OnboardingGate extends ConsumerStatefulWidget {
 class _OnboardingGateState extends ConsumerState<OnboardingGate> {
   var _completedForSession = false;
   var _resumeScheduled = false;
+  var _preparingSacredHours = false;
+
+  Future<void> _prepareSacredHours(
+    SacredHoursOnboardingSelection? selection, {
+    required bool requestNotifications,
+  }) async {
+    if (_preparingSacredHours) return;
+    _preparingSacredHours = true;
+    try {
+      final timezone = await ref.read(prayerDeviceTimezoneProvider)();
+      final repository = await ref.read(sacredHourRepositoryProvider.future);
+      final defaults = await repository.ensureDefaults(timezone: timezone);
+      if (selection != null) {
+        for (final hour in defaults) {
+          final isMorning = hour.purpose == SacredHourPurpose.morning;
+          final isEvening = hour.purpose == SacredHourPurpose.evening;
+          if (!isMorning && !isEvening) continue;
+          await repository.save(
+            SacredHourDraft(
+              name: hour.name,
+              localTime: isMorning
+                  ? selection.morningStart
+                  : selection.eveningStart,
+              timezone: timezone,
+              durationMinutes: hour.durationMinutes,
+              prayerMinutes: isMorning
+                  ? selection.morningPrayerMinutes
+                  : selection.eveningPrayerMinutes,
+              enabled: true,
+              sound: hour.sound,
+              purpose: hour.purpose,
+              prayer: hour.prayer,
+              personId: hour.personId,
+            ),
+            id: hour.id,
+          );
+        }
+      }
+      if (requestNotifications) {
+        await ref.read(prayerReminderSchedulerProvider).requestPermission();
+      }
+    } on Object {
+      // Sacred Hours remain available from Settings if setup or permission
+      // access is unavailable during onboarding.
+    }
+  }
 
   Future<void> _finish(VoidCallback destination) async {
     try {
@@ -84,7 +134,12 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
   Widget _welcome() {
     return OnboardingScreen(
       onBeginWithGoal: () => _finish(widget.onBeginWithGoal),
-      onSkip: () => _finish(widget.onSkip),
+      onKeepSacredHours: (selection) =>
+          _prepareSacredHours(selection, requestNotifications: true),
+      onSkip: () async {
+        await _prepareSacredHours(null, requestNotifications: false);
+        await _finish(widget.onSkip);
+      },
     );
   }
 }
