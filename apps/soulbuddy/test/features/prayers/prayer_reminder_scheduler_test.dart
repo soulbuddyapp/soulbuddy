@@ -87,6 +87,74 @@ void main() {
     },
   );
 
+  test(
+    'schedules a private Sacred Hour invitation with sound and precision',
+    () async {
+      final client = _FakeNativeNotificationClient();
+      final scheduler = NativePrayerReminderScheduler(client: client);
+
+      await scheduler.schedule(
+        PrayerScheduledNotification(
+          platformNotificationId: 400,
+          reminderId: 'sacred-hour-1',
+          occurrenceKey: 'sacred-hour-1@2026-08-31T05:00:00.000Z',
+          scheduledAtUtc: DateTime.utc(2026, 8, 31, 5),
+          kind: ReminderNotificationKind.sacredHour,
+          soundKey: 'sacred_gentle_chime',
+        ),
+      );
+      await scheduler.schedule(
+        PrayerScheduledNotification(
+          platformNotificationId: 401,
+          reminderId: 'sacred-hour-2',
+          occurrenceKey: 'sacred-hour-2@2026-08-31T21:00:00.000Z',
+          scheduledAtUtc: DateTime.utc(2026, 8, 31, 21),
+          kind: ReminderNotificationKind.sacredHour,
+          soundKey: 'silent',
+          precision: ReminderSchedulePrecision.exact,
+        ),
+      );
+      await scheduler.schedule(
+        PrayerScheduledNotification(
+          platformNotificationId: 402,
+          reminderId: 'sacred-hour-3',
+          occurrenceKey: 'sacred-hour-3@2026-09-01T05:00:00.000Z',
+          scheduledAtUtc: DateTime.utc(2026, 9, 1, 5),
+          kind: ReminderNotificationKind.sacredHour,
+          soundKey: 'device',
+        ),
+      );
+
+      final gentle = client.requests[0];
+      expect(gentle.title, 'Sacred Hour');
+      expect(
+        gentle.body,
+        'A quiet hour to pray and bring your work before God',
+      );
+      expect(gentle.payload, isNot(contains('prayer')));
+      expect(
+        gentle.scheduleMode,
+        NativePrayerScheduleMode.inexactAllowWhileIdle,
+      );
+      expect(gentle.playSound, isTrue);
+      expect(gentle.soundKey, 'sacred_gentle_chime');
+      expect(gentle.actions.map((action) => (action.id, action.label)), [
+        ('BEGIN', 'Begin'),
+        ('SNOOZE_10', 'In 10 minutes'),
+        ('DISMISS', 'Not now'),
+      ]);
+
+      final silent = client.requests[1];
+      expect(silent.scheduleMode, NativePrayerScheduleMode.exactAllowWhileIdle);
+      expect(silent.playSound, isFalse);
+      expect(silent.soundKey, isNull);
+
+      final device = client.requests[2];
+      expect(device.playSound, isTrue);
+      expect(device.soundKey, isNull);
+    },
+  );
+
   test('maps native taps and actions into private domain responses', () async {
     final client = _FakeNativeNotificationClient();
     final scheduler = NativePrayerReminderScheduler(client: client);
@@ -122,6 +190,36 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('decodes Sacred Hour Begin and Not now responses', () async {
+    final client = _FakeNativeNotificationClient();
+    final scheduler = NativePrayerReminderScheduler(client: client);
+    final responses = <PrayerReminderResponse>[];
+    final subscription = scheduler.responses.listen(responses.add);
+    addTearDown(subscription.cancel);
+    final payload = jsonEncode({
+      'reminder_id': 'sacred-hour-1',
+      'occurrence_key': 'sacred-hour-1@2026-08-31T05:00:00.000Z',
+      'kind': 'sacredHour',
+    });
+
+    client.emit(
+      NativeNotificationResponseData(actionId: 'BEGIN', payload: payload),
+    );
+    client.emit(
+      NativeNotificationResponseData(actionId: 'DISMISS', payload: payload),
+    );
+    await pumpEventQueue();
+
+    expect(responses.map((response) => response.kind), [
+      ReminderNotificationKind.sacredHour,
+      ReminderNotificationKind.sacredHour,
+    ]);
+    expect(responses.map((response) => response.action), [
+      PrayerReminderAction.begin,
+      PrayerReminderAction.dismiss,
+    ]);
   });
 
   test('rejects notification payloads with private or unknown keys', () async {

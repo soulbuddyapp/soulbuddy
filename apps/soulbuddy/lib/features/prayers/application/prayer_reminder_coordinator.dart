@@ -272,6 +272,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     try {
       switch (response.action) {
         case PrayerReminderAction.open:
+        case PrayerReminderAction.begin:
           _emitEvent(PrayerReminderOpened(occurrence));
           return null;
         case PrayerReminderAction.prayed:

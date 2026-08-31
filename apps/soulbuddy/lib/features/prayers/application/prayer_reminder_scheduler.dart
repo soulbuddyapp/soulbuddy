@@ -1,8 +1,10 @@
-enum PrayerReminderAction { open, prayed, snoozeTenMinutes, dismiss }
+enum PrayerReminderAction { open, begin, prayed, snoozeTenMinutes, dismiss }
 
-enum ReminderNotificationKind { prayer, altar, person }
+enum ReminderNotificationKind { prayer, altar, person, sacredHour }
 
 enum ReminderNotificationRecurrence { once, daily, weekly }
+
+enum ReminderSchedulePrecision { ordinary, exact }
 
 enum NotificationPermissionStatus { granted, denied, unsupported }
 
@@ -31,6 +33,8 @@ class PrayerScheduledNotification {
     this.timeZoneName,
     this.title,
     this.body,
+    this.soundKey,
+    this.precision = ReminderSchedulePrecision.ordinary,
   });
 
   final int platformNotificationId;
@@ -42,6 +46,8 @@ class PrayerScheduledNotification {
   final String? timeZoneName;
   final String? title;
   final String? body;
+  final String? soundKey;
+  final ReminderSchedulePrecision precision;
 }
 
 abstract interface class PrayerReminderScheduler {
