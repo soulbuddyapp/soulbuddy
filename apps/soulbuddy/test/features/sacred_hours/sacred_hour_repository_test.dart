@@ -125,6 +125,7 @@ void main() {
 
     await repository.setEnabled(hour.id, false);
     expect(await repository.watchActive().first, isEmpty);
+    expect(await repository.watchAll().first, hasLength(1));
     await repository.setEnabled(hour.id, true);
     await repository.archive(hour.id);
     expect(await repository.watch(hour.id).first, isNull);

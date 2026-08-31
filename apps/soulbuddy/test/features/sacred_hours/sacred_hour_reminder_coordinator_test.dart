@@ -271,6 +271,9 @@ class _Repository implements SacredHourRepository {
   Stream<List<SacredHour>> watchActive() => throw UnimplementedError();
 
   @override
+  Stream<List<SacredHour>> watchAll() => throw UnimplementedError();
+
+  @override
   Stream<SacredHour?> watchCurrentOrNext(DateTime nowUtc) =>
       throw UnimplementedError();
 }

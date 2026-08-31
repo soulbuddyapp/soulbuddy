@@ -29,6 +29,18 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
   final Uuid _uuid;
 
   @override
+  Stream<List<SacredHour>> watchAll() => database
+      .watch(
+        '''
+        SELECT * FROM sacred_hours
+        WHERE owner_id = ? AND archived_at IS NULL
+        ORDER BY local_time, id
+        ''',
+        parameters: [ownerId],
+      )
+      .map((rows) => rows.map(SacredHour.fromRow).toList(growable: false));
+
+  @override
   Stream<List<SacredHour>> watchActive() => database
       .watch(
         '''

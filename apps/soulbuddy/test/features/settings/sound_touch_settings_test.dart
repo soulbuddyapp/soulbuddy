@@ -76,6 +76,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Test feedback'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Test feedback'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byType(CompletionFeedback));

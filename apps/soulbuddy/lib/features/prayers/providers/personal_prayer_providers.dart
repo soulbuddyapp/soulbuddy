@@ -36,3 +36,10 @@ final personalPrayerProvider = StreamProvider.autoDispose
       );
       yield* repository.watch(prayerId);
     });
+
+final personalPrayersProvider = StreamProvider<List<PersonalPrayer>>((
+  ref,
+) async* {
+  final repository = await ref.watch(personalPrayerRepositoryProvider.future);
+  yield* repository.watchAll();
+});

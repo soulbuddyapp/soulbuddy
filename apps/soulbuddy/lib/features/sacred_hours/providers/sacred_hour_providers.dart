@@ -30,6 +30,18 @@ final activeSacredHoursProvider = StreamProvider<List<SacredHour>>((
   yield* repository.watchActive();
 });
 
+final allSacredHoursProvider = StreamProvider<List<SacredHour>>((ref) async* {
+  final repository = await ref.watch(sacredHourRepositoryProvider.future);
+  yield* repository.watchAll();
+});
+
+final sacredHourDeliveriesProvider = StreamProvider<List<SacredHourDelivery>>((
+  ref,
+) async* {
+  final repository = await ref.watch(sacredHourRepositoryProvider.future);
+  yield* repository.watchDeliveries();
+});
+
 final sacredHourProvider = StreamProvider.autoDispose
     .family<SacredHour?, String>((ref, hourId) async* {
       final repository = await ref.watch(sacredHourRepositoryProvider.future);

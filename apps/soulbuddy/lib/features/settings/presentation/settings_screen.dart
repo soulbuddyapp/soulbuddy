@@ -6,6 +6,16 @@ import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/feedback/completion_feedback.dart';
+import '../../persons/providers/person_providers.dart';
+import '../../prayers/domain/library_prayer.dart';
+import '../../prayers/providers/personal_prayer_providers.dart';
+import '../../prayers/providers/prayer_practice_providers.dart';
+import '../../prayers/providers/prayer_providers.dart';
+import '../../sacred_hours/application/sacred_hour_sound_player.dart';
+import '../../sacred_hours/domain/sacred_hour.dart';
+import '../../sacred_hours/presentation/sacred_hour_editor_sheet.dart';
+import '../../sacred_hours/presentation/sacred_hours_settings_section.dart';
+import '../../sacred_hours/providers/sacred_hour_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -40,20 +50,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onRetry: () =>
                           ref.invalidate(appFeedbackPreferencesProvider),
                     ),
-                    data: (value) => _SoundTouchSettings(
-                      preferences: value,
-                      updating: _updating,
-                      testResult: _testResult,
-                      onHapticsChanged: (enabled) => _update(
-                        (repository) => repository.setHapticsEnabled(enabled),
-                      ),
-                      onSoundsChanged: (enabled) => _update(
-                        (repository) => repository.setSoundsEnabled(enabled),
-                      ),
-                      onReducedMotionChanged: (enabled) => _update(
-                        (repository) => repository.setReducedMotion(enabled),
-                      ),
-                      onTest: () => _testFeedback(value),
+                    data: (value) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _SacredHoursSettingsHost(
+                          soundsEnabled: value.soundsEnabled,
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        _SoundTouchSettings(
+                          preferences: value,
+                          updating: _updating,
+                          testResult: _testResult,
+                          onHapticsChanged: (enabled) => _update(
+                            (repository) =>
+                                repository.setHapticsEnabled(enabled),
+                          ),
+                          onSoundsChanged: (enabled) => _update(
+                            (repository) =>
+                                repository.setSoundsEnabled(enabled),
+                          ),
+                          onReducedMotionChanged: (enabled) => _update(
+                            (repository) =>
+                                repository.setReducedMotion(enabled),
+                          ),
+                          onTest: () => _testFeedback(value),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -97,6 +119,189 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
     if (mounted) setState(() => _testResult = result);
   }
+}
+
+class _SacredHoursSettingsHost extends ConsumerWidget {
+  const _SacredHoursSettingsHost({required this.soundsEnabled});
+
+  final bool soundsEnabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hours = ref.watch(allSacredHoursProvider);
+    return hours.when(
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sacred Hours',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text('Opening your Sacred Hours…'),
+        ],
+      ),
+      error: (_, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Sacred Hours',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text('Sacred Hours could not be opened just now.'),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => ref.invalidate(allSacredHoursProvider),
+              child: const Text('Try again'),
+            ),
+          ),
+        ],
+      ),
+      data: (value) => SacredHoursSettingsSection(
+        hours: value,
+        onAdd: () => _openEditor(context, ref, value),
+        onEdit: (hour) => _openEditor(context, ref, value, hour: hour),
+        onEnabledChanged: (hour, enabled) async {
+          final repository = await ref.read(
+            sacredHourRepositoryProvider.future,
+          );
+          await repository.setEnabled(hour.id, enabled);
+        },
+        onArchive: (hour) => _archive(context, ref, hour),
+      ),
+    );
+  }
+
+  Future<void> _openEditor(
+    BuildContext context,
+    WidgetRef ref,
+    List<SacredHour> hours, {
+    SacredHour? hour,
+  }) async {
+    final timezone = await ref.read(prayerDeviceTimezoneProvider)();
+    final deliveries =
+        ref.read(sacredHourDeliveriesProvider).value ??
+        const <SacredHourDelivery>[];
+    final delivery = _deliveryFor(deliveries, hour?.id);
+    final reviewed =
+        ref
+            .read(
+              reviewedEditorialPrayersProvider((
+                purpose: null,
+                languagePreference: null,
+              )),
+            )
+            .value ??
+        const [];
+    final personal =
+        ref.read(personalPrayersProvider).value ?? const <PrayerDisplay>[];
+    final people = ref.read(prayerPeopleProvider).value ?? const [];
+    final player = AudioplayersSacredHourSoundPlayer();
+    if (!context.mounted) {
+      await player.dispose();
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .94,
+        child: SacredHourEditorSheet(
+          hour: hour,
+          timezone: timezone,
+          existingHours: hours,
+          prayers: [...reviewed.map((item) => item.prayer), ...personal],
+          people: people,
+          soundsEnabled: soundsEnabled,
+          player: player,
+          reminderMode:
+              delivery?.reminderMode ?? SacredHourReminderMode.ordinary,
+          onSave: (value) async {
+            final repository = await ref.read(
+              sacredHourRepositoryProvider.future,
+            );
+            final saved = await repository.save(
+              SacredHourDraft(
+                name: value.name,
+                localTime: value.localTime,
+                timezone: timezone,
+                prayerMinutes: value.prayerMinutes,
+                sound: value.sound,
+                purpose: hour?.purpose ?? SacredHourPurpose.custom,
+                prayer: value.prayer,
+                personId: value.personId,
+              ),
+              id: hour?.id,
+            );
+            final updatedDeliveries = await repository.watchDeliveries().first;
+            final updated = _deliveryFor(updatedDeliveries, saved.id);
+            if (updated != null && updated.reminderMode != value.reminderMode) {
+              await repository.updateDeviceDelivery(
+                saved.id,
+                SacredHourDeviceDraft(
+                  enabledOnDevice: updated.enabledOnDevice,
+                  reminderMode: value.reminderMode,
+                  nextOccurrenceAt: updated.nextOccurrenceAt,
+                  platformNotificationId: updated.platformNotificationId,
+                  scheduledTimezone: updated.scheduledTimezone,
+                  snoozedUntil: updated.snoozedUntil,
+                  dismissedOccurrenceKey: updated.dismissedOccurrenceKey,
+                ),
+              );
+              if (value.reminderMode == SacredHourReminderMode.precise) {
+                final coordinator = await ref.read(
+                  sacredHourReminderCoordinatorProvider.future,
+                );
+                await coordinator.requestPreciseReminders();
+              }
+            }
+            if (sheetContext.mounted) Navigator.pop(sheetContext);
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _archive(
+    BuildContext context,
+    WidgetRef ref,
+    SacredHour hour,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove this Sacred Hour?'),
+        content: Text('${hour.name} will no longer appear or remind you.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep it'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final repository = await ref.read(sacredHourRepositoryProvider.future);
+    await repository.archive(hour.id);
+  }
+}
+
+SacredHourDelivery? _deliveryFor(
+  List<SacredHourDelivery> deliveries,
+  String? hourId,
+) {
+  if (hourId == null) return null;
+  for (final delivery in deliveries) {
+    if (delivery.sacredHourId == hourId) return delivery;
+  }
+  return null;
 }
 
 class _SoundTouchSettings extends StatelessWidget {

@@ -1,6 +1,7 @@
 import '../domain/sacred_hour.dart';
 
 abstract interface class SacredHourRepository {
+  Stream<List<SacredHour>> watchAll();
   Stream<List<SacredHour>> watchActive();
   Stream<SacredHour?> watch(String id);
   Stream<SacredHour?> watchCurrentOrNext(DateTime nowUtc);
