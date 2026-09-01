@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:timezone/data/latest.dart' as timezone_data;
-import 'package:timezone/timezone.dart' as timezone;
 
 import '../../../core/design/app_spacing.dart';
+import '../application/sacred_hour_today_window.dart';
 import '../domain/sacred_hour.dart';
 
 class SacredHourTodayCard extends StatelessWidget {
@@ -22,7 +21,8 @@ class SacredHourTodayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final active = _isActive(hour, nowUtc);
+    final window = SacredHourTodayWindow.classify(hour, nowUtc);
+    final active = window.phase == SacredHourTodayPhase.active;
     final action = active ? (continued ? 'Continue' : 'Begin') : 'Prepare';
     return Card(
       key: const Key('sacred-hour-today-card'),
@@ -39,9 +39,13 @@ class SacredHourTodayCard extends StatelessWidget {
                   Text(hour.name, style: theme.textTheme.titleMedium),
                   const SizedBox(height: 3),
                   Text(
-                    _formatRange(hour),
+                    '${active ? 'Now' : 'In ${window.minutesUntil} min'} · '
+                    '${_formatRange(hour)}',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: active
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                      fontWeight: active ? FontWeight.w600 : null,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -59,35 +63,6 @@ class SacredHourTodayCard extends StatelessWidget {
       ),
     );
   }
-}
-
-bool _isActive(SacredHour hour, DateTime nowUtc) {
-  timezone_data.initializeTimeZones();
-  final location = timezone.getLocation(hour.timezone);
-  final localNow = timezone.TZDateTime.from(nowUtc.toUtc(), location);
-  final start = timezone.TZDateTime(
-    location,
-    localNow.year,
-    localNow.month,
-    localNow.day,
-    hour.localTime.hour,
-    hour.localTime.minute,
-  );
-  if (_isWithinHour(localNow, start, hour.durationMinutes)) return true;
-  final previousStart = timezone.TZDateTime(
-    location,
-    localNow.year,
-    localNow.month,
-    localNow.day - 1,
-    hour.localTime.hour,
-    hour.localTime.minute,
-  );
-  return _isWithinHour(localNow, previousStart, hour.durationMinutes);
-}
-
-bool _isWithinHour(DateTime now, DateTime start, int durationMinutes) {
-  final end = start.add(Duration(minutes: durationMinutes));
-  return !now.isBefore(start) && now.isBefore(end);
 }
 
 String _formatRange(SacredHour hour) {

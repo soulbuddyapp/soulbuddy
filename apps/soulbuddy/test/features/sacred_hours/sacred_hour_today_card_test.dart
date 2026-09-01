@@ -6,21 +6,24 @@ import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 import 'package:soulbuddy/features/sacred_hours/presentation/sacred_hour_today_card.dart';
 
 void main() {
-  testWidgets('shows the next hour as a compact preparation', (tester) async {
+  testWidgets('names the preparation window in the user current time', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
         home: Scaffold(
           body: SacredHourTodayCard(
             hour: _hour(),
-            nowUtc: DateTime.utc(2026, 8, 31, 4),
+            nowUtc: DateTime.utc(2026, 8, 31, 4, 15),
             onOpen: () {},
           ),
         ),
       ),
     );
     expect(find.text('Morning Sacred Hour'), findsOneWidget);
-    expect(find.text('6:00–7:00am'), findsOneWidget);
+    expect(find.textContaining('6:00–7:00am'), findsOneWidget);
+    expect(find.textContaining('In 45 min'), findsOneWidget);
     expect(find.text('Prepare'), findsOneWidget);
     expect(find.textContaining('missed'), findsNothing);
   });
@@ -40,6 +43,7 @@ void main() {
         ),
       ),
     );
+    expect(find.textContaining('Now'), findsOneWidget);
     expect(find.text('Begin'), findsOneWidget);
 
     await tester.pumpWidget(
@@ -74,6 +78,7 @@ void main() {
       ),
     );
 
+    expect(find.textContaining('Now'), findsOneWidget);
     expect(find.text('Begin'), findsOneWidget);
   });
 }

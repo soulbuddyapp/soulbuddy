@@ -25,6 +25,7 @@ import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../remember/presentation/daily_remembrance_card.dart';
 import '../../remember/providers/daily_memory_providers.dart';
+import '../../sacred_hours/application/sacred_hour_today_window.dart';
 import '../../sacred_hours/presentation/sacred_hour_today_card.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
 import '../domain/daily_practice_state.dart';
@@ -565,18 +566,23 @@ class _SacredHourTodaySection extends ConsumerWidget {
         .when(
           loading: () => const SizedBox.shrink(),
           error: (_, _) => const SizedBox.shrink(),
-          data: (hour) => hour == null
-              ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: SacredHourTodayCard(
-                    hour: hour,
-                    nowUtc:
-                        ref.watch(sacredHourClockProvider).value ??
-                        DateTime.now(),
-                    onOpen: () => context.push('/sacred-hours/${hour.id}'),
-                  ),
-                ),
+          data: (hour) {
+            if (hour == null) return const SizedBox.shrink();
+            final now =
+                ref.watch(sacredHourClockProvider).value ?? DateTime.now();
+            final window = SacredHourTodayWindow.classify(hour, now);
+            if (window.phase == SacredHourTodayPhase.hidden) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: SacredHourTodayCard(
+                hour: hour,
+                nowUtc: now,
+                onOpen: () => context.push('/sacred-hours/${hour.id}'),
+              ),
+            );
+          },
         );
   }
 }
