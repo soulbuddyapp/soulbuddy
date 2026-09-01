@@ -9,40 +9,53 @@ void main() {
   ) async {
     var beganWithGoal = false;
     var skipped = false;
+    final cues = <OnboardingSensoryCue>[];
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
         home: OnboardingScreen(
           onBeginWithGoal: () async => beganWithGoal = true,
           onSkip: () async => skipped = true,
+          onSensoryCue: (cue) async => cues.add(cue),
         ),
       ),
     );
 
-    expect(find.text('Bring what matters'), findsOneWidget);
+    expect(find.text('Come as you are'), findsOneWidget);
+    expect(find.textContaining('daily communion with God'), findsOneWidget);
     expect(find.text('SoulBuddy'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Begin'), findsOneWidget);
     expect(find.text('Go to Today'), findsOneWidget);
 
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
-    expect(find.text('Remember what God has done'), findsOneWidget);
-    expect(find.textContaining('Keep encounters'), findsOneWidget);
+    expect(find.text('Remember His deeds'), findsOneWidget);
+    expect(
+      find.textContaining('encounters, promises, Scripture'),
+      findsOneWidget,
+    );
+    expect(cues, [OnboardingSensoryCue.step]);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(find.text('Walk it today'), findsOneWidget);
+    expect(find.text('Build a faithful rhythm'), findsOneWidget);
+    for (final step in ['Bring', 'Pray', 'Act', 'Remember']) {
+      expect(find.text(step), findsOneWidget);
+    }
     expect(find.text('Continue'), findsOneWidget);
+    expect(cues, [OnboardingSensoryCue.step, OnboardingSensoryCue.step]);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(find.text('Set apart an hour'), findsOneWidget);
     expect(find.text('Keep these hours'), findsOneWidget);
+    expect(cues.last, OnboardingSensoryCue.sacredHours);
 
     await tester.tap(find.text('Keep these hours'));
     await tester.pumpAndSettle();
     expect(beganWithGoal, isTrue);
     expect(skipped, isFalse);
+    expect(cues.last, OnboardingSensoryCue.completed);
   });
 
   testWidgets('top action is a quiet way into Today', (tester) async {
@@ -85,7 +98,27 @@ void main() {
     );
 
     expect(find.byType(Scrollable), findsWidgets);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Begin'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses a completed static visual when motion is reduced', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: OnboardingScreen(
+            onBeginWithGoal: () async {},
+            onSkip: () async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('onboarding-visual-static-0')), findsOneWidget);
+    expect(find.byKey(const Key('onboarding-visual-motion-0')), findsNothing);
   });
 }

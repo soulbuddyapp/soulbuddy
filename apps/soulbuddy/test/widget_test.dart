@@ -15,7 +15,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Bring what matters'), findsOneWidget);
+    expect(find.text('Come as you are'), findsOneWidget);
     expect(find.text('A place to return to God'), findsNothing);
   });
 }

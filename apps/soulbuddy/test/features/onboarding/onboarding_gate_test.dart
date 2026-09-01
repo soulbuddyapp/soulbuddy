@@ -24,7 +24,7 @@ void main() {
     final repository = _MemoryOnboardingRepository();
     await _pumpGate(tester, repository);
 
-    expect(find.text('Bring what matters'), findsOneWidget);
+    expect(find.text('Come as you are'), findsOneWidget);
     expect(find.text('Routed app'), findsNothing);
   });
 
@@ -33,7 +33,7 @@ void main() {
     await _pumpGate(tester, repository);
 
     expect(find.text('Routed app'), findsOneWidget);
-    expect(find.text('Bring what matters'), findsNothing);
+    expect(find.text('Come as you are'), findsNothing);
   });
 
   testWidgets('completed welcome resumes a saved legacy first prayer', (
@@ -94,7 +94,7 @@ void main() {
       onBeginWithGoal: () => openedGoalChoices = true,
     );
 
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.text('Begin'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();

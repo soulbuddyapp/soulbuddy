@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/feedback/app_feedback.dart';
+import '../../../core/feedback/app_feedback_preferences.dart';
+import '../../../core/feedback/app_feedback_providers.dart';
 import '../../goals/providers/goal_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../sacred_hours/domain/sacred_hour.dart';
@@ -132,6 +137,10 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
   }
 
   Widget _welcome() {
+    final preferences =
+        ref.watch(appFeedbackPreferencesProvider).value ??
+        AppFeedbackPreferences.defaults;
+    final systemReduceMotion = MediaQuery.disableAnimationsOf(context);
     return OnboardingScreen(
       onBeginWithGoal: () => _finish(widget.onBeginWithGoal),
       onKeepSacredHours: (selection) =>
@@ -139,6 +148,24 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
       onSkip: () async {
         await _prepareSacredHours(null, requestNotifications: false);
         await _finish(widget.onSkip);
+      },
+      reduceMotion: preferences.reducedMotion,
+      onSensoryCue: (cue) async {
+        final intent = switch (cue) {
+          OnboardingSensoryCue.step => AppFeedbackIntent.onboardingStep,
+          OnboardingSensoryCue.sacredHours =>
+            AppFeedbackIntent.onboardingSacredHours,
+          OnboardingSensoryCue.completed => AppFeedbackIntent.prayerCompleted,
+        };
+        unawaited(
+          ref
+              .read(appFeedbackServiceProvider)
+              .emit(
+                intent,
+                preferences: preferences,
+                systemReduceMotion: systemReduceMotion,
+              ),
+        );
       },
     );
   }

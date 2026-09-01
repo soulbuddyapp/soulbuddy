@@ -79,27 +79,29 @@ void main() {
     expect(driver.sounds, isEmpty);
   });
 
-  test('gives onboarding progress a restrained tap and one sacred chime', (
-    ) async {
-    final driver = _RecordingFeedbackDriver();
-    final service = AppFeedbackService(driver: driver);
+  test(
+    'gives onboarding progress a restrained tap and one sacred chime',
+    () async {
+      final driver = _RecordingFeedbackDriver();
+      final service = AppFeedbackService(driver: driver);
 
-    await service.emit(
-      AppFeedbackIntent.onboardingStep,
-      preferences: AppFeedbackPreferences.defaults,
-    );
-    final sacredHours = await service.emit(
-      AppFeedbackIntent.onboardingSacredHours,
-      preferences: AppFeedbackPreferences.defaults,
-    );
+      await service.emit(
+        AppFeedbackIntent.onboardingStep,
+        preferences: AppFeedbackPreferences.defaults,
+      );
+      final sacredHours = await service.emit(
+        AppFeedbackIntent.onboardingSacredHours,
+        preferences: AppFeedbackPreferences.defaults,
+      );
 
-    expect(driver.haptics, [AppHaptic.selection, AppHaptic.light]);
-    expect(driver.sounds, [
-      AppFeedbackSound.softTap,
-      AppFeedbackSound.sacredGentleChime,
-    ]);
-    expect(sacredHours.visualCue, AppFeedbackVisualCue.lightMotes);
-  });
+      expect(driver.haptics, [AppHaptic.selection, AppHaptic.light]);
+      expect(driver.sounds, [
+        AppFeedbackSound.softTap,
+        AppFeedbackSound.sacredGentleChime,
+      ]);
+      expect(sacredHours.visualCue, AppFeedbackVisualCue.lightMotes);
+    },
+  );
 
   test(
     'system reduced motion always suppresses animated visual cues',
