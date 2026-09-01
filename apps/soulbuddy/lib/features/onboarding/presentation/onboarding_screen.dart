@@ -180,24 +180,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (var index = 0; index < _scenes.length + 1; index++)
-                        AnimatedContainer(
-                          key: Key('onboarding-dot-$index'),
-                          duration: const Duration(milliseconds: 180),
-                          width: index == _page ? 24 : 7,
-                          height: 7,
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: index == _page
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outlineVariant,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                    ],
+                  Semantics(
+                    container: true,
+                    label:
+                        'Onboarding progress: part ${_page + 1} of 4, '
+                        '${_page < _scenes.length ? _scenes[_page].title : 'Set apart an hour'}',
+                    child: ExcludeSemantics(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (
+                            var index = 0;
+                            index < _scenes.length + 1;
+                            index++
+                          )
+                            AnimatedContainer(
+                              key: Key('onboarding-dot-$index'),
+                              duration: const Duration(milliseconds: 180),
+                              width: index == _page ? 24 : 7,
+                              height: 7,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: index == _page
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.outlineVariant,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   FilledButton(
@@ -243,7 +255,7 @@ class _ScenePage extends StatelessWidget {
     final theme = Theme.of(context);
     return Semantics(
       container: true,
-      label: 'Welcome scene ${index + 1} of 3: ${scene.title}',
+      label: 'Part ${index + 1} of 4: ${scene.title}',
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         child: ConstrainedBox(

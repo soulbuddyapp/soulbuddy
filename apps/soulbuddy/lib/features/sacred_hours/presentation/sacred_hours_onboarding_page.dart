@@ -72,7 +72,7 @@ class SacredHoursOnboardingPage extends StatelessWidget {
     final theme = Theme.of(context);
     return Semantics(
       container: true,
-      label: 'Sacred Hours setup',
+      label: 'Part 4 of 4: Set apart an hour',
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
         child: Column(

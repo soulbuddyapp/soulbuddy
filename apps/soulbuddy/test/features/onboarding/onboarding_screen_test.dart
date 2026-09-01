@@ -121,4 +121,46 @@ void main() {
     expect(find.byKey(const Key('onboarding-visual-static-0')), findsOneWidget);
     expect(find.byKey(const Key('onboarding-visual-motion-0')), findsNothing);
   });
+
+  testWidgets('announces consistent four-part progress', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: OnboardingScreen(
+          onBeginWithGoal: () async {},
+          onSkip: () async {},
+        ),
+      ),
+    );
+
+    expect(
+      find.bySemanticsLabel('Part 1 of 4: Come as you are'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel(
+        'Onboarding progress: part 1 of 4, Come as you are',
+      ),
+      findsOneWidget,
+    );
+
+    for (final expected in const [
+      'Part 2 of 4: Remember His deeds',
+      'Part 3 of 4: Build a faithful rhythm',
+      'Part 4 of 4: Set apart an hour',
+    ]) {
+      await tester.tap(find.byKey(const Key('onboarding-primary')));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(expected), findsOneWidget);
+    }
+
+    expect(
+      find.bySemanticsLabel(
+        'Onboarding progress: part 4 of 4, Set apart an hour',
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
 }
