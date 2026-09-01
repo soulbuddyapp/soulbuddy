@@ -68,6 +68,16 @@ _FeedbackMapping _mappingFor(AppFeedbackIntent intent) => switch (intent) {
     sound: AppFeedbackSound.publicationEligible,
     visualCue: AppFeedbackVisualCue.lightMotes,
   ),
+  AppFeedbackIntent.onboardingStep => const _FeedbackMapping(
+    haptic: AppHaptic.selection,
+    sound: AppFeedbackSound.softTap,
+    visualCue: AppFeedbackVisualCue.none,
+  ),
+  AppFeedbackIntent.onboardingSacredHours => const _FeedbackMapping(
+    haptic: AppHaptic.light,
+    sound: AppFeedbackSound.sacredGentleChime,
+    visualCue: AppFeedbackVisualCue.lightMotes,
+  ),
 };
 
 AppFeedbackVisualCue _reducedVisualCue(AppFeedbackVisualCue cue) =>

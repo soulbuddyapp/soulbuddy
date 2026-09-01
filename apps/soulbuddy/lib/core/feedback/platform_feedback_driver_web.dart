@@ -35,4 +35,6 @@ String _assetPath(AppFeedbackSound sound) => switch (sound) {
   AppFeedbackSound.gentleCompletion => 'audio/feedback/gentle_completion.wav',
   AppFeedbackSound.publicationEligible =>
     'audio/feedback/publication_eligible.wav',
+  AppFeedbackSound.sacredGentleChime =>
+    'audio/sacred_hours/sacred_gentle_chime.wav',
 };

@@ -5,11 +5,18 @@ enum AppFeedbackIntent {
   warning,
   dismissed,
   publicationEligible,
+  onboardingStep,
+  onboardingSacredHours,
 }
 
 enum AppHaptic { selection, light, medium, warning, heavy }
 
-enum AppFeedbackSound { softTap, gentleCompletion, publicationEligible }
+enum AppFeedbackSound {
+  softTap,
+  gentleCompletion,
+  publicationEligible,
+  sacredGentleChime,
+}
 
 enum AppFeedbackVisualCue {
   none,
