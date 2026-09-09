@@ -6,33 +6,57 @@ import 'package:soulbuddy/features/goals/data/goal_orderer.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/presentation/goals_screen.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
+import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
+import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 
 void main() {
   testWidgets(
-    'shows active, paused and completed Goals without hiding prayer',
+    'shows created Goals and saved Prayers in one personal workspace',
     (tester) async {
-      await _pump(tester, [
-        _goal(id: 'active', title: 'Take the next faithful step'),
-        _goal(
-          id: 'paused',
-          title: 'Discern the move',
-          status: GoalStatus.paused,
-        ),
-        _goal(
-          id: 'completed',
-          title: 'Finish the application',
-          status: GoalStatus.completed,
-        ),
-      ]);
+      await _pump(
+        tester,
+        [
+          _goal(id: 'active', title: 'Take the next faithful step'),
+          _goal(
+            id: 'paused',
+            title: 'Discern the move',
+            status: GoalStatus.paused,
+          ),
+          _goal(
+            id: 'completed',
+            title: 'Finish the application',
+            status: GoalStatus.completed,
+          ),
+        ],
+        personalPrayers: [_prayer()],
+      );
 
-      expect(find.text('Goals'), findsOneWidget);
-      expect(find.text('Active'), findsWidgets);
-      expect(find.text('Paused'), findsWidgets);
-      expect(find.text('Completed'), findsWidgets);
-      expect(find.byKey(const Key('start-goal')), findsOneWidget);
-      expect(find.byKey(const Key('open-prayer-library')), findsOneWidget);
+      expect(find.text('My practice'), findsOneWidget);
+      expect(find.text("What you've created"), findsOneWidget);
+      expect(find.text('Take the next faithful step'), findsOneWidget);
+      expect(find.text('My prayer · daily'), findsOneWidget);
+      expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
     },
   );
+
+  testWidgets('filters created work by Goal or Prayer', (tester) async {
+    await _pump(
+      tester,
+      [_goal(id: 'active', title: 'Take the next faithful step')],
+      personalPrayers: [_prayer()],
+    );
+
+    await tester.tap(find.byKey(const Key('created-filter-goals')));
+    await tester.pumpAndSettle();
+    expect(find.text('Take the next faithful step'), findsOneWidget);
+    expect(find.text('My prayer · daily'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('created-filter-prayers')));
+    await tester.pumpAndSettle();
+    expect(find.text('Take the next faithful step'), findsNothing);
+    expect(find.text('My prayer · daily'), findsOneWidget);
+  });
 
   testWidgets('active Goals can move earlier or later without drag gestures', (
     tester,
@@ -48,6 +72,11 @@ void main() {
         position: 1,
       ),
     ], orderer: orderer);
+
+    await tester.tap(find.byKey(const Key('created-sort-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('created-sort-goalPriority')));
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('goal-order-menu-first')), findsOneWidget);
     expect(find.byKey(const Key('goal-order-menu-second')), findsOneWidget);
@@ -75,6 +104,11 @@ void main() {
       _goal(id: 'second', title: 'Second Goal', position: 1),
     ], orderer: orderer);
 
+    await tester.tap(find.byKey(const Key('created-sort-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('created-sort-goalPriority')));
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byKey(const Key('goal-order-menu-first')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Move later'));
@@ -89,13 +123,28 @@ void main() {
     );
   });
 
-  testWidgets('empty Goals keeps the approved first question visible', (
+  testWidgets('empty workspace keeps creation clear', (tester) async {
+    await _pump(tester, const []);
+
+    expect(
+      find.text('Nothing created yet. Use Create when you are ready to begin.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
+  });
+
+  testWidgets('Create collects Goal, Prayer, Meditation and browsing choices', (
     tester,
   ) async {
     await _pump(tester, const []);
 
-    expect(find.text('What would you like help with?'), findsOneWidget);
-    expect(find.text('Prayer library'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('open-create-workspace')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('create-goal')), findsOneWidget);
+    expect(find.byKey(const Key('create-prayer')), findsOneWidget);
+    expect(find.byKey(const Key('create-meditation')), findsOneWidget);
+    expect(find.byKey(const Key('browse-prayer-library')), findsOneWidget);
   });
 
   testWidgets('Goals remains usable at 200 percent text on a small phone', (
@@ -120,8 +169,10 @@ void main() {
     );
 
     expect(find.byType(Scrollable), findsWidgets);
-    expect(find.byKey(const Key('goal-order-menu-first')), findsOneWidget);
-    expect(find.text('Goals'), findsOneWidget);
+    expect(find.text('My practice'), findsOneWidget);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -360));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
@@ -131,6 +182,7 @@ Future<void> _pump(
   List<Goal> goals, {
   MediaQueryData? mediaQuery,
   GoalOrderer? orderer,
+  List<PersonalPrayer> personalPrayers = const [],
 }) async {
   Widget child = const GoalsScreen();
   if (mediaQuery != null) {
@@ -142,6 +194,9 @@ Future<void> _pump(
         visibleGoalsProvider.overrideWith((ref) => Stream.value(goals)),
         goalOrdererProvider.overrideWith(
           (ref) async => orderer ?? _RecordingGoalOrderer(),
+        ),
+        personalPrayersProvider.overrideWith(
+          (ref) => Stream.value(personalPrayers),
         ),
       ],
       child: MaterialApp(
@@ -168,6 +223,20 @@ Goal _goal({
   title: title,
   createdAt: DateTime.utc(2026, 8, 28, 8),
   updatedAt: DateTime.utc(2026, 8, 28, 8),
+);
+
+PersonalPrayer _prayer() => PersonalPrayer(
+  id: 'prayer-1',
+  ownerId: 'owner-1',
+  title: 'My prayer · daily',
+  style: 'own_words',
+  reach: 'private',
+  grounding: PrayerGrounding.generalChristian,
+  purpose: PrayerPurpose.daily,
+  currentRevisionId: 'revision-prayer-1',
+  body: 'Father, keep me close to You today.',
+  createdAt: DateTime.utc(2026, 8, 28, 8),
+  updatedAt: DateTime.utc(2026, 8, 29, 8),
 );
 
 class _RecordingGoalOrderer implements GoalOrderer {
