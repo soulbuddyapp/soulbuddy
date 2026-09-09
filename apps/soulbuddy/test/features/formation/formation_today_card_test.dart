@@ -39,6 +39,7 @@ void main() {
       expect(find.text('Grow closer to God'), findsOneWidget);
       expect(find.text('3 of 8 Nuggets complete'), findsOneWidget);
       expect(find.text('Continue orientation'), findsOneWidget);
+      expect(find.byKey(const Key('formation-piece-orientation')), findsOneWidget);
 
       await tester.tap(find.text('Continue orientation'));
       await tester.pumpAndSettle();

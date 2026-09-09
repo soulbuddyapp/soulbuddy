@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/design/sacred_piece.dart';
+import '../../../core/presentation/sacred_piece_medallion.dart';
 import '../../prayers/domain/personal_prayer.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
 import '../domain/goal.dart';
@@ -386,6 +388,7 @@ class _CreatedItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final goal = item.goal;
+    final piece = goal == null ? SacredPiece.prayer : SacredPiece.goal;
     final canReorder =
         goal != null &&
         goal.status == GoalStatus.active &&
@@ -397,8 +400,13 @@ class _CreatedItemTile extends StatelessWidget {
     return Card(
       child: ListTile(
         minTileHeight: 64,
-        leading: Icon(
-          goal == null ? Icons.edit_note_outlined : _statusIcon(goal.status),
+        leading: SacredPieceMedallion(
+          key: Key(
+            'collection-piece-${piece.name}-${goal?.id ?? item.prayer!.id}',
+          ),
+          piece: piece,
+          decorative: true,
+          size: 44,
         ),
         title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(

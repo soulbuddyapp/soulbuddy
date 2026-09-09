@@ -36,6 +36,11 @@ void main() {
       expect(find.text('My Collection'), findsOneWidget);
       expect(find.text('Take the next faithful step'), findsOneWidget);
       expect(find.text('My prayer · daily'), findsOneWidget);
+      expect(find.byKey(const Key('collection-piece-goal-active')), findsOneWidget);
+      expect(
+        find.byKey(const Key('collection-piece-prayer-prayer-1')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
     },
   );

@@ -42,6 +42,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Morning prayer'), findsOneWidget);
+    expect(
+      find.byKey(const Key('spiritual-session-piece-prayer')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('spiritual-session-pause')));
     await tester.pump();
     expect(events, ['pause']);

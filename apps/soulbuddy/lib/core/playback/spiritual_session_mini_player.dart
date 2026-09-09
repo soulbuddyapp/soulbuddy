@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../design/sacred_piece.dart';
+import '../presentation/sacred_piece_medallion.dart';
 import 'spiritual_session.dart';
 import 'spiritual_session_providers.dart';
 
@@ -21,6 +23,7 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
         final session = state.session;
         if (session == null) return const SizedBox.shrink();
         final scheme = Theme.of(context).colorScheme;
+        final piece = _piece(session.kind);
         return Card(
           key: const Key('spiritual-session-mini-player'),
           elevation: 8,
@@ -31,7 +34,12 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
             child: Row(
               children: [
                 const SizedBox(width: 12),
-                Icon(_icon(session.kind), color: scheme.onInverseSurface),
+                SacredPieceMedallion(
+                  key: Key('spiritual-session-piece-${piece.name}'),
+                  piece: piece,
+                  decorative: true,
+                  size: 44,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: InkWell(
@@ -104,11 +112,11 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
   }
 }
 
-IconData _icon(SpiritualSessionKind kind) => switch (kind) {
-  SpiritualSessionKind.memory ||
-  SpiritualSessionKind.altar => Icons.mic_outlined,
-  SpiritualSessionKind.prayer ||
-  SpiritualSessionKind.person => Icons.front_hand_outlined,
-  SpiritualSessionKind.sacredHour => Icons.notifications_active_outlined,
-  SpiritualSessionKind.meditation => Icons.self_improvement,
+SacredPiece _piece(SpiritualSessionKind kind) => switch (kind) {
+  SpiritualSessionKind.memory => SacredPiece.remember,
+  SpiritualSessionKind.altar => SacredPiece.altar,
+  SpiritualSessionKind.prayer => SacredPiece.prayer,
+  SpiritualSessionKind.person => SacredPiece.person,
+  SpiritualSessionKind.sacredHour => SacredPiece.sacredHour,
+  SpiritualSessionKind.meditation => SacredPiece.meditation,
 };

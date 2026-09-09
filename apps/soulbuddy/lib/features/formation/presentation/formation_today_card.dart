@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/design/sacred_piece.dart';
+import '../../../core/presentation/sacred_piece_medallion.dart';
 import '../../orientation/providers/orientation_providers.dart';
 import '../domain/formation_reading.dart';
 import '../providers/formation_providers.dart';
@@ -21,6 +23,7 @@ class FormationTodayCard extends ConsumerWidget {
         title: 'Grow closer to God',
         body: 'Begin with the eight memorable Nuggets.',
         progress: null,
+        piece: SacredPiece.orientation,
         action: 'Start orientation',
         onPressed: () => context.push('/orientation'),
       ),
@@ -38,6 +41,7 @@ class FormationTodayCard extends ConsumerWidget {
             title: 'Grow closer to God',
             body: 'Listen, read, and plant one good seed from the next Nugget.',
             progress: '${journey.completedCount} of 8 Nuggets complete',
+            piece: SacredPiece.orientation,
             action: action,
             onPressed: () => context.push(route),
           );
@@ -51,6 +55,7 @@ class FormationTodayCard extends ConsumerWidget {
             title: 'Grow closer to God',
             body: formationReadings.first.theme,
             progress: formationReadings.first.reference,
+            piece: SacredPiece.scripture,
             action: 'Begin meditation',
             onPressed: () => context.go('/prayers/meditation'),
           ),
@@ -67,6 +72,7 @@ class FormationTodayCard extends ConsumerWidget {
               body: next.theme,
               progress:
                   '${next.reference} · $completed of ${formationReadings.length}',
+              piece: SacredPiece.scripture,
               action: completed == 0 ? 'Begin meditation' : 'Continue reading',
               onPressed: () => context.go('/prayers/meditation/${next.id}'),
             );
@@ -82,6 +88,7 @@ class FormationTodayCard extends ConsumerWidget {
     required String title,
     required String body,
     required String? progress,
+    required SacredPiece piece,
     required String action,
     required VoidCallback onPressed,
   }) => Card(
@@ -91,9 +98,31 @@ class FormationTodayCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(eyebrow, style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: AppSpacing.xs),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SacredPieceMedallion(
+                key: Key('formation-piece-${piece.name}'),
+                piece: piece,
+                decorative: true,
+                size: 44,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      eyebrow,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(body),
           if (progress != null) ...[
