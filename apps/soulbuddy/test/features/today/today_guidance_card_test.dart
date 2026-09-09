@@ -28,6 +28,10 @@ void main() {
       find.byKey(const Key('today-guidance-rememberPerson')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const Key('today-guidance-piece-person')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('today-guidance-action')), findsOneWidget);
     await tester.tap(find.byKey(const Key('today-guidance-action')));
     expect(opened, isTrue);

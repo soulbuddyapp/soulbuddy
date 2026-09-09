@@ -56,6 +56,15 @@ void main() {
     for (final label in ['Today', 'Goals', 'Persons', 'Remember', 'Circles']) {
       expect(find.text(label), findsWidgets);
     }
+    for (final key in [
+      'nav-piece-today',
+      'nav-piece-goal',
+      'nav-piece-person',
+      'nav-piece-remember',
+      'nav-piece-circle',
+    ]) {
+      expect(find.byKey(Key(key)), findsOneWidget);
+    }
 
     await tester.tap(find.text('Remember').last);
     await tester.pumpAndSettle();

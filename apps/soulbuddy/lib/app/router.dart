@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/design/app_colors.dart';
 import '../core/design/app_spacing.dart';
+import '../core/design/sacred_piece.dart';
 import '../core/feedback/app_feedback.dart';
 import '../core/feedback/app_feedback_preferences.dart';
 import '../core/feedback/app_feedback_providers.dart';
@@ -271,28 +272,23 @@ class _SoulBuddyShell extends ConsumerWidget {
   static const _destinations = [
     _AppDestination(
       label: 'Today',
-      icon: Icons.today_outlined,
-      selectedIcon: Icons.today,
+      piece: SacredPiece.today,
     ),
     _AppDestination(
       label: 'Goals',
-      icon: Icons.flag_outlined,
-      selectedIcon: Icons.flag,
+      piece: SacredPiece.goal,
     ),
     _AppDestination(
       label: 'Persons',
-      icon: Icons.person_outline,
-      selectedIcon: Icons.person,
+      piece: SacredPiece.person,
     ),
     _AppDestination(
       label: 'Remember',
-      icon: Icons.bookmark_border,
-      selectedIcon: Icons.bookmark,
+      piece: SacredPiece.remember,
     ),
     _AppDestination(
       label: 'Circles',
-      icon: Icons.people_outline,
-      selectedIcon: Icons.people,
+      piece: SacredPiece.circle,
     ),
   ];
 
@@ -332,8 +328,14 @@ class _SoulBuddyShell extends ConsumerWidget {
                   destinations: [
                     for (final destination in _destinations)
                       NavigationRailDestination(
-                        icon: Icon(destination.icon),
-                        selectedIcon: Icon(destination.selectedIcon),
+                        icon: Icon(
+                          destination.piece.icon,
+                          key: Key('nav-piece-${destination.piece.name}'),
+                        ),
+                        selectedIcon: Icon(
+                          destination.piece.selectedIcon,
+                          key: Key('nav-piece-${destination.piece.name}'),
+                        ),
                         label: Text(destination.label),
                       ),
                   ],
@@ -357,8 +359,14 @@ class _SoulBuddyShell extends ConsumerWidget {
               destinations: [
                 for (final destination in _destinations)
                   NavigationDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(destination.selectedIcon),
+                    icon: Icon(
+                      destination.piece.icon,
+                      key: Key('nav-piece-${destination.piece.name}'),
+                    ),
+                    selectedIcon: Icon(
+                      destination.piece.selectedIcon,
+                      key: Key('nav-piece-${destination.piece.name}'),
+                    ),
                     label: destination.label,
                   ),
               ],
@@ -403,11 +411,9 @@ class _ShellBody extends StatelessWidget {
 class _AppDestination {
   const _AppDestination({
     required this.label,
-    required this.icon,
-    required this.selectedIcon,
+    required this.piece,
   });
 
   final String label;
-  final IconData icon;
-  final IconData selectedIcon;
+  final SacredPiece piece;
 }
