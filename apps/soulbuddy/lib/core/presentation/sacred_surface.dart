@@ -25,7 +25,9 @@ class SacredSurface extends StatelessWidget {
         (theme.brightness == Brightness.dark
             ? CovenantGraceColors.dark
             : CovenantGraceColors.light);
-    const radius = BorderRadius.all(Radius.circular(AppSpacing.componentRadius));
+    const radius = BorderRadius.all(
+      Radius.circular(AppSpacing.componentRadius),
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
@@ -33,17 +35,28 @@ class SacredSurface extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color.alphaBlend(colors.lightWash.withValues(alpha: 0.28), scheme.surface),
+            Color.alphaBlend(
+              colors.lightWash.withValues(alpha: 0.28),
+              scheme.surface,
+            ),
             scheme.surface,
-            Color.alphaBlend(colors.limestoneLight.withValues(alpha: 0.22), scheme.surface),
+            Color.alphaBlend(
+              colors.limestoneLight.withValues(alpha: 0.22),
+              scheme.surface,
+            ),
           ],
         ),
-        border: Border.all(color: colors.limestoneLight.withValues(alpha: 0.8)),
+        border: Border.all(
+          color: scheme.brightness == Brightness.light
+              ? const Color(0xFFFFFBF2)
+              : colors.limestoneLight.withValues(alpha: 0.45),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: colors.umber.withValues(alpha: 0.20),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: colors.umber.withValues(alpha: 0.30),
+            blurRadius: 16,
+            offset: const Offset(3, 8),
           ),
           BoxShadow(
             color: colors.covenantGold.withValues(alpha: 0.14),

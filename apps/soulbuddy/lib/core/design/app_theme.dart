@@ -73,6 +73,12 @@ abstract final class AppTheme {
       materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
       splashFactory: InkSparkle.splashFactory,
+      appBarTheme: AppBarTheme(
+        backgroundColor: canvas,
+        foregroundColor: colorScheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
       navigationBarTheme: NavigationBarThemeData(
         height: 72,
         elevation: 6,
@@ -88,6 +94,8 @@ abstract final class AppTheme {
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           return AppType.textTheme.labelMedium?.copyWith(
+            fontSize: 11,
+            height: 1.1,
             color: states.contains(WidgetState.selected)
                 ? colorScheme.onPrimaryContainer
                 : inkMuted,
@@ -138,8 +146,8 @@ abstract final class AppTheme {
           ),
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
-          shape: const RoundedRectangleBorder(borderRadius: radius),
-          elevation: 0,
+          shape: const StadiumBorder(),
+          elevation: 3,
           textStyle: AppType.textTheme.labelLarge,
         ),
       ),

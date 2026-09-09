@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../core/presentation/screen_awake.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
@@ -110,6 +111,10 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    return ScreenAwake(child: _buildSession(context));
+  }
+
+  Widget _buildSession(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return PopScope(
       canPop: !_starting,

@@ -295,6 +295,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('40 prayer times recorded'),
+      240,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('40 prayer times recorded'), findsOneWidget);
     expect(find.textContaining('streak', findRichText: true), findsNothing);
     expect(find.textContaining('score', findRichText: true), findsNothing);

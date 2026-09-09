@@ -84,12 +84,22 @@ void main() {
 
     expect(find.text(_familyPrayerBody), findsOneWidget);
     expect(find.text('Ease someone’s burden today.'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('helpful-toggle')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Helpful · 12'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('helpful-toggle')));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.favorite), findsOneWidget);
 
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('use-today')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.byKey(const Key('use-today')));
     await tester.pumpAndSettle();
     expect(find.text('Include the suggested action'), findsOneWidget);
@@ -175,6 +185,11 @@ void main() {
     );
     await tester.tap(find.text('For my family'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('use-today')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.byKey(const Key('use-today')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm-use-today')));

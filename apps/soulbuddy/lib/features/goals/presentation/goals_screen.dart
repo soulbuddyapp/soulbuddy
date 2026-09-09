@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/design/sacred_piece.dart';
 import '../../../core/presentation/sacred_piece_medallion.dart';
+import '../../../core/presentation/sanctuary_artwork.dart';
 import '../../prayers/domain/personal_prayer.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
 import '../domain/goal.dart';
@@ -35,19 +36,10 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
               const SizedBox(height: AppSpacing.md),
-              Semantics(
-                header: true,
-                child: Text(
-                  'My practice',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Grow closer to God through personal prayer & goals.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              const SanctuaryReadingHeading(
+                title: 'My practice',
+                art: SanctuaryArt.renewal,
+                subtitle: 'Grow closer to God through personal prayer & goals.',
               ),
               const SizedBox(height: AppSpacing.lg),
               FilledButton.icon(
@@ -285,17 +277,7 @@ class _CreatedWorkspace extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'My Collection',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Goals and prayers you have made for your own journey.',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
+        Text('My Collection', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: AppSpacing.md),
         Wrap(
           spacing: AppSpacing.xs,
@@ -311,7 +293,7 @@ class _CreatedWorkspace extends StatelessWidget {
               ),
             PopupMenuButton<_CreatedSort>(
               key: const Key('created-sort-menu'),
-              tooltip: 'Sort what you created',
+              tooltip: 'Sort collection',
               onSelected: onSortChanged,
               itemBuilder: (context) => [
                 for (final value in _CreatedSort.values)
@@ -411,7 +393,7 @@ class _CreatedItemTile extends StatelessWidget {
         title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           goal == null
-              ? 'Prayer you created'
+              ? 'Personal prayer'
               : 'Goal · ${_statusLabel(goal.status)}',
         ),
         trailing: canReorder

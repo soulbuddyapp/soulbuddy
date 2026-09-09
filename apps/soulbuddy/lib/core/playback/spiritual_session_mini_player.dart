@@ -7,6 +7,7 @@ import '../design/sacred_piece.dart';
 import '../design/covenant_grace_tokens.dart';
 import '../presentation/sacred_piece_medallion.dart';
 import '../presentation/sacred_surface.dart';
+import '../presentation/sanctuary_artwork.dart';
 import 'spiritual_session.dart';
 import 'spiritual_session_providers.dart';
 
@@ -44,12 +45,35 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                   const SizedBox(width: 12),
                   KeyedSubtree(
                     key: const Key('spiritual-session-artwork'),
-                    child: SacredPieceMedallion(
-                      key: Key('spiritual-session-piece-${piece.name}'),
-                      piece: piece,
-                      selected: true,
-                      decorative: true,
-                      size: 48,
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Image.asset(
+                            session.kind == SpiritualSessionKind.prayer
+                                ? SanctuaryArt.prayer
+                                : session.kind ==
+                                      SpiritualSessionKind.meditation
+                                ? SanctuaryArt.scripture
+                                : SanctuaryArt.renewal,
+                            width: 48,
+                            height: 52,
+                            fit: BoxFit.cover,
+                            excludeFromSemantics: true,
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: SacredPieceMedallion(
+                            key: Key('spiritual-session-piece-${piece.name}'),
+                            piece: piece,
+                            selected: true,
+                            decorative: true,
+                            size: 22,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 10),

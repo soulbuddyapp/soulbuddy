@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../core/presentation/screen_awake.dart';
+import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -48,6 +50,10 @@ class _FormationReadingScreenState
 
   @override
   Widget build(BuildContext context) {
+    return ScreenAwake(child: _buildReading(context));
+  }
+
+  Widget _buildReading(BuildContext context) {
     final progress = ref.watch(formationProgressProvider);
     return progress.when(
       loading: () =>
@@ -103,9 +109,9 @@ class _FormationReadingScreenState
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                  reading.theme,
-                  style: Theme.of(context).textTheme.headlineMedium,
+                SanctuaryReadingHeading(
+                  title: reading.theme,
+                  art: SanctuaryArt.scripture,
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(

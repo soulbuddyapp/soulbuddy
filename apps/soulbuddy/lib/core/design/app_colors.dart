@@ -30,24 +30,24 @@ abstract final class AppPalette {
 
 /// Semantic color roles used throughout SoulBuddy.
 abstract final class AppColors {
-  static const canvas = AppPalette.warm50;
-  static const surface = AppPalette.white;
-  static const surfaceMuted = AppPalette.sage50;
-  static const ink = AppPalette.forest950;
-  static const inkMuted = AppPalette.forest600;
-  static const action = AppPalette.forest700;
-  static const actionStrong = AppPalette.forest850;
+  static const canvas = Color(0xFFE8E0D4);
+  static const surface = Color(0xFFF7F2E9);
+  static const surfaceMuted = Color(0xFFEDE3D2);
+  static const ink = Color(0xFF342E27);
+  static const inkMuted = Color(0xFF6B6054);
+  static const action = Color(0xFF795522);
+  static const actionStrong = Color(0xFF593B18);
   static const accent = AppPalette.ochre700;
-  static const outline = AppPalette.sage200;
+  static const outline = Color(0xFFD0C1AB);
   static const danger = AppPalette.red700;
 
-  static const darkCanvas = AppPalette.warm950;
-  static const darkSurface = AppPalette.forest900;
-  static const darkSurfaceMuted = AppPalette.forest800;
+  static const darkCanvas = Color(0xFF211D19);
+  static const darkSurface = Color(0xFF302A23);
+  static const darkSurfaceMuted = Color(0xFF42382B);
   static const darkInk = AppPalette.sage100;
   static const darkInkMuted = AppPalette.sage300;
-  static const darkAction = Color(0xFF8AC9A7);
-  static const darkActionStrong = Color(0xFFB5E4C9);
+  static const darkAction = Color(0xFFE6C388);
+  static const darkActionStrong = Color(0xFFF3DCB4);
   static const darkAccent = AppPalette.ochre300;
   static const darkOutline = AppPalette.sage700;
   static const darkDanger = AppPalette.red300;

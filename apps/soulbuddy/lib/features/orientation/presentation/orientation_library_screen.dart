@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/presentation/sanctuary_artwork.dart';
+import '../../../core/presentation/sanctuary_backdrop.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/presentation/sacred_surface.dart';
@@ -122,140 +124,216 @@ class _LibraryState extends ConsumerState<OrientationLibraryScreen> {
             ),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: catalog.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Orientation could not be opened.'),
-                    TextButton(
-                      onPressed: () =>
-                          ref.invalidate(orientationCatalogProvider),
-                      child: const Text('Try again'),
-                    ),
-                  ],
-                ),
-              ),
-              data: (courses) => ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  Text(
-                    'Aim for a plentiful harvest',
-                    style: theme.textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Eight memorable Nuggets. Listen, read along, and continue from where you stopped. Choose your own listening speed.',
-                  ),
-                  if (journey != null) ...[
-                    const SizedBox(height: 20),
-                    SacredSurface(
-                      marble: true,
-                      padding: const EdgeInsets.all(16),
-                      child: OrientationPath(
-                        completedCount: journey.completedCount,
+      body: SanctuaryBackdrop(
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: catalog.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, _) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Orientation could not be opened.'),
+                      TextButton(
+                        onPressed: () =>
+                            ref.invalidate(orientationCatalogProvider),
+                        child: const Text('Try again'),
                       ),
+                    ],
+                  ),
+                ),
+                data: (courses) => ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    const SanctuaryReadingHeading(
+                      title: 'Aim for a plentiful harvest',
+                      art: SanctuaryArt.renewal,
+                      subtitle: 'Plant something good in the garden each day.',
                     ),
-                  ],
-                  const SizedBox(height: 24),
-                  for (var i = 0; i < courses.length; i++)
-                    Builder(
-                      builder: (context) {
-                        final course = courses[i];
-                        final saved = ref
-                            .watch(orientationSavedProgressProvider(course.id))
-                            .value;
-                        final label = saved?.completed == true
-                            ? 'Listen again'
-                            : (saved?.position ?? Duration.zero) > Duration.zero
-                            ? 'Continue from where you stopped'
-                            : 'Listen and read';
-                        final seconds = course.duration.inSeconds;
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: InkWell(
-                            key: Key('orientation-course-${course.id}'),
-                            onTap: () => _select(course),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'NUGGET ${i + 1} OF ${courses.length} · ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
-                                    style: theme.textTheme.labelMedium,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    course.title,
-                                    style: theme.textTheme.titleLarge,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(course.tenet),
-                                  const SizedBox(height: 12),
-                                  Row(
+                    if (journey != null) ...[
+                      const SizedBox(height: 20),
+                      SacredSurface(
+                        marble: true,
+                        padding: const EdgeInsets.all(16),
+                        child: OrientationPath(
+                          completedCount: journey.completedCount,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    for (var i = 0; i < courses.length; i++)
+                      Builder(
+                        builder: (context) {
+                          final course = courses[i];
+                          final saved = ref
+                              .watch(
+                                orientationSavedProgressProvider(course.id),
+                              )
+                              .value;
+                          final label = saved?.completed == true
+                              ? 'Listen again'
+                              : (saved?.position ?? Duration.zero) >
+                                    Duration.zero
+                              ? 'Continue from where you stopped'
+                              : 'Listen and read';
+                          final seconds = course.duration.inSeconds;
+                          return IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  width: 36,
+                                  child: Column(
                                     children: [
-                                      Icon(
-                                        saved?.completed == true
-                                            ? Icons.replay
-                                            : Icons.play_circle_outline,
-                                        size: 22,
+                                      Container(
+                                        width: 32,
+                                        height: 32,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: saved?.completed == true
+                                              ? theme.colorScheme.primary
+                                              : theme.colorScheme.surface,
+                                          border: Border.all(
+                                            color: theme.colorScheme.primary
+                                                .withValues(alpha: 0.5),
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: theme.colorScheme.primary
+                                                  .withValues(alpha: 0.18),
+                                              blurRadius: 8,
+                                            ),
+                                          ],
+                                        ),
+                                        child: saved?.completed == true
+                                            ? Icon(
+                                                Icons.check,
+                                                size: 18,
+                                                color:
+                                                    theme.colorScheme.onPrimary,
+                                              )
+                                            : Text(
+                                                '${i + 1}',
+                                                style:
+                                                    theme.textTheme.labelLarge,
+                                              ),
                                       ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          label,
-                                          style: TextStyle(
-                                            color: theme.colorScheme.primary,
+                                      if (i < courses.length - 1)
+                                        Expanded(
+                                          child: Container(
+                                            width: 1.5,
+                                            color: theme.colorScheme.outline,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: SacredSurface(
+                                      marble:
+                                          i == (journey?.completedCount ?? 0),
+                                      child: Material(
+                                        type: MaterialType.transparency,
+                                        child: InkWell(
+                                          key: Key(
+                                            'orientation-course-${course.id}',
+                                          ),
+                                          onTap: () => _select(course),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'NUGGET ${i + 1} OF ${courses.length} · ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelMedium,
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  course.title,
+                                                  style: theme
+                                                      .textTheme
+                                                      .titleLarge,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      saved?.completed == true
+                                                          ? Icons.replay
+                                                          : Icons
+                                                                .play_circle_outline,
+                                                      size: 22,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        label,
+                                                        style: TextStyle(
+                                                          color: theme
+                                                              .colorScheme
+                                                              .primary,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
+                          );
+                        },
+                      ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: InkWell(
+                        key: const Key('orientation-full-course'),
+                        onTap: () => _select(_fullCourse),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('FULL TEACHING · ABOUT 12 MINUTES'),
+                              SizedBox(height: 8),
+                              Text(
+                                'The full teaching',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 6),
+                              Text('Seven tenets for a fruitful life.'),
+                            ],
                           ),
-                        );
-                      },
-                    ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: InkWell(
-                      key: const Key('orientation-full-course'),
-                      onTap: () => _select(_fullCourse),
-                      borderRadius: BorderRadius.circular(12),
-                      child: const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('FULL TEACHING · ABOUT 12 MINUTES'),
-                            SizedBox(height: 8),
-                            Text(
-                              'Read or listen to the full course',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              'The complete seven-tenet teaching with motivational narration, gentle music, synchronized text, and adjustable speed.',
-                            ),
-                          ],
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -9,6 +9,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../../core/presentation/covenant_slabs.dart';
+import '../../../core/presentation/sanctuary_artwork.dart';
 import '../../../core/playback/spiritual_session.dart';
 import '../../../core/playback/spiritual_session_providers.dart';
 import 'completed_today_item.dart';
@@ -136,23 +137,74 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               AppSpacing.md,
             ),
             children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  'Today',
-                  style: Theme.of(context).textTheme.headlineMedium,
+              Padding(
+                padding: const EdgeInsets.only(right: 48, top: 12),
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    '${DateTime.now().hour < 12
+                        ? 'Good morning'
+                        : DateTime.now().hour < 18
+                        ? 'Good afternoon'
+                        : 'Good evening'},\nBeloved',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.displaySmall?.copyWith(fontSize: 32),
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: 10),
               Text(
-                'Pray. Act. Remember.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                'BE TRANSFORMED · ROMANS 12:2',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(letterSpacing: 1.7),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: 24),
               const FormationTodayCard(),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: 22),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final single =
+                      MediaQuery.textScalerOf(context).scale(16) > 23;
+                  final width = single
+                      ? constraints.maxWidth
+                      : (constraints.maxWidth - 24) / 3;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: width,
+                        child: SanctuaryPracticeTile(
+                          art: SanctuaryArt.prayer,
+                          title: 'Quiet prayer',
+                          onTap: () => context.go('/prayers'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: SanctuaryPracticeTile(
+                          art: SanctuaryArt.scripture,
+                          title: 'Scripture',
+                          onTap: () => context.go('/prayers/meditation'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: width,
+                        child: SanctuaryPracticeTile(
+                          art: SanctuaryArt.renewal,
+                          title: 'Reflect',
+                          onTap: () => context.go('/remember/capture'),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 26),
+              Text('Today', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
               dailyPractices.when(
                 loading: () => const SizedBox(
                   height: 132,

@@ -12,6 +12,18 @@ import AVFoundation
     UNUserNotificationCenter.current().delegate = self
     GeneratedPluginRegistrant.register(with: self)
     if let controller = window?.rootViewController as? FlutterViewController {
+      let awakeChannel = FlutterMethodChannel(
+        name: "app.soulbuddy/screen_awake",
+        binaryMessenger: controller.binaryMessenger
+      )
+      awakeChannel.setMethodCallHandler { call, result in
+        if call.method == "setEnabled", let enabled = call.arguments as? Bool {
+          UIApplication.shared.isIdleTimerDisabled = enabled
+          result(nil)
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
       let channel = FlutterMethodChannel(
         name: "app.soulbuddy/prayer_audio",
         binaryMessenger: controller.binaryMessenger

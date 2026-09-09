@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/presentation/screen_awake.dart';
+import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
@@ -16,6 +18,10 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    return ScreenAwake(child: _buildPrayer(context, ref));
+  }
+
+  Widget _buildPrayer(BuildContext context, WidgetRef ref) {
     final prayer = ref.watch(personalPrayerProvider(prayerId));
     return Material(
       color: Theme.of(context).colorScheme.surface,
@@ -45,9 +51,9 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      value.title,
-                      style: Theme.of(context).textTheme.headlineMedium,
+                    SanctuaryReadingHeading(
+                      title: value.title,
+                      art: SanctuaryArt.prayer,
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     SelectableText(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../core/presentation/screen_awake.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../application/orientation_controller.dart';
@@ -194,6 +195,10 @@ class _ReaderState extends ConsumerState<OrientationReaderScreen>
 
   @override
   Widget build(BuildContext context) {
+    return ScreenAwake(child: _buildReading(context));
+  }
+
+  Widget _buildReading(BuildContext context) {
     final theme = Theme.of(context);
     final c = _controller;
     final duration = widget.course.duration.inMilliseconds

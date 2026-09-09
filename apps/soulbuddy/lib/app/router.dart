@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../core/design/app_colors.dart';
+import '../core/presentation/sacred_surface.dart';
+import '../core/presentation/sanctuary_backdrop.dart';
+import '../core/presentation/screen_awake.dart';
 import '../core/design/app_spacing.dart';
 import '../core/design/sacred_piece.dart';
 import '../core/feedback/app_feedback.dart';
@@ -70,9 +72,11 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/sacred-hours/:hourId',
-      builder: (context, state) => SacredHourSessionScreen(
-        hourId: state.pathParameters['hourId']!,
-        occurrenceKey: state.uri.queryParameters['occurrence'],
+      builder: (context, state) => ScreenAwake(
+        child: SacredHourSessionScreen(
+          hourId: state.pathParameters['hourId']!,
+          occurrenceKey: state.uri.queryParameters['occurrence'],
+        ),
       ),
     ),
     StatefulShellRoute.indexedStack(
@@ -230,9 +234,11 @@ final GoRouter appRouter = GoRouter(
                 ),
                 GoRoute(
                   path: 'scripture/:book/:chapter',
-                  builder: (context, state) => ScripturePassageScreen(
-                    book: state.pathParameters['book']!,
-                    chapter: int.parse(state.pathParameters['chapter']!),
+                  builder: (context, state) => ScreenAwake(
+                    child: ScripturePassageScreen(
+                      book: state.pathParameters['book']!,
+                      chapter: int.parse(state.pathParameters['chapter']!),
+                    ),
                   ),
                 ),
                 GoRoute(
@@ -270,26 +276,11 @@ class _SoulBuddyShell extends ConsumerWidget {
   const _SoulBuddyShell({required this.navigationShell});
 
   static const _destinations = [
-    _AppDestination(
-      label: 'Today',
-      piece: SacredPiece.today,
-    ),
-    _AppDestination(
-      label: 'Goals',
-      piece: SacredPiece.goal,
-    ),
-    _AppDestination(
-      label: 'Persons',
-      piece: SacredPiece.person,
-    ),
-    _AppDestination(
-      label: 'Remember',
-      piece: SacredPiece.remember,
-    ),
-    _AppDestination(
-      label: 'Circles',
-      piece: SacredPiece.circle,
-    ),
+    _AppDestination(label: 'Today', piece: SacredPiece.today),
+    _AppDestination(label: 'Goals', piece: SacredPiece.goal),
+    _AppDestination(label: 'Persons', piece: SacredPiece.person),
+    _AppDestination(label: 'Remember', piece: SacredPiece.remember),
+    _AppDestination(label: 'Circles', piece: SacredPiece.circle),
   ];
 
   final StatefulNavigationShell navigationShell;
@@ -349,27 +340,40 @@ class _SoulBuddyShell extends ConsumerWidget {
 
         return Scaffold(
           body: _ShellBody(navigationShell: navigationShell),
-          bottomNavigationBar: DecoratedBox(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.outline)),
-            ),
-            child: NavigationBar(
-              selectedIndex: navigationShell.currentIndex,
-              onDestinationSelected: (index) => _selectDestination(ref, index),
-              destinations: [
-                for (final destination in _destinations)
-                  NavigationDestination(
-                    icon: Icon(
-                      destination.piece.icon,
-                      key: Key('nav-piece-${destination.piece.name}'),
-                    ),
-                    selectedIcon: Icon(
-                      destination.piece.selectedIcon,
-                      key: Key('nav-piece-${destination.piece.name}'),
-                    ),
-                    label: destination.label,
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+              child: SacredSurface(
+                marble: true,
+                child: MediaQuery.withClampedTextScaling(
+                  maxScaleFactor: 1.15,
+                  child: NavigationBar(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    indicatorColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.12),
+                    selectedIndex: navigationShell.currentIndex,
+                    onDestinationSelected: (index) =>
+                        _selectDestination(ref, index),
+                    destinations: [
+                      for (final destination in _destinations)
+                        NavigationDestination(
+                          icon: Icon(
+                            destination.piece.icon,
+                            key: Key('nav-piece-${destination.piece.name}'),
+                          ),
+                          selectedIcon: Icon(
+                            destination.piece.selectedIcon,
+                            key: Key('nav-piece-${destination.piece.name}'),
+                          ),
+                          label: destination.label,
+                        ),
+                    ],
                   ),
-              ],
+                ),
+              ),
             ),
           ),
         );
@@ -384,35 +388,34 @@ class _ShellBody extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      Positioned.fill(child: navigationShell),
-      Positioned(
-        top: AppSpacing.sm,
-        right: AppSpacing.sm,
-        child: SafeArea(
-          child: Material(
-            color: Theme.of(
-              context,
-            ).colorScheme.surface.withValues(alpha: 0.94),
-            shape: const CircleBorder(),
-            child: IconButton(
-              tooltip: 'Settings',
-              onPressed: () => context.push('/settings'),
-              icon: const Icon(Icons.settings_outlined),
+  Widget build(BuildContext context) => SanctuaryBackdrop(
+    child: Stack(
+      children: [
+        Positioned.fill(child: navigationShell),
+        Positioned(
+          top: AppSpacing.sm,
+          right: AppSpacing.sm,
+          child: SafeArea(
+            child: Material(
+              color: Theme.of(
+                context,
+              ).colorScheme.surface.withValues(alpha: 0.94),
+              shape: const CircleBorder(),
+              child: IconButton(
+                tooltip: 'Settings',
+                onPressed: () => context.push('/settings'),
+                icon: const Icon(Icons.person_outline_rounded),
+              ),
             ),
           ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
 class _AppDestination {
-  const _AppDestination({
-    required this.label,
-    required this.piece,
-  });
+  const _AppDestination({required this.label, required this.piece});
 
   final String label;
   final SacredPiece piece;

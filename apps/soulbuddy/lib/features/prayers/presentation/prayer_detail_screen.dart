@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/presentation/screen_awake.dart';
+import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -39,7 +41,7 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
         if (value == null) {
           return _PrayerMissing(onBack: () => context.go('/prayers'));
         }
-        return _buildPrayer(context, value);
+        return ScreenAwake(child: _buildPrayer(context, value));
       },
     );
   }
@@ -62,12 +64,9 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              Semantics(
-                header: true,
-                child: Text(
-                  prayer.title,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
+              SanctuaryReadingHeading(
+                title: prayer.title,
+                art: SanctuaryArt.prayer,
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(

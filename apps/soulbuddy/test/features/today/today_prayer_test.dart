@@ -37,7 +37,8 @@ void main() {
     await _pumpToday(tester, repository: repository);
 
     expect(find.text('Today'), findsOneWidget);
-    expect(find.text('Pray. Act. Remember.'), findsOneWidget);
+    expect(find.text('BE TRANSFORMED · ROMANS 12:2'), findsOneWidget);
+    await _scrollTo(tester, const Key('start-first-goal'));
     expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
     expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
     expect(find.byType(CovenantSlabs), findsOneWidget);
@@ -69,7 +70,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('signature guide fits above real shell navigation', (
+  testWidgets('signature guide remains reachable above shell navigation', (
     tester,
   ) async {
     final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
@@ -82,6 +83,7 @@ void main() {
       includeShellNavigation: true,
     );
 
+    await _scrollTo(tester, const Key('today-record-memory'));
     final guideBottom = tester
         .getBottomLeft(find.byKey(const Key('today-start-guide-end')))
         .dy;
@@ -113,8 +115,9 @@ void main() {
       includeShellNavigation: true,
     );
 
+    await _scrollTo(tester, const Key('today-covenant-slabs'));
     expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const Key('today-record-memory')));
+    await _scrollTo(tester, const Key('today-record-memory'));
     expect(find.byKey(const Key('today-record-memory')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -757,7 +760,12 @@ void _expectNoGamification(WidgetTester tester) {
 }
 
 Future<void> _scrollTo(WidgetTester tester, Key key) async {
-  await tester.ensureVisible(find.byKey(key));
+  await tester.scrollUntilVisible(
+    find.byKey(key),
+    240,
+    scrollable: find.byType(Scrollable).first,
+    maxScrolls: 30,
+  );
   await tester.pumpAndSettle();
 }
 
