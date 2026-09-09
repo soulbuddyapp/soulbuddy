@@ -35,85 +35,88 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
         return SacredSurface(
           key: const Key('spiritual-session-mini-player'),
           marble: true,
-          child: SizedBox(
-            height: 72,
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                KeyedSubtree(
-                  key: const Key('spiritual-session-artwork'),
-                  child: SacredPieceMedallion(
-                    key: Key('spiritual-session-piece-${piece.name}'),
-                    piece: piece,
-                    selected: true,
-                    decorative: true,
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => onOpen(session.route),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          session.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(color: scheme.onSurface),
-                        ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          key: const Key('spiritual-session-progress'),
-                          value: state.progress,
-                          minHeight: 3,
-                          color: colors.covenantGold,
-                          backgroundColor: scheme.outlineVariant,
-                        ),
-                      ],
+          child: Material(
+            type: MaterialType.transparency,
+            child: SizedBox(
+              height: 72,
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  KeyedSubtree(
+                    key: const Key('spiritual-session-artwork'),
+                    child: SacredPieceMedallion(
+                      key: Key('spiritual-session-piece-${piece.name}'),
+                      piece: piece,
+                      selected: true,
+                      decorative: true,
+                      size: 48,
                     ),
                   ),
-                ),
-                if (session.canPause)
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => onOpen(session.route),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            session.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(color: scheme.onSurface),
+                          ),
+                          const SizedBox(height: 4),
+                          LinearProgressIndicator(
+                            key: const Key('spiritual-session-progress'),
+                            value: state.progress ?? 0,
+                            minHeight: 3,
+                            color: colors.covenantGold,
+                            backgroundColor: scheme.outlineVariant,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (session.canPause)
+                    IconButton(
+                      key: Key(
+                        state.status == SpiritualSessionStatus.paused
+                            ? 'spiritual-session-resume'
+                            : 'spiritual-session-pause',
+                      ),
+                      tooltip: state.status == SpiritualSessionStatus.paused
+                          ? 'Resume'
+                          : 'Pause',
+                      onPressed: () => unawaited(
+                        state.status == SpiritualSessionStatus.paused
+                            ? controller.resume()
+                            : controller.pause(),
+                      ),
+                      color: scheme.onSurface,
+                      icon: Icon(
+                        state.status == SpiritualSessionStatus.paused
+                            ? Icons.play_arrow
+                            : Icons.pause,
+                      ),
+                    ),
                   IconButton(
-                    key: Key(
-                      state.status == SpiritualSessionStatus.paused
-                          ? 'spiritual-session-resume'
-                          : 'spiritual-session-pause',
-                    ),
-                    tooltip: state.status == SpiritualSessionStatus.paused
-                        ? 'Resume'
-                        : 'Pause',
-                    onPressed: () => unawaited(
-                      state.status == SpiritualSessionStatus.paused
-                          ? controller.resume()
-                          : controller.pause(),
-                    ),
+                    key: const Key('spiritual-session-complete'),
+                    tooltip: session.completionLabel,
+                    onPressed: () => unawaited(controller.complete()),
                     color: scheme.onSurface,
-                    icon: Icon(
-                      state.status == SpiritualSessionStatus.paused
-                          ? Icons.play_arrow
-                          : Icons.pause,
-                    ),
+                    icon: const Icon(Icons.check_circle_outline),
                   ),
-                IconButton(
-                  key: const Key('spiritual-session-complete'),
-                  tooltip: session.completionLabel,
-                  onPressed: () => unawaited(controller.complete()),
-                  color: scheme.onSurface,
-                  icon: const Icon(Icons.check_circle_outline),
-                ),
-                IconButton(
-                  key: const Key('spiritual-session-close'),
-                  tooltip: 'Close player',
-                  onPressed: () => unawaited(controller.close()),
-                  color: scheme.onSurface,
-                  icon: const Icon(Icons.close),
-                ),
-              ],
+                  IconButton(
+                    key: const Key('spiritual-session-close'),
+                    tooltip: 'Close player',
+                    onPressed: () => unawaited(controller.close()),
+                    color: scheme.onSurface,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
             ),
           ),
         );

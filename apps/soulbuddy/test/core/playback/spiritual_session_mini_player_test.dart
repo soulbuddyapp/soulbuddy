@@ -7,6 +7,35 @@ import 'package:soulbuddy/core/playback/spiritual_session_mini_player.dart';
 import 'package:soulbuddy/core/playback/spiritual_session_providers.dart';
 
 void main() {
+  testWidgets('persistent player provides a material layer for playback taps', (
+    tester,
+  ) async {
+    final controller = SpiritualSessionController();
+    await controller.begin(
+      SpiritualSession(
+        id: 'prayer-material',
+        kind: SpiritualSessionKind.prayer,
+        title: 'Prayer with a tap target',
+        route: '/prayers/1',
+        canPause: false,
+        onPause: () async {},
+        onResume: () async {},
+        onComplete: () async {},
+        onClose: () async {},
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          spiritualSessionControllerProvider.overrideWithValue(controller),
+        ],
+        child: MaterialApp(home: SpiritualSessionMiniPlayer(onOpen: (_) {})),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('persistent player pauses resumes opens and completes', (
     tester,
   ) async {
