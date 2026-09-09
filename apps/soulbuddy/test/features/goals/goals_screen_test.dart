@@ -33,7 +33,7 @@ void main() {
       );
 
       expect(find.text('My practice'), findsOneWidget);
-      expect(find.text("What you've created"), findsOneWidget);
+      expect(find.text('My Collection'), findsOneWidget);
       expect(find.text('Take the next faithful step'), findsOneWidget);
       expect(find.text('My prayer · daily'), findsOneWidget);
       expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);

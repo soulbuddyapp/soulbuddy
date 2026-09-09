@@ -42,7 +42,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Keep what you create, pray, and return to in one place.',
+                'Grow closer to God through personal prayer & goals.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
@@ -284,7 +284,7 @@ class _CreatedWorkspace extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          "What you've created",
+          'My Collection',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: AppSpacing.xs),
