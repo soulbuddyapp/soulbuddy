@@ -1,10 +1,77 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/domain/meditation_session.dart';
 import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
 import 'package:soulbuddy/features/prayers/presentation/meditation_session_sheet.dart';
+import 'package:soulbuddy/features/prayers/application/meditation_sound_preferences.dart';
 
 void main() {
+  testWidgets('meditation restores the reading sound without autoplay', (
+    tester,
+  ) async {
+    String? saved;
+    final preferences = MeditationSoundPreferencesRepository(
+      read: (_) async => saved,
+      write: (_, value) async => saved = value,
+    );
+    await preferences.save(
+      const MeditationSoundPreferences(
+        sound: MeditationSoundBed.hopefulPiano,
+        volume: .1,
+      ),
+    );
+    MeditationSessionRequest? started;
+    await tester.pumpWidget(
+      _app(
+        MeditationSessionSheet(
+          tablet: _tablet(),
+          selectedAudio: _tablet().fullAudio!,
+          soundPreferences: preferences,
+          onStart: (request) async => started = request,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(started, isNull);
+    await tester.ensureVisible(find.byKey(const Key('begin-meditation')));
+    await tester.tap(find.byKey(const Key('begin-meditation')));
+    await tester.pump();
+    expect(started!.soundBed, MeditationSoundBed.hopefulPiano);
+    expect(started!.soundVolume, .1);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('leaving while meditation is starting cancels the session', (
+    tester,
+  ) async {
+    final starting = Completer<void>();
+    var stops = 0;
+    Widget app(bool visible) => _app(
+      TickerMode(
+        enabled: visible,
+        child: MeditationSessionSheet(
+          tablet: _tablet(),
+          selectedAudio: _tablet().fullAudio!,
+          onStart: (_) => starting.future,
+          onStop: () async {
+            stops++;
+          },
+        ),
+      ),
+    );
+    await tester.pumpWidget(app(true));
+    await tester.tap(find.byKey(const Key('begin-meditation')));
+    await tester.pump();
+    await tester.pumpWidget(app(false));
+    expect(stops, greaterThan(0));
+    starting.complete();
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(app(true));
+    expect(find.byKey(const Key('stop-meditation')), findsNothing);
+  });
+
   test('ships a broad set of restrained meditation sound beds', () {
     expect(MeditationSoundBed.values.map((bed) => bed.label), [
       'Stillness',

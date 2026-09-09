@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../../core/presentation/screen_awake.dart';
+import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../prayers/application/meditation_sound_bed_player.dart';
+import '../../prayers/application/meditation_sound_preferences.dart';
 import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
 import '../../scripture/domain/scripture_passage.dart';
@@ -18,9 +20,10 @@ import '../domain/formation_reading.dart';
 import '../providers/formation_providers.dart';
 
 class FormationReadingScreen extends ConsumerStatefulWidget {
-  const FormationReadingScreen({this.readingId, super.key});
+  const FormationReadingScreen({this.readingId, this.soundPlayer, super.key});
 
   final String? readingId;
+  final MeditationSoundBedPlayer? soundPlayer;
 
   @override
   ConsumerState<FormationReadingScreen> createState() =>
@@ -29,7 +32,10 @@ class FormationReadingScreen extends ConsumerStatefulWidget {
 
 class _FormationReadingScreenState
     extends ConsumerState<FormationReadingScreen> {
-  final _soundPlayer = AudioplayersMeditationSoundBedPlayer();
+  late final _soundPlayer =
+      widget.soundPlayer ?? AudioplayersMeditationSoundBedPlayer();
+  bool _soundVisible = false;
+  int _soundRevision = 0;
   MeditationSoundBed? _sound;
   double _volume = 0.15;
   bool _completing = false;
@@ -50,7 +56,10 @@ class _FormationReadingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return ScreenAwake(child: _buildReading(context));
+    return PracticeAudioScope(
+      onVisibilityChanged: _soundVisibilityChanged,
+      child: ScreenAwake(child: _buildReading(context)),
+    );
   }
 
   Widget _buildReading(BuildContext context) {
@@ -190,6 +199,7 @@ class _FormationReadingScreenState
                           onChanged: (value) {
                             setState(() => _volume = value);
                             unawaited(_soundPlayer.setVolume(value));
+                            unawaited(_saveSound());
                           },
                         ),
                     ],
@@ -297,16 +307,77 @@ class _FormationReadingScreenState
   );
 
   Future<void> _setSound(MeditationSoundBed? value) async {
+    ++_soundRevision;
     setState(() {
+      if (value != null && value != _sound) _volume = value.preferredVolume;
       _sound = value;
-      if (value != null) _volume = value.preferredVolume;
     });
-    if (value == null) return _soundPlayer.stop();
-    await _soundPlayer.start(value, volume: _volume);
+    unawaited(_saveSound());
+    await _playSelectedSound();
   }
 
-  Future<void> _previewSound(MeditationSoundBed value) =>
-      _soundPlayer.start(value, volume: value.preferredVolume);
+  void _soundVisibilityChanged(bool visible) {
+    _soundVisible = visible;
+    ++_soundRevision;
+    if (visible) {
+      unawaited(_restoreSound());
+    } else {
+      unawaited(_soundPlayer.stop());
+    }
+  }
+
+  Future<void> _restoreSound() async {
+    final revision = _soundRevision;
+    try {
+      final preferences = await ref
+          .read(meditationSoundPreferencesProvider)
+          .load();
+      if (!mounted || !_soundVisible || revision != _soundRevision) return;
+      setState(() {
+        _sound = preferences.sound;
+        _volume = preferences.volume;
+      });
+      await _playSelectedSound();
+    } catch (error) {
+      debugPrint('Reading sound preference unavailable: $error');
+    }
+  }
+
+  Future<void> _saveSound() async {
+    try {
+      await ref
+          .read(meditationSoundPreferencesProvider)
+          .save(MeditationSoundPreferences(sound: _sound, volume: _volume));
+    } catch (_) {
+      if (mounted && _soundVisible) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sound preference could not be saved.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _playSelectedSound() async {
+    try {
+      final sound = _sound;
+      if (!_soundVisible || sound == null) {
+        await _soundPlayer.stop();
+      } else {
+        await _soundPlayer.start(sound, volume: _volume);
+      }
+    } catch (error) {
+      debugPrint('Reading sound unavailable: $error');
+    }
+  }
+
+  Future<void> _previewSound(MeditationSoundBed value) async {
+    if (!mounted || !TickerMode.of(context)) return;
+    try {
+      await _soundPlayer.start(value, volume: value.preferredVolume);
+    } catch (error) {
+      debugPrint('Sound preview unavailable: $error');
+    }
+  }
 
   Future<ScripturePassage> _passageFor(FormationReading reading) {
     if (_passageReadingId != reading.id || _passageFuture == null) {

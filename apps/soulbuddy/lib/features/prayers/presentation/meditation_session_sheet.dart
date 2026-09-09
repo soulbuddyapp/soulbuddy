@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../../core/presentation/screen_awake.dart';
+import '../../../core/presentation/practice_audio_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
@@ -10,6 +11,7 @@ import '../../record/audio/providers/memory_audio_providers.dart';
 import '../domain/meditation_session.dart';
 import '../domain/voice_tablet.dart';
 import '../application/meditation_sound_bed_player.dart';
+import '../application/meditation_sound_preferences.dart';
 
 Future<void> showMeditationSessionSheet(
   BuildContext context,
@@ -18,6 +20,32 @@ Future<void> showMeditationSessionSheet(
   required VoiceTabletAudio selectedAudio,
 }) async {
   final soundPlayer = AudioplayersMeditationSoundBedPlayer();
+  final preferences = ref.read(meditationSoundPreferencesProvider);
+  final coordinatorFuture = ref.read(
+    memoryAudioPlaybackCoordinatorProvider.future,
+  );
+  var sessionGeneration = 0;
+  Future<void> playVoice(VoiceTabletAudio audio) async {
+    final generation = sessionGeneration;
+    final coordinator = await coordinatorFuture;
+    if (generation != sessionGeneration) return;
+    await coordinator.playTrack(
+      PrivateAudioTrack(
+        id: audio.id,
+        storageKey: audio.storageKey,
+        duration: audio.duration,
+      ),
+    );
+  }
+
+  Future<void> stop() async {
+    ++sessionGeneration;
+    await Future.wait([
+      soundPlayer.stop(),
+      coordinatorFuture.then((coordinator) => coordinator.stop()),
+    ]);
+  }
+
   try {
     await showModalBottomSheet<void>(
       context: context,
@@ -26,43 +54,31 @@ Future<void> showMeditationSessionSheet(
       builder: (context) => MeditationSessionSheet(
         tablet: tablet,
         selectedAudio: selectedAudio,
+        soundPreferences: preferences,
         onStart: (request) async {
+          final generation = ++sessionGeneration;
           if (request.soundBed case final bed?) {
             await soundPlayer.start(bed, volume: request.soundVolume);
           }
+          if (generation != sessionGeneration) return;
           if (request.includeVoice) {
             if (request.voiceAudio case final audio?) {
-              await _playVoice(ref, audio);
+              await playVoice(audio);
             }
           }
         },
-        onRepeatVoice: (audio) => _playVoice(ref, audio),
+        onRepeatVoice: playVoice,
         onSoundVolume: soundPlayer.setVolume,
-        onStop: () async {
-          await soundPlayer.stop();
-          final coordinator = await ref.read(
-            memoryAudioPlaybackCoordinatorProvider.future,
-          );
-          await coordinator.stop();
-        },
+        onStop: stop,
       ),
     );
   } finally {
-    await soundPlayer.dispose();
+    try {
+      await stop();
+    } finally {
+      await soundPlayer.dispose();
+    }
   }
-}
-
-Future<void> _playVoice(WidgetRef ref, VoiceTabletAudio audio) async {
-  final coordinator = await ref.read(
-    memoryAudioPlaybackCoordinatorProvider.future,
-  );
-  await coordinator.playTrack(
-    PrivateAudioTrack(
-      id: audio.id,
-      storageKey: audio.storageKey,
-      duration: audio.duration,
-    ),
-  );
 }
 
 class MeditationSessionSheet extends StatefulWidget {
@@ -73,6 +89,7 @@ class MeditationSessionSheet extends StatefulWidget {
     this.onRepeatVoice,
     this.onSoundVolume,
     this.onStop,
+    this.soundPreferences,
     super.key,
   });
 
@@ -82,6 +99,7 @@ class MeditationSessionSheet extends StatefulWidget {
   final Future<void> Function(VoiceTabletAudio)? onRepeatVoice;
   final Future<void> Function(double)? onSoundVolume;
   final Future<void> Function()? onStop;
+  final MeditationSoundPreferencesRepository? soundPreferences;
 
   @override
   State<MeditationSessionSheet> createState() => _MeditationSessionSheetState();
@@ -100,18 +118,76 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
   String? _error;
   Timer? _sessionTimer;
   Timer? _repeatTimer;
+  int _soundRevision = 0;
+  int _sessionRevision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_restoreSound());
+  }
+
+  Future<void> _restoreSound() async {
+    final revision = _soundRevision;
+    try {
+      final preferences = await widget.soundPreferences?.load();
+      if (!mounted ||
+          preferences == null ||
+          revision != _soundRevision ||
+          _starting ||
+          _running) {
+        return;
+      }
+      setState(() {
+        _soundBed = preferences.sound;
+        _soundVolume = preferences.volume;
+      });
+    } catch (error) {
+      debugPrint('Meditation sound preference unavailable: $error');
+    }
+  }
+
+  void _selectSound(MeditationSoundBed? sound) {
+    ++_soundRevision;
+    setState(() {
+      if (sound != null && sound != _soundBed) {
+        _soundVolume = sound.preferredVolume;
+      }
+      _soundBed = sound;
+      if (sound == null) _includeVoice = true;
+    });
+    unawaited(_saveSound());
+  }
+
+  Future<void> _saveSound() async {
+    try {
+      await widget.soundPreferences?.save(
+        MeditationSoundPreferences(sound: _soundBed, volume: _soundVolume),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Sound preference could not be saved.');
+      }
+    }
+  }
 
   @override
   void dispose() {
     _sessionTimer?.cancel();
     _repeatTimer?.cancel();
-    if (_running) unawaited(widget.onStop?.call());
+    ++_sessionRevision;
+    if (_running || _starting) unawaited(widget.onStop?.call());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ScreenAwake(child: _buildSession(context));
+    return PracticeAudioScope(
+      onVisibilityChanged: (visible) {
+        if (!visible && (_running || _starting)) unawaited(_stop());
+      },
+      child: ScreenAwake(child: _buildSession(context)),
+    );
   }
 
   Widget _buildSession(BuildContext context) {
@@ -152,21 +228,14 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
             ChoiceChip(
               label: const Text('Voice only'),
               selected: _soundBed == null,
-              onSelected: _starting
-                  ? null
-                  : (_) => setState(() {
-                      _soundBed = null;
-                      _includeVoice = true;
-                    }),
+              onSelected: _starting ? null : (_) => _selectSound(null),
             ),
             const SizedBox(width: AppSpacing.sm),
             for (final bed in MeditationSoundBed.values) ...[
               ChoiceChip(
                 label: Text(bed.label),
                 selected: _soundBed == bed,
-                onSelected: _starting
-                    ? null
-                    : (_) => setState(() => _soundBed = bed),
+                onSelected: _starting ? null : (_) => _selectSound(bed),
               ),
               const SizedBox(width: AppSpacing.sm),
             ],
@@ -197,6 +266,7 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
               : (value) {
                   setState(() => _soundVolume = value);
                   unawaited(widget.onSoundVolume?.call(value));
+                  unawaited(_saveSound());
                 },
         ),
       ],
@@ -315,6 +385,8 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
 
   Future<void> _start() async {
     if (!_includeVoice && _soundBed == null) return;
+    final revision = ++_sessionRevision;
+    ++_soundRevision;
     setState(() {
       _starting = true;
       _error = null;
@@ -333,7 +405,7 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
     );
     try {
       await widget.onStart(request);
-      if (!mounted) return;
+      if (!mounted || revision != _sessionRevision) return;
       setState(() {
         _starting = false;
         _running = true;
@@ -348,7 +420,7 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
         );
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && revision == _sessionRevision) {
         setState(() {
           _starting = false;
           _error = 'Could not begin this prayer time just now.';
@@ -358,6 +430,7 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
   }
 
   Future<void> _stop() async {
+    ++_sessionRevision;
     _sessionTimer?.cancel();
     _repeatTimer?.cancel();
     _sessionTimer = null;
@@ -365,7 +438,12 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
     try {
       await widget.onStop?.call();
     } finally {
-      if (mounted) setState(() => _running = false);
+      if (mounted) {
+        setState(() {
+          _running = false;
+          _starting = false;
+        });
+      }
     }
   }
 }
