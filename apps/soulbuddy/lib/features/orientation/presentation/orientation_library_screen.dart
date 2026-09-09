@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
+import '../../../core/presentation/sacred_surface.dart';
 import '../domain/orientation_course.dart';
 import '../providers/orientation_providers.dart';
 import 'orientation_reader_screen.dart';
+import 'orientation_path.dart';
 
 class OrientationLibraryScreen extends ConsumerStatefulWidget {
   const OrientationLibraryScreen({
@@ -94,6 +96,7 @@ class _LibraryState extends ConsumerState<OrientationLibraryScreen> {
       );
     }
     final theme = Theme.of(context);
+    final journey = ref.watch(orientationJourneyStatusProvider).value;
     final large = MediaQuery.textScalerOf(context).scale(18) > 26;
     return Scaffold(
       appBar: AppBar(
@@ -150,6 +153,16 @@ class _LibraryState extends ConsumerState<OrientationLibraryScreen> {
                   const Text(
                     'Eight memorable Nuggets. Listen, read along, and continue from where you stopped. Choose your own listening speed.',
                   ),
+                  if (journey != null) ...[
+                    const SizedBox(height: 20),
+                    SacredSurface(
+                      marble: true,
+                      padding: const EdgeInsets.all(16),
+                      child: OrientationPath(
+                        completedCount: journey.completedCount,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   for (var i = 0; i < courses.length; i++)
                     Builder(

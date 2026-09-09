@@ -6,6 +6,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../../core/design/sacred_piece.dart';
 import '../../../core/presentation/sacred_piece_medallion.dart';
 import '../../orientation/providers/orientation_providers.dart';
+import '../../orientation/presentation/orientation_path.dart';
 import '../domain/formation_reading.dart';
 import '../providers/formation_providers.dart';
 
@@ -24,6 +25,7 @@ class FormationTodayCard extends ConsumerWidget {
         body: 'Begin with the eight memorable Nuggets.',
         progress: null,
         piece: SacredPiece.orientation,
+        orientationCompleted: 0,
         action: 'Start orientation',
         onPressed: () => context.push('/orientation'),
       ),
@@ -42,6 +44,7 @@ class FormationTodayCard extends ConsumerWidget {
             body: 'Listen, read, and plant one good seed from the next Nugget.',
             progress: '${journey.completedCount} of 8 Nuggets complete',
             piece: SacredPiece.orientation,
+            orientationCompleted: journey.completedCount,
             action: action,
             onPressed: () => context.push(route),
           );
@@ -56,6 +59,7 @@ class FormationTodayCard extends ConsumerWidget {
             body: formationReadings.first.theme,
             progress: formationReadings.first.reference,
             piece: SacredPiece.scripture,
+            orientationCompleted: null,
             action: 'Begin meditation',
             onPressed: () => context.go('/prayers/meditation'),
           ),
@@ -73,6 +77,7 @@ class FormationTodayCard extends ConsumerWidget {
               progress:
                   '${next.reference} · $completed of ${formationReadings.length}',
               piece: SacredPiece.scripture,
+              orientationCompleted: null,
               action: completed == 0 ? 'Begin meditation' : 'Continue reading',
               onPressed: () => context.go('/prayers/meditation/${next.id}'),
             );
@@ -89,6 +94,7 @@ class FormationTodayCard extends ConsumerWidget {
     required String body,
     required String? progress,
     required SacredPiece piece,
+    required int? orientationCompleted,
     required String action,
     required VoidCallback onPressed,
   }) => Card(
@@ -125,6 +131,10 @@ class FormationTodayCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(body),
+          if (orientationCompleted != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            OrientationPath(completedCount: orientationCompleted),
+          ],
           if (progress != null) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(

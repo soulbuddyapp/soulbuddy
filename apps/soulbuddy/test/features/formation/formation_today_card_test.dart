@@ -40,6 +40,9 @@ void main() {
       expect(find.text('3 of 8 Nuggets complete'), findsOneWidget);
       expect(find.text('Continue orientation'), findsOneWidget);
       expect(find.byKey(const Key('formation-piece-orientation')), findsOneWidget);
+      expect(find.byKey(const Key('orientation-path')), findsOneWidget);
+      expect(find.byKey(const Key('orientation-path-marker-0')), findsOneWidget);
+      expect(find.byKey(const Key('orientation-path-marker-7')), findsOneWidget);
 
       await tester.tap(find.text('Continue orientation'));
       await tester.pumpAndSettle();

@@ -42,6 +42,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Morning prayer'), findsOneWidget);
+    expect(find.byKey(const Key('spiritual-session-artwork')), findsOneWidget);
+    expect(find.byKey(const Key('spiritual-session-progress')), findsOneWidget);
     expect(
       find.byKey(const Key('spiritual-session-piece-prayer')),
       findsOneWidget,

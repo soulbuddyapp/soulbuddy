@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../design/sacred_piece.dart';
+import '../design/covenant_grace_tokens.dart';
 import '../presentation/sacred_piece_medallion.dart';
+import '../presentation/sacred_surface.dart';
 import 'spiritual_session.dart';
 import 'spiritual_session_providers.dart';
 
@@ -22,23 +24,31 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
         final state = controller.state;
         final session = state.session;
         if (session == null) return const SizedBox.shrink();
-        final scheme = Theme.of(context).colorScheme;
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
         final piece = _piece(session.kind);
-        return Card(
+        final colors =
+            theme.extension<CovenantGraceColors>() ??
+            (theme.brightness == Brightness.dark
+                ? CovenantGraceColors.dark
+                : CovenantGraceColors.light);
+        return SacredSurface(
           key: const Key('spiritual-session-mini-player'),
-          elevation: 8,
-          color: scheme.inverseSurface,
-          margin: EdgeInsets.zero,
+          marble: true,
           child: SizedBox(
-            height: 64,
+            height: 72,
             child: Row(
               children: [
                 const SizedBox(width: 12),
-                SacredPieceMedallion(
-                  key: Key('spiritual-session-piece-${piece.name}'),
-                  piece: piece,
-                  decorative: true,
-                  size: 44,
+                KeyedSubtree(
+                  key: const Key('spiritual-session-artwork'),
+                  child: SacredPieceMedallion(
+                    key: Key('spiritual-session-piece-${piece.name}'),
+                    piece: piece,
+                    selected: true,
+                    decorative: true,
+                    size: 48,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -53,15 +63,15 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(color: scheme.onInverseSurface),
+                              ?.copyWith(color: scheme.onSurface),
                         ),
                         const SizedBox(height: 4),
                         LinearProgressIndicator(
-                          value: state.progress ?? 0,
+                          key: const Key('spiritual-session-progress'),
+                          value: state.progress,
                           minHeight: 3,
-                          backgroundColor: scheme.onInverseSurface.withValues(
-                            alpha: 0.22,
-                          ),
+                          color: colors.covenantGold,
+                          backgroundColor: scheme.outlineVariant,
                         ),
                       ],
                     ),
@@ -82,7 +92,7 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                           ? controller.resume()
                           : controller.pause(),
                     ),
-                    color: scheme.onInverseSurface,
+                    color: scheme.onSurface,
                     icon: Icon(
                       state.status == SpiritualSessionStatus.paused
                           ? Icons.play_arrow
@@ -93,14 +103,14 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                   key: const Key('spiritual-session-complete'),
                   tooltip: session.completionLabel,
                   onPressed: () => unawaited(controller.complete()),
-                  color: scheme.onInverseSurface,
+                  color: scheme.onSurface,
                   icon: const Icon(Icons.check_circle_outline),
                 ),
                 IconButton(
                   key: const Key('spiritual-session-close'),
                   tooltip: 'Close player',
                   onPressed: () => unawaited(controller.close()),
-                  color: scheme.onInverseSurface,
+                  color: scheme.onSurface,
                   icon: const Icon(Icons.close),
                 ),
               ],

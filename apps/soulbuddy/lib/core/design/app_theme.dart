@@ -75,7 +75,8 @@ abstract final class AppTheme {
       splashFactory: InkSparkle.splashFactory,
       navigationBarTheme: NavigationBarThemeData(
         height: 72,
-        elevation: 0,
+        elevation: 6,
+        shadowColor: Colors.black.withValues(alpha: 0.16),
         backgroundColor: colorScheme.surface,
         indicatorColor: surfaceMuted,
         iconTheme: WidgetStateProperty.resolveWith((states) {
@@ -157,11 +158,12 @@ abstract final class AppTheme {
       cardTheme: CardThemeData(
         color: colorScheme.surface,
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
+        elevation: 5,
+        shadowColor: Colors.black.withValues(alpha: 0.18),
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: radius,
-          side: BorderSide(color: colorScheme.outline),
+          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.78)),
         ),
       ),
       dividerTheme: DividerThemeData(

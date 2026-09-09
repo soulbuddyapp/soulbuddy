@@ -18,6 +18,8 @@ void main() {
     );
     expect(dark.filledButtonTheme.style, isNotNull);
     expect(dark.navigationBarTheme.backgroundColor, isNotNull);
+    expect(light.cardTheme.elevation, greaterThan(0));
+    expect(light.cardTheme.shadowColor, isNotNull);
   });
 
   test('Covenant and Grace tokens are installed in both themes', () {
