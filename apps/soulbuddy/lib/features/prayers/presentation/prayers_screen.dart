@@ -50,6 +50,20 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
+              Card(
+                key: const Key('meditation-section-card'),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(AppSpacing.md),
+                  leading: const Icon(Icons.self_improvement, size: 32),
+                  title: const Text('Meditation'),
+                  subtitle: const Text(
+                    'Guided Scripture, reflection, prayer, and eight calming soundscapes.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/prayers/meditation'),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
               PrayerLibraryIntro(
                 onForThisMoment: () => context.go('/prayers/create'),
               ),

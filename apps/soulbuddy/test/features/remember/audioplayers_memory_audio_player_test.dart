@@ -6,6 +6,34 @@ import 'package:soulbuddy/features/record/audio/application/audioplayers_memory_
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 
 void main() {
+  test('prepares saved voice as foreground media speech', () async {
+    final player = _FakeAudioPlayer();
+    final driver = AudioplayersMemoryAudioPlayerDriver(
+      playerFactory: () => player,
+    );
+    addTearDown(driver.dispose);
+
+    await driver.prepare(
+      'audio-1',
+      const FileAudioPlaybackSource('memory.m4a'),
+    );
+
+    expect(player.configuredMode, PlayerMode.mediaPlayer);
+    expect(
+      player.configuredContext?.android.contentType,
+      AndroidContentType.speech,
+    );
+    expect(player.configuredContext?.android.usageType, AndroidUsageType.media);
+    expect(
+      player.configuredContext?.android.audioFocus,
+      AndroidAudioFocus.gain,
+    );
+    expect(
+      player.configuredContext?.iOS.category,
+      AVAudioSessionCategory.playback,
+    );
+  });
+
   test('release detaches a player before asynchronous teardown', () async {
     final first = _FakeAudioPlayer()..blockCancellation = true;
     final second = _FakeAudioPlayer();
@@ -33,6 +61,8 @@ class _FakeAudioPlayer implements AudioPlayer {
   final _allowCancellation = Completer<void>();
   var blockCancellation = false;
   var resumeCalls = 0;
+  PlayerMode? configuredMode;
+  AudioContext? configuredContext;
 
   void allowCancellation() => _allowCancellation.complete();
 
@@ -58,6 +88,16 @@ class _FakeAudioPlayer implements AudioPlayer {
 
   @override
   Future<void> setReleaseMode(ReleaseMode releaseMode) async {}
+
+  @override
+  Future<void> setPlayerMode(PlayerMode playerMode) async {
+    configuredMode = playerMode;
+  }
+
+  @override
+  Future<void> setAudioContext(AudioContext audioContext) async {
+    configuredContext = audioContext;
+  }
 
   @override
   Future<void> setSource(Source source) async {}

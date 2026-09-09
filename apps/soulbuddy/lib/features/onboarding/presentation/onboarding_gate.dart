@@ -13,6 +13,7 @@ import '../../sacred_hours/domain/sacred_hour.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
 import '../../sacred_hours/presentation/sacred_hours_onboarding_page.dart';
 import '../providers/onboarding_providers.dart';
+import '../../orientation/presentation/orientation_library_screen.dart';
 import '../providers/first_prayer_providers.dart';
 import 'onboarding_screen.dart';
 
@@ -34,10 +35,39 @@ class OnboardingGate extends ConsumerStatefulWidget {
   ConsumerState<OnboardingGate> createState() => _OnboardingGateState();
 }
 
-class _OnboardingGateState extends ConsumerState<OnboardingGate> {
+class _OnboardingGateState extends ConsumerState<OnboardingGate>
+    with WidgetsBindingObserver {
+  final _orientationNavigator = GlobalKey<NavigatorState>();
   var _completedForSession = false;
+  var _orientationOpen = false;
   var _resumeScheduled = false;
   var _preparingSacredHours = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (!_orientationOpen) return false;
+    // The gate can be above MaterialApp.router's Router, so no ancestor back
+    // dispatcher exists here. Give popup routes and the reader's PopScope the
+    // first chance; the library's initial route then returns to welcome.
+    final handled =
+        await _orientationNavigator.currentState?.maybePop() ?? false;
+    if (!handled && mounted && _orientationOpen) {
+      setState(() => _orientationOpen = false);
+    }
+    return true;
+  }
 
   Future<void> _prepareSacredHours(
     SacredHoursOnboardingSelection? selection, {
@@ -97,6 +127,24 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
 
   @override
   Widget build(BuildContext context) {
+    if (_orientationOpen) {
+      // Onboarding replaces the router child until it is complete. Supply its
+      // own route and overlay so menus, tooltips and reader back handling work.
+      return Navigator(
+        key: _orientationNavigator,
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => OrientationLibraryScreen(
+            onClose: () => setState(() => _orientationOpen = false),
+            onSkip: () async {
+              await _prepareSacredHours(null, requestNotifications: false);
+              if (!mounted) return;
+              setState(() => _orientationOpen = false);
+              await _finish(widget.onSkip);
+            },
+          ),
+        ),
+      );
+    }
     if (_completedForSession) return widget.child;
 
     final completed = ref.watch(onboardingCompleteProvider);
@@ -142,6 +190,7 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate> {
         AppFeedbackPreferences.defaults;
     final systemReduceMotion = MediaQuery.disableAnimationsOf(context);
     return OnboardingScreen(
+      onOrientation: () => setState(() => _orientationOpen = true),
       onBeginWithGoal: () => _finish(widget.onBeginWithGoal),
       onKeepSacredHours: (selection) =>
           _prepareSacredHours(selection, requestNotifications: true),

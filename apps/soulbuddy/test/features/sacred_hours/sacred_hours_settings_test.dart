@@ -82,8 +82,8 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Reminder timing'), findsOneWidget);
-    expect(find.text('Ordinary'), findsOneWidget);
-    expect(find.text('More precise timing'), findsOneWidget);
+    expect(find.text('Gentle timing'), findsOneWidget);
+    expect(find.text('Alarm-grade timing'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.byKey(const Key('sacred-hour-save')),
       400,
@@ -123,11 +123,11 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.text('More precise timing'),
+      find.text('Alarm-grade timing'),
       400,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('More precise timing'));
+    await tester.tap(find.text('Alarm-grade timing'));
     await tester.pump();
     expect(requests, 1);
     expect(

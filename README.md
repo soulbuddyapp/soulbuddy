@@ -15,6 +15,14 @@ The current prayer flow offers deterministic reviewed prayers or **Write/Speak y
 
 SoulBuddy treats prayer and practice as aids to formation, not a way to earn grace or measure holiness. Product decisions should help a person respond to grace, form character, bear outward fruit, and remember what God has done. The app does not turn those aims into a spiritual score, streak, leaderboard, or extra dashboard.
 
+## Orientation
+
+The welcome flow and Settings include eight replayable orientation courses with bundled narration, music, and synchronized word/sentence highlighting. Listeners can change playback speed (0.5–1.5×) and text size, seek by tapping a sentence, and continue from their saved position. **Previous** and **Next** switch directly between lessons, saving the current position and opening the adjacent course paused. Manual scrolling pauses automatic following; **Follow narration** restores it. Opening a course never autoplays, and **Skip for now** keeps the existing route into Today.
+
+Course audio and timed text live in `apps/soulbuddy/assets/orientation`; run `python scripts/orientation/verify_assets.py` to check every recording, timing range, and text span. Browser hosting must support byte-range requests for reliable audio seeking. Progress and listening preferences are stored on the device.
+
+The proposed extension connecting courses to Goal actions, reviewed prayers, Sacred Hours, and reflection is documented in `docs/superpowers/specs/2026-09-08-course-daily-practice.md`. That practice setup is not part of the current reader implementation.
+
 ## Prepare the local RSVCE asset
 
 ```powershell

@@ -125,6 +125,10 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Stop'));
     await _settle(tester);
+    expect(find.text('Add a light background'), findsOneWidget);
+    expect(find.text('Stillness'), findsOneWidget);
+    expect(find.text('Flowing water'), findsOneWidget);
+    await tester.ensureVisible(find.text('Continue'));
     await tester.tap(find.text('Continue'));
     await _settle(tester);
 
@@ -224,6 +228,97 @@ void main() {
           .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Person'))
           .selected,
       isTrue,
+    );
+  });
+
+  testWidgets('saving opens the exact Memory that was created', (tester) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    Encounter? opened;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+          prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: RecordScreen(
+              startMode: RecordStartMode.write,
+              onMemorySaved: (memory) => opened = memory,
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    await tester.tap(find.text('Encounter'));
+    await _settle(tester);
+    await tester.enterText(
+      find.byKey(const Key('encounter-title')),
+      'A Memory I can find',
+    );
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await _settle(tester);
+
+    expect(opened?.id, 'encounter-1');
+    expect(opened?.title, 'A Memory I can find');
+    expect(find.text('Memory saved'), findsNothing);
+  });
+
+  testWidgets('formation reflections begin private with daily recall off', (
+    tester,
+  ) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    const prompt =
+        'What is God showing me through this Scripture, and what will I practice?';
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+          prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: RecordScreen(
+              startMode: RecordStartMode.write,
+              initialBodyPrompt: prompt,
+              privateReflection: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text('Encounter'));
+    await _settle(tester);
+
+    expect(find.text(prompt), findsOneWidget);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('encounter-body')))
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Sensitive'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Include in daily remembrance'),
+          )
+          .value,
+      isFalse,
     );
   });
 }

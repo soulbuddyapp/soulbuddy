@@ -89,7 +89,6 @@ class _DailyRemembranceScreenState
               audio: audio,
               label: 'Listen to this memory',
               playLabel: 'Listen',
-              stopOnDispose: true,
             ),
           ],
           const SizedBox(height: AppSpacing.xl),

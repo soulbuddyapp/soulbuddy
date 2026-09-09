@@ -4,6 +4,8 @@ import 'package:audioplayers/audioplayers.dart';
 
 abstract interface class PrayerNarrationPlayer {
   Future<void> play(Uint8List bytes);
+  Future<void> pause();
+  Future<void> resume();
   Future<void> stop();
   Future<void> close();
 }
@@ -23,6 +25,12 @@ class AudioplayersPrayerNarrationPlayer implements PrayerNarrationPlayer {
 
   @override
   Future<void> stop() => _player.stop();
+
+  @override
+  Future<void> pause() => _player.pause();
+
+  @override
+  Future<void> resume() => _player.resume();
 
   @override
   Future<void> close() => _player.dispose();

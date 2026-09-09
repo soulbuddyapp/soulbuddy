@@ -14,11 +14,15 @@ import '../features/circles/presentation/circles_screen.dart';
 import '../features/goals/presentation/first_goal_screen.dart';
 import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
+import '../features/formation/presentation/formation_reading_screen.dart';
 import '../features/onboarding/presentation/legacy_first_prayer_migration_screen.dart';
+import '../features/orientation/presentation/orientation_library_screen.dart';
 import '../features/persons/presentation/person_detail_screen.dart';
 import '../features/persons/presentation/person_editor_screen.dart';
 import '../features/persons/presentation/persons_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
+import '../features/prayers/domain/library_prayer.dart';
+import '../features/prayers/presentation/meditation_screen.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
@@ -35,6 +39,22 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
     GoRoute(path: '/record', redirect: (context, state) => '/remember/capture'),
+    GoRoute(
+      path: '/orientation',
+      builder: (context, state) => OrientationLibraryScreen(
+        initialNuggetId: state.uri.queryParameters['nugget'],
+        onClose: () => context.canPop() ? context.pop() : context.go('/today'),
+      ),
+    ),
+    GoRoute(
+      path: '/formation/readings/:readingId',
+      redirect: (context, state) =>
+          '/prayers/meditation/${state.pathParameters['readingId']}',
+    ),
+    GoRoute(
+      path: '/formation/readings',
+      redirect: (context, state) => '/prayers/meditation',
+    ),
     GoRoute(
       path: '/welcome/goal',
       builder: (context, state) => const FirstGoalScreen(),
@@ -88,7 +108,27 @@ final GoRouter appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: 'create',
-                  builder: (context, state) => const PrayerCreateScreen(),
+                  builder: (context, state) => PrayerCreateScreen(
+                    contextTitle: state.uri.queryParameters['context'],
+                    prayerStarter: state.uri.queryParameters['starter'],
+                    initialPurpose:
+                        switch (state.uri.queryParameters['purpose']) {
+                          final String value => PrayerPurpose.fromWire(value),
+                          _ => null,
+                        },
+                  ),
+                ),
+                GoRoute(
+                  path: 'meditation',
+                  builder: (context, state) => const MeditationScreen(),
+                  routes: [
+                    GoRoute(
+                      path: ':readingId',
+                      builder: (context, state) => FormationReadingScreen(
+                        readingId: state.pathParameters['readingId'],
+                      ),
+                    ),
+                  ],
                 ),
                 GoRoute(
                   path: 'saved/:prayerId',
@@ -138,15 +178,19 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/remember',
-              builder: (context, state) => const RememberScreen(),
+              builder: (context, state) => RememberScreen(
+                initialFilter: state.uri.queryParameters['filter'],
+              ),
               routes: [
                 GoRoute(
                   path: 'capture',
                   builder: (context, state) {
                     final personId = state.uri.queryParameters['person'];
+                    final source = state.uri.queryParameters['source'];
                     final mode = switch (state.uri.queryParameters['mode']) {
                       'speak' => RecordStartMode.speak,
                       'write' => RecordStartMode.write,
+                      'reflection' => RecordStartMode.reflection,
                       _ when personId != null && personId.isNotEmpty =>
                         RecordStartMode.person,
                       _ => RecordStartMode.choices,
@@ -160,10 +204,20 @@ final GoRouter appRouter = GoRouter(
                         final String id when id.isNotEmpty => [id],
                         _ => const [],
                       },
+                      initialTitle: state.uri.queryParameters['title'],
                       initialBodyPrompt:
-                          state.uri.queryParameters['source'] == 'sacred-hour'
-                          ? 'What may God be teaching me here?'
-                          : null,
+                          state.uri.queryParameters['prompt'] ??
+                          switch (source) {
+                            'sacred-hour' =>
+                              'What may God be teaching me here?',
+                            'orientation' =>
+                              'What will I remember, pray about, and put into practice from this Nugget?',
+                            'formation' =>
+                              'What is God showing me through this Scripture, and what will I practice?',
+                            _ => null,
+                          },
+                      privateReflection:
+                          source == 'orientation' || source == 'formation',
                     );
                   },
                 ),

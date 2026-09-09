@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/playback/spiritual_session.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
@@ -321,6 +323,28 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
         widget.occurrence,
         explicit: true,
       );
+      final occurrence = widget.occurrence;
+      final player = ref.read(prayerNarrationPlayerProvider);
+      final perform = ref.read(prayerReminderActionProvider);
+      await ref
+          .read(spiritualSessionControllerProvider)
+          .begin(
+            SpiritualSession(
+              id: 'prayer-reminder:${occurrence.occurrenceKey}',
+              kind: SpiritualSessionKind.prayer,
+              title: occurrence.prayerTitle,
+              route: '/prayers/saved/${occurrence.reminder.personalPrayerId}',
+              canPause: true,
+              completionLabel: 'I prayed',
+              onPause: player.pause,
+              onResume: player.resume,
+              onComplete: () async {
+                await player.stop();
+                await perform(occurrence, PrayerReminderAction.prayed);
+              },
+              onClose: player.stop,
+            ),
+          );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

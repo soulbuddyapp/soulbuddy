@@ -29,13 +29,13 @@ void main() {
         sound: SacredHourSound.dawnChime,
       );
 
-      await coordinator.start();
-      repository.deliveries.add([
+      repository.currentDeliveries = [
         _delivery(
           next: DateTime.utc(2026, 11, 2, 12),
           timezone: 'America/New_York',
         ),
-      ]);
+      ];
+      await coordinator.start();
       await pumpEventQueue();
 
       final notification = scheduler.scheduled.single;
@@ -45,7 +45,11 @@ void main() {
       expect(notification.timeZoneName, 'America/New_York');
       expect(notification.soundKey, 'sacred_dawn_chime');
       expect(notification.precision, ReminderSchedulePrecision.ordinary);
-      expect(scheduler.cancelled, containsAll([101, _snoozeId(101)]));
+      expect(notification.platformNotificationId, _alarmId(101));
+      expect(
+        scheduler.cancelled,
+        containsAll([101, _legacySnoozeId(101), _alarmId(101), _snoozeId(101)]),
+      );
     },
   );
 
@@ -65,22 +69,23 @@ void main() {
       addTearDown(coordinator.dispose);
       repository.hours['hour-1'] = _hour();
 
-      await coordinator.start();
-      repository.deliveries.add([
+      repository.currentDeliveries = [
         _delivery(
           next: DateTime.utc(2026, 8, 31, 5),
           mode: SacredHourReminderMode.precise,
         ),
-      ]);
+      ];
+      await coordinator.start();
       await pumpEventQueue();
 
       expect(scheduler.attempted.map((item) => item.precision), [
         ReminderSchedulePrecision.exact,
         ReminderSchedulePrecision.ordinary,
+        ReminderSchedulePrecision.exact,
       ]);
       expect(
-        scheduler.scheduled.single.precision,
-        ReminderSchedulePrecision.ordinary,
+        scheduler.scheduled.last.precision,
+        ReminderSchedulePrecision.exact,
       );
     },
   );
@@ -95,19 +100,21 @@ void main() {
     );
     addTearDown(coordinator.dispose);
     repository.hours['hour-1'] = _hour();
+    repository.currentDeliveries = [
+      _delivery(next: DateTime.utc(2026, 8, 31, 5)),
+    ];
     await coordinator.start();
-    repository.deliveries.add([_delivery(next: DateTime.utc(2026, 8, 31, 5))]);
     await pumpEventQueue();
     scheduler.cancelled.clear();
 
     repository.deliveries.add([_delivery(next: null, enabled: false)]);
     await pumpEventQueue();
 
-    expect(scheduler.cancelled, contains(101));
+    expect(scheduler.cancelled, contains(_alarmId(101)));
   });
 
   test('handles Begin, snooze, and Not now once per occurrence', () async {
-    final now = DateTime.utc(2026, 8, 31, 5, 1);
+    var now = DateTime.utc(2026, 8, 31, 5, 1);
     final repository = _Repository();
     final scheduler = _Scheduler();
     final coordinator = SacredHourReminderCoordinator(
@@ -157,6 +164,15 @@ void main() {
     await opened;
     await pumpEventQueue();
     expect(repository.occurrences, [SacredHourOccurrenceStatus.begun]);
+    expect(repository.occurrenceDates, [DateTime.utc(2026, 8, 31, 5)]);
+    expect(
+      repository.deviceUpdates.last.nextOccurrenceAt,
+      DateTime.utc(2026, 9, 1, 5),
+    );
+    final scheduledAfterBegin = scheduler.scheduled.length;
+    repository.deliveries.add(repository.currentDeliveries);
+    await pumpEventQueue();
+    expect(scheduler.scheduled.length, scheduledAfterBegin + 1);
 
     scheduler.emit(
       const PrayerReminderResponse(
@@ -183,6 +199,24 @@ void main() {
     await pumpEventQueue();
     expect(repository.occurrences.last, SacredHourOccurrenceStatus.dismissed);
     expect(repository.deviceUpdates.last.dismissedOccurrenceKey, occurrenceKey);
+
+    now = DateTime.utc(2026, 9, 1, 5, 1);
+    scheduler.emit(
+      const PrayerReminderResponse(
+        reminderId: 'hour-1',
+        occurrenceKey: occurrenceKey,
+        action: PrayerReminderAction.begin,
+        kind: ReminderNotificationKind.sacredHour,
+      ),
+    );
+    await pumpEventQueue();
+    expect(repository.occurrenceDates.last, DateTime.utc(2026, 9, 1, 5));
+    expect(
+      repository.occurrences.where(
+        (value) => value == SacredHourOccurrenceStatus.begun,
+      ),
+      hasLength(2),
+    );
   });
 }
 
@@ -220,17 +254,25 @@ SacredHourDelivery _delivery({
   updatedAt: DateTime.utc(2026, 8, 31),
 );
 
-int _snoozeId(int base) => ((base * 31) + 10) & 0x7fffffff;
+int _alarmId(int base) => -(0x20000000 | (base & 0x07ffffff));
+
+int _snoozeId(int base) => -(0x28000000 | (base & 0x07ffffff));
+
+int _legacySnoozeId(int base) => ((base * 31) + 10) & 0x7fffffff;
 
 class _Repository implements SacredHourRepository {
   final deliveries = StreamController<List<SacredHourDelivery>>.broadcast();
   final hours = <String, SacredHour>{};
   var currentDeliveries = <SacredHourDelivery>[];
   final occurrences = <SacredHourOccurrenceStatus>[];
+  final occurrenceDates = <DateTime>[];
   final deviceUpdates = <SacredHourDeviceDraft>[];
 
   @override
-  Stream<List<SacredHourDelivery>> watchDeliveries() => deliveries.stream;
+  Stream<List<SacredHourDelivery>> watchDeliveries() async* {
+    yield currentDeliveries;
+    yield* deliveries.stream;
+  }
 
   @override
   Stream<SacredHour?> watch(String id) => Stream.value(hours[id]);
@@ -243,6 +285,7 @@ class _Repository implements SacredHourRepository {
     String? prayerSessionId,
   }) async {
     occurrences.add(status);
+    occurrenceDates.add(dueAt);
   }
 
   @override
@@ -269,7 +312,8 @@ class _Repository implements SacredHourRepository {
       throw UnimplementedError();
 
   @override
-  Stream<List<SacredHour>> watchActive() => throw UnimplementedError();
+  Stream<List<SacredHour>> watchActive() =>
+      Stream.value(hours.values.toList(growable: false));
 
   @override
   Stream<List<SacredHour>> watchAll() => throw UnimplementedError();

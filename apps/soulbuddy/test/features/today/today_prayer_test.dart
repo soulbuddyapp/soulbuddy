@@ -13,8 +13,10 @@ import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
+import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/remember/providers/daily_memory_providers.dart';
 import 'package:soulbuddy/features/today/domain/daily_practice_state.dart';
@@ -131,16 +133,16 @@ void main() {
     expect(find.text('Remember destination'), findsOneWidget);
   });
 
-  testWidgets('no Goal keeps the Goal-first path above an existing prayer', (
+  testWidgets('an existing prayer suppresses the first Goal prompt', (
     tester,
   ) async {
     final repository = _repository(includeAction: true);
     addTearDown(repository.close);
     await _pumpToday(tester, repository: repository);
 
-    expect(find.byKey(const Key('today-start-guide')), findsOneWidget);
-    expect(find.text('What would you like help with?'), findsOneWidget);
-    expect(find.text('Start a Goal'), findsOneWidget);
+    expect(find.byKey(const Key('today-start-guide')), findsNothing);
+    expect(find.text('What would you like help with?'), findsNothing);
+    expect(find.text('Start a Goal'), findsNothing);
     expect(find.text(_prayer.title), findsOneWidget);
     expect(find.text(_prayer.body), findsOneWidget);
     expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
@@ -193,7 +195,8 @@ void main() {
     expect(repository.completedTodayDate, DateTime(2026, 8, 11));
     expect(repository.completedTodayPrayerId, _prayer.id);
     expect(repository.completedTodayValue, isTrue);
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+    expect(find.byType(Checkbox), findsNothing);
+    expect(find.text(_prayerAction), findsOneWidget);
     _expectNoGamification(tester);
   });
 
@@ -229,7 +232,7 @@ void main() {
       ),
     );
     expect(find.text('1 of 2 practices completed'), findsOneWidget);
-    expect(find.text('Prayed today'), findsOneWidget);
+    expect(find.text('${_prayer.title} · Prayed'), findsOneWidget);
   });
 
   testWidgets('prayer completion cannot be submitted twice while pending', (
@@ -259,7 +262,7 @@ void main() {
 
     practiceRepository.release();
     await tester.pumpAndSettle();
-    expect(find.text('Prayed today'), findsOneWidget);
+    expect(find.text('${_prayer.title} · Prayed'), findsOneWidget);
   });
 
   testWidgets('stale displayed day is never recorded as a new-day prayer', (
@@ -314,7 +317,8 @@ void main() {
 
     repository.release();
     await tester.pumpAndSettle();
-    expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isTrue);
+    expect(find.byType(Checkbox), findsNothing);
+    expect(find.text(_prayerAction), findsOneWidget);
     expect(
       tester
           .widget<TextButton>(find.byKey(const Key('choose-different-prayer')))
@@ -675,6 +679,9 @@ Future<void> _pumpToday(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        personalPrayersProvider.overrideWith(
+          (ref) => Stream.value(const <PersonalPrayer>[]),
+        ),
         activeGoalsProvider.overrideWith((ref) => Stream.value(const [])),
         activeGoalTodayLinksProvider.overrideWith(
           (ref) => Stream.value(const []),

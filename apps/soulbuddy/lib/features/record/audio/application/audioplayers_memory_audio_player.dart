@@ -38,7 +38,7 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
     try {
       // Keep the prepared source attached after completion so the same memory
       // can be replayed without reopening its private bytes.
-      await player.setReleaseMode(ReleaseMode.stop);
+      await prepareVoicePlaybackPlayer(player);
       await _setSource(player, source);
     } catch (_) {
       await player.dispose();
@@ -121,6 +121,21 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
     await _durations.close();
     await _statuses.close();
   }
+}
+
+Future<void> prepareVoicePlaybackPlayer(AudioPlayer player) async {
+  await player.setPlayerMode(PlayerMode.mediaPlayer);
+  await player.setAudioContext(
+    AudioContext(
+      android: const AudioContextAndroid(
+        contentType: AndroidContentType.speech,
+        usageType: AndroidUsageType.media,
+        audioFocus: AndroidAudioFocus.gain,
+      ),
+      iOS: AudioContextIOS(category: AVAudioSessionCategory.playback),
+    ),
+  );
+  await player.setReleaseMode(ReleaseMode.stop);
 }
 
 MemoryAudioDriverStatus _status(PlayerState state) => switch (state) {

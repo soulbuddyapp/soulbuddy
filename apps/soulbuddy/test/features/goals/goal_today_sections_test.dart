@@ -38,9 +38,13 @@ void main() {
       await tester.tap(
         find.byKey(const ValueKey('goal-today-done-action-1:2026-08-28')),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(completed, 1);
+      expect(
+        find.byKey(const ValueKey('completed-today-action-1:2026-08-28')),
+        findsOneWidget,
+      );
     },
   );
 
@@ -119,19 +123,67 @@ void main() {
       );
 
       expect(find.text('Prayer for today'), findsOneWidget);
-      expect(find.text('I prayed this'), findsOneWidget);
+      final row = find.byKey(const ValueKey('goal-today-row-legacy-prayer'));
+      expect(row, findsOneWidget);
+      expect(tester.getSize(row).height, lessThanOrEqualTo(72));
+      expect(find.text('Pray'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey('goal-today-more-legacy-prayer')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Details'), findsOneWidget);
+      await tester.tap(find.text('Details'));
+      await tester.pumpAndSettle();
+      expect(opened, 1);
 
       await tester.tap(
         find.byKey(const ValueKey('goal-today-prayed-legacy-prayer')),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(prayed, 1);
-
-      await tester.tap(find.text('Prayer for today'));
-      await tester.pump();
-      expect(opened, 1);
+      final completedRow = find.byKey(
+        const ValueKey('completed-today-legacy-prayer'),
+      );
+      expect(completedRow, findsOneWidget);
+      expect(tester.getSize(completedRow).height, 48);
+      await tester.tap(
+        find.byKey(const ValueKey('dismiss-completed-legacy-prayer')),
+      );
+      await tester.pumpAndSettle();
+      expect(completedRow, findsNothing);
     },
   );
+
+  testWidgets('failed completion keeps the original action expanded', (
+    tester,
+  ) async {
+    final snapshot = _snapshot([
+      GoalTodayActionItem(
+        GoalActionOccurrence(
+          action: _action('action-1', 'goal-1'),
+          occurrenceKey: 'action-1:2026-08-28',
+        ),
+      ),
+    ]);
+    await tester.pumpWidget(
+      _host(
+        snapshot,
+        onCompleteAction: (_) async => throw StateError('save failed'),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('goal-today-done-action-1:2026-08-28')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Take one faithful step'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('completed-today-action-1:2026-08-28')),
+      findsNothing,
+    );
+  });
 
   testWidgets(
     'Goal Today remains usable at 200 percent text on a small phone',
@@ -173,6 +225,15 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('can omit a Goal represented by a dedicated Today feature', (
+    tester,
+  ) async {
+    final snapshot = _snapshot(const []);
+    await tester.pumpWidget(_host(snapshot, excludedGoalIds: const {'goal-1'}));
+
+    expect(find.text('Stay close to God'), findsNothing);
+  });
 }
 
 Widget _host(
@@ -183,12 +244,14 @@ Widget _host(
   onOpenResource,
   Future<void> Function(GoalTodayResourceItem, GoalTodayResourceHandle)?
   onCompleteResource,
+  Set<String> excludedGoalIds = const <String>{},
 }) {
   return MaterialApp(
     home: Scaffold(
       body: SingleChildScrollView(
         child: GoalTodaySections(
           snapshot: snapshot,
+          excludedGoalIds: excludedGoalIds,
           onReturn: onReturn,
           onCompleteAction: onCompleteAction ?? (_) async {},
           onOpenResource: onOpenResource ?? (_, _) async {},

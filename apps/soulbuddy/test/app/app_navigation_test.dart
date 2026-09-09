@@ -7,6 +7,7 @@ import 'package:soulbuddy/app/app.dart';
 import 'package:soulbuddy/app/router.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_coordinator.dart';
 import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
+import 'package:soulbuddy/features/formation/presentation/formation_reading_screen.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
@@ -22,6 +23,23 @@ import '../helpers/in_memory_encounter_repository.dart';
 import '../helpers/in_memory_prayer_repository.dart';
 
 void main() {
+  testWidgets('opens a formation reading from the production route', (
+    tester,
+  ) async {
+    addTearDown(() => appRouter.go('/today'));
+    appRouter.go('/formation/readings/overcoming-sin');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [onboardingCompleteProvider.overrideWith((ref) => true)],
+        child: const SoulBuddyApp(),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(FormationReadingScreen), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('shows all five top-level destinations', (tester) async {
     final repository = InMemoryEncounterRepository();
     addTearDown(repository.close);
@@ -103,7 +121,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Saved prayer'), findsOneWidget);
-    expect(find.text('Evening prayer'), findsOneWidget);
+    expect(find.text('Evening prayer'), findsWidgets);
+    expect(
+      find.byKey(const Key('spiritual-session-mini-player')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('opens a Sacred Hour session from its stable route', (

@@ -2,15 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/playback/spiritual_session.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../prayers/domain/prayer_reference.dart';
 import '../../prayers/domain/voice_tablet.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/voice_tablet_providers.dart';
 import '../../record/audio/application/memory_audio_player.dart';
+import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
+import '../../record/domain/encounter.dart';
+import '../../record/providers/encounter_providers.dart';
 import '../domain/altar_ritual.dart';
 import '../providers/altar_ritual_providers.dart';
 
@@ -19,14 +25,53 @@ class AltarTodaySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final memories = ref.watch(altarEncountersProvider).value ?? const [];
+    final latest = memories.firstOrNull;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _AltarPrayerTodaySection(showEmpty: latest == null),
+        if (latest != null) ...[
+          AltarMemoryTodayCard(
+            memory: latest,
+            onOpen: () => context.push('/remember/${latest.id}'),
+          ),
+          if (memories.length > 1)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => context.go('/remember?filter=altar'),
+                child: Text('See all ${memories.length} Altar Memories'),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _AltarPrayerTodaySection extends ConsumerWidget {
+  const _AltarPrayerTodaySection({required this.showEmpty});
+
+  final bool showEmpty;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final due = ref.watch(dueAltarRitualProvider);
     return due.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, _) => const AltarTodayEmptyCard(),
+      error: (_, _) =>
+          showEmpty ? const AltarTodayEmptyCard() : const SizedBox.shrink(),
       data: (value) {
-        if (value == null) return const AltarTodayEmptyCard();
+        if (value == null) {
+          return showEmpty
+              ? const AltarTodayEmptyCard()
+              : const SizedBox.shrink();
+        }
         if (value.item.target.type != AltarTargetType.voiceTablet) {
-          return const AltarTodayEmptyCard();
+          return showEmpty
+              ? const AltarTodayEmptyCard()
+              : const SizedBox.shrink();
         }
         final tablet = ref.watch(
           voiceTabletProvider(value.item.target.targetId),
@@ -125,6 +170,57 @@ Future<void> _listenToAltar(
       duration: audio.duration,
     ),
   );
+  if (coordinator.state.status != MemoryAudioPlaybackStatus.playing) return;
+  final spiritual = ref.read(spiritualSessionControllerProvider);
+  final sessionId =
+      'altar:${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}';
+  late VoidCallback listener;
+  listener = () {
+    final state = coordinator.state;
+    if (spiritual.state.session?.id != sessionId) {
+      coordinator.removeListener(listener);
+      return;
+    }
+    spiritual.updateProgress(
+      position: state.position,
+      duration: state.duration,
+    );
+    if (state.status == MemoryAudioPlaybackStatus.completed ||
+        state.status == MemoryAudioPlaybackStatus.idle ||
+        state.status == MemoryAudioPlaybackStatus.error) {
+      coordinator.removeListener(listener);
+      spiritual.finishPlayback(sessionId);
+    }
+  };
+  coordinator.addListener(listener);
+  await spiritual.begin(
+    SpiritualSession(
+      id: sessionId,
+      kind: SpiritualSessionKind.altar,
+      title: tablet.title,
+      route: '/today?focus=altar',
+      canPause: true,
+      completionLabel: 'I prayed',
+      onPause: coordinator.pause,
+      onResume: () => coordinator.playTrack(
+        PrivateAudioTrack(
+          id: audio.id,
+          storageKey: audio.storageKey,
+          duration: audio.duration,
+        ),
+      ),
+      onComplete: () async {
+        coordinator.removeListener(listener);
+        await coordinator.stop();
+        await _recordAltarPrayer(ref, due, tablet);
+      },
+      onClose: () async {
+        coordinator.removeListener(listener);
+        await coordinator.stop();
+      },
+    ),
+  );
+  listener();
 }
 
 Future<String> _recordAltarPrayer(
@@ -170,6 +266,84 @@ Future<void> _undoAltarPrayer(
     ritualId: due.ritual.id,
     occurrenceAt: due.occurrenceAt,
   );
+}
+
+class AltarMemoryTodayCard extends ConsumerWidget {
+  const AltarMemoryTodayCard({
+    required this.memory,
+    required this.onOpen,
+    super.key,
+  });
+
+  final Encounter memory;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final audio = ref
+        .watch(memoryAudioForEncounterProvider(memory.id))
+        .whenOrNull(data: (value) => value);
+    return Card(
+      key: const Key('altar-memory-today-card'),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CovenantPairedSlabMark(),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'At your Altar',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      Text(
+                        memory.sensitive
+                            ? 'Private Altar Memory'
+                            : memory.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (audio != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              AudioPlaybackControl(
+                audio: audio,
+                compact: true,
+                label: 'Voice Memory',
+                playLabel: 'Listen',
+                sessionKind: SpiritualSessionKind.altar,
+                sessionRoute: '/remember/${memory.id}',
+              ),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('open-altar-memory'),
+                onPressed: onOpen,
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open Memory'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class AltarTodayCard extends StatefulWidget {

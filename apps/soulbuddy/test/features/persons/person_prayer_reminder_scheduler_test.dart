@@ -31,9 +31,14 @@ void main() {
     );
     expect(scheduler.scheduled.single.title, 'Remember Mum in prayer');
     expect(
+      scheduler.scheduled.single.precision,
+      ReminderSchedulePrecision.exact,
+    );
+    expect(
       scheduler.scheduled.single.scheduledAtUtc,
       DateTime.utc(2026, 8, 30, 7),
     );
+    expect(scheduler.scheduled.single.platformNotificationId, isNegative);
   });
 
   test('acknowledgement records prayer and archive cancels reminder', () async {
@@ -116,7 +121,7 @@ void main() {
   });
 
   test(
-    'enable reports scheduling failure while preserving queue recovery',
+    'enable falls back to ordinary timing when exact scheduling is unavailable',
     () async {
       final repository = _Repository();
       final scheduler = _Scheduler()
@@ -132,9 +137,12 @@ void main() {
       repository.people.add([_person()]);
       await pumpEventQueue();
 
-      await expectLater(coordinator.enable(), throwsStateError);
-      await coordinator.enable();
+      expect(await coordinator.enable(), isTrue);
       expect(scheduler.scheduled, hasLength(1));
+      expect(
+        scheduler.scheduled.single.precision,
+        ReminderSchedulePrecision.ordinary,
+      );
     },
   );
 }

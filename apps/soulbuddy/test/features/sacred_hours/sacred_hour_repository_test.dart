@@ -50,6 +50,27 @@ void main() {
     expect(await repository.watchDeliveries().first, hasLength(2));
   });
 
+  test('advances stale enabled deliveries before scheduling alarms', () async {
+    await repository.ensureDefaults(timezone: 'Africa/Lagos');
+    await database.powersync.execute(
+      "UPDATE sacred_hour_devices SET next_occurrence_at = '2026-09-01T05:00:00.000Z'",
+    );
+    final restarted = PowerSyncSacredHourRepository(
+      database: database.powersync,
+      ownerId: ownerId,
+      deviceId: 'device-a',
+      now: () => DateTime.utc(2026, 9, 9, 9, 30),
+    );
+
+    await restarted.ensureDefaults(timezone: 'Africa/Lagos');
+
+    final deliveries = await restarted.watchDeliveries().first;
+    expect(deliveries.map((item) => item.nextOccurrenceAt), [
+      DateTime.utc(2026, 9, 10, 5),
+      DateTime.utc(2026, 9, 9, 21),
+    ]);
+  });
+
   test('shares hours but keeps delivery rows isolated by device', () async {
     await repository.ensureDefaults(timezone: 'Africa/Lagos');
     final second = PowerSyncSacredHourRepository(

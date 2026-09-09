@@ -116,6 +116,7 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
       now: _now(),
     );
     return database.writeTransaction((transaction) async {
+      await _migrateLegacyReminderTiming(transaction);
       for (final hour in [morning, evening]) {
         await _insertDefault(transaction, hour);
         final stored = SacredHour.fromRow(
@@ -126,6 +127,7 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
         );
         await _ensureDefaultDelivery(transaction, stored);
       }
+      await _advanceStaleDeliveries(transaction);
       final rows = await transaction.getAll(
         '''
         SELECT * FROM sacred_hours
@@ -137,6 +139,70 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
       );
       return rows.map(SacredHour.fromRow).toList(growable: false);
     });
+  }
+
+  Future<void> _migrateLegacyReminderTiming(
+    SqliteWriteContext transaction,
+  ) async {
+    const migrationKey = 'sacred_hour_alarm_timing_v2';
+    final migrated = await transaction.getOptional(
+      'SELECT bool_value FROM app_preferences WHERE id = ?',
+      [migrationKey],
+    );
+    if (migrated != null) return;
+    final nowWire = _now().toUtc().toIso8601String();
+    await transaction.execute(
+      '''
+      UPDATE sacred_hour_devices
+      SET reminder_mode = 'precise', updated_at = ?
+      WHERE device_id = ? AND enabled_on_device = 1
+        AND reminder_mode = 'ordinary'
+      ''',
+      [nowWire, deviceId],
+    );
+    await transaction.execute(
+      'INSERT INTO app_preferences(id, bool_value) VALUES (?, 1)',
+      [migrationKey],
+    );
+  }
+
+  Future<void> _advanceStaleDeliveries(SqliteWriteContext transaction) async {
+    final rows = await transaction.getAll(
+      '''
+      SELECT hour.*, device.id AS delivery_id,
+             device.next_occurrence_at AS delivery_next_occurrence_at
+      FROM sacred_hours AS hour
+      JOIN sacred_hour_devices AS device ON device.sacred_hour_id = hour.id
+      WHERE hour.owner_id = ? AND hour.enabled = 1
+        AND hour.archived_at IS NULL AND device.device_id = ?
+        AND device.enabled_on_device = 1
+      ''',
+      [ownerId, deviceId],
+    );
+    final now = _now().toUtc();
+    final nowWire = now.toIso8601String();
+    for (final row in rows) {
+      final currentWire = row['delivery_next_occurrence_at'] as String?;
+      final current = currentWire == null
+          ? null
+          : DateTime.tryParse(currentWire)?.toUtc();
+      if (current != null && current.isAfter(now)) continue;
+      final hour = SacredHour.fromRow(row);
+      await transaction.execute(
+        '''
+        UPDATE sacred_hour_devices
+        SET next_occurrence_at = ?, scheduled_timezone = ?, updated_at = ?
+        WHERE id = ? AND device_id = ?
+        ''',
+        [
+          _nextOccurrence(hour, now).toIso8601String(),
+          hour.timezone,
+          nowWire,
+          row['delivery_id'],
+          deviceId,
+        ],
+      );
+    }
   }
 
   @override
@@ -421,7 +487,7 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
         id, sacred_hour_id, device_id, enabled_on_device, reminder_mode,
         next_occurrence_at, platform_notification_id, scheduled_timezone,
         snoozed_until, dismissed_occurrence_key, updated_at
-      ) VALUES (?, ?, ?, ?, 'ordinary', ?, ?, ?, NULL, NULL, ?)
+      ) VALUES (?, ?, ?, ?, 'precise', ?, ?, ?, NULL, NULL, ?)
       ''',
       [
         id,

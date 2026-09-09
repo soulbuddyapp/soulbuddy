@@ -50,17 +50,16 @@ void main() {
     expect(await web.request(), isFalse);
   });
 
-  test('Android requests only revocable exact-alarm special access', () {
+  test('Android declares exact-alarm and lock-screen presentation access', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
 
     expect(manifest, contains('android.permission.SCHEDULE_EXACT_ALARM'));
     expect(manifest, isNot(contains('android.permission.USE_EXACT_ALARM')));
-    expect(
-      manifest,
-      isNot(contains('android.permission.USE_FULL_SCREEN_INTENT')),
-    );
+    expect(manifest, contains('android.permission.USE_FULL_SCREEN_INTENT'));
+    expect(manifest, contains('android:showWhenLocked="true"'));
+    expect(manifest, contains('android:turnScreenOn="true"'));
   });
 }
 

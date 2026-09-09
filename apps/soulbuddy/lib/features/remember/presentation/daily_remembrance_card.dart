@@ -12,6 +12,7 @@ import '../../../core/presentation/covenant_marks.dart';
 import '../../record/domain/encounter.dart';
 import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
+import '../../today/presentation/completed_today_item.dart';
 import '../domain/daily_memory.dart';
 import '../providers/daily_memory_providers.dart';
 
@@ -27,10 +28,22 @@ class DailyRemembranceCard extends ConsumerStatefulWidget {
 
 class _DailyRemembranceCardState extends ConsumerState<DailyRemembranceCard> {
   bool _busy = false;
+  bool _dismissed = false;
 
   @override
   Widget build(BuildContext context) {
     final daily = widget.dailyMemory;
+    if (_dismissed) return const SizedBox.shrink();
+    if (daily.status != DailyMemoryStatus.active) {
+      return CompletedTodayItem(
+        id: 'remember-${daily.memory.id}-${_dateKey(daily.localDate)}',
+        label: daily.status == DailyMemoryStatus.remembered
+            ? '${daily.memory.title} · Remembered'
+            : '${daily.memory.title} · Set aside',
+        completedAt: DateTime.now(),
+        onDismiss: () => setState(() => _dismissed = true),
+      );
+    }
     final audio = ref
         .watch(memoryAudioForEncounterProvider(daily.memory.id))
         .whenOrNull(data: (value) => value);
@@ -77,8 +90,7 @@ class _DailyRemembranceCardState extends ConsumerState<DailyRemembranceCard> {
                 key: Key('daily-memory-incised-mark'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              if (daily.status == DailyMemoryStatus.active &&
-                  audio != null) ...[
+              if (audio != null) ...[
                 AudioPlaybackControl(
                   audio: audio,
                   compact: true,
@@ -87,41 +99,28 @@ class _DailyRemembranceCardState extends ConsumerState<DailyRemembranceCard> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
               ],
-              if (daily.status == DailyMemoryStatus.active)
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    FilledButton(
-                      key: const Key('daily-memory-open'),
-                      onPressed: _busy
-                          ? null
-                          : () => context.push(
-                              '/remember/daily/${_dateKey(daily.localDate)}',
-                            ),
-                      child: const Text('Return to this'),
-                    ),
-                    OutlinedButton(
-                      key: const Key('daily-memory-remembered'),
-                      onPressed: _busy
-                          ? null
-                          : () => _setStatus(DailyMemoryStatus.remembered),
-                      child: const Text('Remembered'),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    const Icon(Icons.check_circle_outline, size: 20),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      daily.status == DailyMemoryStatus.remembered
-                          ? 'Remembered today'
-                          : 'Set aside for today',
-                    ),
-                  ],
-                ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  FilledButton(
+                    key: const Key('daily-memory-open'),
+                    onPressed: _busy
+                        ? null
+                        : () => context.push(
+                            '/remember/daily/${_dateKey(daily.localDate)}',
+                          ),
+                    child: const Text('Return to this'),
+                  ),
+                  OutlinedButton(
+                    key: const Key('daily-memory-remembered'),
+                    onPressed: _busy
+                        ? null
+                        : () => _setStatus(DailyMemoryStatus.remembered),
+                    child: const Text('Remembered'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

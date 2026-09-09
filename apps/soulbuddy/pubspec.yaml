@@ -89,6 +89,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/orientation/
     - assets/content/prayer_library.json
     - assets/content/editorial_manifest.json
     - assets/scripture/rsvce.db

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "00-welcome",
+    "title": "Welcome — Aim for a plentiful harvest",
+    "tenet": "Introduction",
+    "durationMs": 73266,
+    "audioAsset": "orientation/00-welcome.mp3",
+    "transcriptAsset": "assets/orientation/00-welcome.json"
+  },
+  {
+    "id": "01-pull-the-weeds",
+    "title": "Pull the Weeds Early",
+    "tenet": "Do not negotiate with sin",
+    "durationMs": 67798,
+    "audioAsset": "orientation/01-pull-the-weeds.mp3",
+    "transcriptAsset": "assets/orientation/01-pull-the-weeds.json"
+  },
+  {
+    "id": "02-the-open-door",
+    "title": "The Door Is Still Open",
+    "tenet": "Fight with the hope of Christ's victory",
+    "durationMs": 68334,
+    "audioAsset": "orientation/02-the-open-door.mp3",
+    "transcriptAsset": "assets/orientation/02-the-open-door.json"
+  },
+  {
+    "id": "03-make-room-to-listen",
+    "title": "Make Room to Listen",
+    "tenet": "Walk with the Holy Spirit",
+    "durationMs": 68265,
+    "audioAsset": "orientation/03-make-room-to-listen.mp3",
+    "transcriptAsset": "assets/orientation/03-make-room-to-listen.json"
+  },
+  {
+    "id": "04-the-song-she-could-play",
+    "title": "The Song She Could Play",
+    "tenet": "Discipline turns gifts into fruit",
+    "durationMs": 68686,
+    "audioAsset": "orientation/04-the-song-she-could-play.mp3",
+    "transcriptAsset": "assets/orientation/04-the-song-she-could-play.json"
+  },
+  {
+    "id": "05-more-than-her-name",
+    "title": "More Than Her Name",
+    "tenet": "Humility turns gifts into service",
+    "durationMs": 67871,
+    "audioAsset": "orientation/05-more-than-her-name.mp3",
+    "transcriptAsset": "assets/orientation/05-more-than-her-name.json"
+  },
+  {
+    "id": "06-the-lunch-no-one-saw",
+    "title": "The Lunch No One Saw",
+    "tenet": "Seek God's heart",
+    "durationMs": 63903,
+    "audioAsset": "orientation/06-the-lunch-no-one-saw.mp3",
+    "transcriptAsset": "assets/orientation/06-the-lunch-no-one-saw.json"
+  },
+  {
+    "id": "07-what-did-it-grow",
+    "title": "What Did It Grow?",
+    "tenet": "Bear fruit",
+    "durationMs": 69612,
+    "audioAsset": "orientation/07-what-did-it-grow.mp3",
+    "transcriptAsset": "assets/orientation/07-what-did-it-grow.json"
+  }
+]

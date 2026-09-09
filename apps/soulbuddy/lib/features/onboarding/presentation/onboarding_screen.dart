@@ -18,6 +18,7 @@ class OnboardingScreen extends StatefulWidget {
     required this.onBeginWithGoal,
     required this.onSkip,
     this.onKeepSacredHours,
+    this.onOrientation,
     this.onSensoryCue,
     this.reduceMotion = false,
     super.key,
@@ -25,6 +26,7 @@ class OnboardingScreen extends StatefulWidget {
 
   final OnboardingAction onBeginWithGoal;
   final OnboardingAction onSkip;
+  final VoidCallback? onOrientation;
   final Future<void> Function(SacredHoursOnboardingSelection selection)?
   onKeepSacredHours;
   final OnboardingSensoryAction? onSensoryCue;
@@ -179,6 +181,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       },
                     ),
                   ),
+                  if (widget.onOrientation != null)
+                    TextButton.icon(
+                      key: const Key('onboarding-orientation'),
+                      onPressed: widget.onOrientation,
+                      icon: const Icon(Icons.headphones_outlined),
+                      label: const Text('Listen and read the orientation'),
+                    ),
                   const SizedBox(height: AppSpacing.sm),
                   Semantics(
                     container: true,

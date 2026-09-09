@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -447,16 +448,36 @@ class FlutterLocalNotificationsPrayerClient
         : 'silent';
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        sacredHour ? 'sacred_hours_$channelSuffix' : 'prayer_reminders',
-        sacredHour ? 'Sacred Hour reminders' : 'Prayer reminders',
+        sacredHour
+            ? 'sacred_hours_alarm_v2_$channelSuffix'
+            : 'prayer_reminders_v2',
+        sacredHour ? 'Sacred Hour alarms' : 'Prayer reminders',
         channelDescription: sacredHour
             ? 'Private invitations into a Sacred Hour'
             : 'Private reminders to pray',
         importance: Importance.high,
         priority: Priority.high,
         visibility: NotificationVisibility.private,
+        category: sacredHour
+            ? AndroidNotificationCategory.alarm
+            : AndroidNotificationCategory.reminder,
         actions: androidActions,
         playSound: request.playSound,
+        enableVibration: true,
+        enableLights: true,
+        ledColor: const Color(0xFFD9A441),
+        ledOnMs: 900,
+        ledOffMs: 900,
+        fullScreenIntent: sacredHour,
+        ongoing: sacredHour,
+        autoCancel: !sacredHour,
+        usesChronometer: sacredHour,
+        timeoutAfter: sacredHour
+            ? const Duration(hours: 1).inMilliseconds
+            : null,
+        audioAttributesUsage: sacredHour
+            ? AudioAttributesUsage.alarm
+            : AudioAttributesUsage.notification,
         sound: request.soundKey == null
             ? null
             : RawResourceAndroidNotificationSound(request.soundKey!),

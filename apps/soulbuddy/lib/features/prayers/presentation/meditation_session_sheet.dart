@@ -138,29 +138,35 @@ class _MeditationSessionSheetState extends State<MeditationSessionSheet> {
       const SizedBox(height: AppSpacing.xs),
       Text(widget.tablet.title, style: Theme.of(context).textTheme.bodyLarge),
       const SizedBox(height: AppSpacing.lg),
-      Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        children: [
-          ChoiceChip(
-            label: const Text('Voice only'),
-            selected: _soundBed == null,
-            onSelected: _starting
-                ? null
-                : (_) => setState(() {
-                    _soundBed = null;
-                    _includeVoice = true;
-                  }),
-          ),
-          for (final bed in MeditationSoundBed.values)
+      SizedBox(
+        height: 48,
+        child: ListView(
+          key: const Key('meditation-sound-list'),
+          scrollDirection: Axis.horizontal,
+          children: [
             ChoiceChip(
-              label: Text(bed.label),
-              selected: _soundBed == bed,
+              label: const Text('Voice only'),
+              selected: _soundBed == null,
               onSelected: _starting
                   ? null
-                  : (_) => setState(() => _soundBed = bed),
+                  : (_) => setState(() {
+                      _soundBed = null;
+                      _includeVoice = true;
+                    }),
             ),
-        ],
+            const SizedBox(width: AppSpacing.sm),
+            for (final bed in MeditationSoundBed.values) ...[
+              ChoiceChip(
+                label: Text(bed.label),
+                selected: _soundBed == bed,
+                onSelected: _starting
+                    ? null
+                    : (_) => setState(() => _soundBed = bed),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+          ],
+        ),
       ),
       if (_soundBed != null) ...[
         CheckboxListTile(

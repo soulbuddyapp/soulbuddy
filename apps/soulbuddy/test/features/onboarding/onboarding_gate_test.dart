@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:soulbuddy/features/orientation/application/orientation_player.dart';
+import 'package:soulbuddy/features/orientation/data/orientation_progress_repository.dart';
+import 'package:soulbuddy/features/orientation/domain/orientation_course.dart';
+import 'package:soulbuddy/features/orientation/providers/orientation_providers.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
@@ -18,6 +23,96 @@ import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 import 'package:soulbuddy/features/sacred_hours/providers/sacred_hour_providers.dart';
 
 void main() {
+  testWidgets('system back dismisses popup then reader then orientation', (
+    tester,
+  ) async {
+    final repository = _MemoryOnboardingRepository();
+    await _pumpGate(tester, repository, outsideNavigator: true);
+    await tester.tap(find.byKey(const Key('onboarding-orientation')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('orientation-course-00-welcome')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('orientation-speed')));
+    await tester.pumpAndSettle();
+    expect(find.text('0.75×'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('0.75×'), findsNothing);
+    expect(find.byKey(const Key('orientation-play')), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await _settleAudioClose(tester);
+    expect(find.byKey(const Key('orientation-play')), findsNothing);
+    expect(find.text('Orientation'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Come as you are'), findsOneWidget);
+    expect(repository.completed, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'reader skip outside the router finishes onboarding and opens Today',
+    (tester) async {
+      final repository = _MemoryOnboardingRepository();
+      var skippedToToday = false;
+      await _pumpGate(
+        tester,
+        repository,
+        outsideNavigator: true,
+        onSkip: () => skippedToToday = true,
+      );
+      await tester.tap(find.byKey(const Key('onboarding-orientation')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('orientation-course-00-welcome')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Skip for now'));
+      await _settleAudioClose(tester);
+      expect(repository.completed, isTrue);
+      expect(skippedToToday, isTrue);
+      expect(find.text('Routed app'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('reader speed menu works outside the router navigator', (
+    tester,
+  ) async {
+    final repository = _MemoryOnboardingRepository();
+    await _pumpGate(tester, repository, outsideNavigator: true);
+    await tester.tap(find.byKey(const Key('onboarding-orientation')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('orientation-course-00-welcome')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('orientation-speed')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('0.75×'), findsOneWidget);
+    await tester.tap(find.text('0.75×'));
+    await tester.pumpAndSettle();
+    expect(repository.completed, isFalse);
+    await tester.tap(find.byTooltip('Back to orientation'));
+    await _settleAudioClose(tester);
+    expect(find.text('Orientation'), findsOneWidget);
+  });
+
+  testWidgets('orientation is optional and its skip still opens Today', (
+    tester,
+  ) async {
+    final repository = _MemoryOnboardingRepository();
+    await _pumpGate(tester, repository);
+    await tester.tap(find.byKey(const Key('onboarding-orientation')));
+    await tester.pumpAndSettle();
+    expect(find.text('Orientation'), findsOneWidget);
+    expect(repository.completed, isFalse);
+    await tester.tap(find.text('Skip for now'));
+    await tester.pumpAndSettle();
+    expect(repository.completed, isTrue);
+    expect(find.text('Routed app'), findsOneWidget);
+  });
+
   testWidgets('first use shows welcome instead of the routed app', (
     tester,
   ) async {
@@ -129,15 +224,70 @@ Future<void> _pumpGate(
   OnboardingRepository repository, {
   VoidCallback? onBeginWithGoal,
   VoidCallback? onResumeFirstPrayer,
+  VoidCallback? onSkip,
   FirstPrayerProgressRepository? progressRepository,
   GoalOnboardingProgress? goalProgress,
   _MemorySacredHourRepository? sacredHours,
   _Scheduler? scheduler,
+  bool outsideNavigator = false,
 }) async {
   final sacredHourRepository = sacredHours ?? _MemorySacredHourRepository();
+  final orientationValues = <String, String>{};
+  Widget gate(Widget child) => OnboardingGate(
+    onBeginWithGoal: onBeginWithGoal ?? () {},
+    onResumeFirstPrayer: onResumeFirstPrayer ?? () {},
+    onSkip: onSkip ?? () {},
+    child: child,
+  );
+  final router = outsideNavigator
+      ? GoRouter(
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, _) => const Scaffold(body: Text('Routed app')),
+            ),
+          ],
+        )
+      : null;
+  if (router != null) addTearDown(router.dispose);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        orientationCatalogProvider.overrideWith(
+          (ref) async => const [
+            OrientationCourse(
+              id: '00-welcome',
+              title: 'Welcome',
+              tenet: 'Begin here',
+              audioAsset: 'welcome.mp3',
+              transcriptAsset: 'welcome.json',
+              duration: Duration(seconds: 30),
+            ),
+          ],
+        ),
+        orientationTranscriptProvider.overrideWith(
+          (ref, path) async => const OrientationTranscript(
+            text: 'Welcome to SoulBuddy.',
+            words: [
+              TranscriptCue(startMs: 0, endMs: 1000, charStart: 0, charEnd: 7),
+            ],
+            sentences: [
+              TranscriptCue(startMs: 0, endMs: 3000, charStart: 0, charEnd: 21),
+            ],
+            duration: Duration(seconds: 30),
+          ),
+        ),
+        orientationProgressRepositoryProvider.overrideWithValue(
+          OrientationProgressRepository(
+            read: (key) async => orientationValues[key],
+            write: (key, value) async {
+              orientationValues[key] = value;
+            },
+          ),
+        ),
+        orientationPlayerFactoryProvider.overrideWithValue(
+          _OrientationPlayer.new,
+        ),
         onboardingRepositoryProvider.overrideWithValue(repository),
         firstPrayerProgressRepositoryProvider.overrideWith(
           (ref) async => progressRepository ?? _MemoryProgressRepository(null),
@@ -155,18 +305,54 @@ Future<void> _pumpGate(
           scheduler ?? _Scheduler(),
         ),
       ],
-      child: MaterialApp(
-        theme: AppTheme.light(),
-        home: OnboardingGate(
-          onBeginWithGoal: onBeginWithGoal ?? () {},
-          onResumeFirstPrayer: onResumeFirstPrayer ?? () {},
-          onSkip: () {},
-          child: const Scaffold(body: Center(child: Text('Routed app'))),
-        ),
-      ),
+      child: outsideNavigator
+          ? MaterialApp.router(
+              routerConfig: router,
+              theme: AppTheme.light(),
+              builder: (_, child) => gate(child ?? const SizedBox()),
+            )
+          : MaterialApp(
+              theme: AppTheme.light(),
+              home: OnboardingGate(
+                onBeginWithGoal: onBeginWithGoal ?? () {},
+                onResumeFirstPrayer: onResumeFirstPrayer ?? () {},
+                onSkip: onSkip ?? () {},
+                child: const Scaffold(body: Center(child: Text('Routed app'))),
+              ),
+            ),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _settleAudioClose(WidgetTester tester) async {
+  await tester.pumpAndSettle();
+  // Stream cancellation uses the real event loop even in a widget test.
+  await tester.runAsync(() async {
+    await Future<void>.delayed(Duration.zero);
+  });
+  await tester.pumpAndSettle();
+}
+
+class _OrientationPlayer implements OrientationPlayer {
+  @override
+  Stream<Duration> get positions => const Stream.empty();
+  @override
+  Stream<bool> get playing => const Stream.empty();
+  @override
+  Stream<void> get completions => const Stream.empty();
+  @override
+  Future<void> prepare(String asset) async {}
+  @override
+  Future<void> play() async {}
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> seek(Duration position) async {}
+  @override
+  Future<void> setSpeed(double speed) async {}
+  @override
+  Future<void> close() async {}
 }
 
 class _MemorySacredHourRepository implements SacredHourRepository {

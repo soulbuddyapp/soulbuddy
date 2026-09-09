@@ -11,6 +11,7 @@ import '../domain/person_prayer_occurrence.dart';
 import '../domain/prayer_person.dart';
 import '../../record/domain/encounter.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
+import '../../sacred_hours/application/sacred_hour_alarm_permission_factory.dart';
 
 final personRepositoryProvider = FutureProvider<PersonRepository>((ref) async {
   final database = await ref.watch(appDatabaseProvider.future);
@@ -52,6 +53,7 @@ final personPrayerReminderCoordinatorProvider =
         scheduler: ref.watch(prayerReminderSchedulerProvider),
         timezoneName: ref.watch(prayerDeviceTimezoneProvider),
         clock: ref.watch(prayerPracticeClockProvider),
+        requestExactTiming: createSacredHourAlarmPermission().request,
       );
       ref.onDispose(() => unawaited(coordinator.dispose()));
       await coordinator.start();

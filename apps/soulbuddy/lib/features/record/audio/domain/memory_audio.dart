@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import 'memory_soundscape.dart';
+
 const maximumMemoryAudioDuration = Duration(minutes: 15);
 const maximumMemoryAudioBytes = 64 * 1024 * 1024;
 const maximumMemoryAudioWaveformSamples = 96;
@@ -12,6 +14,8 @@ class RecordedAudioDraft {
     required String mimeType,
     required Duration duration,
     required List<double> waveform,
+    this.soundscape = MemorySoundscape.quiet,
+    this.soundscapeVolume = 0.15,
   }) : temporaryKey = _requiredText(temporaryKey, 'temporaryKey', 1024),
        mimeType = _audioMimeType(mimeType),
        duration = _duration(duration),
@@ -21,6 +25,8 @@ class RecordedAudioDraft {
   final String mimeType;
   final Duration duration;
   final List<double> waveform;
+  final MemorySoundscape soundscape;
+  final double soundscapeVolume;
 }
 
 /// Compatibility name for encounter audio while prayer recording adopts the

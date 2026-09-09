@@ -9,13 +9,16 @@ import '../../../../core/identity/local_identity_providers.dart';
 import '../application/audioplayers_memory_audio_player.dart';
 import '../application/memory_audio_deletion.dart';
 import '../application/memory_audio_player.dart';
+import '../application/memory_soundscape_player.dart';
 import '../application/audio_capture_controller.dart';
 import '../application/record_plugin_driver.dart';
 import '../data/audio_asset_store.dart';
 import '../data/audio_asset_store_factory.dart';
 import '../data/memory_audio_repository.dart';
+import '../data/memory_soundscape_preferences.dart';
 import '../data/powersync_memory_audio_repository.dart';
 import '../domain/memory_audio.dart';
+import '../domain/memory_soundscape.dart';
 
 final audioAssetStoreProvider = FutureProvider<AudioAssetStore>((ref) async {
   return createAudioAssetStore();
@@ -44,6 +47,29 @@ final memoryAudioPlaybackCoordinatorProvider =
       final coordinator = MemoryAudioPlaybackCoordinator(
         assetStore: assetStore,
         driver: AudioplayersMemoryAudioPlayerDriver(),
+      );
+      ref.onDispose(() => unawaited(coordinator.close()));
+      return coordinator;
+    });
+
+final memorySoundscapePreferencesProvider =
+    Provider<MemorySoundscapePreferences>((ref) {
+      final storage = ref.watch(secureStorageProvider);
+      return MemorySoundscapePreferences(
+        read: (key) => storage.read(key: key),
+        write: (key, value) => storage.write(key: key, value: value),
+      );
+    });
+
+final memorySoundscapeSettingsProvider = FutureProvider.autoDispose
+    .family<MemorySoundscapeSettings, String>((ref, assetId) {
+      return ref.watch(memorySoundscapePreferencesProvider).load(assetId);
+    });
+
+final memorySoundscapePlaybackProvider =
+    Provider<MemorySoundscapePlaybackCoordinator>((ref) {
+      final coordinator = MemorySoundscapePlaybackCoordinator(
+        player: AudioplayersMemorySoundscapePlayer(),
       );
       ref.onDispose(() => unawaited(coordinator.close()));
       return coordinator;

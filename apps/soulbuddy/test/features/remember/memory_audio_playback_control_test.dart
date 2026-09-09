@@ -3,11 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/core/playback/spiritual_session.dart';
+import 'package:soulbuddy/core/playback/spiritual_session_controller.dart';
+import 'package:soulbuddy/core/playback/spiritual_session_providers.dart';
 import 'package:soulbuddy/features/record/audio/application/memory_audio_deletion.dart';
 import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
+import 'package:soulbuddy/features/record/audio/application/memory_soundscape_player.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/data/memory_audio_repository.dart';
+import 'package:soulbuddy/features/record/audio/data/memory_soundscape_preferences.dart';
 import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
+import 'package:soulbuddy/features/record/audio/domain/memory_soundscape.dart';
 import 'package:soulbuddy/features/record/audio/presentation/audio_playback_control.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 
@@ -20,11 +26,26 @@ void main() {
       assetStore: _ControlAssetStore(),
       driver: driver,
     );
+    final sessionController = SpiritualSessionController();
+    final soundscapePlayer = _SilentSoundscapePlayer();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           memoryAudioPlaybackCoordinatorProvider.overrideWith(
             (ref) async => coordinator,
+          ),
+          spiritualSessionControllerProvider.overrideWithValue(
+            sessionController,
+          ),
+          memorySoundscapePreferencesProvider.overrideWith(
+            (ref) => MemorySoundscapePreferences(
+              read: (_) async => '{"soundscape":"flowingWater","volume":0.15}',
+              write: (_, _) async {},
+            ),
+          ),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) =>
+                MemorySoundscapePlaybackCoordinator(player: soundscapePlayer),
           ),
         ],
         child: MaterialApp(
@@ -50,6 +71,20 @@ void main() {
     await _settle(tester);
     expect(driver.events, ['play']);
     expect(find.text('Pause'), findsOneWidget);
+    expect(sessionController.state.session?.id, 'memory:audio-1');
+    expect(sessionController.state.session?.kind, SpiritualSessionKind.memory);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(driver.events, ['play']);
+    expect(soundscapePlayer.events, ['start:flowingWater']);
+    driver.emitPosition(const Duration(seconds: 3));
+    await tester.pump();
+    expect(sessionController.state.position, const Duration(seconds: 3));
+    driver.emitStatus(MemoryAudioDriverStatus.completed);
+    await tester.pump();
+    expect(sessionController.state.session, isNull);
+    expect(soundscapePlayer.events, ['start:flowingWater', 'stop']);
   });
 
   testWidgets('deletion names irreversibility and leaves no ambiguous action', (
@@ -71,6 +106,17 @@ void main() {
             (ref) async => coordinator,
           ),
           memoryAudioDeletionProvider.overrideWith((ref) async => deletion),
+          memorySoundscapePreferencesProvider.overrideWith(
+            (ref) => MemorySoundscapePreferences(
+              read: (_) async => null,
+              write: (_, _) async {},
+            ),
+          ),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(
+              player: _SilentSoundscapePlayer(),
+            ),
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -93,6 +139,52 @@ void main() {
     await _settle(tester);
 
     expect(events, ['metadata:memory-1', 'bytes:audio/memory.m4a']);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('full playback offers a gentle optional soundscape', (
+    tester,
+  ) async {
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: _ControlAssetStore(),
+      driver: _ControlDriver(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => coordinator,
+          ),
+          memorySoundscapePreferencesProvider.overrideWith(
+            (ref) => MemorySoundscapePreferences(
+              read: (_) async => null,
+              write: (_, _) async {},
+            ),
+          ),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(
+              player: _SilentSoundscapePlayer(),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: AudioPlaybackControl(audio: _audio())),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.text('Add a light background'), findsOneWidget);
+    expect(find.text('Quiet'), findsOneWidget);
+    expect(find.text('Stillness'), findsOneWidget);
+    expect(find.text('Flowing water'), findsOneWidget);
+    expect(
+      find.text('Your original voice recording stays unchanged.'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }
 
@@ -113,6 +205,9 @@ class _ControlDriver implements MemoryAudioPlayerDriver {
   final _positions = StreamController<Duration>.broadcast();
   final _durations = StreamController<Duration>.broadcast();
   final _statuses = StreamController<MemoryAudioDriverStatus>.broadcast();
+
+  void emitPosition(Duration value) => _positions.add(value);
+  void emitStatus(MemoryAudioDriverStatus value) => _statuses.add(value);
 
   @override
   Stream<Duration> get durationChanges => _durations.stream;
@@ -151,6 +246,25 @@ class _ControlDriver implements MemoryAudioPlayerDriver {
 
   @override
   Future<void> stop() async {}
+}
+
+class _SilentSoundscapePlayer implements MemorySoundscapePlayer {
+  final events = <String>[];
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
+  Future<void> start(
+    MemorySoundscape soundscape, {
+    required double volume,
+  }) async => events.add('start:${soundscape.name}');
+
+  @override
+  Future<void> stop() async => events.add('stop');
 }
 
 class _ControlAssetStore implements AudioAssetStore {

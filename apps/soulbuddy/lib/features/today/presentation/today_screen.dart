@@ -9,23 +9,30 @@ import '../../../core/design/app_spacing.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../../core/presentation/covenant_slabs.dart';
+import '../../../core/playback/spiritual_session.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
+import 'completed_today_item.dart';
 import '../../altar/presentation/altar_today_card.dart';
 import '../../goals/application/goal_today_composer.dart';
 import '../../goals/application/goal_today_resource_adapter.dart';
+import '../../goals/domain/goal.dart';
 import '../../goals/presentation/goal_today_sections.dart';
 import '../../goals/presentation/today_prayer_goal_migration_card.dart';
 import '../../goals/providers/goal_providers.dart';
 import '../../goals/providers/goal_today_providers.dart';
+import '../../formation/presentation/formation_today_card.dart';
 import '../../prayers/application/prayer_reminder_scheduler.dart';
 import '../../prayers/domain/prayer_reference.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../../prayers/presentation/prayer_library_tile.dart';
 import '../../prayers/presentation/prayer_reminder_card.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
+import '../../prayers/providers/personal_prayer_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../remember/presentation/daily_remembrance_card.dart';
 import '../../remember/providers/daily_memory_providers.dart';
 import '../../sacred_hours/application/sacred_hour_today_window.dart';
+import '../../sacred_hours/domain/sacred_hour.dart';
 import '../../sacred_hours/presentation/sacred_hour_today_card.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
 import '../domain/daily_practice_state.dart';
@@ -46,6 +53,8 @@ class TodayScreen extends ConsumerStatefulWidget {
 class _TodayScreenState extends ConsumerState<TodayScreen> {
   var _updatingAction = false;
   var _recordingPrayer = false;
+  final _dismissedCompletions = <String>{};
+  final _completionTimes = <String, DateTime>{};
   final _altarKey = GlobalKey();
 
   @override
@@ -80,6 +89,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   @override
   Widget build(BuildContext context) {
     final todayPrayer = ref.watch(todayPrayerProvider);
+    final personalPrayers = ref.watch(personalPrayersProvider);
     final dailyMemory = ref.watch(dailyMemoryProvider);
     final dailyPractices = ref.watch(dailyPracticeStateProvider);
     final goalToday = ref.watch(goalTodaySnapshotProvider);
@@ -92,7 +102,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       AsyncData(:final value) => value.activeGoalCount == 0,
       _ => false,
     };
-    final showStartGuide = goalsKnownEmpty;
+    final prayersKnownEmpty = switch (personalPrayers) {
+      AsyncData(:final value) => value.isEmpty,
+      _ => false,
+    };
+    final noPrayerSelected = switch (todayPrayer) {
+      AsyncData(value: null) => true,
+      _ => false,
+    };
+    final showStartGuide =
+        goalsKnownEmpty && prayersKnownEmpty && noPrayerSelected;
     final showLegacyPrayer =
         !showStartGuide ||
         goalSnapshot?.resources.legacyTodayOutsideActiveGoals != null;
@@ -132,6 +151,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
+              const FormationTodayCard(),
+              const SizedBox(height: AppSpacing.md),
               dailyPractices.when(
                 loading: () => const SizedBox(
                   height: 132,
@@ -162,6 +183,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 if (goalSnapshot.sections.isNotEmpty)
                   GoalTodaySections(
                     snapshot: goalSnapshot,
+                    excludedGoalIds: {
+                      for (final section in goalSnapshot.sections)
+                        if (section.goal.starterKey ==
+                            GoalStarterKey.closerToGod)
+                          section.goal.id,
+                    },
                     onCompleteAction: (item) =>
                         _completeGoalAction(goalSnapshot, item),
                     onOpenResource: _openGoalResource,
@@ -277,6 +304,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     TodayPrayer today,
     AsyncValue<DailyPracticeState> dailyPractices,
   ) {
+    final date = today.localDate;
+    final dayKey = '${date.year}-${date.month}-${date.day}';
+    final prayerCompletionId =
+        'legacy-prayer-$dayKey-${today.prayer.reference.id}';
+    final actionCompletionId =
+        'legacy-action-$dayKey-${today.prayer.reference.id}';
+    final prayed =
+        dailyPractices.value?.completed.contains(DailyPractice.pray) ?? false;
+    final prayerCompletedAt = prayed
+        ? _completionTimes.putIfAbsent(prayerCompletionId, DateTime.now)
+        : null;
+    final actionCompletedAt = today.actionCompleted
+        ? _completionTimes.putIfAbsent(actionCompletionId, DateTime.now)
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -285,11 +326,21 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           today: today,
           prayerCompletionKnown:
               dailyPractices is AsyncData<DailyPracticeState>,
-          prayed:
-              dailyPractices.value?.completed.contains(DailyPractice.pray) ??
-              false,
+          prayed: prayed,
           recordingPrayer: _recordingPrayer,
           updatingAction: _updatingAction,
+          prayerCompletionId: prayerCompletionId,
+          actionCompletionId: actionCompletionId,
+          prayerCompletedAt: prayerCompletedAt,
+          actionCompletedAt: actionCompletedAt,
+          showPrayerCompletion: !_dismissedCompletions.contains(
+            prayerCompletionId,
+          ),
+          showActionCompletion: !_dismissedCompletions.contains(
+            actionCompletionId,
+          ),
+          onDismissCompletion: (id) =>
+              setState(() => _dismissedCompletions.add(id)),
           onPrayerCompleted: () => _recordPrayer(today),
           onActionChanged: (value) => _completeAction(today, value),
         ),
@@ -336,6 +387,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           content: Text('Could not update this Goal action. Try again.'),
         ),
       );
+      rethrow;
     }
   }
 
@@ -420,6 +472,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           content: Text('Could not record the prayer. Try again.'),
         ),
       );
+      rethrow;
     }
   }
 
@@ -579,12 +632,55 @@ class _SacredHourTodaySection extends ConsumerWidget {
               child: SacredHourTodayCard(
                 hour: hour,
                 nowUtc: now,
-                onOpen: () => context.push('/sacred-hours/${hour.id}'),
+                onOpen: () => unawaited(
+                  _openSacredHourFromToday(context, ref, hour, window),
+                ),
               ),
             );
           },
         );
   }
+}
+
+Future<void> _openSacredHourFromToday(
+  BuildContext context,
+  WidgetRef ref,
+  SacredHour hour,
+  SacredHourTodayWindow window,
+) async {
+  final occurrence = '${hour.id}@${window.startsAtUtc.toIso8601String()}';
+  final route = Uri(
+    pathSegments: ['sacred-hours', hour.id],
+    queryParameters: {'occurrence': occurrence},
+  ).toString();
+  if (window.phase == SacredHourTodayPhase.active) {
+    await ref
+        .read(spiritualSessionControllerProvider)
+        .begin(
+          SpiritualSession(
+            id: 'sacred-hour:$occurrence',
+            kind: SpiritualSessionKind.sacredHour,
+            title: hour.name,
+            route: route,
+            canPause: false,
+            completionLabel: 'Complete',
+            onPause: () async {},
+            onResume: () async {},
+            onComplete: () async {
+              final repository = await ref.read(
+                sacredHourRepositoryProvider.future,
+              );
+              await repository.markOccurrence(
+                hour.id,
+                window.startsAtUtc,
+                SacredHourOccurrenceStatus.completed,
+              );
+            },
+            onClose: () async {},
+          ),
+        );
+  }
+  if (context.mounted) context.push(route);
 }
 
 class _DisplayedDayChanged implements Exception {
@@ -639,6 +735,13 @@ class _SelectedPrayer extends StatelessWidget {
     required this.updatingAction,
     required this.onPrayerCompleted,
     required this.onActionChanged,
+    required this.prayerCompletionId,
+    required this.actionCompletionId,
+    required this.prayerCompletedAt,
+    required this.actionCompletedAt,
+    required this.showPrayerCompletion,
+    required this.showActionCompletion,
+    required this.onDismissCompletion,
   });
 
   final TodayPrayer today;
@@ -648,6 +751,13 @@ class _SelectedPrayer extends StatelessWidget {
   final bool updatingAction;
   final VoidCallback onPrayerCompleted;
   final ValueChanged<bool> onActionChanged;
+  final String prayerCompletionId;
+  final String actionCompletionId;
+  final DateTime? prayerCompletedAt;
+  final DateTime? actionCompletedAt;
+  final bool showPrayerCompletion;
+  final bool showActionCompletion;
+  final ValueChanged<String> onDismissCompletion;
 
   @override
   Widget build(BuildContext context) {
@@ -659,59 +769,77 @@ class _SelectedPrayer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  prayer.title,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  '${prayerPurposeLabel(prayer.purpose)} · '
-                  '${prayerGroundingLabel(prayer.grounding)}',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+        if (prayed && showPrayerCompletion)
+          CompletedTodayItem(
+            id: prayerCompletionId,
+            label: '${prayer.title} · Prayed',
+            completedAt: prayerCompletedAt!,
+            onDismiss: () => onDismissCompletion(prayerCompletionId),
+          )
+        else if (!prayed)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    prayer.title,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  prayer.body,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(height: 1.65),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    key: const Key('today-prayer-complete'),
-                    onPressed:
-                        prayed || recordingPrayer || !prayerCompletionKnown
-                        ? null
-                        : onPrayerCompleted,
-                    icon: Icon(
-                      prayed ? Icons.check_outlined : Icons.front_hand_outlined,
-                    ),
-                    label: Text(
-                      prayed
-                          ? 'Prayed today'
-                          : recordingPrayer
-                          ? 'Recording…'
-                          : !prayerCompletionKnown
-                          ? 'Opening…'
-                          : 'I prayed this',
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    '${prayerPurposeLabel(prayer.purpose)} · '
+                    '${prayerGroundingLabel(prayer.grounding)}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    prayer.body,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(height: 1.65),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      key: const Key('today-prayer-complete'),
+                      onPressed:
+                          prayed || recordingPrayer || !prayerCompletionKnown
+                          ? null
+                          : onPrayerCompleted,
+                      icon: Icon(
+                        prayed
+                            ? Icons.check_outlined
+                            : Icons.front_hand_outlined,
+                      ),
+                      label: Text(
+                        prayed
+                            ? 'Prayed today'
+                            : recordingPrayer
+                            ? 'Recording…'
+                            : !prayerCompletionKnown
+                            ? 'Opening…'
+                            : 'I prayed this',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        if (showsAction) ...[
+        if (showsAction && today.actionCompleted && showActionCompletion) ...[
+          const SizedBox(height: AppSpacing.md),
+          CompletedTodayItem(
+            id: actionCompletionId,
+            label: action,
+            completedAt: actionCompletedAt!,
+            onDismiss: () => onDismissCompletion(actionCompletionId),
+          ),
+        ] else if (showsAction && !today.actionCompleted) ...[
           const SizedBox(height: AppSpacing.md),
           DecoratedBox(
             decoration: BoxDecoration(

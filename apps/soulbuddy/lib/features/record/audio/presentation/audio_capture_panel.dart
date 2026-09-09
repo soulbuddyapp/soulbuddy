@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/design/app_spacing.dart';
 import '../application/audio_capture_controller.dart';
+import '../application/audioplayers_memory_audio_player.dart';
+import '../application/memory_soundscape_player.dart';
 import '../domain/memory_audio.dart';
+import '../domain/memory_soundscape.dart';
 
 class AudioCapturePanel extends StatefulWidget {
   const AudioCapturePanel({
@@ -19,6 +22,7 @@ class AudioCapturePanel extends StatefulWidget {
     this.startLabel = 'Start recording',
     this.alternativeLabel = 'Write instead',
     this.introContent,
+    this.enableSoundscape = false,
     super.key,
   });
 
@@ -31,6 +35,7 @@ class AudioCapturePanel extends StatefulWidget {
   final String startLabel;
   final String alternativeLabel;
   final Widget? introContent;
+  final bool enableSoundscape;
 
   @override
   State<AudioCapturePanel> createState() => _AudioCapturePanelState();
@@ -39,11 +44,14 @@ class AudioCapturePanel extends StatefulWidget {
 class _AudioCapturePanelState extends State<AudioCapturePanel>
     with WidgetsBindingObserver {
   final AudioPlayer _reviewPlayer = AudioPlayer();
+  MemorySoundscapePlayer? _reviewSoundscapePlayer;
   StreamSubscription<PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _positionSubscription;
   var _playerState = PlayerState.stopped;
   var _position = Duration.zero;
   String? _playbackError;
+  var _reviewSoundscape = MemorySoundscape.quiet;
+  var _reviewSoundVolume = 0.15;
 
   @override
   void initState() {
@@ -53,6 +61,11 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
       state,
     ) {
       if (mounted) setState(() => _playerState = state);
+      if (state == PlayerState.completed ||
+          state == PlayerState.stopped ||
+          state == PlayerState.paused) {
+        unawaited(_reviewSoundscapePlayer?.stop() ?? Future.value());
+      }
     });
     _positionSubscription = _reviewPlayer.onPositionChanged.listen((position) {
       if (mounted) setState(() => _position = position);
@@ -66,6 +79,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         state == AppLifecycleState.hidden) {
       unawaited(widget.controller.handleInterruption());
       unawaited(_reviewPlayer.pause());
+      unawaited(_reviewSoundscapePlayer?.stop() ?? Future.value());
     }
   }
 
@@ -74,6 +88,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_playerStateSubscription?.cancel());
     unawaited(_positionSubscription?.cancel());
+    unawaited(_reviewSoundscapePlayer?.dispose() ?? Future.value());
     unawaited(_reviewPlayer.dispose());
     super.dispose();
   }
@@ -259,6 +274,10 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
           '${_durationLabel(_position)} / ${_durationLabel(review.duration)}',
         ),
       ),
+      if (widget.enableSoundscape) ...[
+        const SizedBox(height: AppSpacing.md),
+        _reviewSoundscapeControls(playing: playing),
+      ],
       if (_playbackError case final error?) ...[
         const SizedBox(height: AppSpacing.sm),
         Text(error, textAlign: TextAlign.center),
@@ -276,8 +295,20 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         icon: Icons.arrow_forward,
         onPressed: () {
           unawaited(_reviewPlayer.stop());
+          unawaited(_reviewSoundscapePlayer?.stop() ?? Future.value());
           final transferred = widget.controller.takeReview();
-          if (transferred != null) widget.onContinue(transferred);
+          if (transferred != null) {
+            widget.onContinue(
+              RecordedAudioDraft(
+                temporaryKey: transferred.temporaryKey,
+                mimeType: transferred.mimeType,
+                duration: transferred.duration,
+                waveform: transferred.waveform,
+                soundscape: _reviewSoundscape,
+                soundscapeVolume: _reviewSoundVolume,
+              ),
+            );
+          }
         },
       ),
       const SizedBox(height: AppSpacing.sm),
@@ -286,6 +317,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         icon: Icons.replay,
         onPressed: () async {
           await _reviewPlayer.stop();
+          await _reviewSoundscapePlayer?.stop();
           await widget.controller.recordAgain();
         },
       ),
@@ -306,14 +338,18 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     try {
       if (_playerState == PlayerState.playing) {
         await _reviewPlayer.pause();
+        await _reviewSoundscapePlayer?.stop();
       } else if (_playerState == PlayerState.paused) {
         await _reviewPlayer.resume();
+        await _startReviewSoundscape();
       } else {
+        await prepareVoicePlaybackPlayer(_reviewPlayer);
         await _reviewPlayer.play(
           kIsWeb
               ? UrlSource(review.temporaryKey)
               : DeviceFileSource(review.temporaryKey),
         );
+        await _startReviewSoundscape();
       }
     } catch (_) {
       if (mounted) {
@@ -323,6 +359,77 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         );
       }
     }
+  }
+
+  Widget _reviewSoundscapeControls({required bool playing}) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add a light background',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final soundscape in MemorySoundscape.values)
+                  ChoiceChip(
+                    key: Key('recording-soundscape-${soundscape.name}'),
+                    label: Text(soundscape.label),
+                    selected: _reviewSoundscape == soundscape,
+                    onSelected: (_) async {
+                      setState(() => _reviewSoundscape = soundscape);
+                      if (!playing || soundscape == MemorySoundscape.quiet) {
+                        await _reviewSoundscapePlayer?.stop();
+                      } else {
+                        await _startReviewSoundscape();
+                      }
+                    },
+                  ),
+              ],
+            ),
+            if (_reviewSoundscape != MemorySoundscape.quiet)
+              Semantics(
+                label:
+                    'Background volume ${(_reviewSoundVolume * 100).round()} percent',
+                child: Slider(
+                  key: const Key('recording-soundscape-volume'),
+                  value: _reviewSoundVolume,
+                  min: 0.05,
+                  max: 0.35,
+                  divisions: 6,
+                  label: '${(_reviewSoundVolume * 100).round()}%',
+                  onChanged: (value) {
+                    setState(() => _reviewSoundVolume = value);
+                    if (playing) {
+                      unawaited(
+                        _reviewSoundscapePlayer?.setVolume(value) ??
+                            Future.value(),
+                      );
+                    }
+                  },
+                ),
+              ),
+            const Text('Your original voice recording stays unchanged.'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startReviewSoundscape() {
+    final player = _reviewSoundscapePlayer ??=
+        AudioplayersMemorySoundscapePlayer();
+    return player.start(_reviewSoundscape, volume: _reviewSoundVolume);
   }
 
   Future<void> _confirmDiscard({required bool review}) async {
@@ -347,6 +454,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     );
     if (confirmed != true || !mounted) return;
     await _reviewPlayer.stop();
+    await _reviewSoundscapePlayer?.stop();
     if (review) {
       await widget.controller.discard();
     } else {

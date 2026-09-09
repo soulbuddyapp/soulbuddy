@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/core/playback/spiritual_session.dart';
+import 'package:soulbuddy/core/playback/spiritual_session_controller.dart';
+import 'package:soulbuddy/core/playback/spiritual_session_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
 import 'package:soulbuddy/features/prayers/data/voice_tablet_repository.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_player.dart';
@@ -35,6 +38,60 @@ void main() {
         .timeout(const Duration(seconds: 1));
 
     expect(coordinator.state.status, MemoryAudioPlaybackStatus.playing);
+  });
+
+  testWidgets('switching sessions closes old audio before starting tablet', (
+    tester,
+  ) async {
+    final driver = _FakeAudioDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: _FakeAudioStore(),
+      driver: driver,
+    );
+    await coordinator.playTrack(
+      const PrivateAudioTrack(
+        id: 'old-audio',
+        storageKey: 'voice/old.m4a',
+        duration: Duration(seconds: 30),
+      ),
+    );
+    driver.events.clear();
+    final sessions = SpiritualSessionController();
+    await sessions.begin(
+      SpiritualSession(
+        id: 'memory:old',
+        kind: SpiritualSessionKind.memory,
+        title: 'Old memory',
+        route: '/remember/old',
+        canPause: true,
+        completionLabel: 'Close',
+        onPause: coordinator.pause,
+        onResume: () async {},
+        onComplete: coordinator.stop,
+        onClose: coordinator.stop,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => coordinator,
+          ),
+          spiritualSessionControllerProvider.overrideWithValue(sessions),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: VoiceTabletPlayer(tablet: _tablet())),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    await tester.tap(find.text('Listen'));
+    await _settle(tester);
+
+    expect(driver.events, ['stop', 'play']);
+    expect(coordinator.state.status, MemoryAudioPlaybackStatus.playing);
+    expect(sessions.state.session?.id, 'prayer:audio-1');
   });
 
   testWidgets('offers one optional Prayer Refrain after the full recording', (
@@ -356,6 +413,7 @@ class _FakeAudioStore implements AudioAssetStore {
 }
 
 class _FakeAudioDriver implements MemoryAudioPlayerDriver {
+  final events = <String>[];
   final positions = StreamController<Duration>.broadcast();
   final durations = StreamController<Duration>.broadcast();
   final statuses = StreamController<MemoryAudioDriverStatus>.broadcast();
@@ -373,7 +431,8 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
   Future<void> pause() async {}
 
   @override
-  Future<void> play(String assetId, AudioPlaybackSource source) async {}
+  Future<void> play(String assetId, AudioPlaybackSource source) async =>
+      events.add('play');
 
   @override
   Future<void> prepare(String assetId, AudioPlaybackSource source) async {}
@@ -388,7 +447,7 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
   Future<void> seek(Duration position) async {}
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async => events.add('stop');
 
   @override
   Future<void> dispose() async {

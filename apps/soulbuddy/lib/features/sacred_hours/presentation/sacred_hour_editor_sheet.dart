@@ -117,6 +117,14 @@ class _SacredHourEditorSheetState extends State<SacredHourEditorSheet> {
     }
     setState(() => _saving = true);
     try {
+      if (_reminderMode == SacredHourReminderMode.precise &&
+          _preciseAllowed != true) {
+        final request = widget.onRequestPrecise;
+        if (request != null) {
+          _preciseAllowed = await request();
+          if (!mounted) return;
+        }
+      }
       await widget.onSave(
         SacredHourEditorValue(
           name: name,
@@ -268,14 +276,14 @@ class _SacredHourEditorSheetState extends State<SacredHourEditorSheet> {
               children: [
                 RadioListTile<SacredHourReminderMode>(
                   value: SacredHourReminderMode.ordinary,
-                  title: Text('Ordinary'),
-                  subtitle: Text('Recommended for most phones'),
+                  title: Text('Gentle timing'),
+                  subtitle: Text('May arrive a little later to save battery'),
                 ),
                 RadioListTile<SacredHourReminderMode>(
                   value: SacredHourReminderMode.precise,
-                  title: Text('More precise timing'),
+                  title: Text('Alarm-grade timing'),
                   subtitle: Text(
-                    'Android may ask for Alarms & reminders access',
+                    'Recommended · sound, vibration, and on-time delivery',
                   ),
                 ),
               ],

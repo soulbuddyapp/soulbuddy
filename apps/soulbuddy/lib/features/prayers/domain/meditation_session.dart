@@ -1,16 +1,76 @@
 import 'voice_tablet.dart';
 
+enum MeditationSoundCategory { quiet, motivational }
+
 enum MeditationSoundBed {
   stillness(label: 'Stillness', assetPath: 'audio/meditation/stillness.mp3'),
   flowingWater(
     label: 'Flowing water',
     assetPath: 'audio/meditation/flowing_water.mp3',
+  ),
+  gentleRain(
+    label: 'Gentle rain',
+    assetPath: 'audio/meditation/gentle_rain.mp3',
+  ),
+  oceanWaves(
+    label: 'Ocean waves',
+    assetPath: 'audio/meditation/ocean_waves.mp3',
+  ),
+  forestMorning(
+    label: 'Forest morning',
+    assetPath: 'audio/meditation/forest_morning.mp3',
+  ),
+  softWind(label: 'Soft wind', assetPath: 'audio/meditation/soft_wind.mp3'),
+  warmFireplace(
+    label: 'Warm fireplace',
+    assetPath: 'audio/meditation/warm_fireplace.mp3',
+  ),
+  nightCrickets(
+    label: 'Night crickets',
+    assetPath: 'audio/meditation/night_crickets.mp3',
+  ),
+  hopefulPiano(
+    label: 'Hopeful piano',
+    assetPath: 'audio/meditation/hopeful_piano.mp3',
+    category: MeditationSoundCategory.motivational,
+    preferredVolume: 0.18,
+  ),
+  cinematicRise(
+    label: 'Cinematic rise',
+    assetPath: 'audio/meditation/cinematic_rise.mp3',
+    category: MeditationSoundCategory.motivational,
+    preferredVolume: 0.20,
+  ),
+  steadyResolve(
+    label: 'Steady resolve',
+    assetPath: 'audio/meditation/steady_resolve.mp3',
+    category: MeditationSoundCategory.motivational,
+    preferredVolume: 0.18,
+  ),
+  warmStrings(
+    label: 'Warm strings',
+    assetPath: 'audio/meditation/warm_strings.mp3',
+    category: MeditationSoundCategory.motivational,
+    preferredVolume: 0.16,
+  ),
+  victoriousCalm(
+    label: 'Victorious calm',
+    assetPath: 'audio/meditation/victorious_calm.mp3',
+    category: MeditationSoundCategory.motivational,
+    preferredVolume: 0.18,
   );
 
-  const MeditationSoundBed({required this.label, required this.assetPath});
+  const MeditationSoundBed({
+    required this.label,
+    required this.assetPath,
+    this.category = MeditationSoundCategory.quiet,
+    this.preferredVolume = 0.15,
+  });
 
   final String label;
   final String assetPath;
+  final MeditationSoundCategory category;
+  final double preferredVolume;
 }
 
 enum MeditationPrompt {

@@ -156,6 +156,32 @@ void main() {
     expect(find.text('In need of healing'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('meditation prayer opens with context and editable starter', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      editorialRepository: _EditorialRepository(const []),
+      personalRepository: _PersonalRepository(),
+      onGenerationProviderRead: () {},
+      screen: const PrayerCreateScreen(
+        contextTitle: 'Forgiveness · Matthew 6:14–15',
+        prayerStarter: 'Lord, help me release what I am holding.',
+        initialPurpose: PrayerPurpose.guidance,
+      ),
+    );
+
+    expect(find.text('From your meditation'), findsOneWidget);
+    expect(find.text('Forgiveness · Matthew 6:14–15'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('prayer-create-own-words')))
+          .controller!
+          .text,
+      'Lord, help me release what I am holding.',
+    );
+  });
 }
 
 Future<void> _pump(
@@ -164,14 +190,12 @@ Future<void> _pump(
   required _PersonalRepository personalRepository,
   required VoidCallback onGenerationProviderRead,
   TextScaler? textScaler,
+  PrayerCreateScreen screen = const PrayerCreateScreen(),
 }) async {
   final router = GoRouter(
     initialLocation: '/prayers/create',
     routes: [
-      GoRoute(
-        path: '/prayers/create',
-        builder: (context, state) => const PrayerCreateScreen(),
-      ),
+      GoRoute(path: '/prayers/create', builder: (context, state) => screen),
       GoRoute(
         path: '/prayers/saved/:id',
         builder: (context, state) =>

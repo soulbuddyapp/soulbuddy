@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/feedback/app_feedback.dart';
@@ -40,6 +41,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
+              ListTile(
+                leading: const Icon(Icons.headphones_outlined),
+                title: const Text('Orientation'),
+                subtitle: const Text(
+                  'Listen, read along, and continue your Nuggets',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/orientation'),
+              ),
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 680),
@@ -218,7 +228,7 @@ class _SacredHoursSettingsHost extends ConsumerWidget {
           soundsEnabled: soundsEnabled,
           player: player,
           reminderMode:
-              delivery?.reminderMode ?? SacredHourReminderMode.ordinary,
+              delivery?.reminderMode ?? SacredHourReminderMode.precise,
           onRequestPrecise: () async {
             final coordinator = await ref.read(
               sacredHourReminderCoordinatorProvider.future,

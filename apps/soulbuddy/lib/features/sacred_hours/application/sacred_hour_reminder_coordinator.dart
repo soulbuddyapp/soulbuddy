@@ -39,6 +39,7 @@ class SacredHourReminderCoordinator {
   final _processedActions = <String>{};
   StreamSubscription<List<SacredHourDelivery>>? _deliveriesSubscription;
   StreamSubscription<PrayerReminderResponse>? _responsesSubscription;
+  Timer? _startupRefreshTimer;
   List<SacredHourDelivery> _deliveries = const [];
   Future<void> _serial = Future.value();
   var _notificationsAllowed = false;
@@ -54,18 +55,30 @@ class SacredHourReminderCoordinator {
           (response) => response.kind == ReminderNotificationKind.sacredHour,
         )
         .listen((response) => _enqueue(() => _handleResponse(response)));
+    await _scheduler.initialize();
+    _notificationsAllowed =
+        !_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() ==
+            NotificationPermissionStatus.granted;
+    _deliveries = await _repository.watchDeliveries().first;
+    await _enqueue(_reconcile);
     _deliveriesSubscription = _repository.watchDeliveries().listen((
       deliveries,
     ) {
       _deliveries = deliveries;
       _enqueue(_reconcile);
     }, onError: (_) {});
-    await _scheduler.initialize();
-    _notificationsAllowed =
-        !_scheduler.supportsSystemNotifications ||
-        await _scheduler.permissionStatus() ==
-            NotificationPermissionStatus.granted;
-    await _enqueue(_reconcile);
+    // Package replacement and database startup can briefly race on Android.
+    // Re-read the authoritative delivery rows once startup has settled so an
+    // alarm cannot remain absent after an app update.
+    _startupRefreshTimer = Timer(const Duration(seconds: 2), () {
+      unawaited(
+        _enqueue(() async {
+          _deliveries = await _repository.watchDeliveries().first;
+          await _reconcile();
+        }).catchError((_) {}),
+      );
+    });
   }
 
   Future<bool> enableOnThisDevice() async {
@@ -87,11 +100,14 @@ class SacredHourReminderCoordinator {
     if (!_notificationsAllowed || !_scheduler.supportsSystemNotifications) {
       return;
     }
+    final hoursById = {
+      for (final hour in await _repository.watchActive().first) hour.id: hour,
+    };
     final observed = <String>{};
     for (final delivery in _deliveries) {
       observed.add(delivery.sacredHourId);
       final previous = _scheduled[delivery.sacredHourId];
-      final hour = await _repository.watch(delivery.sacredHourId).first;
+      final hour = hoursById[delivery.sacredHourId];
       final desired = hour == null
           ? const <PrayerScheduledNotification>[]
           : await _desiredNotifications(hour, delivery);
@@ -154,7 +170,7 @@ class SacredHourReminderCoordinator {
       _notification(
         hour,
         delivery,
-        id: delivery.platformNotificationId,
+        id: _alarmId(delivery.platformNotificationId),
         atUtc: next,
         occurrenceKey: occurrenceKey,
         recurrence: ReminderNotificationRecurrence.daily,
@@ -163,13 +179,14 @@ class SacredHourReminderCoordinator {
     ];
     final snoozedUntil = delivery.snoozedUntil?.toUtc();
     if (snoozedUntil != null && snoozedUntil.isAfter(_clock().toUtc())) {
+      final snoozedOccurrenceAt = _mostRecentOccurrence(hour, snoozedUntil);
       notifications.add(
         _notification(
           hour,
           delivery,
           id: _snoozeId(delivery.platformNotificationId),
           atUtc: snoozedUntil,
-          occurrenceKey: occurrenceKey,
+          occurrenceKey: '${hour.id}@${snoozedOccurrenceAt.toIso8601String()}',
           recurrence: ReminderNotificationRecurrence.once,
           precision: precision,
         ),
@@ -228,13 +245,19 @@ class SacredHourReminderCoordinator {
   }
 
   Future<void> _handleResponse(PrayerReminderResponse response) async {
+    final delivery = _deliveryFor(response.reminderId);
+    final hour = await _hourFor(response.reminderId);
+    final embeddedDueAt = _dueAt(response.reminderId, response.occurrenceKey);
+    if (delivery == null || hour == null || embeddedDueAt == null) return;
+    final dueAt = _effectiveDueAt(hour, embeddedDueAt);
+    final occurrenceKey = '${response.reminderId}@${dueAt.toIso8601String()}';
     final actionKey =
-        '${response.reminderId}:${response.occurrenceKey}:'
+        '${response.reminderId}:$occurrenceKey:'
         '${response.action.name}';
     if (!_processedActions.add(actionKey)) return;
-    final delivery = _deliveryFor(response.reminderId);
-    final dueAt = _dueAt(response.reminderId, response.occurrenceKey);
-    if (delivery == null || dueAt == null) return;
+    final alarmId = _alarmId(delivery.platformNotificationId);
+    await _scheduler.cancel(alarmId);
+    _scheduled[response.reminderId]?.remove(alarmId);
 
     switch (response.action) {
       case PrayerReminderAction.open:
@@ -244,16 +267,17 @@ class SacredHourReminderCoordinator {
           dueAt,
           SacredHourOccurrenceStatus.begun,
         );
-        await _updateDelivery(delivery, snoozedUntil: null);
+        await _updateDelivery(delivery, hour: hour, snoozedUntil: null);
         _emitEvent(
           SacredHourOpened(
             hourId: response.reminderId,
-            occurrenceKey: response.occurrenceKey,
+            occurrenceKey: occurrenceKey,
           ),
         );
       case PrayerReminderAction.snoozeTenMinutes:
         await _updateDelivery(
           delivery,
+          hour: hour,
           snoozedUntil: _clock().toUtc().add(const Duration(minutes: 10)),
         );
       case PrayerReminderAction.dismiss:
@@ -264,8 +288,9 @@ class SacredHourReminderCoordinator {
         );
         await _updateDelivery(
           delivery,
+          hour: hour,
           snoozedUntil: null,
-          dismissedOccurrenceKey: response.occurrenceKey,
+          dismissedOccurrenceKey: occurrenceKey,
         );
       case PrayerReminderAction.prayed:
         return;
@@ -274,6 +299,7 @@ class SacredHourReminderCoordinator {
 
   Future<void> _updateDelivery(
     SacredHourDelivery delivery, {
+    required SacredHour hour,
     required DateTime? snoozedUntil,
     String? dismissedOccurrenceKey,
   }) => _repository.updateDeviceDelivery(
@@ -281,7 +307,7 @@ class SacredHourReminderCoordinator {
     SacredHourDeviceDraft(
       enabledOnDevice: delivery.enabledOnDevice,
       reminderMode: delivery.reminderMode,
-      nextOccurrenceAt: delivery.nextOccurrenceAt,
+      nextOccurrenceAt: _nextOccurrence(hour, _clock().toUtc()),
       platformNotificationId: delivery.platformNotificationId,
       scheduledTimezone: delivery.scheduledTimezone,
       snoozedUntil: snoozedUntil,
@@ -296,6 +322,70 @@ class SacredHourReminderCoordinator {
     return null;
   }
 
+  Future<SacredHour?> _hourFor(String hourId) =>
+      _repository.watch(hourId).first;
+
+  DateTime _effectiveDueAt(SacredHour hour, DateTime embeddedDueAt) {
+    final location = timezone.getLocation(hour.timezone);
+    final embeddedLocal = timezone.TZDateTime.from(embeddedDueAt, location);
+    final candidate = _mostRecentOccurrence(hour, _clock().toUtc());
+    final candidateLocal = timezone.TZDateTime.from(candidate, location);
+    if (embeddedLocal.year == candidateLocal.year &&
+        embeddedLocal.month == candidateLocal.month &&
+        embeddedLocal.day == candidateLocal.day) {
+      return embeddedDueAt;
+    }
+    return candidate;
+  }
+
+  DateTime _mostRecentOccurrence(SacredHour hour, DateTime atUtc) {
+    final location = timezone.getLocation(hour.timezone);
+    final localNow = timezone.TZDateTime.from(atUtc, location);
+    var candidate = timezone.TZDateTime(
+      location,
+      localNow.year,
+      localNow.month,
+      localNow.day,
+      hour.localTime.hour,
+      hour.localTime.minute,
+    );
+    if (candidate.isAfter(localNow)) {
+      candidate = timezone.TZDateTime(
+        location,
+        localNow.year,
+        localNow.month,
+        localNow.day - 1,
+        hour.localTime.hour,
+        hour.localTime.minute,
+      );
+    }
+    return candidate.toUtc();
+  }
+
+  DateTime _nextOccurrence(SacredHour hour, DateTime afterUtc) {
+    final location = timezone.getLocation(hour.timezone);
+    final local = timezone.TZDateTime.from(afterUtc, location);
+    var candidate = timezone.TZDateTime(
+      location,
+      local.year,
+      local.month,
+      local.day,
+      hour.localTime.hour,
+      hour.localTime.minute,
+    );
+    if (!candidate.isAfter(local)) {
+      candidate = timezone.TZDateTime(
+        location,
+        local.year,
+        local.month,
+        local.day + 1,
+        hour.localTime.hour,
+        hour.localTime.minute,
+      );
+    }
+    return candidate.toUtc();
+  }
+
   DateTime? _dueAt(String hourId, String occurrenceKey) {
     final prefix = '$hourId@';
     if (!occurrenceKey.startsWith(prefix)) return null;
@@ -303,11 +393,20 @@ class SacredHourReminderCoordinator {
   }
 
   Set<int> _allPlatformIds(SacredHourDelivery delivery) => {
-    delivery.platformNotificationId,
+    _alarmId(delivery.platformNotificationId),
     _snoozeId(delivery.platformNotificationId),
+    // Remove schedules created before reminder IDs were namespaced.
+    delivery.platformNotificationId,
+    _legacySnoozeId(delivery.platformNotificationId),
   };
 
-  int _snoozeId(int base) => ((base * 31) + 10) & 0x7fffffff;
+  // Sacred Hours have their own negative ranges. Other reminder types use
+  // positive IDs or different negative prefixes.
+  int _alarmId(int base) => -(0x20000000 | (base & 0x07ffffff));
+
+  int _snoozeId(int base) => -(0x28000000 | (base & 0x07ffffff));
+
+  int _legacySnoozeId(int base) => ((base * 31) + 10) & 0x7fffffff;
 
   String _scheduleSignature(PrayerScheduledNotification notification) {
     final recurrence = notification.recurrence;
@@ -380,6 +479,7 @@ class SacredHourReminderCoordinator {
   }
 
   Future<void> dispose() async {
+    _startupRefreshTimer?.cancel();
     await _deliveriesSubscription?.cancel();
     await _responsesSubscription?.cancel();
     await _serial;

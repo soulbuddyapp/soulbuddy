@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/feedback/app_feedback.dart';
@@ -11,6 +12,7 @@ import '../../../core/presentation/feature_page.dart';
 import '../../../core/storage/persistent_storage.dart';
 import '../audio/application/audio_capture_controller.dart';
 import '../audio/domain/memory_audio.dart';
+import '../audio/domain/memory_soundscape.dart';
 import '../audio/presentation/audio_capture_panel.dart';
 import '../audio/providers/memory_audio_providers.dart';
 import '../data/encounter_repository.dart';
@@ -21,9 +23,9 @@ import 'encounter_form.dart';
 import '../../persons/providers/person_providers.dart';
 import '../../persons/domain/prayer_person.dart';
 
-enum _RecordView { choices, memoryTypes, capture, form, saved }
+enum _RecordView { choices, memoryTypes, capture, form }
 
-enum RecordStartMode { choices, speak, write, person }
+enum RecordStartMode { choices, speak, write, reflection, person }
 
 class RecordScreen extends ConsumerStatefulWidget {
   const RecordScreen({
@@ -31,11 +33,17 @@ class RecordScreen extends ConsumerStatefulWidget {
     this.startMode = RecordStartMode.choices,
     this.initialPersonIds = const [],
     this.initialBodyPrompt,
+    this.initialTitle,
+    this.privateReflection = false,
+    this.onMemorySaved,
   });
 
   final RecordStartMode startMode;
   final List<String> initialPersonIds;
   final String? initialBodyPrompt;
+  final String? initialTitle;
+  final bool privateReflection;
+  final ValueChanged<Encounter>? onMemorySaved;
 
   @override
   ConsumerState<RecordScreen> createState() => _RecordScreenState();
@@ -46,6 +54,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     RecordStartMode.choices => _RecordView.choices,
     RecordStartMode.speak => _RecordView.capture,
     RecordStartMode.write => _RecordView.memoryTypes,
+    RecordStartMode.reflection => _RecordView.form,
     RecordStartMode.person => _RecordView.form,
   };
   late var _memoryType = widget.startMode == RecordStartMode.person
@@ -70,12 +79,17 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
           allowMemoryTypeChoice:
               _audioDraft != null || widget.startMode == RecordStartMode.person,
           initialTitle: _audioDraft == null
-              ? null
+              ? widget.initialTitle
               : _voiceMemoryTitle(DateTime.now()),
           audio: _audioDraft,
           people: people,
           initialPersonIds: widget.initialPersonIds,
-          bodyLabel: widget.initialBodyPrompt,
+          bodyLabel: widget.initialBodyPrompt == null
+              ? null
+              : 'Your reflection',
+          bodyPrompt: widget.initialBodyPrompt,
+          initialSensitive: widget.privateReflection,
+          initialRecallEnabled: !widget.privateReflection,
           onCancel: () => _cancelForm(audioController?.value),
           onSave: (draft) => _saveEncounter(value, draft),
         ),
@@ -87,6 +101,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       _RecordView.capture => audioController!.when(
         data: (controller) => AudioCapturePanel(
           controller: controller,
+          enableSoundscape: true,
           onBack: () => _leaveCapture(controller),
           onWriteInstead: () => _leaveCapture(controller, write: true),
           onContinue: (draft) => setState(() {
@@ -98,17 +113,6 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => _RecordUnavailable(
           onRetry: () => ref.invalidate(audioCaptureControllerProvider),
-        ),
-      ),
-      _RecordView.saved => FeaturePage(
-        title: 'Memory saved',
-        description: 'It is ready when you return.',
-        action: FilledButton(
-          onPressed: () => setState(() {
-            _audioDraft = null;
-            _view = _RecordView.choices;
-          }),
-          child: const Text('Remember another'),
         ),
       ),
       _RecordView.memoryTypes => _memoryTypes(),
@@ -148,7 +152,11 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     EncounterRepository repository,
     EncounterDraft draft,
   ) async {
-    await repository.create(draft);
+    final saved = await repository.create(draft);
+    if (draft.audio case final audio?
+        when audio.soundscape != MemorySoundscape.quiet) {
+      unawaited(_saveSoundscapePreference(saved.id, audio));
+    }
     unawaited(requestPersistentStorage());
     if (!mounted) return;
     final preferences =
@@ -164,10 +172,38 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                 MediaQuery.maybeOf(context)?.disableAnimations ?? false,
           ),
     );
-    setState(() {
-      _audioDraft = null;
-      _view = _RecordView.saved;
-    });
+    _audioDraft = null;
+    final onMemorySaved = widget.onMemorySaved;
+    if (onMemorySaved != null) {
+      onMemorySaved(saved);
+    } else {
+      context.go('/remember/${saved.id}');
+    }
+  }
+
+  Future<void> _saveSoundscapePreference(
+    String encounterId,
+    MemoryAudioDraft audio,
+  ) async {
+    try {
+      final savedAudio = await ref.read(
+        memoryAudioForEncounterProvider(encounterId).future,
+      );
+      if (savedAudio == null) return;
+      await ref
+          .read(memorySoundscapePreferencesProvider)
+          .save(
+            savedAudio.id,
+            MemorySoundscapeSettings(
+              soundscape: audio.soundscape,
+              volume: audio.soundscapeVolume,
+            ),
+          );
+      ref.invalidate(memorySoundscapeSettingsProvider(savedAudio.id));
+    } on Object {
+      // The Memory is already durable. A background preference must never make
+      // the successful save look as though it failed or invite a duplicate.
+    }
   }
 
   void _open(MemoryType type) => setState(() {

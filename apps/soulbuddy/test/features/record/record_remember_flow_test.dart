@@ -60,6 +60,7 @@ void main() {
         await controller.close();
         await repository.close();
       });
+      Encounter? openedMemory;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -68,7 +69,13 @@ void main() {
               (ref) async => controller,
             ),
           ],
-          child: const MaterialApp(home: Scaffold(body: RecordScreen())),
+          child: MaterialApp(
+            home: Scaffold(
+              body: RecordScreen(
+                onMemorySaved: (memory) => openedMemory = memory,
+              ),
+            ),
+          ),
         ),
       );
       await _settle(tester);
@@ -95,7 +102,7 @@ void main() {
 
       expect(repository.lastDraft!.audio, isNotNull);
       expect(repository.lastDraft!.body, isEmpty);
-      expect(find.text('Memory saved'), findsOneWidget);
+      expect(openedMemory?.id, isNotEmpty);
     },
   );
 
@@ -380,6 +387,50 @@ void main() {
     expect(find.textContaining('God told me'), findsNothing);
   });
 
+  testWidgets('guided reflection opens directly as a private blank journal', (
+    tester,
+  ) async {
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: RecordScreen(
+              startMode: RecordStartMode.reflection,
+              initialTitle: 'Reflection · Forgiveness',
+              initialBodyPrompt: 'Who is God inviting me to forgive?',
+              privateReflection: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.text('Record an encounter'), findsOneWidget);
+    expect(find.text('Who is God inviting me to forgive?'), findsOneWidget);
+    expect(find.text('Encounter'), findsNothing);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('encounter-body')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, 'Sensitive'),
+          )
+          .value,
+      isTrue,
+    );
+  });
+
   testWidgets('Remember filters records and masks sensitive excerpts', (
     tester,
   ) async {
@@ -455,7 +506,10 @@ void main() {
       find.byKey(const Key('memory-reflection-body')),
       'I understand more about patience now.',
     );
-    await tester.tap(find.text('Save reflection'));
+    final saveReflection = find.byKey(const Key('memory-save-reflection'));
+    await tester.ensureVisible(saveReflection);
+    await tester.pump();
+    await tester.tap(saveReflection);
     await _settle(tester);
 
     expect(find.text('I understand more about patience now.'), findsOneWidget);

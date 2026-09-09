@@ -13,3 +13,6 @@ vendor/
 node_modules/
 apps/soulbuddy/assets/scripture/*.db
 services/api/database/database.sqlite
+.artifacts/
+.playwright-mcp/
+apps/soulbuddy/.device-soulbuddy*.db

@@ -5,16 +5,37 @@ import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
 import 'package:soulbuddy/features/prayers/presentation/meditation_session_sheet.dart';
 
 void main() {
-  test('ships only the restrained audited sound-bed set', () {
+  test('ships a broad set of restrained meditation sound beds', () {
     expect(MeditationSoundBed.values.map((bed) => bed.label), [
       'Stillness',
       'Flowing water',
+      'Gentle rain',
+      'Ocean waves',
+      'Forest morning',
+      'Soft wind',
+      'Warm fireplace',
+      'Night crickets',
+      'Hopeful piano',
+      'Cinematic rise',
+      'Steady resolve',
+      'Warm strings',
+      'Victorious calm',
     ]);
     expect(
       MeditationSoundBed.values.every(
         (bed) => bed.assetPath.startsWith('audio/meditation/'),
       ),
       isTrue,
+    );
+    expect(
+      MeditationSoundBed.values
+          .where((bed) => bed.category == MeditationSoundCategory.motivational)
+          .length,
+      5,
+    );
+    expect(
+      MeditationSoundBed.cinematicRise.preferredVolume,
+      lessThanOrEqualTo(0.22),
     );
   });
 
@@ -63,6 +84,11 @@ void main() {
       ),
     );
 
+    await tester.drag(
+      find.byKey(const Key('meditation-sound-list')),
+      const Offset(-220, 0),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Flowing water'));
     await tester.pump();
     await tester.tap(find.byKey(const Key('meditation-include-voice')));

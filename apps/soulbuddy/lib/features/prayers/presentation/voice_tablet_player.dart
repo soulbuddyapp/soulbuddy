@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/playback/spiritual_session.dart';
+import '../../../core/playback/spiritual_session_controller.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../record/audio/application/memory_audio_player.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
@@ -99,6 +102,7 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
   @override
   Widget build(BuildContext context) {
     final coordinator = ref.watch(memoryAudioPlaybackCoordinatorProvider);
+    final spiritualSession = ref.watch(spiritualSessionControllerProvider);
     return ClipPath(
       clipper: const _VoiceTabletClipper(),
       child: ColoredBox(
@@ -190,6 +194,10 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                     coordinator: value,
                     audio: audio,
                     onPlayed: widget.onPlayed,
+                    spiritualSession: spiritualSession,
+                    title: widget.tablet.title,
+                    route: _tabletRoute(widget.tablet.source),
+                    onSessionComplete: _recordPrayer,
                   ),
                 ),
               ] else
@@ -382,11 +390,19 @@ class _PlaybackControls extends StatefulWidget {
     required this.coordinator,
     required this.audio,
     required this.onPlayed,
+    required this.spiritualSession,
+    required this.title,
+    required this.route,
+    required this.onSessionComplete,
   });
 
   final MemoryAudioPlaybackCoordinator coordinator;
   final VoiceTabletAudio audio;
   final FutureOr<void> Function(VoiceTabletAudio)? onPlayed;
+  final SpiritualSessionController spiritualSession;
+  final String title;
+  final String route;
+  final Future<void> Function() onSessionComplete;
 
   @override
   State<_PlaybackControls> createState() => _PlaybackControlsState();
@@ -415,6 +431,19 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
   }
 
   void _changed() {
+    final state = widget.coordinator.state;
+    final sessionId = 'prayer:${widget.audio.id}';
+    if (widget.spiritualSession.state.session?.id == sessionId) {
+      widget.spiritualSession.updateProgress(
+        position: state.position,
+        duration: state.duration,
+      );
+      if (state.status == MemoryAudioPlaybackStatus.completed ||
+          state.status == MemoryAudioPlaybackStatus.idle ||
+          state.status == MemoryAudioPlaybackStatus.error) {
+        widget.spiritualSession.finishPlayback(sessionId);
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -467,19 +496,82 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
   }
 
   Future<void> _toggle(bool playing, MemoryAudioPlaybackState state) async {
+    final sessionId = 'prayer:${widget.audio.id}';
+    final activeSession =
+        widget.spiritualSession.state.session?.id == sessionId;
     if (playing) {
-      await widget.coordinator.pause();
+      if (activeSession) {
+        await widget.spiritualSession.pause();
+      } else {
+        await widget.coordinator.pause();
+      }
       return;
+    }
+    if (!activeSession && widget.spiritualSession.state.session != null) {
+      await widget.spiritualSession.close();
     }
     if (state.assetId == widget.audio.id &&
         state.status == MemoryAudioPlaybackStatus.paused) {
-      await widget.coordinator.playTrack(_track(widget.audio));
+      if (activeSession) {
+        await widget.spiritualSession.resume();
+      } else {
+        await widget.coordinator.playTrack(_track(widget.audio));
+      }
     } else {
       await widget.coordinator.playTrack(_track(widget.audio));
+    }
+    if (widget.coordinator.state.status == MemoryAudioPlaybackStatus.playing &&
+        !activeSession) {
+      late VoidCallback sessionListener;
+      sessionListener = () {
+        final playback = widget.coordinator.state;
+        if (widget.spiritualSession.state.session?.id != sessionId) {
+          widget.coordinator.removeListener(sessionListener);
+          return;
+        }
+        widget.spiritualSession.updateProgress(
+          position: playback.position,
+          duration: playback.duration,
+        );
+        if (playback.status == MemoryAudioPlaybackStatus.completed ||
+            playback.status == MemoryAudioPlaybackStatus.idle ||
+            playback.status == MemoryAudioPlaybackStatus.error) {
+          widget.coordinator.removeListener(sessionListener);
+          widget.spiritualSession.finishPlayback(sessionId);
+        }
+      };
+      widget.coordinator.addListener(sessionListener);
+      await widget.spiritualSession.begin(
+        SpiritualSession(
+          id: sessionId,
+          kind: SpiritualSessionKind.prayer,
+          title: widget.title,
+          route: widget.route,
+          canPause: true,
+          completionLabel: 'I prayed',
+          onPause: widget.coordinator.pause,
+          onResume: () => widget.coordinator.playTrack(_track(widget.audio)),
+          onComplete: () async {
+            widget.coordinator.removeListener(sessionListener);
+            await widget.coordinator.stop();
+            await widget.onSessionComplete();
+          },
+          onClose: () async {
+            widget.coordinator.removeListener(sessionListener);
+            await widget.coordinator.stop();
+          },
+        ),
+      );
+      sessionListener();
     }
     await widget.onPlayed?.call(widget.audio);
   }
 }
+
+String _tabletRoute(VoiceTabletSource source) =>
+    source.type == VoiceTabletSourceType.personalPrayer
+    ? '/prayers/saved/${source.prayerId}'
+    : '/prayers/${source.prayerId}';
 
 class _Waveform extends StatelessWidget {
   const _Waveform({required this.samples});

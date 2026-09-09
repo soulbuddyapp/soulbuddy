@@ -11,7 +11,16 @@ import '../providers/prayer_providers.dart';
 import 'prayer_library_tile.dart';
 
 class PrayerCreateScreen extends ConsumerStatefulWidget {
-  const PrayerCreateScreen({super.key});
+  const PrayerCreateScreen({
+    this.contextTitle,
+    this.prayerStarter,
+    this.initialPurpose,
+    super.key,
+  });
+
+  final String? contextTitle;
+  final String? prayerStarter;
+  final PrayerPurpose? initialPurpose;
 
   @override
   ConsumerState<PrayerCreateScreen> createState() => _PrayerCreateScreenState();
@@ -22,6 +31,17 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
   PrayerPurpose? _purpose;
   _OwnWordsMode? _ownWordsMode;
   var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _purpose = widget.initialPurpose;
+    final starter = widget.prayerStarter?.trim();
+    if (starter != null && starter.isNotEmpty) {
+      _wordsController.text = starter;
+      _ownWordsMode = _OwnWordsMode.write;
+    }
+  }
 
   @override
   void dispose() {
@@ -93,6 +113,16 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (widget.contextTitle case final title?) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.auto_stories_outlined),
+                      title: const Text('From your meditation'),
+                      subtitle: Text(title),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.xl),
                 Text(
                   'What are you praying about?',

@@ -17,10 +17,12 @@ class PersonPrayerReminderCoordinator {
     required PersonRepository repository,
     required PrayerReminderScheduler scheduler,
     required Future<String> Function() timezoneName,
+    Future<bool> Function()? requestExactTiming,
     DateTime Function()? clock,
   }) : _repository = repository,
        _scheduler = scheduler,
        _timezoneName = timezoneName,
+       _requestExactTiming = requestExactTiming,
        _clock = clock ?? DateTime.now {
     timezone_data.initializeTimeZones();
     _events = StreamController<PersonPrayerReminderOpened>.broadcast(
@@ -31,6 +33,7 @@ class PersonPrayerReminderCoordinator {
   final PersonRepository _repository;
   final PrayerReminderScheduler _scheduler;
   final Future<String> Function() _timezoneName;
+  final Future<bool> Function()? _requestExactTiming;
   final DateTime Function() _clock;
   late final StreamController<PersonPrayerReminderOpened> _events;
   String? _pendingOpenPersonId;
@@ -41,6 +44,7 @@ class PersonPrayerReminderCoordinator {
   final _pendingResponses = <PrayerReminderResponse>[];
   Future<void> _serial = Future.value();
   bool _allowed = false;
+  bool _exactSchedulingUnavailable = false;
   bool _peopleLoaded = false;
 
   Stream<PersonPrayerReminderOpened> get events => _events.stream;
@@ -75,7 +79,11 @@ class PersonPrayerReminderCoordinator {
     _allowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.requestPermission();
-    if (_allowed) await _enqueue(_reconcile);
+    if (_allowed) {
+      final exactAllowed = await _requestExactTiming?.call();
+      if (exactAllowed == true) _exactSchedulingUnavailable = false;
+      await _enqueue(_reconcile);
+    }
     return _allowed;
   }
 
@@ -105,13 +113,17 @@ class PersonPrayerReminderCoordinator {
           }
         }
       }
+      final scheduledNow = <int, String>{};
       for (final item in desired) {
         final signature = desiredById[item.platformNotificationId]!;
         if (previous?[item.platformNotificationId] != signature) {
-          await _scheduler.schedule(item);
+          final actual = await _scheduleWithFallback(item);
+          scheduledNow[item.platformNotificationId] = _signature(actual);
+        } else {
+          scheduledNow[item.platformNotificationId] = signature;
         }
       }
-      _scheduled[person.id] = desiredById;
+      _scheduled[person.id] = scheduledNow;
     }
     for (final personId in _scheduled.keys.toList(growable: false)) {
       if (observed.contains(personId)) continue;
@@ -171,7 +183,37 @@ class PersonPrayerReminderCoordinator {
     timeZoneName: zoneName,
     title: 'Remember ${person.name} in prayer',
     body: 'A moment to bring them before God',
+    precision: _exactSchedulingUnavailable
+        ? ReminderSchedulePrecision.ordinary
+        : ReminderSchedulePrecision.exact,
   );
+
+  Future<PrayerScheduledNotification> _scheduleWithFallback(
+    PrayerScheduledNotification notification,
+  ) async {
+    try {
+      await _scheduler.schedule(notification);
+      return notification;
+    } catch (_) {
+      if (notification.precision != ReminderSchedulePrecision.exact) rethrow;
+      _exactSchedulingUnavailable = true;
+      final ordinary = PrayerScheduledNotification(
+        platformNotificationId: notification.platformNotificationId,
+        reminderId: notification.reminderId,
+        occurrenceKey: notification.occurrenceKey,
+        scheduledAtUtc: notification.scheduledAtUtc,
+        kind: notification.kind,
+        recurrence: notification.recurrence,
+        timeZoneName: notification.timeZoneName,
+        title: notification.title,
+        body: notification.body,
+        soundKey: notification.soundKey,
+        precision: ReminderSchedulePrecision.ordinary,
+      );
+      await _scheduler.schedule(ordinary);
+      return ordinary;
+    }
+  }
 
   DateTime _next(
     String zoneName,
@@ -243,7 +285,7 @@ class PersonPrayerReminderCoordinator {
     }
   }
 
-  int _baseId(String id) {
+  int _legacyBaseId(String id) {
     var hash = 0x811c9dc5;
     for (final unit in id.codeUnits) {
       hash = ((hash ^ unit) * 0x01000193) & 0x7fffffff;
@@ -251,12 +293,24 @@ class PersonPrayerReminderCoordinator {
     return hash;
   }
 
+  // Android notification IDs are shared by every reminder type in the app.
+  // Keep Person reminders in a negative, dedicated range so a Person and a
+  // Sacred Hour scheduled for the same time can never replace one another.
+  int _baseId(String id) => -(0x10000000 | (_legacyBaseId(id) & 0x07ffffff));
+
   int _weekdayId(String id, int weekday) =>
-      ((_baseId(id) * 31) + weekday) & 0x7fffffff;
+      -(0x18000000 | (((_legacyBaseId(id) * 31) + weekday) & 0x07ffffff));
+
+  int _legacyWeekdayId(String id, int weekday) =>
+      ((_legacyBaseId(id) * 31) + weekday) & 0x7fffffff;
 
   Set<int> _allIds(String id) => {
     _baseId(id),
     for (var weekday = 1; weekday <= 7; weekday++) _weekdayId(id, weekday),
+    // Remove schedules created before reminder IDs were namespaced.
+    _legacyBaseId(id),
+    for (var weekday = 1; weekday <= 7; weekday++)
+      _legacyWeekdayId(id, weekday),
   };
 
   String _signature(PrayerScheduledNotification item) =>

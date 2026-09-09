@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../../core/presentation/feature_page.dart';
+import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/providers/encounter_providers.dart';
 import '../presentation/daily_remembrance_card.dart';
 import '../providers/daily_memory_providers.dart';
@@ -12,7 +13,9 @@ import 'encounter_list_tile.dart';
 import 'forget_quickly_card.dart';
 
 class RememberScreen extends ConsumerStatefulWidget {
-  const RememberScreen({super.key});
+  const RememberScreen({this.initialFilter, super.key});
+
+  final String? initialFilter;
 
   @override
   ConsumerState<RememberScreen> createState() => _RememberScreenState();
@@ -20,6 +23,11 @@ class RememberScreen extends ConsumerStatefulWidget {
 
 class _RememberScreenState extends ConsumerState<RememberScreen> {
   var _query = '';
+  late var _filter = switch (widget.initialFilter) {
+    'altar' => _RememberFilter.altar,
+    'voice' => _RememberFilter.voice,
+    _ => _RememberFilter.all,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +51,14 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
       data: (items) {
         final filtered = items
             .where((item) {
+              if (_filter == _RememberFilter.altar && !item.isAltar) {
+                return false;
+              }
+              if (_filter == _RememberFilter.voice &&
+                  ref.watch(memoryAudioForEncounterProvider(item.id)).value ==
+                      null) {
+                return false;
+              }
               final query = _query.trim().toLowerCase();
               if (query.isEmpty) return true;
               return item.title.toLowerCase().contains(query) ||
@@ -60,7 +76,7 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
               constraints: const BoxConstraints(maxWidth: 720),
               child: ListView.separated(
                 padding: const EdgeInsets.all(AppSpacing.lg),
-                itemCount: filtered.length + 5,
+                itemCount: filtered.length + 6,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, index) {
@@ -121,7 +137,40 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
                     );
                   }
 
-                  return EncounterListTile(encounter: filtered[index - 5]);
+                  if (index == 5) {
+                    return Semantics(
+                      label: 'Filter Memories',
+                      child: Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xs,
+                        children: [
+                          ChoiceChip(
+                            key: const Key('remember-filter-all'),
+                            label: const Text('All'),
+                            selected: _filter == _RememberFilter.all,
+                            onSelected: (_) =>
+                                setState(() => _filter = _RememberFilter.all),
+                          ),
+                          ChoiceChip(
+                            key: const Key('remember-filter-altar'),
+                            label: const Text('At my Altar'),
+                            selected: _filter == _RememberFilter.altar,
+                            onSelected: (_) =>
+                                setState(() => _filter = _RememberFilter.altar),
+                          ),
+                          ChoiceChip(
+                            key: const Key('remember-filter-voice'),
+                            label: const Text('Voice'),
+                            selected: _filter == _RememberFilter.voice,
+                            onSelected: (_) =>
+                                setState(() => _filter = _RememberFilter.voice),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return EncounterListTile(encounter: filtered[index - 6]);
                 },
               ),
             ),
@@ -131,6 +180,8 @@ class _RememberScreenState extends ConsumerState<RememberScreen> {
     );
   }
 }
+
+enum _RememberFilter { all, altar, voice }
 
 class _EmptyRemember extends StatelessWidget {
   const _EmptyRemember();

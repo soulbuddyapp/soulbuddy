@@ -21,6 +21,10 @@ class EncounterForm extends ConsumerStatefulWidget {
     this.people = const [],
     this.initialPersonIds = const [],
     this.bodyLabel,
+    this.bodyPrompt,
+    this.initialBody,
+    this.initialSensitive = false,
+    this.initialRecallEnabled = true,
     super.key,
   });
 
@@ -33,6 +37,10 @@ class EncounterForm extends ConsumerStatefulWidget {
   final List<PrayerPerson> people;
   final List<String> initialPersonIds;
   final String? bodyLabel;
+  final String? bodyPrompt;
+  final String? initialBody;
+  final bool initialSensitive;
+  final bool initialRecallEnabled;
 
   @override
   ConsumerState<EncounterForm> createState() => _EncounterFormState();
@@ -41,12 +49,13 @@ class EncounterForm extends ConsumerStatefulWidget {
 class _EncounterFormState extends ConsumerState<EncounterForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
-  final _bodyController = TextEditingController();
+  late final TextEditingController _bodyController;
   late final TextEditingController _dateController;
   var _isAltar = false;
   var _isSaving = false;
-  late var _sensitive = widget.memoryType == MemoryType.leftBehind;
-  var _recallEnabled = true;
+  late var _sensitive =
+      widget.initialSensitive || widget.memoryType == MemoryType.leftBehind;
+  late var _recallEnabled = widget.initialRecallEnabled;
   late var _memoryType = widget.memoryType;
   String? _saveError;
   var _canceling = false;
@@ -57,6 +66,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.initialTitle);
+    _bodyController = TextEditingController(text: widget.initialBody);
     _dateController = TextEditingController(text: _dateOnly(DateTime.now()));
   }
 
@@ -215,6 +225,24 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       },
                     ),
                     const SizedBox(height: AppSpacing.md),
+                    if (widget.bodyPrompt case final prompt?) ...[
+                      Card(
+                        color: Theme.of(context).colorScheme.secondaryContainer
+                            .withValues(alpha: 0.55),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.lightbulb_outline, size: 20),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(child: Text(prompt)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
                     TextFormField(
                       key: const Key('encounter-body'),
                       controller: _bodyController,
@@ -353,6 +381,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
           heightFactor: 0.9,
           child: AudioCapturePanel(
             controller: controller,
+            enableSoundscape: true,
             introHeading: 'Record what happened',
             introDescription: 'Speak freely. You can keep writing too.',
             alternativeLabel: 'Keep writing',

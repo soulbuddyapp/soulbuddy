@@ -27,6 +27,14 @@ final encountersProvider = StreamProvider<List<Encounter>>((ref) async* {
   yield* repository.watchAll();
 });
 
+final altarEncountersProvider = Provider<AsyncValue<List<Encounter>>>((ref) {
+  return ref.watch(encountersProvider).whenData((items) {
+    final altars = items.where((item) => item.isAltar).toList(growable: false);
+    altars.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return altars;
+  });
+});
+
 final memoryReflectionsProvider = StreamProvider.autoDispose
     .family<List<MemoryReflection>, String>((ref, encounterId) async* {
       final repository = await ref.watch(encounterRepositoryProvider.future);
