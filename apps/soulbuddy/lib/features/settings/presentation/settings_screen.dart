@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/feedback/app_feedback.dart';
@@ -18,8 +19,17 @@ import '../../sacred_hours/presentation/sacred_hour_editor_sheet.dart';
 import '../../sacred_hours/presentation/sacred_hours_settings_section.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
 
+final privacyPolicyUri = Uri.parse('https://sbuddy.elbiblio.com/privacy');
+
+typedef ExternalUriLauncher = Future<bool> Function(Uri uri);
+
+Future<bool> _launchExternalUri(Uri uri) =>
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.openUri = _launchExternalUri});
+
+  final ExternalUriLauncher openUri;
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -90,6 +100,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
+              ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text('Privacy policy'),
+                subtitle: const Text('How SoulBuddy handles information'),
+                trailing: const Icon(Icons.open_in_new),
+                onTap: _openPrivacyPolicy,
+              ),
             ],
           ),
         ),
@@ -115,6 +132,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    final opened = await widget.openUri(privacyPolicyUri);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Privacy policy could not be opened.')),
+      );
     }
   }
 

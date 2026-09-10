@@ -12,6 +12,44 @@ import 'package:soulbuddy/core/feedback/completion_feedback.dart';
 import 'package:soulbuddy/features/settings/presentation/settings_screen.dart';
 
 void main() {
+  testWidgets('opens the public privacy policy from settings', (tester) async {
+    final repository = _MemoryPreferencesRepository();
+    Uri? openedUri;
+    addTearDown(repository.close);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appFeedbackPreferencesRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
+          appFeedbackPreferencesProvider.overrideWith(
+            (ref) => repository.watch(),
+          ),
+        ],
+        child: MaterialApp(
+          home: SettingsScreen(
+            openUri: (uri) async {
+              openedUri = uri;
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.dragUntilVisible(
+      find.text('Privacy policy'),
+      find.byType(Scrollable),
+      const Offset(0, -160),
+    );
+    await tester.tap(find.text('Privacy policy'));
+    await tester.pumpAndSettle();
+
+    expect(openedUri, Uri.parse('https://sbuddy.elbiblio.com/privacy'));
+  });
+
   testWidgets('changes sound, touch, and reduced motion immediately', (
     tester,
   ) async {
