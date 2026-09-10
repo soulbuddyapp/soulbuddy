@@ -100,6 +100,25 @@ void main() {
     expect(boxes.map((box) => box.top.round()).toSet().length, greaterThan(1));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('opens prayer and music from the prayer phase', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SacredHourSessionView(
+          hour: _hour(),
+          controller: SacredHourSessionController(prayerMinutes: 5),
+          onRecordPrayer: () async {},
+          onRemember: (_) {},
+          onPrayerMusic: () => opened += 1,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('sacred-hour-prayer-music')));
+    expect(opened, 1);
+  });
 }
 
 SacredHour _hour() => SacredHour(

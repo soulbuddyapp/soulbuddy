@@ -1,0 +1,89 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/meditation_session.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
+import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
+import 'package:soulbuddy/features/sacred_hours/presentation/sacred_hour_prayer_music_sheet.dart';
+
+void main() {
+  testWidgets('chooses a suggested prayer and background music', (
+    tester,
+  ) async {
+    PrayerReference? selectedPrayer;
+    MeditationSoundBed? selectedSound;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SacredHourPrayerMusicSheet(
+            hour: _hour(),
+            suggestions: [_prayer('Morning gratitude')],
+            selectedSound: null,
+            onChoosePrayer: (prayer) async => selectedPrayer = prayer.reference,
+            onAddPrayer: (_) {},
+            onSoundSelected: (sound) async => selectedSound = sound,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Prayer and music'), findsOneWidget);
+    expect(find.text('Suggested prayers'), findsOneWidget);
+    await tester.tap(find.text('Choose'));
+    await tester.pump();
+    expect(selectedPrayer, const PrayerReference.personal('morning-gratitude'));
+
+    await tester.tap(find.byKey(const Key('meditation-sound-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Flowing water'));
+    await tester.pumpAndSettle();
+    expect(selectedSound, MeditationSoundBed.flowingWater);
+  });
+
+  testWidgets('offers a new prayer with the sacred hour purpose', (
+    tester,
+  ) async {
+    PrayerPurpose? addedFor;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SacredHourPrayerMusicSheet(
+            hour: _hour(),
+            suggestions: const [],
+            selectedSound: null,
+            onChoosePrayer: (_) async {},
+            onAddPrayer: (purpose) => addedFor = purpose,
+            onSoundSelected: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Add a prayer'));
+    expect(addedFor, PrayerPurpose.daily);
+  });
+}
+
+SacredHour _hour() => SacredHour(
+  id: 'hour-1',
+  ownerId: 'owner-1',
+  purpose: SacredHourPurpose.morning,
+  name: 'Morning Sacred Hour',
+  localTime: PrayerLocalTime(hour: 6, minute: 0),
+  timezone: 'Africa/Lagos',
+  durationMinutes: 60,
+  prayerMinutes: 15,
+  enabled: true,
+  sound: SacredHourSound.gentleChime,
+  createdAt: DateTime.utc(2026),
+  updatedAt: DateTime.utc(2026),
+);
+
+PrayerDisplay _prayer(String title) => PrayerDisplayValue(
+  reference: const PrayerReference.personal('morning-gratitude'),
+  title: title,
+  body: 'Thank you.',
+  grounding: PrayerGrounding.generalChristian,
+  purpose: PrayerPurpose.gratitude,
+);

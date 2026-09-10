@@ -63,6 +63,22 @@ enum SacredHourOccurrenceStatus {
 }
 
 class SacredHourDraft {
+  factory SacredHourDraft.fromHour(
+    SacredHour hour, {
+    PrayerReference? prayer,
+  }) => SacredHourDraft(
+    name: hour.name,
+    localTime: hour.localTime,
+    timezone: hour.timezone,
+    durationMinutes: hour.durationMinutes,
+    prayerMinutes: hour.prayerMinutes,
+    enabled: hour.enabled,
+    sound: hour.sound,
+    purpose: hour.purpose,
+    prayer: prayer ?? hour.prayer,
+    personId: hour.personId,
+  );
+
   factory SacredHourDraft({
     required String name,
     required PrayerLocalTime localTime,
