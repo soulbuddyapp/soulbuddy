@@ -14,9 +14,11 @@ const _prayedActionId = 'PRAYED';
 const _beginActionId = 'BEGIN';
 const _snoozeActionId = 'SNOOZE_10';
 const _dismissActionId = 'DISMISS';
+const _openCircleActionId = 'OPEN_CIRCLE';
 const _darwinCategoryId = 'PRAYER_REMINDER';
 const _darwinAltarCategoryId = 'ALTAR_REMINDER';
 const _darwinSacredHourCategoryId = 'SACRED_HOUR_REMINDER';
+const _darwinCircleCategoryId = 'CIRCLE_REMINDER';
 
 enum NativePrayerScheduleMode { inexactAllowWhileIdle, exactAllowWhileIdle }
 
@@ -138,6 +140,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
   Future<void> schedule(PrayerScheduledNotification notification) {
     final altar = notification.kind == ReminderNotificationKind.altar;
     final sacredHour = notification.kind == ReminderNotificationKind.sacredHour;
+    final circle = notification.kind == ReminderNotificationKind.circle;
     final sound = _notificationSound(notification.soundKey);
     return _client.schedule(
       NativeNotificationRequest(
@@ -149,6 +152,8 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                 ? 'Your Sacred Hour'
                 : altar
                 ? 'At your Altar'
+                : circle
+                ? 'Circle invitation'
                 : 'Prayer reminder'),
         body:
             notification.body ??
@@ -156,6 +161,8 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                 ? 'Begin with prayer. Bring this hour before God.'
                 : altar
                 ? 'Time set aside to pray and remember'
+                : circle
+                ? 'A Circle is ready to begin'
                 : 'Time set aside for prayer'),
         payload: jsonEncode({
           'reminder_id': notification.reminderId,
@@ -188,6 +195,14 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
               ]
             : altar
             ? const []
+            : circle
+            ? const [
+                NativeNotificationActionData(
+                  id: _openCircleActionId,
+                  label: 'Open Circle',
+                  showsUserInterface: true,
+                ),
+              ]
             : notification.kind == ReminderNotificationKind.person
             ? const [
                 NativeNotificationActionData(
@@ -262,6 +277,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         _beginActionId => PrayerReminderAction.begin,
         _snoozeActionId => PrayerReminderAction.snoozeTenMinutes,
         _dismissActionId => PrayerReminderAction.dismiss,
+        _openCircleActionId => PrayerReminderAction.open,
         _ => throw const FormatException('Unknown prayer reminder action.'),
       },
     );
@@ -328,6 +344,16 @@ class FlutterLocalNotificationsPrayerClient
             ],
           ),
           DarwinNotificationCategory(_darwinAltarCategoryId),
+          DarwinNotificationCategory(
+            _darwinCircleCategoryId,
+            actions: [
+              DarwinNotificationAction.plain(
+                _openCircleActionId,
+                'Open Circle',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
           DarwinNotificationCategory(
             _darwinSacredHourCategoryId,
             actions: [
@@ -485,6 +511,8 @@ class FlutterLocalNotificationsPrayerClient
       iOS: DarwinNotificationDetails(
         categoryIdentifier: sacredHour
             ? _darwinSacredHourCategoryId
+            : request.actions.any((action) => action.id == _openCircleActionId)
+            ? _darwinCircleCategoryId
             : request.actions.isEmpty
             ? _darwinAltarCategoryId
             : _darwinCategoryId,

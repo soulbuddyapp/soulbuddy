@@ -10,6 +10,7 @@ import '../domain/circle.dart';
 import '../domain/legacy_circle.dart';
 import '../providers/circle_providers.dart';
 import 'create_circle_sheet.dart';
+import 'circle_reminder_sheet.dart';
 
 class CircleDetailScreen extends ConsumerWidget {
   const CircleDetailScreen({required this.circleId, super.key});
@@ -151,6 +152,10 @@ class _ExternalCircleDetail extends ConsumerWidget {
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Open Circle'),
               ),
+            if (circle.canOpen) ...[
+              const SizedBox(height: AppSpacing.sm),
+              CircleReminderControl(circle: circle),
+            ],
             if (circle.isOwner) ...[
               const SizedBox(height: AppSpacing.lg),
               Text('Settings', style: Theme.of(context).textTheme.titleLarge),

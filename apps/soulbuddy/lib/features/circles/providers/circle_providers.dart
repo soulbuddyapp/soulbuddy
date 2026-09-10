@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -6,12 +8,16 @@ import '../../../core/config/app_config.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../record/providers/encounter_providers.dart';
+import '../../prayers/providers/prayer_practice_providers.dart';
+import '../application/circle_reminder_coordinator.dart';
 import '../application/legacy_circle_migration_service.dart';
 import '../data/circle_directory_repository.dart';
+import '../data/circle_reminder_repository.dart';
 import '../data/laravel_circle_directory_repository.dart';
 import '../data/legacy_circle_migration_repository.dart';
 import '../data/powersync_legacy_circle_migration_repository.dart';
 import '../domain/circle.dart';
+import '../domain/circle_reminder.dart';
 import '../domain/legacy_circle.dart';
 
 final circleHttpClientProvider = Provider<http.Client>((ref) {
@@ -99,6 +105,44 @@ typedef CircleExternalLauncher = Future<bool> Function(Uri uri);
 
 final circleExternalLauncherProvider = Provider<CircleExternalLauncher>((ref) {
   return (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
+});
+
+final circleReminderRepositoryProvider = Provider<CircleReminderRepository>((
+  ref,
+) {
+  final storage = ref.watch(secureStorageProvider);
+  final repository = CircleReminderRepository(
+    read: (key) => storage.read(key: key),
+    write: (key, value) => storage.write(key: key, value: value),
+  );
+  ref.onDispose(() => repository.dispose());
+  return repository;
+});
+
+final circleReminderProvider = StreamProvider.autoDispose
+    .family<CircleReminder?, String>((ref, circleId) async* {
+      final repository = ref.watch(circleReminderRepositoryProvider);
+      await for (final reminders in repository.watch()) {
+        yield reminders.where((item) => item.circleId == circleId).firstOrNull;
+      }
+    });
+
+final circleReminderCoordinatorProvider =
+    FutureProvider<CircleReminderCoordinator>((ref) async {
+      final coordinator = CircleReminderCoordinator(
+        repository: ref.watch(circleReminderRepositoryProvider),
+        scheduler: ref.watch(prayerReminderSchedulerProvider),
+      );
+      ref.onDispose(() => unawaited(coordinator.dispose()));
+      await coordinator.start();
+      return coordinator;
+    });
+
+final circleReminderEventsProvider = StreamProvider<CircleReminderOpened>((
+  ref,
+) async* {
+  final coordinator = await ref.watch(circleReminderCoordinatorProvider.future);
+  yield* coordinator.events;
 });
 
 void invalidateCircleDirectory(Ref ref) {

@@ -87,6 +87,31 @@ void main() {
     },
   );
 
+  test('schedules a Circle invitation with an Open Circle action', () async {
+    final client = _FakeNativeNotificationClient();
+    final scheduler = NativePrayerReminderScheduler(client: client);
+
+    await scheduler.schedule(
+      PrayerScheduledNotification(
+        platformNotificationId: 1400000001,
+        reminderId: 'circle-1',
+        occurrenceKey: 'circle-1@2026-09-10T07:30:00.000Z',
+        scheduledAtUtc: DateTime.utc(2026, 9, 10, 7, 30),
+        kind: ReminderNotificationKind.circle,
+        title: 'Walk together',
+        body: 'Circle invitation',
+      ),
+    );
+
+    final request = client.requests.single;
+    expect(request.title, 'Walk together');
+    expect(request.body, 'Circle invitation');
+    expect(request.actions.map((action) => (action.id, action.label)), [
+      ('OPEN_CIRCLE', 'Open Circle'),
+    ]);
+    expect(jsonDecode(request.payload)['kind'], 'circle');
+  });
+
   test(
     'schedules a private Sacred Hour invitation with sound and precision',
     () async {
@@ -217,6 +242,40 @@ void main() {
       PrayerReminderAction.begin,
       PrayerReminderAction.dismiss,
     ]);
+  });
+
+  test('decodes an Open Circle action as a Circle open', () async {
+    final client = _FakeNativeNotificationClient();
+    final scheduler = NativePrayerReminderScheduler(client: client);
+    final response = expectLater(
+      scheduler.responses,
+      emits(
+        isA<PrayerReminderResponse>()
+            .having(
+              (value) => value.kind,
+              'kind',
+              ReminderNotificationKind.circle,
+            )
+            .having(
+              (value) => value.action,
+              'action',
+              PrayerReminderAction.open,
+            ),
+      ),
+    );
+
+    client.emit(
+      NativeNotificationResponseData(
+        actionId: 'OPEN_CIRCLE',
+        payload: jsonEncode({
+          'reminder_id': 'circle-1',
+          'occurrence_key': 'circle-1@2026-09-10T07:30:00.000Z',
+          'kind': 'circle',
+        }),
+      ),
+    );
+
+    await response;
   });
 
   test('rejects notification payloads with private or unknown keys', () async {

@@ -1,6 +1,6 @@
 enum PrayerReminderAction { open, begin, prayed, snoozeTenMinutes, dismiss }
 
-enum ReminderNotificationKind { prayer, altar, person, sacredHour }
+enum ReminderNotificationKind { prayer, altar, person, sacredHour, circle }
 
 enum ReminderNotificationRecurrence { once, daily, weekly }
 

@@ -18,6 +18,9 @@ import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 import 'package:soulbuddy/features/sacred_hours/providers/sacred_hour_providers.dart';
 import 'package:soulbuddy/features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
+import 'package:soulbuddy/features/circles/application/circle_reminder_coordinator.dart';
+import 'package:soulbuddy/features/circles/domain/circle.dart';
+import 'package:soulbuddy/features/circles/providers/circle_providers.dart';
 
 import '../helpers/in_memory_encounter_repository.dart';
 import '../helpers/in_memory_prayer_repository.dart';
@@ -198,7 +201,50 @@ void main() {
     expect(find.text('Begin with prayer'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('Circle notification action opens its Circle', (tester) async {
+    final events = StreamController<CircleReminderOpened>();
+    addTearDown(events.close);
+    appRouter.go('/today');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          onboardingCompleteProvider.overrideWith((ref) => true),
+          circleReminderEventsProvider.overrideWith((ref) => events.stream),
+          circleProvider('circle-1').overrideWith((ref) async => _circle()),
+        ],
+        child: const SoulBuddyApp(),
+      ),
+    );
+    await tester.pump();
+
+    events.add(
+      const CircleReminderOpened(
+        circleId: 'circle-1',
+        occurrenceKey: 'circle-1@2026-09-10T07:30:00.000Z',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Walk together'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
+
+Circle _circle() => Circle(
+  publicId: 'circle-1',
+  name: 'Walk together',
+  category: CircleCategory.accountability,
+  description: 'Honest accountability and prayer.',
+  visibility: CircleVisibility.private,
+  status: CircleStatus.active,
+  directoryListed: false,
+  provider: CircleProvider.telegram,
+  openUri: Uri.parse('https://t.me/+walk-together'),
+  capabilities: const ['open_link'],
+  isOwner: false,
+);
 
 SacredHour _sacredHour() => SacredHour(
   id: 'hour-1',

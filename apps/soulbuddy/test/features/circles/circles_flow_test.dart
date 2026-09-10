@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/circles/data/circle_directory_repository.dart';
+import 'package:soulbuddy/features/circles/data/circle_reminder_repository.dart';
 import 'package:soulbuddy/features/circles/data/legacy_circle_migration_repository.dart';
 import 'package:soulbuddy/features/circles/domain/circle.dart';
 import 'package:soulbuddy/features/circles/domain/legacy_circle.dart';
@@ -141,6 +142,11 @@ void main() {
       initialLocation: '/circles/circle-public-1',
     );
 
+    await tester.scrollUntilVisible(
+      find.text('Publish Circle'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Publish Circle'), findsOneWidget);
     expect(
       find.textContaining('Not listed in SoulBuddy discovery'),
@@ -225,6 +231,20 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('sets a daily reminder from the Circle detail', (tester) async {
+    await _pumpCircles(
+      tester,
+      repository: _FakeDirectoryRepository([_publicCircle()]),
+      initialLocation: '/circles/circle-public-1',
+    );
+
+    await tester.tap(find.byKey(const Key('circle-reminder-control')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Circle reminder'), findsOneWidget);
+    expect(find.byKey(const Key('circle-reminder-time')), findsOneWidget);
+  });
 }
 
 Future<void> _pumpCircles(
@@ -238,6 +258,13 @@ Future<void> _pumpCircles(
 }) async {
   final legacy = legacyRepository ?? _FakeLegacyRepository(null);
   final encounters = encounterRepository ?? _FakeEncounterRepository();
+  final reminderStorage = <String, String>{};
+  final reminderRepository = CircleReminderRepository(
+    read: (key) async => reminderStorage[key],
+    write: (key, value) async => reminderStorage[key] = value,
+  );
+
+  addTearDown(reminderRepository.dispose);
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
@@ -275,6 +302,7 @@ Future<void> _pumpCircles(
         circleExternalLauncherProvider.overrideWith(
           (ref) => launcher ?? ((_) async => true),
         ),
+        circleReminderRepositoryProvider.overrideWithValue(reminderRepository),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
