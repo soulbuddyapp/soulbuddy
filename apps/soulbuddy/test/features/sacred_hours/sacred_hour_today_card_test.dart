@@ -28,7 +28,7 @@ void main() {
     expect(find.textContaining('missed'), findsNothing);
   });
 
-  testWidgets('uses Begin during the hour and Continue after starting', (
+  testWidgets('uses Open during the hour', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -44,22 +44,8 @@ void main() {
       ),
     );
     expect(find.textContaining('Now'), findsOneWidget);
-    expect(find.text('Begin'), findsOneWidget);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: Scaffold(
-          body: SacredHourTodayCard(
-            hour: _hour(),
-            nowUtc: DateTime.utc(2026, 8, 31, 5, 15),
-            continued: true,
-            onOpen: () {},
-          ),
-        ),
-      ),
-    );
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Begin'), findsNothing);
+    expect(find.text('Open'), findsOneWidget);
   });
 
   testWidgets('keeps a Sacred Hour active when it crosses midnight', (
@@ -79,7 +65,7 @@ void main() {
     );
 
     expect(find.textContaining('Now'), findsOneWidget);
-    expect(find.text('Begin'), findsOneWidget);
+    expect(find.text('Open'), findsOneWidget);
   });
 }
 

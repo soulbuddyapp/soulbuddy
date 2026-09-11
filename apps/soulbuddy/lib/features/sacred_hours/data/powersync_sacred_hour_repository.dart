@@ -69,6 +69,27 @@ class PowerSyncSacredHourRepository implements SacredHourRepository {
       watchActive().map((hours) => _currentOrNext(hours, nowUtc.toUtc()));
 
   @override
+  Stream<SacredHourOccurrenceStatus?> watchOccurrenceStatus(
+    String id,
+    DateTime dueAt,
+  ) => database
+      .watch(
+        '''
+            SELECT status FROM sacred_hour_occurrences
+            WHERE sacred_hour_id = ? AND owner_id = ? AND due_at = ?
+            LIMIT 1
+            ''',
+        parameters: [id, ownerId, dueAt.toUtc().toIso8601String()],
+      )
+      .map(
+        (rows) => rows.isEmpty
+            ? null
+            : SacredHourOccurrenceStatus.values.firstWhere(
+                (value) => value.wireValue == rows.single['status'],
+              ),
+      );
+
+  @override
   Stream<List<SacredHourDelivery>> watchDeliveries() => database
       .watch(
         '''

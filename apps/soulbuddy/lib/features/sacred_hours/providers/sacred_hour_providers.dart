@@ -70,6 +70,15 @@ final sacredHourProvider = StreamProvider.autoDispose
       yield* repository.watch(hourId);
     });
 
+final sacredHourOccurrenceStatusProvider = StreamProvider.autoDispose
+    .family<SacredHourOccurrenceStatus?, ({String hourId, DateTime dueAt})>((
+      ref,
+      key,
+    ) async* {
+      final repository = await ref.watch(sacredHourRepositoryProvider.future);
+      yield* repository.watchOccurrenceStatus(key.hourId, key.dueAt);
+    });
+
 final sacredHourReminderCoordinatorProvider =
     FutureProvider<SacredHourReminderCoordinator>((ref) async {
       await ref.watch(sacredHourBootstrapProvider.future);

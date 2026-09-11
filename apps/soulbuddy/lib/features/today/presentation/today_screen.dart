@@ -41,6 +41,7 @@ import '../providers/daily_practice_providers.dart';
 import 'today_start_guide.dart';
 import '../providers/today_guidance_providers.dart';
 import 'today_guidance_card.dart';
+import '../../scripture/presentation/daily_scripture_card.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({this.focusAltar = false, super.key});
@@ -162,6 +163,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               ),
               const SizedBox(height: 24),
               const FormationTodayCard(),
+              const DailyScriptureCard(),
               const SizedBox(height: 22),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -681,9 +683,10 @@ class _SacredHourTodaySection extends ConsumerWidget {
             }
             return Padding(
               padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: SacredHourTodayCard(
+              child: _SacredHourTodayCardWithStatus(
                 hour: hour,
-                nowUtc: now,
+                now: now,
+                window: window,
                 onOpen: () => unawaited(
                   _openSacredHourFromToday(context, ref, hour, window),
                 ),
@@ -691,6 +694,38 @@ class _SacredHourTodaySection extends ConsumerWidget {
             );
           },
         );
+  }
+}
+
+class _SacredHourTodayCardWithStatus extends ConsumerWidget {
+  const _SacredHourTodayCardWithStatus({
+    required this.hour,
+    required this.now,
+    required this.window,
+    required this.onOpen,
+  });
+  final SacredHour hour;
+  final DateTime now;
+  final SacredHourTodayWindow window;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = window.phase == SacredHourTodayPhase.active
+        ? ref
+              .watch(
+                sacredHourOccurrenceStatusProvider((
+                  hourId: hour.id,
+                  dueAt: window.startsAtUtc,
+                )),
+              )
+              .value
+        : null;
+    return SacredHourTodayCard(
+      hour: hour,
+      nowUtc: now,
+      completed: status == SacredHourOccurrenceStatus.completed,
+      onOpen: onOpen,
+    );
   }
 }
 

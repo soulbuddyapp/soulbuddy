@@ -5,6 +5,10 @@ abstract interface class SacredHourRepository {
   Stream<List<SacredHour>> watchActive();
   Stream<SacredHour?> watch(String id);
   Stream<SacredHour?> watchCurrentOrNext(DateTime nowUtc);
+  Stream<SacredHourOccurrenceStatus?> watchOccurrenceStatus(
+    String id,
+    DateTime dueAt,
+  );
   Stream<List<SacredHourDelivery>> watchDeliveries();
   Future<List<SacredHour>> ensureDefaults({required String timezone});
   Future<SacredHour> save(SacredHourDraft draft, {String? id});
