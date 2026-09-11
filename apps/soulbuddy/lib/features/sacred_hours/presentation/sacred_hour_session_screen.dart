@@ -20,6 +20,7 @@ import '../application/sacred_hour_prayer_suggestions.dart';
 import '../domain/sacred_hour.dart';
 import '../providers/sacred_hour_providers.dart';
 import 'sacred_hour_prayer_music_sheet.dart';
+import '../../goals/presentation/daily_practice_sheet.dart';
 
 class SacredHourSessionScreen extends ConsumerStatefulWidget {
   const SacredHourSessionScreen({
@@ -113,6 +114,10 @@ class _SacredHourSessionScreenState
               );
             },
             onPrayerMusic: () => _showPrayerMusic(value, suggestions),
+            onDailyPractice: () => showDailyPracticeSheet(
+              context,
+              evening: value.purpose == SacredHourPurpose.evening,
+            ),
           ),
         );
       },
@@ -261,6 +266,7 @@ class SacredHourSessionView extends StatefulWidget {
     this.onOpenPrayer,
     this.onOpenPerson,
     this.onPrayerMusic,
+    this.onDailyPractice,
     super.key,
   });
 
@@ -273,6 +279,7 @@ class SacredHourSessionView extends StatefulWidget {
   final VoidCallback? onOpenPrayer;
   final VoidCallback? onOpenPerson;
   final VoidCallback? onPrayerMusic;
+  final VoidCallback? onDailyPractice;
 
   @override
   State<SacredHourSessionView> createState() => _SacredHourSessionViewState();
@@ -378,6 +385,16 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
           label: Text(_quiet ? 'Stay here quietly' : 'Quiet prayer'),
         ),
         const SizedBox(height: AppSpacing.sm),
+        if (widget.onDailyPractice != null)
+          OutlinedButton.icon(
+            onPressed: widget.onDailyPractice,
+            icon: const Icon(Icons.spa_outlined),
+            label: Text(
+              widget.hour.purpose == SacredHourPurpose.evening
+                  ? 'Evening reflection'
+                  : 'Daily practice',
+            ),
+          ),
         FilledButton(
           onPressed: widget.controller.state.prayerRecorded
               ? null
@@ -388,11 +405,6 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
                 : 'I prayed',
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        TextButton(
-          onPressed: widget.controller.continueToWork,
-          child: const Text('Continue to work'),
-        ),
       ],
     );
   }
@@ -402,9 +414,21 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Carry the hour with God', style: theme.textTheme.headlineMedium),
+        Text(
+          'God speaks to us in meditation',
+          style: theme.textTheme.headlineMedium,
+        ),
         const SizedBox(height: AppSpacing.xs),
-        const Text('Continue with the work already before you.'),
+        const Text(
+          'Listen to know if your prayer needs something from you',
+        ),
+        if (widget.onDailyPractice != null)
+          TextButton.icon(
+            onPressed: widget.onDailyPractice,
+            icon: const Icon(Icons.spa_outlined),
+            label: Text(widget.hour.purpose == SacredHourPurpose.evening
+                ? 'Evening reflection' : 'Daily practice'),
+          ),
         const SizedBox(height: AppSpacing.lg),
         for (var index = 0; index < _workPrompts.length; index++)
           Padding(

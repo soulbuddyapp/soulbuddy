@@ -60,7 +60,10 @@ class SacredHourSessionController extends ChangeNotifier {
     _recording = true;
     try {
       await record();
-      _state = _state.copyWith(prayerRecorded: true);
+      _state = _state.copyWith(
+        prayerRecorded: true,
+        phase: SacredHourSessionPhase.work,
+      );
       notifyListeners();
     } finally {
       _recording = false;

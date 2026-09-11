@@ -26,6 +26,15 @@ void main() {
     },
   );
 
+  test('moves to meditation only after prayer recording succeeds', () async {
+    final controller = SacredHourSessionController(prayerMinutes: 5);
+
+    await controller.recordPrayer(() async {});
+
+    expect(controller.state.prayerRecorded, isTrue);
+    expect(controller.state.phase, SacredHourSessionPhase.work);
+  });
+
   testWidgets('moves from prayer into work without shame or scoring', (
     tester,
   ) async {
@@ -50,12 +59,10 @@ void main() {
     await tester.tap(find.text('I prayed'));
     await tester.pump();
     expect(prayed, 1);
-    await tester.tap(find.text('Continue to work'));
-    await tester.pump();
-
-    expect(find.text('Carry the hour with God'), findsOneWidget);
+    expect(find.text('Continue to work'), findsNothing);
+    expect(find.text('God speaks to us in meditation'), findsOneWidget);
     expect(
-      find.text('Continue with the work already before you.'),
+      find.text('Listen to know if your prayer needs something from you'),
       findsOneWidget,
     );
     for (final prompt in const [
