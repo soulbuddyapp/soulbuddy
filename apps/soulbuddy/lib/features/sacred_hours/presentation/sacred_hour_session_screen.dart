@@ -106,11 +106,22 @@ class _SacredHourSessionScreenState
                     context.push('/persons/${value.personId}');
                   },
             onRecordPrayer: () => _recordPrayer(value),
-            onRemember: (mode) {
+            onRemember: (prompt) {
               unawaited(_stopBackgroundSound());
+              final date = MaterialLocalizations.of(
+                context,
+              ).formatShortDate(DateTime.now());
               context.push(
-                '/remember/capture?mode=$mode&source=sacred-hour'
-                '${value.personId == null ? '' : '&person=${value.personId}'}',
+                Uri(
+                  path: '/remember/capture',
+                  queryParameters: {
+                    'mode': 'reflection',
+                    'source': 'sacred-hour',
+                    'title': '$prompt · $date',
+                    'prompt': prompt,
+                    if (value.personId != null) 'person': value.personId,
+                  },
+                ).toString(),
               );
             },
             onPrayerMusic: () => _showPrayerMusic(value, suggestions),
@@ -288,7 +299,6 @@ class SacredHourSessionView extends StatefulWidget {
 class _SacredHourSessionViewState extends State<SacredHourSessionView> {
   Timer? _ticker;
   var _quiet = false;
-  var _selectedPrompt = 0;
 
   @override
   void initState() {
@@ -438,32 +448,10 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
                 alignment: Alignment.centerLeft,
                 child: Text(_workPrompts[index], maxLines: 2, softWrap: true),
               ),
-              selected: _selectedPrompt == index,
-              onSelected: (_) => setState(() => _selectedPrompt = index),
+              selected: false,
+              onSelected: (_) => widget.onRemember(_workPrompts[index]),
             ),
           ),
-        const SizedBox(height: AppSpacing.lg),
-        Text('Remember what I understood', style: theme.textTheme.titleMedium),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () => widget.onRemember('speak'),
-                icon: const Icon(Icons.mic_none),
-                label: const Text('Speak'),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => widget.onRemember('write'),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Write'),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }

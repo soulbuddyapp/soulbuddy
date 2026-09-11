@@ -39,7 +39,7 @@ void main() {
     tester,
   ) async {
     var prayed = 0;
-    String? remembranceMode;
+    String? remembrancePrompt;
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
@@ -47,7 +47,7 @@ void main() {
           hour: _hour(),
           controller: SacredHourSessionController(prayerMinutes: 5),
           onRecordPrayer: () async => prayed += 1,
-          onRemember: (mode) => remembranceMode = mode,
+          onRemember: (prompt) => remembrancePrompt = prompt,
         ),
       ),
     );
@@ -75,8 +75,8 @@ void main() {
     }
     expect(find.textContaining('missed'), findsNothing);
     expect(find.textContaining('streak'), findsNothing);
-    await tester.tap(find.text('Speak'));
-    expect(remembranceMode, 'speak');
+    await tester.tap(find.text('What may God be teaching me here?'));
+    expect(remembrancePrompt, 'What may God be teaching me here?');
   });
 
   testWidgets('wraps long work prompts on a phone-width screen', (
