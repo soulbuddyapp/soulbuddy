@@ -6,6 +6,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../formation/domain/formation_reading.dart';
 import '../../formation/providers/formation_providers.dart';
 import '../../orientation/providers/orientation_providers.dart';
+import '../../scripture/presentation/daily_scripture_card.dart';
 
 class MeditationScreen extends ConsumerWidget {
   const MeditationScreen({super.key});
@@ -43,6 +44,7 @@ class MeditationScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
+              const DailyScriptureCard(),
               journey.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (_, _) => _OrientationInvitation(

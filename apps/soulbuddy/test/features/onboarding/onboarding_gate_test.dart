@@ -415,6 +415,11 @@ class _MemorySacredHourRepository implements SacredHourRepository {
   Stream<SacredHour?> watchCurrentOrNext(DateTime nowUtc) =>
       const Stream.empty();
   @override
+  Stream<SacredHourOccurrenceStatus?> watchOccurrenceStatus(
+    String id,
+    DateTime dueAt,
+  ) => const Stream.empty();
+  @override
   Stream<List<SacredHourDelivery>> watchDeliveries() => const Stream.empty();
 }
 

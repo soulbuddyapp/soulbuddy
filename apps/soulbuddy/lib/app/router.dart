@@ -34,6 +34,7 @@ import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
 import '../features/scripture/presentation/scripture_passage_screen.dart';
+import '../features/scripture/presentation/daily_scripture_screen.dart';
 import '../features/sacred_hours/presentation/sacred_hour_session_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
@@ -41,6 +42,10 @@ import '../features/today/presentation/today_screen.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(
+      path: '/scripture/daily',
+      builder: (context, state) => const DailyScriptureScreen(),
+    ),
     GoRoute(path: '/record', redirect: (context, state) => '/remember/capture'),
     GoRoute(
       path: '/orientation',
@@ -222,7 +227,9 @@ final GoRouter appRouter = GoRouter(
                             _ => null,
                           },
                       privateReflection:
-                          source == 'orientation' || source == 'formation',
+                          source == 'orientation' ||
+                          source == 'formation' ||
+                          source == 'daily-scripture',
                     );
                   },
                 ),

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,8 +23,15 @@ import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/remember/providers/daily_memory_providers.dart';
 import 'package:soulbuddy/features/today/domain/daily_practice_state.dart';
 import 'package:soulbuddy/features/today/presentation/today_screen.dart';
+import 'package:soulbuddy/features/scripture/domain/daily_scripture.dart';
+import 'package:soulbuddy/features/scripture/providers/daily_scripture_providers.dart';
 
 import '../../helpers/in_memory_prayer_repository.dart';
+
+final _dailyScripture = DailyScripture.fromJson({
+  ...(jsonDecode(File('assets/content/daily_scriptures.json').readAsStringSync()) as List).first as Map<String, dynamic>,
+  'date': '2026-09-11',
+});
 
 void main() {
   test('Today date and prayer providers are autoDispose', () {
@@ -146,9 +155,10 @@ void main() {
     expect(find.byKey(const Key('today-start-guide')), findsNothing);
     expect(find.text('What would you like help with?'), findsNothing);
     expect(find.text('Start a Goal'), findsNothing);
+    expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.title), findsOneWidget);
     expect(find.text(_prayer.body), findsOneWidget);
-    expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
     expect(find.text('Family · General Christian'), findsOneWidget);
     expect(find.text('I prayed this'), findsOneWidget);
     expect(find.text('Choose a different prayer'), findsOneWidget);
@@ -169,8 +179,10 @@ void main() {
     addTearDown(repository.close);
     await _pumpToday(tester, repository: repository);
 
-    expect(find.text('Practical action'), findsOneWidget);
     expect(find.text('0 of 2 practices completed'), findsOneWidget);
+    await _scrollTo(tester, const Key('today-action-done'));
+    expect(find.text('Practical action'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text(_prayerAction), 180, scrollable: find.byType(Scrollable).first);
     expect(find.text(_prayerAction), findsOneWidget);
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
     await _scrollTo(tester, const Key('today-action-done'));
@@ -199,6 +211,7 @@ void main() {
     expect(repository.completedTodayPrayerId, _prayer.id);
     expect(repository.completedTodayValue, isTrue);
     expect(find.byType(Checkbox), findsNothing);
+    await tester.scrollUntilVisible(find.text(_prayerAction), 180, scrollable: find.byType(Scrollable).first);
     expect(find.text(_prayerAction), findsOneWidget);
     _expectNoGamification(tester);
   });
@@ -235,6 +248,8 @@ void main() {
       ),
     );
     expect(find.text('1 of 2 practices completed'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('${_prayer.title} · Prayed'), 180,
+      scrollable: find.byType(Scrollable).first);
     expect(find.text('${_prayer.title} · Prayed'), findsOneWidget);
   });
 
@@ -321,6 +336,7 @@ void main() {
     repository.release();
     await tester.pumpAndSettle();
     expect(find.byType(Checkbox), findsNothing);
+    await tester.scrollUntilVisible(find.text(_prayerAction), 180, scrollable: find.byType(Scrollable).first);
     expect(find.text(_prayerAction), findsOneWidget);
     expect(
       tester
@@ -399,6 +415,7 @@ void main() {
       }(),
     );
     await _scrollTo(tester, const Key('today-action-done'));
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.title), findsOneWidget);
 
     dateChanges.add((year: 2026, month: 8, day: 12));
@@ -435,6 +452,7 @@ void main() {
     addTearDown(repository.close);
     await _pumpToday(tester, repository: repository);
 
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.body), findsOneWidget);
     expect(find.text('Practical action'), findsNothing);
     expect(find.text(_prayerAction), findsNothing);
@@ -477,6 +495,7 @@ void main() {
     final providerScopeElement = tester.element(find.byType(ProviderScope));
     final todayScreenElement = tester.element(find.byType(TodayScreen));
 
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.title), findsOneWidget);
     expect(repository.watchedDates, [DateTime(2026, 8, 11)]);
 
@@ -484,6 +503,7 @@ void main() {
     await tester.pump(const Duration(seconds: 30));
     await tester.pumpAndSettle();
 
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_nextDayPrayer.title), findsOneWidget);
     expect(find.text(_prayer.title), findsNothing);
     expect(
@@ -525,6 +545,7 @@ void main() {
     });
     addTearDown(repository.close);
     await _pumpToday(tester, repository: repository, now: () => currentTime);
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.title), findsOneWidget);
 
     await tester.pump(const Duration(minutes: 15));
@@ -535,6 +556,7 @@ void main() {
     await tester.pump(const Duration(minutes: 15));
     await tester.pumpAndSettle();
 
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_nextDayPrayer.title), findsOneWidget);
     expect(repository.watchedDates, [
       DateTime(2026, 8, 11),
@@ -573,12 +595,14 @@ void main() {
     );
     final providerScopeElement = tester.element(find.byType(ProviderScope));
     final todayScreenElement = tester.element(find.byType(TodayScreen));
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.title), findsOneWidget);
 
     currentTime = DateTime(2026, 8, 12);
     resumes.add(1);
     await tester.pumpAndSettle();
 
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_nextDayPrayer.title), findsOneWidget);
     expect(
       identical(
@@ -614,6 +638,7 @@ void main() {
       250,
       scrollable: find.byType(Scrollable),
     );
+    await _scrollTo(tester, const Key('today-prayer-complete'));
     expect(find.text(_prayer.body), findsOneWidget);
     expect(tester.takeException(), isNull);
     _expectNoGamification(tester);
@@ -682,6 +707,7 @@ Future<void> _pumpToday(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        dailyScriptureProvider.overrideWith((_) async => _dailyScripture),
         personalPrayersProvider.overrideWith(
           (ref) => Stream.value(const <PersonalPrayer>[]),
         ),

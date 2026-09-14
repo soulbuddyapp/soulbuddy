@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleReportController;
+use App\Http\Controllers\Api\DailyScriptureController;
 use App\Http\Controllers\Api\GoalActionSuggestionController;
 use App\Http\Controllers\Api\InstallationSessionController;
 use App\Http\Controllers\Api\PowerSyncTokenController;
@@ -9,6 +10,9 @@ use App\Http\Controllers\Api\PrayerNarrationController;
 use App\Http\Controllers\Api\PrayerNarrationPlaybackController;
 use App\Http\Controllers\Api\SyncMutationController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/scriptures/daily', DailyScriptureController::class)
+    ->middleware('throttle:120,1');
 
 Route::post('/installations/session', InstallationSessionController::class)
     ->middleware('throttle:installation-sessions');

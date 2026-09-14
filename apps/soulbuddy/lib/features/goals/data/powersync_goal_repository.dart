@@ -6,7 +6,7 @@ import '../domain/goal_action.dart';
 import '../domain/goal_link.dart';
 import 'goal_repository.dart';
 
-class PowerSyncGoalRepository implements GoalRepository {
+class PowerSyncGoalRepository implements GoalRepository, GoalDailyActionReader {
   PowerSyncGoalRepository({
     required this.database,
     required this.ownerId,
@@ -72,6 +72,19 @@ class PowerSyncGoalRepository implements GoalRepository {
 
   @override
   Stream<List<GoalActionOccurrence>> watchDueActions(DateTime localDate) {
+    return watchScheduledActions(localDate).map(
+      (items) => List.unmodifiable(
+        items.where(
+          (item) =>
+              item.latestEventType != GoalActionEventType.completed &&
+              item.latestEventType != GoalActionEventType.skipped,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Stream<List<GoalActionOccurrence>> watchScheduledActions(DateTime localDate) {
     final localDateKey = goalLocalDateKey(localDate);
     return database
         .watch(
@@ -108,10 +121,6 @@ class PowerSyncGoalRepository implements GoalRepository {
               final String value => GoalActionEventType.fromWire(value),
               _ => null,
             };
-            if (latest == GoalActionEventType.completed ||
-                latest == GoalActionEventType.skipped) {
-              continue;
-            }
             result.add(
               GoalActionOccurrence(
                 action: action,

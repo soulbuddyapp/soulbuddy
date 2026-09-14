@@ -2,6 +2,10 @@ import '../domain/goal.dart';
 import '../domain/goal_action.dart';
 import '../domain/goal_link.dart';
 
+abstract interface class GoalDailyActionReader {
+  Stream<List<GoalActionOccurrence>> watchScheduledActions(DateTime localDate);
+}
+
 abstract interface class GoalRepository {
   Stream<List<Goal>> watchActive();
 

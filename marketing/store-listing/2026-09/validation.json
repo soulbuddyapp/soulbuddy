@@ -1,0 +1,34 @@
+[
+  {
+    "file": "icon-512.png",
+    "width": 512,
+    "height": 512,
+    "channels": 4,
+    "alpha": true,
+    "bytes": 225639
+  },
+  {
+    "file": "feature-graphic-1024x500.png",
+    "width": 1024,
+    "height": 500,
+    "channels": 3,
+    "alpha": false,
+    "bytes": 1072235
+  },
+  {
+    "file": "phone-screenshots/01-grow-closer.png",
+    "width": 1080,
+    "height": 1920,
+    "channels": 3,
+    "alpha": false,
+    "bytes": 1348780
+  },
+  {
+    "file": "phone-screenshots/02-lasting-fruit.png",
+    "width": 1080,
+    "height": 1920,
+    "channels": 3,
+    "alpha": false,
+    "bytes": 849898
+  }
+]

@@ -1,0 +1,34 @@
+[
+  {
+    "file": "upload/en-GB/feature-graphic-1024x500.png",
+    "sha256": "acc54d6c07387f93986e7a8d650542f1c19904cfb6bf191eb532199e24339d34"
+  },
+  {
+    "file": "upload/en-GB/icon-512.png",
+    "sha256": "aae4eb0d65ef33784b93d38754e8c2aaa64ccc88ba36b562c9150c95f2ace7ab"
+  },
+  {
+    "file": "upload/en-GB/phone-screenshots/01-grow-closer.png",
+    "sha256": "a805116e833510ec261d7060c59b63511bfcdf9a274de790e059b3875fa44270"
+  },
+  {
+    "file": "upload/en-GB/phone-screenshots/02-lasting-fruit.png",
+    "sha256": "f993a4e86b3548f6a259a759d5b59e8233ef5487908035d8e32d2317d0a105f2"
+  },
+  {
+    "file": "sources/feature-graphic-master.png",
+    "sha256": "0115a27fc1dfff0e751d25555f3efb3f8da568caca022394c45807522251b274"
+  },
+  {
+    "file": "sources/feature-prompt.txt",
+    "sha256": "e0acf50d20f2e9da88331613bbff2eb05a981e475d916ad1d68461f2e1b951f8"
+  },
+  {
+    "file": "sources/orientation-device.png",
+    "sha256": "648dae47dfba8d5c55a6e9bdaf396a47cd25fb0e8965859660562271092ceeda"
+  },
+  {
+    "file": "sources/today-device.png",
+    "sha256": "caa7217710590aeb6ed498deed3bac1516512eda8b9ba662ade2a6b9f13a2046"
+  }
+]

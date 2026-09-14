@@ -321,6 +321,17 @@ class _Repository implements SacredHourRepository {
   @override
   Stream<SacredHour?> watchCurrentOrNext(DateTime nowUtc) =>
       throw UnimplementedError();
+
+  @override
+  Stream<SacredHourOccurrenceStatus?> watchOccurrenceStatus(
+    String id,
+    DateTime dueAt,
+  ) async* {
+    final index = occurrenceDates.indexWhere(
+      (date) => date.toUtc() == dueAt.toUtc(),
+    );
+    yield index < 0 ? null : occurrences[index];
+  }
 }
 
 class _Scheduler implements PrayerReminderScheduler {

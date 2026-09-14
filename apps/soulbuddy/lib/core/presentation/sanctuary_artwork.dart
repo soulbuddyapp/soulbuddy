@@ -53,6 +53,7 @@ class SanctuaryArch extends StatelessWidget {
               SanctuaryArt.ascent,
               fit: BoxFit.cover,
               excludeFromSemantics: true,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
             const DecoratedBox(
               decoration: BoxDecoration(
@@ -117,6 +118,7 @@ class SanctuaryPracticeTile extends StatelessWidget {
                 fit: BoxFit.cover,
                 alignment: const Alignment(0, -0.15),
                 excludeFromSemantics: true,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
             Padding(
@@ -162,6 +164,7 @@ class SanctuaryReadingHeading extends StatelessWidget {
               height: 80,
               fit: BoxFit.cover,
               excludeFromSemantics: true,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
           ),
           const SizedBox(width: 16),
