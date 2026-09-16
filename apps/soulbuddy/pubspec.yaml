@@ -93,6 +93,7 @@ flutter:
     - assets/orientation/
     - assets/content/prayer_library.json
     - assets/content/daily_scriptures.json
+    - assets/content/daily_formation_v1.json
     - assets/content/editorial_manifest.json
     - assets/scripture/rsvce.db
     - assets/audio/feedback/
