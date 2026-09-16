@@ -17,15 +17,17 @@ together. Live text appears over the quiet lower portion of the composition:
 - `We belong to God.`
 - the remaining prayer time in a compact, low-emphasis treatment
 
-The fade runs once on entry and is disabled when reduced motion is requested.
+The fade runs once over 280 milliseconds on entry and is disabled when reduced
+motion is requested.
 No carousel, stacked cards, floating reminders, or persistent global player may
 appear over the sanctuary.
 
-The top edge contains two small 48dp touch targets with visually restrained
-glyphs: pause or resume, and exit. The bottom control dock contains:
+The top edge contains one small exit glyph inside a 48dp touch target. The
+bottom control dock contains:
 
-- `Prayer`, showing the selected prayer name when one is attached;
-- `Sound`, showing the selected sound and its play or pause state;
+- `Prayer`, showing the selected prayer name and a trailing play or pause state
+  when a recording is available;
+- `Sound`, showing the selected sound and a trailing play or pause state;
 - the single primary action, `I've prayed`.
 
 The controls use live Flutter text and semantics. Raster artwork never supplies
@@ -97,12 +99,14 @@ The Catholic opening is recommended when the prayer grounding is Catholic;
 the Christian opening is recommended otherwise. A user's explicit default
 always wins over that recommendation.
 
-The recording flow presents three compact steps: `Opening`, `Prayer`, and
-`Closing`. Preset text may be retained as live text, while `My recording`
-captures a private audio clip using the existing local recording system. The
-prayer body continues to use the existing Voice Tablet recording. Opening and
-closing clips remain separate so a default can be changed without re-recording
-the prayer itself.
+Prayer recording uses progressive disclosure. Before the prayer take, a compact
+ritual summary shows `Opening` and `Closing` with the recommended choices.
+Selecting either row opens its focused setup. Choosing a spoken opening or
+closing presents its live text as the recording prompt and records that phrase
+once in the user's voice. `My recording` accepts different words. `No opening`
+and `No closing` continue immediately. The prayer body continues to use the
+existing Voice Tablet recording. Opening and closing clips remain separate so
+a default can be changed without re-recording the prayer itself.
 
 The ritual profile is device-local and stores only preset identifiers and
 references to private local audio. Missing or unreadable clips are skipped;
