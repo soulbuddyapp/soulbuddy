@@ -27,7 +27,6 @@ import '../features/goals/providers/goal_today_providers.dart';
 import '../features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
 import '../features/sacred_hours/domain/sacred_hour.dart';
 import '../features/sacred_hours/providers/sacred_hour_providers.dart';
-import '../features/sacred_hours/presentation/sacred_hour_active_overlay.dart';
 import 'router.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
@@ -113,8 +112,6 @@ class SoulBuddyApp extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             SpiritualSessionMiniPlayer(onOpen: appRouter.go),
-                            const SizedBox(height: AppSpacing.sm),
-                            const SacredHourActiveOverlay(),
                             const SizedBox(height: AppSpacing.sm),
                             const _PrayerReminderOverlayHost(),
                             const SizedBox(height: AppSpacing.sm),

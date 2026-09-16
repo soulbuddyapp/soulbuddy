@@ -126,6 +126,24 @@ void main() {
     await tester.tap(find.byKey(const Key('sacred-hour-prayer-music')));
     expect(opened, 1);
   });
+
+  testWidgets('pauses the Sacred Hour timer from the active session', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: SacredHourSessionView(
+          hour: _hour(),
+          controller: SacredHourSessionController(prayerMinutes: 5),
+          onRecordPrayer: () async {},
+          onRemember: (_) {},
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('sacred-hour-pause')), findsOneWidget);
+  });
 }
 
 SacredHour _hour() => SacredHour(

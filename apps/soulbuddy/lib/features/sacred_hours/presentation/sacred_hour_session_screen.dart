@@ -17,6 +17,7 @@ import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../application/sacred_hour_session_controller.dart';
 import '../application/sacred_hour_prayer_suggestions.dart';
+import '../application/sacred_hour_system_notification.dart';
 import '../domain/sacred_hour.dart';
 import '../providers/sacred_hour_providers.dart';
 import 'sacred_hour_prayer_music_sheet.dart';
@@ -43,6 +44,7 @@ class _SacredHourSessionScreenState
   late final MeditationSoundBedPlayer _backgroundPlayer;
   MeditationSoundBed? _backgroundSound;
   double _backgroundVolume = .15;
+  String? _notificationHourId;
 
   @override
   void initState() {
@@ -70,6 +72,25 @@ class _SacredHourSessionScreenState
         _controller ??= SacredHourSessionController(
           prayerMinutes: value.prayerMinutes,
         );
+        if (_notificationHourId != value.id) {
+          _notificationHourId = value.id;
+          final startedAt =
+              _dueAt(value.id, widget.occurrenceKey) ?? DateTime.now().toUtc();
+          unawaited(
+            SacredHourSystemNotification.start(
+              title: value.name,
+              startedAt: startedAt,
+              duration: Duration(minutes: value.durationMinutes),
+              route: Uri(
+                pathSegments: ['sacred-hours', value.id],
+                queryParameters: {
+                  if (widget.occurrenceKey != null)
+                    'occurrence': widget.occurrenceKey!,
+                },
+              ).toString(),
+            ),
+          );
+        }
         final personal = ref.watch(personalPrayersProvider).value ?? const [];
         final library =
             ref
@@ -125,6 +146,7 @@ class _SacredHourSessionScreenState
               );
             },
             onPrayerMusic: () => _showPrayerMusic(value, suggestions),
+            onPauseChanged: SacredHourSystemNotification.setPaused,
             onDailyPractice: () => showDailyPracticeSheet(
               context,
               evening: value.purpose == SacredHourPurpose.evening,
@@ -272,6 +294,7 @@ class SacredHourSessionView extends StatefulWidget {
     required this.controller,
     required this.onRecordPrayer,
     required this.onRemember,
+    this.onPauseChanged,
     this.prayerTitle,
     this.personName,
     this.onOpenPrayer,
@@ -285,6 +308,7 @@ class SacredHourSessionView extends StatefulWidget {
   final SacredHourSessionController controller;
   final Future<void> Function() onRecordPrayer;
   final ValueChanged<String> onRemember;
+  final ValueChanged<bool>? onPauseChanged;
   final String? prayerTitle;
   final String? personName;
   final VoidCallback? onOpenPrayer;
@@ -361,6 +385,24 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
             color: theme.colorScheme.primary,
           ),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          key: const Key('sacred-hour-pause'),
+          onPressed: () {
+            if (widget.controller.state.isPaused) {
+              widget.controller.resume();
+            } else {
+              widget.controller.pause();
+            }
+            widget.onPauseChanged?.call(widget.controller.state.isPaused);
+          },
+          icon: Icon(
+            widget.controller.state.isPaused
+                ? Icons.play_arrow_rounded
+                : Icons.pause_rounded,
+          ),
+          label: Text(widget.controller.state.isPaused ? 'Resume' : 'Pause'),
+        ),
         const SizedBox(height: AppSpacing.md),
         if (widget.prayerTitle case final title?)
           ListTile(
@@ -429,15 +471,16 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
           style: theme.textTheme.headlineMedium,
         ),
         const SizedBox(height: AppSpacing.xs),
-        const Text(
-          'Listen to know if your prayer needs something from you',
-        ),
+        const Text('Listen to know if your prayer needs something from you'),
         if (widget.onDailyPractice != null)
           TextButton.icon(
             onPressed: widget.onDailyPractice,
             icon: const Icon(Icons.spa_outlined),
-            label: Text(widget.hour.purpose == SacredHourPurpose.evening
-                ? 'Evening reflection' : 'Daily practice'),
+            label: Text(
+              widget.hour.purpose == SacredHourPurpose.evening
+                  ? 'Evening reflection'
+                  : 'Daily practice',
+            ),
           ),
         const SizedBox(height: AppSpacing.lg),
         for (var index = 0; index < _workPrompts.length; index++)

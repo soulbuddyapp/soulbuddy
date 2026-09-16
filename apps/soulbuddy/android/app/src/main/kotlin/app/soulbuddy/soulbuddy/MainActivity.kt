@@ -2,6 +2,7 @@ package app.soulbuddy.soulbuddy
 
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
@@ -35,6 +36,38 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "currentRoute" -> result.success(currentRoute())
                 "interruptionsAllowed" -> result.success(interruptionsAllowed())
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "app.soulbuddy/sacred_hour_notification",
+        ).setMethodCallHandler { call, result ->
+            val serviceIntent = Intent(this, SacredHourPlaybackService::class.java)
+            when (call.method) {
+                "start" -> {
+                    val args = call.arguments as? Map<*, *>
+                    serviceIntent.action = SacredHourPlaybackService.ACTION_START
+                    serviceIntent.putExtra(SacredHourPlaybackService.EXTRA_TITLE, args?.get("title") as? String)
+                    serviceIntent.putExtra(SacredHourPlaybackService.EXTRA_STARTED_AT, (args?.get("startedAtMillis") as? Number)?.toLong() ?: System.currentTimeMillis())
+                    serviceIntent.putExtra(SacredHourPlaybackService.EXTRA_DURATION, (args?.get("durationMillis") as? Number)?.toLong() ?: 0L)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(serviceIntent) else startService(serviceIntent)
+                    result.success(null)
+                }
+                "pause" -> {
+                    serviceIntent.action = SacredHourPlaybackService.ACTION_PAUSE
+                    startService(serviceIntent)
+                    result.success(null)
+                }
+                "resume" -> {
+                    serviceIntent.action = SacredHourPlaybackService.ACTION_RESUME
+                    startService(serviceIntent)
+                    result.success(null)
+                }
+                "stop" -> {
+                    stopService(serviceIntent)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

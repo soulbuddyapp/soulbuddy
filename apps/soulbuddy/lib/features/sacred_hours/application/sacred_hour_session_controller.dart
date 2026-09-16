@@ -7,20 +7,30 @@ class SacredHourSessionState {
     required this.phase,
     required this.prayerRecorded,
     this.prayerStartedAt,
+    this.pausedAt,
+    this.pausedDuration = Duration.zero,
   });
 
   final SacredHourSessionPhase phase;
   final bool prayerRecorded;
   final DateTime? prayerStartedAt;
+  final DateTime? pausedAt;
+  final Duration pausedDuration;
+
+  bool get isPaused => pausedAt != null;
 
   SacredHourSessionState copyWith({
     SacredHourSessionPhase? phase,
     bool? prayerRecorded,
     DateTime? prayerStartedAt,
+    DateTime? pausedAt,
+    Duration? pausedDuration,
   }) => SacredHourSessionState(
     phase: phase ?? this.phase,
     prayerRecorded: prayerRecorded ?? this.prayerRecorded,
     prayerStartedAt: prayerStartedAt ?? this.prayerStartedAt,
+    pausedAt: pausedAt ?? this.pausedAt,
+    pausedDuration: pausedDuration ?? this.pausedDuration,
   );
 }
 
@@ -44,8 +54,9 @@ class SacredHourSessionController extends ChangeNotifier {
   Duration get remaining {
     final started = _state.prayerStartedAt;
     if (started == null) return Duration(minutes: prayerMinutes);
-    final remaining =
-        Duration(minutes: prayerMinutes) - _clock().difference(started);
+    final endingAt = _state.pausedAt ?? _clock();
+    final elapsed = endingAt.difference(started) - _state.pausedDuration;
+    final remaining = Duration(minutes: prayerMinutes) - elapsed;
     return remaining.isNegative ? Duration.zero : remaining;
   }
 
@@ -73,6 +84,24 @@ class SacredHourSessionController extends ChangeNotifier {
   void continueToWork() {
     if (_state.phase == SacredHourSessionPhase.work) return;
     _state = _state.copyWith(phase: SacredHourSessionPhase.work);
+    notifyListeners();
+  }
+
+  void pause() {
+    if (_state.prayerStartedAt == null || _state.isPaused) return;
+    _state = _state.copyWith(pausedAt: _clock());
+    notifyListeners();
+  }
+
+  void resume() {
+    final pausedAt = _state.pausedAt;
+    if (pausedAt == null) return;
+    _state = SacredHourSessionState(
+      phase: _state.phase,
+      prayerRecorded: _state.prayerRecorded,
+      prayerStartedAt: _state.prayerStartedAt,
+      pausedDuration: _state.pausedDuration + _clock().difference(pausedAt),
+    );
     notifyListeners();
   }
 
