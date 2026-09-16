@@ -29,6 +29,7 @@ import '../features/sacred_hours/application/sacred_hour_reminder_coordinator.da
 import '../features/sacred_hours/domain/sacred_hour.dart';
 import '../features/sacred_hours/providers/sacred_hour_providers.dart';
 import 'router.dart';
+import 'app_overlay_visibility.dart';
 
 class SoulBuddyApp extends ConsumerWidget {
   const SoulBuddyApp({super.key});
@@ -113,15 +114,33 @@ class SoulBuddyApp extends ConsumerWidget {
                       bottom: compactNavigation ? 92 : AppSpacing.md,
                       child: SafeArea(
                         top: false,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SpiritualSessionMiniPlayer(onOpen: appRouter.go),
-                            const SizedBox(height: AppSpacing.sm),
-                            const _PrayerReminderOverlayHost(),
-                            const SizedBox(height: AppSpacing.sm),
-                            const AltarReminderOverlayHost(),
-                          ],
+                        child: ListenableBuilder(
+                          listenable: appRouter.routerDelegate,
+                          builder: (context, _) {
+                            final uri = appRouter
+                                .routerDelegate
+                                .currentConfiguration
+                                .uri;
+                            if (AppOverlayVisibility.hideGlobalOverlays(uri)) {
+                              return const SizedBox.shrink();
+                            }
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SpiritualSessionMiniPlayer(
+                                  onOpen: appRouter.go,
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                const _PrayerReminderOverlayHost(
+                                  key: Key('prayer-reminder-overlay-host'),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                const AltarReminderOverlayHost(
+                                  key: Key('altar-reminder-overlay-host'),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -225,7 +244,7 @@ Future<void> _beginSacredHourSession(
 }
 
 class _PrayerReminderOverlayHost extends ConsumerWidget {
-  const _PrayerReminderOverlayHost();
+  const _PrayerReminderOverlayHost({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

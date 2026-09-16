@@ -2,30 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../prayers/domain/library_prayer.dart';
-import '../../prayers/domain/meditation_session.dart';
-import '../../prayers/presentation/meditation_sound_picker.dart';
 import '../application/sacred_hour_prayer_suggestions.dart';
 import '../domain/sacred_hour.dart';
 
-class SacredHourPrayerMusicSheet extends StatelessWidget {
-  const SacredHourPrayerMusicSheet({
+class SacredHourPrayerPickerSheet extends StatelessWidget {
+  const SacredHourPrayerPickerSheet({
     required this.hour,
     required this.suggestions,
-    required this.selectedSound,
     required this.onChoosePrayer,
     required this.onAddPrayer,
-    required this.onSoundSelected,
-    this.onPreviewSound,
     super.key,
   });
 
   final SacredHour hour;
   final List<PrayerDisplay> suggestions;
-  final MeditationSoundBed? selectedSound;
   final Future<void> Function(PrayerDisplay prayer) onChoosePrayer;
   final ValueChanged<PrayerPurpose> onAddPrayer;
-  final Future<void> Function(MeditationSoundBed? sound) onSoundSelected;
-  final Future<void> Function(MeditationSoundBed sound)? onPreviewSound;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -33,10 +25,7 @@ class SacredHourPrayerMusicSheet extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.lg),
       shrinkWrap: true,
       children: [
-        Text(
-          'Prayer and music',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
+        Text('Choose prayer', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: AppSpacing.lg),
         Text(
           'Suggested prayers',
@@ -61,12 +50,6 @@ class SacredHourPrayerMusicSheet extends StatelessWidget {
               onAddPrayer(SacredHourPrayerSuggestions.primaryPurpose(hour)),
           icon: const Icon(Icons.add),
           label: const Text('Add a prayer'),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        MeditationSoundPicker(
-          selected: selectedSound,
-          onSelected: onSoundSelected,
-          onPreview: onPreviewSound,
         ),
       ],
     ),

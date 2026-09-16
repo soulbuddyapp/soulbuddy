@@ -1,44 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
-import 'package:soulbuddy/features/prayers/domain/meditation_session.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 import 'package:soulbuddy/features/sacred_hours/presentation/sacred_hour_prayer_music_sheet.dart';
 
 void main() {
-  testWidgets('chooses a suggested prayer and background music', (
+  testWidgets('chooses a suggested prayer without mixing sound controls', (
     tester,
   ) async {
     PrayerReference? selectedPrayer;
-    MeditationSoundBed? selectedSound;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SacredHourPrayerMusicSheet(
+          body: SacredHourPrayerPickerSheet(
             hour: _hour(),
             suggestions: [_prayer('Morning gratitude')],
-            selectedSound: null,
             onChoosePrayer: (prayer) async => selectedPrayer = prayer.reference,
             onAddPrayer: (_) {},
-            onSoundSelected: (sound) async => selectedSound = sound,
           ),
         ),
       ),
     );
 
-    expect(find.text('Prayer and music'), findsOneWidget);
+    expect(find.text('Choose prayer'), findsOneWidget);
     expect(find.text('Suggested prayers'), findsOneWidget);
     await tester.tap(find.text('Choose'));
     await tester.pump();
     expect(selectedPrayer, const PrayerReference.personal('morning-gratitude'));
-
-    await tester.tap(find.byKey(const Key('meditation-sound-picker')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Flowing water'));
-    await tester.pumpAndSettle();
-    expect(selectedSound, MeditationSoundBed.flowingWater);
+    expect(find.text('Background sound'), findsNothing);
   });
 
   testWidgets('offers a new prayer with the sacred hour purpose', (
@@ -48,13 +39,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SacredHourPrayerMusicSheet(
+          body: SacredHourPrayerPickerSheet(
             hour: _hour(),
             suggestions: const [],
-            selectedSound: null,
             onChoosePrayer: (_) async {},
             onAddPrayer: (purpose) => addedFor = purpose,
-            onSoundSelected: (_) async {},
           ),
         ),
       ),

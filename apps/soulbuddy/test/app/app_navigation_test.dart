@@ -161,8 +161,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Morning Sacred Hour'), findsOneWidget);
-    expect(find.text('Begin with prayer'), findsOneWidget);
+    expect(find.text('We belong to God.'), findsOneWidget);
+    expect(find.byKey(const Key('sacred-hour-portal')), findsOneWidget);
+    expect(
+      find.byKey(const Key('spiritual-session-mini-player')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('prayer-reminder-overlay-host')), findsNothing);
+    expect(find.byKey(const Key('altar-reminder-overlay-host')), findsNothing);
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -197,8 +204,15 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Morning Sacred Hour'), findsOneWidget);
-    expect(find.text('Begin with prayer'), findsOneWidget);
+    expect(find.text('We belong to God.'), findsOneWidget);
+    expect(find.byKey(const Key('sacred-hour-portal')), findsOneWidget);
+    expect(
+      find.byKey(const Key('spiritual-session-mini-player')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('prayer-reminder-overlay-host')), findsNothing);
+    expect(find.byKey(const Key('altar-reminder-overlay-host')), findsNothing);
+
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
