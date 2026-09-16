@@ -14,6 +14,7 @@ import '../core/feedback/app_feedback_preferences.dart';
 import '../core/feedback/app_feedback_providers.dart';
 import '../features/circles/presentation/circle_detail_screen.dart';
 import '../features/circles/presentation/circles_screen.dart';
+import '../features/daily_formation/presentation/daily_formation_card.dart';
 import '../features/goals/presentation/first_goal_screen.dart';
 import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
@@ -62,6 +63,20 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/formation/readings',
       redirect: (context, state) => '/prayers/meditation',
+    ),
+    GoRoute(
+      path: '/formation',
+      builder: (context, state) => ScreenAwake(
+        child: Scaffold(
+          appBar: AppBar(title: const Text('Daily formation')),
+          body: const SafeArea(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: DailyFormationCard(),
+            ),
+          ),
+        ),
+      ),
     ),
     GoRoute(
       path: '/welcome/goal',

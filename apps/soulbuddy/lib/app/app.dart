@@ -23,6 +23,7 @@ import '../features/altar/providers/altar_ritual_providers.dart';
 import '../features/altar/presentation/altar_today_card.dart';
 import '../features/circles/application/circle_reminder_coordinator.dart';
 import '../features/circles/providers/circle_providers.dart';
+import '../features/daily_formation/providers/daily_formation_providers.dart';
 import '../features/goals/providers/goal_today_providers.dart';
 import '../features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
 import '../features/sacred_hours/domain/sacred_hour.dart';
@@ -42,6 +43,7 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(sacredHourBootstrapProvider);
     ref.watch(sacredHourReminderCoordinatorProvider);
     ref.watch(circleReminderCoordinatorProvider);
+    ref.watch(dailyFormationReminderCoordinatorProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         final due = occurrence!;
@@ -81,6 +83,9 @@ class SoulBuddyApp extends ConsumerWidget {
       if (next case AsyncData(value: CircleReminderOpened(:final circleId))) {
         appRouter.go('/circles/$circleId');
       }
+    });
+    ref.listen(dailyFormationReminderEventsProvider, (previous, next) {
+      if (next case AsyncData()) appRouter.go('/formation');
     });
     return MaterialApp.router(
       title: 'SoulBuddy',

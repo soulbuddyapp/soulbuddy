@@ -19,6 +19,7 @@ const _darwinCategoryId = 'PRAYER_REMINDER';
 const _darwinAltarCategoryId = 'ALTAR_REMINDER';
 const _darwinSacredHourCategoryId = 'SACRED_HOUR_REMINDER';
 const _darwinCircleCategoryId = 'CIRCLE_REMINDER';
+const _darwinDailyFormationCategoryId = 'DAILY_FORMATION_REMINDER';
 
 enum NativePrayerScheduleMode { inexactAllowWhileIdle, exactAllowWhileIdle }
 
@@ -41,6 +42,7 @@ class NativeNotificationRequest {
     required this.title,
     required this.body,
     required this.payload,
+    required this.kind,
     required this.scheduleMode,
     required this.startsAudio,
     required this.playSound,
@@ -55,6 +57,7 @@ class NativeNotificationRequest {
   final String title;
   final String body;
   final String payload;
+  final String kind;
   final NativePrayerScheduleMode scheduleMode;
   final bool startsAudio;
   final bool playSound;
@@ -141,6 +144,8 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
     final altar = notification.kind == ReminderNotificationKind.altar;
     final sacredHour = notification.kind == ReminderNotificationKind.sacredHour;
     final circle = notification.kind == ReminderNotificationKind.circle;
+    final dailyFormation =
+        notification.kind == ReminderNotificationKind.dailyFormation;
     final sound = _notificationSound(notification.soundKey);
     return _client.schedule(
       NativeNotificationRequest(
@@ -148,7 +153,9 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         scheduledAtUtc: notification.scheduledAtUtc,
         title:
             notification.title ??
-            (sacredHour
+            (dailyFormation
+                ? 'Daily formation'
+                : sacredHour
                 ? 'Your Sacred Hour'
                 : altar
                 ? 'At your Altar'
@@ -157,7 +164,9 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                 : 'Prayer reminder'),
         body:
             notification.body ??
-            (sacredHour
+            (dailyFormation
+                ? 'Today’s video is ready.'
+                : sacredHour
                 ? 'Begin with prayer. Bring this hour before God.'
                 : altar
                 ? 'Time set aside to pray and remember'
@@ -169,6 +178,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
           'occurrence_key': notification.occurrenceKey,
           'kind': notification.kind.name,
         }),
+        kind: notification.kind.name,
         scheduleMode: notification.precision == ReminderSchedulePrecision.exact
             ? NativePrayerScheduleMode.exactAllowWhileIdle
             : NativePrayerScheduleMode.inexactAllowWhileIdle,
@@ -185,6 +195,19 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                 NativeNotificationActionData(
                   id: _snoozeActionId,
                   label: 'In 10 minutes',
+                  showsUserInterface: true,
+                ),
+                NativeNotificationActionData(
+                  id: _dismissActionId,
+                  label: 'Not now',
+                  showsUserInterface: true,
+                ),
+              ]
+            : dailyFormation
+            ? const [
+                NativeNotificationActionData(
+                  id: _beginActionId,
+                  label: 'Begin',
                   showsUserInterface: true,
                 ),
                 NativeNotificationActionData(
@@ -374,6 +397,16 @@ class FlutterLocalNotificationsPrayerClient
               ),
             ],
           ),
+          DarwinNotificationCategory(
+            _darwinDailyFormationCategoryId,
+            actions: [
+              DarwinNotificationAction.plain(
+                _beginActionId,
+                'Begin',
+                options: {DarwinNotificationActionOption.foreground},
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -466,9 +499,9 @@ class FlutterLocalNotificationsPrayerClient
           ),
         )
         .toList(growable: false);
-    final sacredHour = request.actions.any(
-      (action) => action.id == _beginActionId,
-    );
+    final sacredHour = request.kind == ReminderNotificationKind.sacredHour.name;
+    final dailyFormation =
+        request.kind == ReminderNotificationKind.dailyFormation.name;
     final channelSuffix = request.playSound
         ? request.soundKey ?? 'device'
         : 'silent';
@@ -476,10 +509,18 @@ class FlutterLocalNotificationsPrayerClient
       android: AndroidNotificationDetails(
         sacredHour
             ? 'sacred_hours_alarm_v2_$channelSuffix'
+            : dailyFormation
+            ? 'daily_formation_v1'
             : 'prayer_reminders_v2',
-        sacredHour ? 'Sacred Hour alarms' : 'Prayer reminders',
+        sacredHour
+            ? 'Sacred Hour alarms'
+            : dailyFormation
+            ? 'Daily formation'
+            : 'Prayer reminders',
         channelDescription: sacredHour
             ? 'Private invitations into a Sacred Hour'
+            : dailyFormation
+            ? 'Daily video formation reminders'
             : 'Private reminders to pray',
         importance: Importance.high,
         priority: Priority.high,
@@ -511,6 +552,8 @@ class FlutterLocalNotificationsPrayerClient
       iOS: DarwinNotificationDetails(
         categoryIdentifier: sacredHour
             ? _darwinSacredHourCategoryId
+            : dailyFormation
+            ? _darwinDailyFormationCategoryId
             : request.actions.any((action) => action.id == _openCircleActionId)
             ? _darwinCircleCategoryId
             : request.actions.isEmpty

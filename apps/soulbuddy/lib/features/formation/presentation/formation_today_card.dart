@@ -9,6 +9,7 @@ import '../../../core/presentation/sacred_surface.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
 import '../../orientation/providers/orientation_providers.dart';
 import '../../orientation/presentation/orientation_path.dart';
+import '../../daily_formation/presentation/daily_formation_card.dart';
 import '../domain/formation_reading.dart';
 import '../providers/formation_providers.dart';
 
@@ -51,6 +52,7 @@ class FormationTodayCard extends ConsumerWidget {
             onPressed: () => context.push(route),
           );
         }
+        if (journey.complete) return const DailyFormationCard();
         final readings = ref.watch(formationProgressProvider);
         return readings.when(
           loading: () => const SizedBox.shrink(),
