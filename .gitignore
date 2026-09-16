@@ -6,6 +6,7 @@ build/
 coverage/
 *.iml
 *.log
+__pycache__/
 .env
 .env.*
 !.env.example

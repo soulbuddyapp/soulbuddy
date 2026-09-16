@@ -130,7 +130,7 @@ class FormationImportTest(unittest.TestCase):
     def test_builds_complete_clean_catalog(self):
         catalog = build_catalog(BOOK)
         self.assertEqual(1, catalog["version"])
-        self.assertEqual(44, len(catalog["videos"]))
+        self.assertEqual(45, len(catalog["videos"]))
         self.assertEqual(10, len(catalog["packs"]))
         self.assertEqual(70, len(catalog["days"]))
         self.assertEqual("A Plentiful Harvest", catalog["packs"][0]["title"])
@@ -138,7 +138,7 @@ class FormationImportTest(unittest.TestCase):
         self.assertNotIn("\ufffd", encoded)
         self.assertNotIn("must bear fruit", encoded.casefold())
         self.assertIsNone(re.search(r"garden.{0,24}empty", encoded.casefold()))
-        self.assertTrue(all(v["runtimeSeconds"] <= 599 for v in catalog["videos"]))
+        self.assertTrue(all(v["runtimeSeconds"] <= 630 for v in catalog["videos"]))
         self.assertTrue(all(len(set(d["videoIds"])) == 3 for d in catalog["days"]))
 
     def test_writes_identical_api_and_mobile_snapshots(self):
@@ -180,7 +180,7 @@ Use `VIDEO CATALOG` rows as the media source and resolve all `70-DAY MVP PATH` t
 }
 ```
 
-Validate exact URLs produced as `https://www.youtube.com/watch?v={youtube_id}`, 1–599 second runtime, `PRODUCTION_READY`, 44/10/70 counts, unique IDs, three distinct daily choices, valid foreign keys, required reflection/action fields, and clean Unicode.
+Validate exact URLs produced as `https://www.youtube.com/watch?v={youtube_id}`, 1–630 second runtime, `PRODUCTION_READY`, 45/10/70 counts, unique IDs, three distinct daily choices, valid foreign keys, required reflection/action fields, and clean Unicode. Include `V045`, the user-selected BibleProject Beatitudes visual commentary (`W9fR7sHw9Y8`, 623 seconds), as an option in the virtue-formation pack.
 
 - [ ] **Step 6: Generate and recalculate the repository workbook**
 
@@ -194,7 +194,7 @@ python tools\formation\import_daily_formation.py `
 python "$env:USERPROFILE\.agents\skills\xlsx\scripts\recalc.py" content\formation\SoulBuddy_Daily_Video_Progression_v3.xlsx 60
 ```
 
-Expected: importer reports `44 videos, 10 packs, 70 days`; recalculation reports `status: success` and `total_errors: 0`.
+Expected: importer reports `45 videos, 10 packs, 70 days`; recalculation reports `status: success` and `total_errors: 0`.
 
 - [ ] **Step 7: Run importer tests**
 
@@ -235,7 +235,7 @@ it('publishes one internally consistent catalog transaction', function () {
     ])->assertSuccessful();
 
     expect(DB::table('formation_catalog_versions')->where('published', true)->count())->toBe(1)
-        ->and(DB::table('formation_videos')->count())->toBe(44)
+        ->and(DB::table('formation_videos')->count())->toBe(45)
         ->and(DB::table('formation_packs')->count())->toBe(10)
         ->and(DB::table('formation_days')->count())->toBe(70)
         ->and(DB::table('formation_rules')->count())->toBe(10);
@@ -328,7 +328,7 @@ it('serves only the published catalog with a stable etag', function () {
 
     $response = $this->getJson('/api/formation/catalog')->assertOk()
         ->assertJsonPath('data.version', 1)
-        ->assertJsonCount(44, 'data.videos')
+        ->assertJsonCount(45, 'data.videos')
         ->assertJsonCount(70, 'data.days');
 
     $etag = $response->headers->get('ETag');
@@ -447,7 +447,7 @@ $table->unique(['recommendation_id', 'position']); // options
 $table->unique(['owner_id', 'idempotency_key']); // events
 ```
 
-Profiles store JSON priorities plus timezone, `HH:MM` alarm, alarm/check-in flags, presentation/source preference, time budget `120..599`, optional explicit struggle, configuration version, timestamps. Recommendations store catalog/day/rule IDs, captured focus/title/runtime/URL snapshots, status, selected video, click/check-in/completion timestamps, and configuration version.
+Profiles store JSON priorities plus timezone, `HH:MM` alarm, alarm/check-in flags, presentation/source preference, time budget `120..630`, optional explicit struggle, configuration version, timestamps. Recommendations store catalog/day/rule IDs, captured focus/title/runtime/URL snapshots, status, selected video, click/check-in/completion timestamps, and configuration version.
 
 - [ ] **Step 4: Add mutation validation and writing**
 
@@ -511,7 +511,7 @@ git commit -m "feat: sync daily formation progress"
 test('parses the reviewed v1 catalog', () {
   final catalog = FormationCatalog.fromJson(reviewedCatalogJson());
   expect(catalog.version, 1);
-  expect(catalog.videos, hasLength(44));
+  expect(catalog.videos, hasLength(45));
   expect(catalog.packs, hasLength(10));
   expect(catalog.days, hasLength(70));
 });
@@ -654,7 +654,7 @@ enum FormationPriority { freedom, prayer, discipline, humility, forgiveness, gen
 enum FormationRecommendationStatus { suggested, clicked, partial, completed, skipped, expired }
 ```
 
-`FormationProfile` validates timezone, `PrayerLocalTime`, a 120–599 second budget, unique priorities, optional allowed struggle, and a positive configuration version.
+`FormationProfile` validates timezone, `PrayerLocalTime`, a 120–630 second budget, unique priorities, optional allowed struggle, and a positive configuration version.
 
 `formation_recommendation.dart` also defines `FormationEvent`,
 `FormationProgressSnapshot`, `FormationMaintenanceMode`, and
@@ -1179,7 +1179,7 @@ php artisan migrate:fresh --force
 php artisan formation:publish resources\formation\daily_formation_v1.json
 ```
 
-Expected: all tests PASS, Pint reports no style failures, migrations complete, and catalog publication reports `44 videos, 10 packs, 70 days`.
+Expected: all tests PASS, Pint reports no style failures, migrations complete, and catalog publication reports `45 videos, 10 packs, 70 days`.
 
 - [ ] **Step 3: Verify the complete Flutter app**
 

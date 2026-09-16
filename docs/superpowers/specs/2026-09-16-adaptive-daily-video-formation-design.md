@@ -20,7 +20,7 @@ The 70-day workbook is the editorial source. Production clients consume validate
 
 `C:\Users\Son\Downloads\SoulBuddy_Daily_Video_Progression_v3.xlsx` contains:
 
-- 44 production-ready videos with exact YouTube watch IDs and verified runtimes;
+- 45 production-ready videos with exact YouTube watch IDs and verified runtimes, including the user-selected BibleProject Beatitudes visual commentary (`W9fR7sHw9Y8`, 10:23);
 - ten seven-day formation packs and a 70-day canonical path;
 - primary and alternative videos for every day;
 - recommendation and recovery rules;
@@ -28,7 +28,7 @@ The 70-day workbook is the editorial source. Production clients consume validate
 - user-state and event-schema proposals;
 - candidate, excluded, source, discovery-coverage, and QA sheets.
 
-The import pipeline must reject a production video when its exact watch URL is missing, its runtime is unknown or exceeds 599 seconds, its status is not production-ready, or a referenced catalog ID does not exist. Same-day options must be distinct. Every daily record must have a pack, objective, Scripture reference, reflection, practical action, and completion rule.
+The import pipeline must reject a production video when its exact watch URL is missing, its runtime is unknown or exceeds 630 seconds, its status is not production-ready, or a referenced catalog ID does not exist. Same-day options must be distinct. Every daily record must have a pack, objective, Scripture reference, reflection, practical action, and completion rule.
 
 Before the first import:
 
@@ -79,7 +79,7 @@ The user may change configuration during initial Daily Formation setup or later 
 
 - formation priorities, ordered or equally weighted;
 - local reminder time and enabled state;
-- daily time budget from 2 to 9 minutes 59 seconds;
+- daily time budget from 2 to 10 minutes 30 seconds;
 - presentation preference: **Choose for me**, **One video**, or **Three choices**;
 - content-source preference: broad Christian, Catholic-inclusive, or no preference;
 - sensitive struggle track, optional and explicit;
@@ -103,7 +103,7 @@ Priority order:
 8. Permit deliberate repetition when all suitable options were recently watched.
 9. Honor the configured time budget before source variety or novelty.
 
-Every option must be production-ready, within the global 599-second ceiling, compatible with the current objective, allowed by the user's source settings, and appropriate for any sensitive-content constraints.
+Every option must be production-ready, within the global 630-second ceiling, compatible with the current objective, allowed by the user's source settings, and appropriate for any sensitive-content constraints.
 
 ## Daily experience
 
@@ -204,8 +204,8 @@ Daily Scripture remains available independently in Meditation and its existing r
 
 ### Import and editorial validation
 
-- Import all 44 production videos and 70 daily records from the workbook.
-- Reject missing IDs, duplicate daily options, invalid URLs, runtime above 599 seconds, unapproved status, missing required copy, corrupt characters, and prohibited garden phrases.
+- Import all 45 production videos and 70 daily records from the workbook.
+- Reject missing IDs, duplicate daily options, invalid URLs, runtime above 630 seconds, unapproved status, missing required copy, corrupt characters, and prohibited garden phrases.
 - Verify formula-derived source values against their referenced catalog rows.
 - Confirm deterministic output and source checksum.
 - Confirm a failed import cannot replace the active catalog.
