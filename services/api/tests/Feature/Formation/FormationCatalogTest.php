@@ -35,3 +35,24 @@ it('keeps the prior publication active when validation fails', function () {
     expect(DB::table('formation_catalog_versions')->where('published', true)->value('checksum'))
         ->toBe($published);
 });
+
+it('serves only the published catalog with a stable etag', function () {
+    $this->artisan('formation:publish', [
+        'file' => resource_path('formation/daily_formation_v1.json'),
+    ])->assertSuccessful();
+
+    $response = $this->getJson('/api/formation/catalog')->assertOk()
+        ->assertJsonPath('data.version', 1)
+        ->assertJsonCount(45, 'data.videos')
+        ->assertJsonCount(70, 'data.days');
+
+    $etag = $response->headers->get('ETag');
+    expect($etag)->not->toBeNull();
+    $this->withHeader('If-None-Match', $etag)
+        ->get('/api/formation/catalog')
+        ->assertStatus(304);
+});
+
+it('has no public catalog mutation endpoint', function () {
+    $this->postJson('/api/formation/catalog', [])->assertStatus(405);
+});
