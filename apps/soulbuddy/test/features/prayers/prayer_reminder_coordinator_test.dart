@@ -113,6 +113,53 @@ void main() {
   );
 
   test(
+    'daily reminders remain registered with Android after app termination',
+    () async {
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+
+      repository.emit([_occurrence(nextAt: null)]);
+      await pumpEventQueue(times: 20);
+
+      expect(
+        scheduler.scheduled.single.recurrence,
+        ReminderNotificationRecurrence.daily,
+      );
+    },
+  );
+
+  test(
+    'weekday reminders remain registered with Android after app termination',
+    () async {
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+
+      repository.emit([
+        _occurrence(
+          nextAt: null,
+          schedule: PrayerReminderSchedule.weekdays(
+            localTime: PrayerLocalTime(hour: 6, minute: 30),
+            timezone: 'UTC',
+            weekdaysMask: 21,
+          ),
+        ),
+      ]);
+      await pumpEventQueue(times: 20);
+
+      expect(
+        scheduler.scheduled.single.recurrence,
+        ReminderNotificationRecurrence.weekly,
+      );
+    },
+  );
+
+  test(
     'notification actions are occurrence-idempotent and once disables locally',
     () async {
       final repository = _FakePrayerPracticeRepository();
@@ -143,13 +190,45 @@ void main() {
   );
 
   test(
+    'a repeating Android alarm records the current daily occurrence',
+    () async {
+      final current = DateTime.utc(2026, 8, 11, 7);
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = _coordinator(repository, scheduler, now: current);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+      final stale = _occurrence(nextAt: DateTime.utc(2026, 8, 10, 6, 30));
+      repository.emit([stale]);
+      await pumpEventQueue(times: 20);
+
+      scheduler.emit(
+        PrayerReminderResponse(
+          reminderId: stale.reminder.id,
+          occurrenceKey: stale.occurrenceKey,
+          action: PrayerReminderAction.prayed,
+        ),
+      );
+      await pumpEventQueue(times: 30);
+
+      expect(
+        repository.sessionRecords.single.occurrenceKey,
+        'reminder-1@2026-08-11T06:30:00.000Z',
+      );
+    },
+  );
+
+  test(
     'snooze, dismiss, open, and dispose stop work at the lifecycle boundary',
     () async {
       final repository = _FakePrayerPracticeRepository();
       final scheduler = _FakePrayerReminderScheduler();
       final coordinator = _coordinator(repository, scheduler, now: now);
       await coordinator.start();
-      final occurrence = _occurrence(nextAt: DateTime.utc(2026, 8, 11, 4, 59));
+      final occurrence = _occurrence(
+        nextAt: DateTime.utc(2026, 8, 11, 4, 59),
+        localTime: PrayerLocalTime(hour: 4, minute: 59),
+      );
       repository.emit([occurrence]);
       await pumpEventQueue();
 
@@ -420,27 +499,32 @@ DuePrayerOccurrence _occurrence({
   bool once = false,
   String scheduledTimezone = 'UTC',
   int localHour = 6,
+  PrayerLocalTime? localTime,
   DateTime? reminderUpdatedAt,
+  PrayerReminderSchedule? schedule,
 }) {
-  final schedule = once
+  final resolvedSchedule = schedule ??
+      (once
       ? PrayerReminderSchedule.once(
           localTime: PrayerLocalTime(hour: 4, minute: 59),
           timezone: 'UTC',
           onceAt: nextAt ?? DateTime.utc(2026, 8, 11, 4, 59),
         )
       : PrayerReminderSchedule.daily(
-          localTime: PrayerLocalTime(
-            hour: localHour,
-            minute: localHour == 6 ? 30 : 0,
-          ),
+          localTime:
+              localTime ??
+              PrayerLocalTime(
+                hour: localHour,
+                minute: localHour == 6 ? 30 : 0,
+              ),
           timezone: 'UTC',
-        );
+        ));
   return DuePrayerOccurrence(
     reminder: PrayerReminder(
       id: reminderId,
       ownerId: 'owner-1',
       personalPrayerId: 'prayer-1',
-      schedule: schedule,
+      schedule: resolvedSchedule,
       enabled: true,
       createdAt: DateTime.utc(2026),
       updatedAt: reminderUpdatedAt ?? DateTime.utc(2026),

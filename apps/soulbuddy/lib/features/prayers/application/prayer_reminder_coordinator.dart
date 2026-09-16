@@ -245,12 +245,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       return null;
     }
     if (response.kind != ReminderNotificationKind.prayer) return null;
-    final occurrence = _occurrences.cast<DuePrayerOccurrence?>().firstWhere(
-      (candidate) =>
-          candidate?.reminder.id == response.reminderId &&
-          candidate?.occurrenceKey == response.occurrenceKey,
-      orElse: () => null,
-    );
+    final occurrence = _occurrenceFor(response);
     if (occurrence == null) {
       final duplicate = _pendingResponses.any(
         (pending) =>
@@ -310,6 +305,54 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       _processedActions.remove(actionKey);
       rethrow;
     }
+  }
+
+  DuePrayerOccurrence? _occurrenceFor(PrayerReminderResponse response) {
+    final exact = _occurrences.cast<DuePrayerOccurrence?>().firstWhere(
+      (candidate) =>
+          candidate?.reminder.id == response.reminderId &&
+          candidate?.occurrenceKey == response.occurrenceKey,
+      orElse: () => null,
+    );
+    if (exact?.reminder.schedule.type == PrayerScheduleType.once) {
+      return exact;
+    }
+    final recurring = _occurrences.cast<DuePrayerOccurrence?>().firstWhere(
+      (candidate) =>
+          candidate?.reminder.id == response.reminderId &&
+          candidate?.reminder.schedule.type != PrayerScheduleType.once,
+      orElse: () => null,
+    );
+    if (recurring == null) return exact;
+    final occurrenceAt = _latestRecurringOccurrenceAt(
+      recurring.reminder.schedule,
+      _clock().toUtc(),
+    );
+    if (occurrenceAt == null) return exact ?? recurring;
+    return DuePrayerOccurrence(
+      reminder: recurring.reminder,
+      device: recurring.device,
+      prayerTitle: recurring.prayerTitle,
+      prayerBody: recurring.prayerBody,
+      prayerRevisionId: recurring.prayerRevisionId,
+      occurrenceAt: occurrenceAt,
+    );
+  }
+
+  DateTime? _latestRecurringOccurrenceAt(
+    PrayerReminderSchedule schedule,
+    DateTime nowUtc,
+  ) {
+    var candidate = _calculator.next(
+      schedule,
+      afterUtc: nowUtc.subtract(const Duration(days: 8)),
+    );
+    DateTime? latest;
+    while (candidate != null && !candidate.isAfter(nowUtc)) {
+      latest = candidate;
+      candidate = _calculator.next(schedule, afterUtc: candidate);
+    }
+    return latest;
   }
 
   Future<void> _advanceAfterOccurrence(DuePrayerOccurrence occurrence) async {
@@ -393,9 +436,18 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
             '${occurrence.reminder.id}@${expectedAt.toUtc().toIso8601String()}',
         scheduledAtUtc: expectedAt.toUtc(),
         timeZoneName: timezoneName,
+        recurrence: _recurrenceFor(occurrence.reminder.schedule),
       ),
     );
   }
+
+  ReminderNotificationRecurrence _recurrenceFor(
+    PrayerReminderSchedule schedule,
+  ) => switch (schedule.type) {
+    PrayerScheduleType.once => ReminderNotificationRecurrence.once,
+    PrayerScheduleType.daily => ReminderNotificationRecurrence.daily,
+    PrayerScheduleType.weekdays => ReminderNotificationRecurrence.weekly,
+  };
 
   DuePrayerOccurrence _applyPendingSchedule(DuePrayerOccurrence occurrence) {
     final pending = _pendingSchedules[occurrence.reminder.id];
