@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
+import '../application/formation_video_launcher.dart';
 import '../domain/formation_catalog.dart';
 import '../domain/formation_profile.dart';
 import '../domain/formation_progress.dart';
@@ -10,6 +10,8 @@ import '../providers/daily_formation_providers.dart';
 
 class DailyFormationCard extends ConsumerWidget {
   const DailyFormationCard({super.key});
+
+  static final _videoLauncher = FormationVideoLauncher();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -102,9 +104,9 @@ class DailyFormationCard extends ConsumerWidget {
       .title;
 
   Future<void> _launch(BuildContext context, FormationVideo video) async {
-    final opened = await launchUrl(
-      Uri.parse(video.youtubeUrl),
-      mode: LaunchMode.externalApplication,
+    final opened = await _videoLauncher.open(
+      youtubeId: video.youtubeId,
+      webUrl: Uri.parse(video.youtubeUrl),
     );
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
