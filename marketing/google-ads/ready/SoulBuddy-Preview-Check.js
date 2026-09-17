@@ -3,11 +3,13 @@
  * This source is bundled with three EXISTING image ads by build-ready-script.py.
  * Paste the generated SoulBuddy-Ready-to-Run.js into Google Ads Scripts.
  * No configuration, video upload, media hosting, token, or app change is needed.
- * Preview simulates without saving. Run creates PAUSED. Never enables advertising.
+ * Run creates/reuses a REAL install conversion, then atomically creates PAUSED.
+ * Preview saves nothing; a new conversion binding cannot be validated until Run.
+ * No live campaign is submitted without an explicit positive conversion ID.
  * Do not schedule this installer. See README.md for budget and review details.
  * The generated Preview Check variant refuses to operate outside Google Preview.
  */
-const SCRIPT_REVISION = '2026-09-17.diagnostics-1';
+const SCRIPT_REVISION = '2026-09-17.conversion-order-1';
 const PREVIEW_CHECK_ONLY = true; // @SOULBUDDY_PREVIEW_CHECK@
 const PILOT = Object.freeze({
   customerId: '7904459880',
@@ -120,53 +122,109 @@ function setupPilot() {
   if (conversion.create) console.log('A new primary DOWNLOAD conversion is an account-level measurement resource. ' +
     'Review any other campaigns that use account-default DOWNLOAD goals before enabling this pilot.');
 
-  const outcome = submitBatch(request.operations);
-  if (!outcome.ok) {
-    console.log('=== SOULBUDDY DIAGNOSTIC BEGIN ===');
-    printOutcome('FULL_INSTALLER', outcome);
-    if (PREVIEW_CHECK_ONLY && outcome.complete && !outcome.exception &&
-        outcome.rows.every(row => row.status !== 'UNKNOWN') &&
-        outcome.rows.some(row => row.operation === 'campaignOperation' && row.status === 'FAILED')) {
-      const probes = previewCampaignProbes(request.operations);
-      probes.forEach(probe => printOutcome(probe.label, probe.outcome));
+  const preview = AdsApp.getExecutionInfo().isPreview() === true;
+  let createdConversion = '';
+  if (conversion.create) {
+    // A conversion created in Preview does not exist, even when reported SUCCESS.
+    // In live mode create it separately and use Google's returned positive ID.
+    // All local campaign/asset checks above have completed before this write.
+    const outcome = submitBatch([buildConversionOperation(context)]);
+    requireSuccess('INSTALL_CONVERSION', outcome, '');
+    if (preview) {
+      console.log('INSTALL_CONVERSION: Preview passed; no conversion was saved.');
+      console.log('PREVIEW LIMITATION: campaign structure is tested without conversion selection. ' +
+        'Run must create a real SoulBuddy conversion ID and bind it before campaign creation.');
+    } else {
+      createdConversion = persistedResource(outcome.results[0], owner, 'conversionActions');
+      request.operations[request.campaignIndex].campaignOperation.create.selectiveOptimization = {
+        conversionActions: [createdConversion]
+      };
+      console.log('INSTALL_CONVERSION CREATED: ' + createdConversion);
+      console.log('This measurement action is retained if the separate campaign request fails. ' +
+        'A later run looks it up instead of creating another one. Nothing has been enabled.');
     }
-    console.log('These are returned/simulated results, not a diagnosis or confirmation of saved resources.');
-    console.log('=== SOULBUDDY DIAGNOSTIC END ===');
-    if (outcome.exception) {
-      throw new Error('Google Ads request did not complete cleanly. Nothing was enabled. ' +
-        'Inspect the account before retrying; a transport error can hide a committed paused result. ' +
-        outcome.exception);
-    }
-    check(outcome.complete, 'Unexpected Google Ads response. Nothing was enabled. Inspect the account before retrying.');
-    throw new Error('Atomic request rejected. Nothing was enabled. ' +
-      'Copy the SOULBUDDY DIAGNOSTIC block from Logs (not Changes).');
   }
-  const results = outcome.results;
-  if (AdsApp.getExecutionInfo().isPreview()) {
+
+  const stage = preview && conversion.create ? 'CAMPAIGN_STRUCTURE_PREVIEW' : 'CAMPAIGN_WITH_INSTALL_GOAL';
+  const outcome = submitBatch(request.operations);
+  requireSuccess(stage, outcome, createdConversion);
+  if (preview) {
     if (PREVIEW_CHECK_ONLY) {
       console.log('=== SOULBUDDY DIAGNOSTIC BEGIN ===');
-      printOutcome('FULL_INSTALLER', outcome);
-      console.log('The unchanged full request passed this Preview. Nothing was saved. ' +
-        'A successful simulation is not proof that a later live request will succeed.');
+      printOutcome(stage, outcome);
       console.log('=== SOULBUDDY DIAGNOSTIC END ===');
-    } else {
-      console.log('PREVIEW PASSED. Nothing saved. Click Run using this same unchanged script to create PAUSED.');
     }
+    console.log(conversion.create
+      ? 'PREVIEW STRUCTURE PASSED. Nothing saved. Install-goal binding remains unvalidated until Run.'
+      : 'PREVIEW PASSED WITH EXISTING INSTALL GOAL. Nothing saved.');
+    console.log('A simulation is not proof that a later live request will succeed.');
+    if (!PREVIEW_CHECK_ONLY) console.log('Use Run on this same unchanged script to create PAUSED.');
     return;
   }
-  const resource = results[request.campaignIndex].getResourceName();
-  check(new RegExp('^customers/' + PILOT.customerId + '/campaigns/[1-9][0-9]*$').test(resource),
-    'Unexpected campaign resource. Inspect the account before retrying. Nothing was enabled.');
+  const resource = persistedResource(outcome.results[request.campaignIndex], 'customers/' + PILOT.customerId, 'campaigns');
   console.log('CREATED PAUSED: ' + resource);
-  console.log('Images and text are attached. Confirm the Nigeria Play release, previews, install tracking, dates, ' +
-    'spend and billing in Google Ads, then enable the campaign manually. No code editing is needed. ' +
-    'The 14-day calendar window starts on the creation date, not when you later enable it.');
+  console.log('Images, text and the real install goal are attached. Confirm the Nigeria Play release, previews, ' +
+    'install tracking, dates, spend and billing in Google Ads, then enable manually. No code editing is needed. ' +
+    'The 14-day calendar window starts on creation, not when you later enable the campaign.');
+}
+
+function buildConversionOperation(context) {
+  check(context.customerId === PILOT.customerId, 'Wrong conversion account.');
+  return {conversionActionOperation: {create: {
+    name: 'SoulBuddy | Google Play downloads | Install pilot',
+    type: 'GOOGLE_PLAY_DOWNLOAD', category: 'DOWNLOAD', appId: PILOT.appId,
+    status: 'ENABLED', primaryForGoal: true, countingType: 'ONE_PER_CLICK',
+    clickThroughLookbackWindowDays: '30', viewThroughLookbackWindowDays: '1',
+    valueSettings: {defaultValue: 0, defaultCurrencyCode: context.currency, alwaysUseDefaultValue: true}
+  }}};
+}
+
+function persistedResource(result, owner, collection) {
+  check(AdsApp.getExecutionInfo().isPreview() === false,
+    'Preview results must never be treated as persisted resource IDs.');
+  let resource;
+  try {
+    resource = result.getResourceName();
+  } catch (error) {
+    throw new Error('Google reported success but its ' + collection + ' resource could not be read. ' +
+      'It may have been saved. Nothing was enabled; inspect before retrying. ' + diagnosticText(error));
+  }
+  check(typeof resource === 'string' &&
+    new RegExp('^' + owner + '/' + collection + '/[1-9][0-9]*$').test(resource),
+    'Google reported success but returned an unexpected ' + collection + ' resource. ' +
+    'It may have been saved. Nothing was enabled; inspect before retrying.');
+  return resource;
+}
+
+function requireSuccess(stage, outcome, retainedConversion) {
+  if (outcome.ok) return;
+  console.log('=== SOULBUDDY DIAGNOSTIC BEGIN ===');
+  printOutcome(stage, outcome);
+  if (retainedConversion) console.log('RETAINED INSTALL CONVERSION: ' + retainedConversion);
+  console.log('Nothing was enabled. Stage results do not imply rollback of earlier successful requests.');
+  console.log('=== SOULBUDDY DIAGNOSTIC END ===');
+  if (outcome.exception || !outcome.complete || outcome.rows.some(row => row.status === 'UNKNOWN')) {
+    throw new Error(stage + ': ambiguous Google Ads response. Inspect before retrying; a transport error can hide ' +
+      'a committed result. No automatic retry was attempted. ' + (outcome.exception || ''));
+  }
+  throw new Error(stage + ': atomic request rejected. Earlier successful requests, if any, remain. ' +
+    'Nothing was enabled. Read the SOULBUDDY DIAGNOSTIC block in Logs.');
 }
 
 // Only documented MutateResult methods are used. Do not dump raw image requests.
 function submitBatch(operations) {
   check(!PREVIEW_CHECK_ONLY || AdsApp.getExecutionInfo().isPreview() === true,
     'Diagnostic writes are forbidden outside Google Preview.');
+  operations.forEach(operation => {
+    const campaign = operation.campaignOperation && operation.campaignOperation.create;
+    if (!campaign) return;
+    check(campaign.status === 'PAUSED', 'Installer must never enable a campaign.');
+    const selection = campaign.selectiveOptimization;
+    const bound = selection && Array.isArray(selection.conversionActions) && selection.conversionActions.length === 1 &&
+      /^customers\/[1-9][0-9]*\/conversionActions\/[1-9][0-9]*$/.test(selection.conversionActions[0]);
+    check(bound || (!selection && AdsApp.getExecutionInfo().isPreview() === true),
+      'Campaign submission requires a real install-conversion ID. Temporary IDs and live unbound campaigns are forbidden.');
+  });
   let results;
   try {
     results = AdsApp.mutateAll(operations, {apiVersion: PILOT.apiVersion, partialFailure: false});
@@ -219,40 +277,6 @@ function printOutcome(label, outcome) {
   });
 }
 
-// Controlled reductions, never fallbacks: same app, bidding, budget, dates and paused status.
-// No object created in one request is referenced using a temp ID in a later request.
-function previewCampaignProbes(original) {
-  check(PREVIEW_CHECK_ONLY && AdsApp.getExecutionInfo().isPreview() === true,
-    'Diagnostic probes are permitted only in the dedicated Preview Check file and Google Preview.');
-  const keys = ['conversionActionOperation', 'campaignBudgetOperation', 'campaignOperation'];
-  const base = original.filter(operation => keys.includes(Object.keys(operation)[0]));
-  const definitions = [
-    {label: 'CAMPAIGN_AND_PREREQUISITES'},
-    {label: 'WITHOUT_EXPLICIT_CONVERSION_SELECTION', selection: true},
-    {label: 'WITHOUT_GEO_OVERRIDE', geo: true},
-    {label: 'WITHOUT_BOTH_OPTIONAL_SETTINGS', selection: true, geo: true}
-  ];
-  const reports = [];
-  for (const definition of definitions) {
-    // Recheck at the mutation boundary; these variants must never run as live writes.
-    check(AdsApp.getExecutionInfo().isPreview() === true, 'Preview mode is required.');
-    const operations = JSON.parse(JSON.stringify(base));
-    const campaigns = operations.filter(operation => operation.campaignOperation);
-    check(campaigns.length === 1 && campaigns[0].campaignOperation.create.status === 'PAUSED',
-      'Probe requires exactly one paused campaign.');
-    const campaign = campaigns[0].campaignOperation.create;
-    if (definition.selection) delete campaign.selectiveOptimization;
-    if (definition.geo) delete campaign.geoTargetTypeSetting;
-    const outcome = submitBatch(operations);
-    reports.push({label: definition.label, outcome});
-    // A transport failure or malformed response is not grounds for further attempts.
-    if (outcome.exception || !outcome.complete || outcome.rows.some(row => row.status === 'UNKNOWN')) break;
-    // An isolated campaign success makes optional-field probes unnecessary.
-    if (definition.label === 'CAMPAIGN_AND_PREREQUISITES' && outcome.ok) break;
-  }
-  return reports;
-}
-
 function makePlan(context) {
   check(context.customerId === PILOT.customerId, 'Wrong account.');
   check(Object.prototype.hasOwnProperty.call(DAILY_ALLOWANCES, context.currency),
@@ -273,37 +297,29 @@ function planConversion(rows, owner, context) {
     .sort((a, b) => compareResourceIds(a.resourceName, b.resourceName));
   if (eligible.length) {
     if (eligible.length > 1) console.log('Multiple primary Play-download actions exist for this exact app; ' +
-      'selecting the oldest ID only to avoid counting the same installation twice.');
+      'selecting the lowest numeric ID only to avoid counting the same installation twice.');
     return {create: false, resourceName: eligible[0].resourceName};
   }
   check(valid.length === 0, 'SoulBuddy install measurement already exists but is disabled, secondary or owned elsewhere. ' +
     'Its settings were not overridden and no duplicate was created. Keep this log for review.');
   check(owner === 'customers/' + context.customerId,
     'Install conversions are managed by ' + owner + ', not this customer. No changes made; keep this log.');
-  return {create: true, resourceName: owner + '/conversionActions/-4'};
+  return {create: true, resourceName: null};
 }
 
 function buildOperations(context, plan, countryResource, languageResource, conversion, images, existingAssets) {
   check(context.customerId === PILOT.customerId, 'Wrong account.');
   check(/^geoTargetConstants\/[1-9][0-9]*$/.test(countryResource), 'Invalid country.');
   check(/^languageConstants\/[1-9][0-9]*$/.test(languageResource), 'Invalid language.');
-  check(/^customers\/[1-9][0-9]*\/conversionActions\/(?:[1-9][0-9]*|-4)$/.test(conversion.resourceName),
-    'Invalid install conversion.');
+  check(conversion.create === true ? conversion.resourceName === null :
+    conversion.create === false && typeof conversion.resourceName === 'string' &&
+    /^customers\/[1-9][0-9]*\/conversionActions\/[1-9][0-9]*$/.test(conversion.resourceName),
+    'Expected a pending conversion or an existing positive conversion ID.');
   const prefix = 'customers/' + context.customerId;
   const budget = prefix + '/campaignBudgets/-1';
   const campaign = prefix + '/campaigns/-2';
   const adGroup = prefix + '/adGroups/-3';
   const operations = [];
-  if (conversion.create) {
-    check(conversion.resourceName === prefix + '/conversionActions/-4', 'Invalid new conversion owner.');
-    operations.push({conversionActionOperation: {create: {
-      resourceName: conversion.resourceName, name: 'SoulBuddy | Google Play downloads | Install pilot',
-      type: 'GOOGLE_PLAY_DOWNLOAD', category: 'DOWNLOAD', appId: PILOT.appId,
-      status: 'ENABLED', primaryForGoal: true, countingType: 'ONE_PER_CLICK',
-      clickThroughLookbackWindowDays: '30', viewThroughLookbackWindowDays: '1',
-      valueSettings: {defaultValue: 0, defaultCurrencyCode: context.currency, alwaysUseDefaultValue: true}
-    }}});
-  }
   const imageResources = images.map((image, index) => {
     const matches = existingAssets.filter(asset => asset.name === image.name);
     matches.forEach(asset => {
@@ -331,11 +347,17 @@ function buildOperations(context, plan, countryResource, languageResource, conve
     appCampaignSetting: {appId: PILOT.appId, appStore: 'GOOGLE_APP_STORE',
       biddingStrategyGoalType: 'OPTIMIZE_INSTALLS_WITHOUT_TARGET_INSTALL_COST'},
     maximizeConversions: {},
-    selectiveOptimization: {conversionActions: [conversion.resourceName]},
     containsEuPoliticalAdvertising: 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
     startDateTime: plan.start + ' 00:00:00', endDateTime: plan.end + ' 23:59:59',
     geoTargetTypeSetting: {positiveGeoTargetType: 'PRESENCE', negativeGeoTargetType: 'PRESENCE'}
   }}});
+  // Pending conversion: retain an unbound LOCAL template only. submitBatch refuses
+  // it in live mode until setupPilot injects a positive ID from a separate request.
+  if (!conversion.create) {
+    operations[campaignIndex].campaignOperation.create.selectiveOptimization = {
+      conversionActions: [conversion.resourceName]
+    };
+  }
   operations.push({campaignCriterionOperation: {create: {campaign, location: {geoTargetConstant: countryResource}}}});
   operations.push({campaignCriterionOperation: {create: {campaign, language: {languageConstant: languageResource}}}});
   operations.push({adGroupOperation: {create: {resourceName: adGroup, campaign,
