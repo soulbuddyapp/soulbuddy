@@ -3,9 +3,12 @@
  * This source is bundled with three EXISTING image ads by build-ready-script.py.
  * Paste the generated SoulBuddy-Ready-to-Run.js into Google Ads Scripts.
  * No configuration, video upload, media hosting, token, or app change is needed.
- * Preview validates without saving. Run creates PAUSED. Never enables advertising.
+ * Preview simulates without saving. Run creates PAUSED. Never enables advertising.
  * Do not schedule this installer. See README.md for budget and review details.
+ * The generated Preview Check variant refuses to operate outside Google Preview.
  */
+const SCRIPT_REVISION = '2026-09-17.diagnostics-1';
+const PREVIEW_CHECK_ONLY = false; // @SOULBUDDY_PREVIEW_CHECK@
 const PILOT = Object.freeze({
   customerId: '7904459880',
   appId: 'app.soulbuddy.soulbuddy',
@@ -32,6 +35,21 @@ const DESCRIPTIONS = Object.freeze([
 const EMBEDDED_IMAGES = []; // @SOULBUDDY_IMAGES@
 
 function main() {
+  if (PREVIEW_CHECK_ONLY && AdsApp.getExecutionInfo().isPreview() !== true) {
+    console.log('SOULBUDDY: Click PREVIEW, not Run. This diagnostic file never creates live resources.');
+    return;
+  }
+  try {
+    return setupPilot();
+  } catch (error) {
+    console.log('SOULBUDDY SCRIPT ERROR: ' + diagnosticText(error));
+    throw error;
+  }
+}
+
+function setupPilot() {
+  console.log('SOULBUDDY BUILD ' + SCRIPT_REVISION +
+    (AdsApp.getExecutionInfo().isPreview() ? ' | PREVIEW' : ' | LIVE EXECUTION (creates PAUSED)'));
   const account = AdsApp.currentAccount();
   const context = {
     customerId: account.getCustomerId().replace(/-/g, ''),
@@ -102,22 +120,38 @@ function main() {
   if (conversion.create) console.log('A new primary DOWNLOAD conversion is an account-level measurement resource. ' +
     'Review any other campaigns that use account-default DOWNLOAD goals before enabling this pilot.');
 
-  let results;
-  try {
-    results = AdsApp.mutateAll(request.operations, {apiVersion: PILOT.apiVersion, partialFailure: false});
-  } catch (error) {
-    throw new Error('Google Ads request did not complete cleanly. Nothing was enabled. ' +
-      'Inspect the account before retrying; a transport error can hide a committed paused result. ' + String(error));
+  const outcome = submitBatch(request.operations);
+  if (!outcome.ok) {
+    console.log('=== SOULBUDDY DIAGNOSTIC BEGIN ===');
+    printOutcome('FULL_INSTALLER', outcome);
+    if (PREVIEW_CHECK_ONLY && outcome.complete && !outcome.exception &&
+        outcome.rows.every(row => row.status !== 'UNKNOWN') &&
+        outcome.rows.some(row => row.operation === 'campaignOperation' && row.status === 'FAILED')) {
+      const probes = previewCampaignProbes(request.operations);
+      probes.forEach(probe => printOutcome(probe.label, probe.outcome));
+    }
+    console.log('These are returned/simulated results, not a diagnosis or confirmation of saved resources.');
+    console.log('=== SOULBUDDY DIAGNOSTIC END ===');
+    if (outcome.exception) {
+      throw new Error('Google Ads request did not complete cleanly. Nothing was enabled. ' +
+        'Inspect the account before retrying; a transport error can hide a committed paused result. ' +
+        outcome.exception);
+    }
+    check(outcome.complete, 'Unexpected Google Ads response. Nothing was enabled. Inspect the account before retrying.');
+    throw new Error('Atomic request rejected. Nothing was enabled. ' +
+      'Copy the SOULBUDDY DIAGNOSTIC block from Logs (not Changes).');
   }
-  check(Array.isArray(results) && results.length === request.operations.length,
-    'Unexpected Google Ads response. Nothing was enabled. Inspect the account before retrying.');
-  const errors = [];
-  results.forEach((result, index) => {
-    if (!result.isSuccessful()) errors.push('Operation ' + index + ': ' + result.getErrorMessages().join('; '));
-  });
-  check(errors.length === 0, 'Atomic request rejected; requested changes were not committed.\n' + errors.join('\n'));
+  const results = outcome.results;
   if (AdsApp.getExecutionInfo().isPreview()) {
-    console.log('PREVIEW PASSED. Nothing saved. Click Run using this same unchanged script to create PAUSED.');
+    if (PREVIEW_CHECK_ONLY) {
+      console.log('=== SOULBUDDY DIAGNOSTIC BEGIN ===');
+      printOutcome('FULL_INSTALLER', outcome);
+      console.log('The unchanged full request passed this Preview. Nothing was saved. ' +
+        'A successful simulation is not proof that a later live request will succeed.');
+      console.log('=== SOULBUDDY DIAGNOSTIC END ===');
+    } else {
+      console.log('PREVIEW PASSED. Nothing saved. Click Run using this same unchanged script to create PAUSED.');
+    }
     return;
   }
   const resource = results[request.campaignIndex].getResourceName();
@@ -127,6 +161,96 @@ function main() {
   console.log('Images and text are attached. Confirm the Nigeria Play release, previews, install tracking, dates, ' +
     'spend and billing in Google Ads, then enable the campaign manually. No code editing is needed. ' +
     'The 14-day calendar window starts on the creation date, not when you later enable it.');
+}
+
+// Only documented MutateResult methods are used. Do not dump raw image requests.
+function submitBatch(operations) {
+  check(!PREVIEW_CHECK_ONLY || AdsApp.getExecutionInfo().isPreview() === true,
+    'Diagnostic writes are forbidden outside Google Preview.');
+  let results;
+  try {
+    results = AdsApp.mutateAll(operations, {apiVersion: PILOT.apiVersion, partialFailure: false});
+  } catch (error) {
+    return {ok: false, complete: false, exception: diagnosticText(error), rows: []};
+  }
+  const complete = Array.isArray(results) && results.length === operations.length;
+  const rows = operations.map((operation, index) => {
+    const row = {index, operation: Object.keys(operation)[0], status: 'UNKNOWN', errors: []};
+    const result = Array.isArray(results) ? results[index] : null;
+    try {
+      if (!result || typeof result.isSuccessful !== 'function') throw new Error('Missing MutateResult');
+      row.status = result.isSuccessful() ? 'SUCCESS' : 'FAILED';
+      if (row.status === 'FAILED') {
+        const messages = result.getErrorMessages();
+        row.errors = Array.isArray(messages) ? messages.slice(0, 5).map(diagnosticText) : [diagnosticText(messages)];
+        if (Array.isArray(messages) && messages.length > 5) row.errors.push('[Additional error messages omitted]');
+        if (!row.errors.length) row.errors.push('Google returned no error details.');
+      }
+    } catch (error) {
+      row.status = 'UNKNOWN';
+      row.errors.push('Cannot inspect result: ' + diagnosticText(error));
+    }
+    return row;
+  });
+  return {ok: complete && rows.every(row => row.status === 'SUCCESS'), complete, rows, results};
+}
+
+function diagnosticText(value) {
+  let text;
+  try {
+    text = typeof value === 'string' ? value : value && typeof value.message === 'string'
+      ? (value.name ? value.name + ': ' : '') + value.message : JSON.stringify(value);
+  } catch (_) {
+    text = String(value);
+  }
+  text = typeof text === 'string' ? text : String(value);
+  // Preserve codes/field paths while preventing large binary/credential-like strings in logs.
+  text = text.replace(/[A-Za-z0-9+/=_-]{160,}/g, '[LONG_DATA_REDACTED]');
+  return text.length > 6000 ? text.slice(0, 6000) + ' [TRUNCATED]' : text;
+}
+
+function printOutcome(label, outcome) {
+  console.log(label + ': ' + (outcome.ok ? 'PASS' : 'FAIL'));
+  if (outcome.exception) console.log(label + ' EXCEPTION: ' + outcome.exception);
+  if (!outcome.complete) console.log(label + ': incomplete/ambiguous response; persistence is not inferred.');
+  outcome.rows.forEach(row => {
+    console.log(label + ' op[' + row.index + '] ' + row.operation + ': ' + row.status);
+    row.errors.forEach(message => console.log(label + ' ERROR: ' + message));
+  });
+}
+
+// Controlled reductions, never fallbacks: same app, bidding, budget, dates and paused status.
+// No object created in one request is referenced using a temp ID in a later request.
+function previewCampaignProbes(original) {
+  check(PREVIEW_CHECK_ONLY && AdsApp.getExecutionInfo().isPreview() === true,
+    'Diagnostic probes are permitted only in the dedicated Preview Check file and Google Preview.');
+  const keys = ['conversionActionOperation', 'campaignBudgetOperation', 'campaignOperation'];
+  const base = original.filter(operation => keys.includes(Object.keys(operation)[0]));
+  const definitions = [
+    {label: 'CAMPAIGN_AND_PREREQUISITES'},
+    {label: 'WITHOUT_EXPLICIT_CONVERSION_SELECTION', selection: true},
+    {label: 'WITHOUT_GEO_OVERRIDE', geo: true},
+    {label: 'WITHOUT_BOTH_OPTIONAL_SETTINGS', selection: true, geo: true}
+  ];
+  const reports = [];
+  for (const definition of definitions) {
+    // Recheck at the mutation boundary; these variants must never run as live writes.
+    check(AdsApp.getExecutionInfo().isPreview() === true, 'Preview mode is required.');
+    const operations = JSON.parse(JSON.stringify(base));
+    const campaigns = operations.filter(operation => operation.campaignOperation);
+    check(campaigns.length === 1 && campaigns[0].campaignOperation.create.status === 'PAUSED',
+      'Probe requires exactly one paused campaign.');
+    const campaign = campaigns[0].campaignOperation.create;
+    if (definition.selection) delete campaign.selectiveOptimization;
+    if (definition.geo) delete campaign.geoTargetTypeSetting;
+    const outcome = submitBatch(operations);
+    reports.push({label: definition.label, outcome});
+    // A transport failure or malformed response is not grounds for further attempts.
+    if (outcome.exception || !outcome.complete || outcome.rows.some(row => row.status === 'UNKNOWN')) break;
+    // An isolated campaign success makes optional-field probes unnecessary.
+    if (definition.label === 'CAMPAIGN_AND_PREREQUISITES' && outcome.ok) break;
+  }
+  return reports;
 }
 
 function makePlan(context) {

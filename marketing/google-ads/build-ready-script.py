@@ -1,4 +1,4 @@
-"""Bundle existing SoulBuddy image ads into one account-ready Google Ads script.
+"""Bundle existing SoulBuddy image ads into installer and Preview-only diagnostic.
 
 No network, credentials, new artwork or video uploads. Run with Python 3.10+ and
 Pillow 10 or newer. JPEG conversion preserves the existing layout and exact dimensions.
@@ -13,13 +13,14 @@ from pathlib import Path
 from PIL import Image
 
 MARKER = 'const EMBEDDED_IMAGES = []; // @SOULBUDDY_IMAGES@'
+PREVIEW_MARKER = 'const PREVIEW_CHECK_ONLY = false; // @SOULBUDDY_PREVIEW_CHECK@'
 FORMATS = (('landscape', 1200, 628), ('square', 1200, 1200), ('portrait', 1200, 1500))
 
 
 def build(source_root: Path, output: Path) -> None:
     source = (source_root / 'setup-google-ads.js').read_text(encoding='utf-8')
-    if source.count(MARKER) != 1:
-        raise ValueError('Expected one reviewed image-bundle marker')
+    if source.count(MARKER) != 1 or source.count(PREVIEW_MARKER) != 1:
+        raise ValueError('Expected one image-bundle marker and one diagnostic-mode marker')
     images, manifest = [], []
     for shape, width, height in FORMATS:
         path = source_root / 'media' / 'export' / 'images' / f'01-transformation-{shape}-{width}x{height}.png'
@@ -48,10 +49,16 @@ def build(source_root: Path, output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
     target = output / 'SoulBuddy-Ready-to-Run.js'
     target.write_text(bundled, encoding='utf-8', newline='\n')
+    diagnostic = output / 'SoulBuddy-Preview-Check.js'
+    diagnostic.write_text(bundled.replace(PREVIEW_MARKER,
+        'const PREVIEW_CHECK_ONLY = true; // @SOULBUDDY_PREVIEW_CHECK@'), encoding='utf-8', newline='\n')
     summary = {'script': target.name, 'sha256': hashlib.sha256(target.read_bytes()).hexdigest(),
-               'bytes': target.stat().st_size, 'imageCount': 3, 'uploadedVideoCount': 0, 'images': manifest}
+               'bytes': target.stat().st_size, 'imageCount': 3, 'uploadedVideoCount': 0, 'images': manifest,
+               'diagnostic': {'script': diagnostic.name, 'previewOnly': True,
+                              'sha256': hashlib.sha256(diagnostic.read_bytes()).hexdigest(),
+                              'bytes': diagnostic.stat().st_size}}
     (output / 'manifest.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
-    print(f'Built {target.name}: {summary["bytes"]:,} bytes, three embedded images, zero video uploads')
+    print(f'Built installer and Preview-only diagnostic: three embedded images each, zero video uploads')
 
 
 def main() -> None:
