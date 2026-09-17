@@ -1,10 +1,12 @@
 # SoulBuddy: ready-to-run Google Ads installer
 
-Prepared 17 September 2026 for **790-445-9880**. Replaces the earlier configurable kit. No configuration edits or separate image/video uploads are required.
+Revision **2026-09-17.conversion-order-1**, for **790-445-9880**. Replaces the earlier configurable kit. No configuration edits or separate image/video uploads are required.
 
 ## Run
 
 Open `ready/SoulBuddy-Ready-to-Run.js` as text. Copy ALL of it into a new script under Google Ads > Tools > Bulk actions > Scripts, inside account 790-445-9880. Authorize, Preview, inspect the log, then Run the same unchanged script. Preview does not persist AdsApp mutations; Run creates PAUSED.[1][2]
+
+When no persisted SoulBuddy download action exists, Preview reports **PREVIEW STRUCTURE PASSED**, not complete install-goal validation. Run first creates the real conversion action, checks its returned positive ID, then submits the campaign with that exact ID. No live campaign is ever submitted without explicit install-goal binding. Do not use the older Preview Check file to install.
 
 Use the generated file, not the shorter `setup-google-ads.js` source template. The long image-data line is necessary. No developer token, external hosting, private-repository access, Drive folder or YouTube channel is needed.
 
@@ -48,7 +50,7 @@ Screenshots derive from the repository's September 9 device captures. Confirm th
 
 It reuses one enabled primary Google Play download action for the exact SoulBuddy package and the account's conversion owner. Multiple eligible actions are reduced to the lowest numeric ID, never combined for double counting.
 
-When none exists and this customer owns its conversions, the atomic request creates `GOOGLE_PLAY_DOWNLOAD` / `DOWNLOAD`, primary, default monetary value zero, and selects it for this campaign. Google Play downloads do not require adding Firebase Analytics code.[8][9] Downloads do not measure opens, retention or spiritual progress.
+When none exists and this customer owns its conversions, a separate first request creates `GOOGLE_PLAY_DOWNLOAD` / `DOWNLOAD`, primary, default monetary value zero. Only after Google returns a real positive resource ID does the second request create the paused campaign and select that conversion. Google Play downloads do not require adding Firebase Analytics code.[8][9] Downloads do not measure opens, retention or spiritual progress.
 
 A new primary action is an account-level measurement resource: review other campaigns using account-default DOWNLOAD goals, which may include the new action. No existing conversion action, campaign or goal setting is overwritten. Existing disabled/removed/secondary actions are not silently promoted or duplicated. Visible eligible manager-owned actions can be reused; missing actions are never created under the wrong owner.[10]
 
@@ -56,7 +58,9 @@ Unexpected ownership, disabled measurement or currency conditions stop before mu
 
 ## Safety and verification
 
-One `AdsApp.mutateAll` request with `partialFailure: false` contains the optional new conversion, up to three images, budget, paused campaign, country, language, ad group and ad. A validation rejection commits none of those requested operations.[1] A transport failure can hide a committed paused result: inspect the account before retrying. No blind retry or false success follows an ambiguous response.
+**Two request stages, not one overall transaction:** create the install conversion if missing, then submit up to three images, budget, paused campaign, country, language, ad group and ad in one `AdsApp.mutateAll` request with `partialFailure: false`. If that campaign request is rejected, its operations are atomic, but a conversion created in the earlier request remains.[1] A rerun discovers and reuses it. No prior conversion is deleted as rollback. A transport error or malformed result requires account inspection before retrying; no blind automatic retry follows it.
+
+For a fresh account, Preview separately simulates conversion creation, then tests the full campaign structure without explicit selection. This is a deliberate **Preview-only limitation**, not a live fallback: simulated conversion IDs are never read or reused. With an existing persisted action, Preview includes the real binding. The optional-field probe loop has been retired after the user log isolated the failing reference. See `TROUBLESHOOTING.md` for the evidence and limits.
 
 No customer/remarketing lists, inferred religious profiles, addiction-based audiences or private prayer/journal data are supplied. Religious content has personalized-advertising restrictions; approval is not guaranteed.[11] The installer does not modify billing, existing campaigns, existing conversions, account-default goals, recommendations or the app. New primary-action implications are described above. This is not an ongoing budget monitor.
 
@@ -71,7 +75,7 @@ node --test marketing/google-ads/setup-google-ads.test.cjs
 
 The GitHub workflow builds, tests, publishes an artifact and commits the generated script/manifest without app releases or Ads/YouTube uploads. There is one readable implementation, not a separate unmaintained installer.
 
-**51 local tests pass**, including the real generated image bundle, currency budgets, wrong account, new/existing conversions, manager ownership, duplicate campaigns, asset reuse, corruption, paused state, dates, atomic references, Preview and errors. AdsApp is mocked: this is NOT live API/account validation, policy approval or evidence of performance. Run Google's Preview and review the campaign before activation.
+**68 offline regression tests pass**, including staged conversion creation, the original temporary-ID failure, Preview without persistence, retained conversion reuse, refusal of unbound live submissions, and the real generated image bundle, currency budgets, wrong account, new/existing conversions, manager ownership, duplicate campaigns, asset reuse, corruption, paused state, dates, atomic references, Preview and errors. AdsApp is mocked: this is NOT live API/account validation, policy approval or evidence of performance. Run Google's Preview and review the campaign before activation.
 
 ## Official references
 

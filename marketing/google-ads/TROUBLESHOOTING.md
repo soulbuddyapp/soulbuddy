@@ -1,37 +1,44 @@
-# Diagnose the Google Ads campaign rejection
+# Install-conversion dependency repair
 
-The reported Changes entries show a failure at campaign creation followed by failures of the dependent location, language, ad group and ad. The supplied text does **not** contain a specific Google Ads validation code. No root cause is confirmed. Do not interpret the balance warning as that code, change bidding speculatively, or delete resources based solely on the Changes view.
+Revision: `2026-09-17.conversion-order-1`.
 
-## One unchanged file, Preview only
+## Evidence from the supplied Preview log
 
-Use `ready/SoulBuddy-Preview-Check.js`, not the installer. Paste the entire generated file into a new Google Ads script in account 790-445-9880, authorize if asked, and click **Preview**. Open the execution's **Logs / log statements**, not **Changes**, and copy the block between:
+On 17 September 2026 at 17:24 (account timezone Africa/Lagos), the diagnostic reported:
 
-```
-=== SOULBUDDY DIAGNOSTIC BEGIN ===
-...
-=== SOULBUDDY DIAGNOSTIC END ===
-```
+- `FULL_INSTALLER` and `CAMPAIGN_AND_PREREQUISITES` failed with `Resource was not found. At campaignOperation.create.selectiveOptimization.conversionActions`.
+- The request referred to the newly created action as `customers/7904459880/conversionActions/-4`.
+- `WITHOUT_EXPLICIT_CONVERSION_SELECTION` passed with the same bidding, budget, dates and geographic override.
+- `WITHOUT_GEO_OVERRIDE` failed at the same conversion-selection field; omitting both optional settings passed.
 
-If the account preflight stops before that block, copy its `SOULBUDDY SCRIPT ERROR` or existing-campaign message instead. Do not edit any configuration or upload images/videos. The three existing images are already embedded. This diagnostic is **not an installer or a confirmed fix**: clicking Run exits before account reads or mutations. An additional guard checks Preview at the mutation boundary.
+This isolates the failing reference in that Preview execution. It does **not** establish that every temporary conversion reference fails in the live Google Ads API, nor prove a billing, bidding or geographic fault. The failed criteria, ad group and ad reference a campaign that did not succeed; they are consistent with downstream dependency failures. Their final acceptance still needs validation.
 
-## What it checks
+The small `fixtures/temporary-conversion-request.json` is a reduced regression fixture derived from the reported dependency, not an independently runnable campaign request or a full copy of the user's logs.
 
-It submits the unchanged installer request to Google Preview and prints `getErrorMessages()` individually beside each operation type. This is the documented error surface; if Google still supplies a generic message, the script preserves it rather than inventing a code. It does not print image bytes, access tokens or raw requests. Individual messages and message counts are bounded; unusually long data is redacted.
+## Repair
 
-Only if the full request gives a complete, inspectable campaign failure, the Preview-only file tries a bounded diagnostic sequence: campaign plus prerequisites; then the same isolated request without explicit conversion selection; without the geographic-presence override; and without both optional settings. Each request independently defines its temporary resources. The script stops early when the isolated request passes, or after an exception, incomplete response or uninspectable result. At most five Preview batches are submitted including the original.
+The installer no longer puts a temporary conversion-action ID into campaign selection. Existing eligible SoulBuddy download actions are reused. Otherwise it creates the action in a standalone request, checks Google's returned resource name for a positive ID and correct owner/type, and binds that actual ID before submitting the campaign hierarchy. If the ID is absent, malformed or unreadable, no campaign is submitted. The campaign remains paused and nothing is enabled automatically.
 
-These are controlled comparisons, **not fallback campaigns**. The original request is not changed. No variant can be submitted by the normal installer. No bid, budget, duration, app ID, ad copy or live geographic targeting changes are made. Passing a reduced request is evidence to investigate an interaction, not proof of its cause. Never take the reduced request and launch it without a reviewed fix.
+Budget, duration, country, language, bidding, existing conversion-selection rules, image bytes and ad copy are unchanged. Optional-field probe variants have been removed rather than becoming hidden live fallbacks.
 
-Google Preview simulates AdsApp changes and does not save them. It is not equivalent to a validated live transaction; Google's documentation explicitly warns that code relying on newly created objects can behave differently in Preview. A successful Preview does not certify account eligibility or a subsequent live execution. The diagnostic uses no external email, Drive, HTTP or other side-effecting service.
+## What Preview can and cannot prove
 
-The normal `SoulBuddy-Ready-to-Run.js` has the same original campaign payload and improved operation-level logs. It still creates PAUSED only. Do not use it for another live attempt just because a reduced diagnostic probe passes. No campaign failure has been claimed fixed by this diagnostic update.
+Google states that Preview does not create objects and that dependent reads can behave differently from live execution. See [Preview Mode](https://developers.google.com/google-ads/scripts/docs/preview).
 
-## Validation and references
+A fresh account therefore gets two simulations: conversion creation, then the **complete campaign structure without explicit conversion binding**. The log ends with `PREVIEW STRUCTURE PASSED. Nothing saved. Install-goal binding remains unvalidated until Run.` A simulated positive or negative conversion ID is never treated as persisted. The actual Run always requires explicit selection of a real action. With an already-existing action, Preview tests that binding too.
 
-The existing installer tests remain; `diagnostics.test.cjs` adds 19 offline regression tests for accidental Run protection, all probe paths, preserved bidding/budgets/dates, ambiguous results, original-request immutability, logging and both generated distributions. These use mocked AdsApp responses, not a live Ads account.
+This is not an assertion that Preview has verified the untested binding. A real Run is still required for account-side acceptance, and may expose another error. If the campaign request fails, the newly persisted conversion remains; a later Run finds it instead of duplicating it. Earlier successful stages are never described as rolled back by a later atomic rejection.
 
-- MutateResult error interface: https://developers.google.com/google-ads/scripts/docs/reference/adsapp/adsapp_mutateresult
-- Preview and its limitations: https://developers.google.com/google-ads/scripts/docs/preview
-- Atomic requests: https://developers.google.com/google-ads/scripts/docs/concepts/mutate
-- Temporary negative resource IDs: https://developers.google.com/google-ads/api/docs/mutating/best-practices
-- Current bidding compatibility (standard MaximizeConversions includes App campaigns): https://developers.google.com/google-ads/api/docs/campaigns/bidding/strategy-types
+## Use the corrected installer
+
+Replace all of the older installer in Google Ads Scripts with `ready/SoulBuddy-Ready-to-Run.js`. Do not append it. Preview, inspect the log, then Run the same unchanged file. Check for `SOULBUDDY BUILD 2026-09-17.conversion-order-1` and, after successful live creation, `CREATED PAUSED`.
+
+The `ready/SoulBuddy-Preview-Check.js` variant remains strictly Preview-only for existing diagnostic workflows; Run is a no-op. It uses the same corrected staging logic, not a separate implementation. Do not run simultaneous copies or schedule the installer.
+
+No extra image/video uploads or code configuration are required. Confirm campaign dates, ad previews, install tracking and billing before manual activation.
+
+## Regression coverage and remaining limit
+
+The stateful fake backend refuses a reference to an unpersisted conversion, reproduces the reported failure, and preserves real conversion IDs across simulated reruns. Tests cover first-run setup, existing/manager-owned conversions, partial-stage retention, ambiguous responses, corrupted media, account/currency guards, duplicate campaigns and Preview's refusal to invent persisted IDs. These are offline tests, not a live Google Ads integration run or policy approval.
+
+Google documents using a successful mutation's returned resource name for follow-on work in [Mutate](https://developers.google.com/google-ads/scripts/docs/concepts/mutate). The [App campaign guide](https://developers.google.com/google-ads/api/docs/app-campaigns/create-campaign) describes selective optimization as optional for standard App campaigns. Here it is omitted only in a fresh-account Preview; the live installer preserves explicit install measurement.

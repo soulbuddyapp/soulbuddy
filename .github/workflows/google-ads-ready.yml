@@ -8,6 +8,7 @@ on:
       - '.github/workflows/google-ads-ready.yml'
       - 'marketing/google-ads/setup-google-ads.js'
       - 'marketing/google-ads/*.test.cjs'
+      - 'marketing/google-ads/fixtures/**'
       - 'marketing/google-ads/build-ready-script.py'
       - 'marketing/google-ads/media/export/images/01-transformation-*.png'
 

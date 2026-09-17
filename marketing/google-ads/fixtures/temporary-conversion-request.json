@@ -1,0 +1,4 @@
+[
+  {"conversionActionOperation":{"create":{"resourceName":"customers/7904459880/conversionActions/-4","name":"SoulBuddy | Google Play downloads | Install pilot","type":"GOOGLE_PLAY_DOWNLOAD","category":"DOWNLOAD","appId":"app.soulbuddy.soulbuddy","status":"ENABLED","primaryForGoal":true}}},
+  {"campaignOperation":{"create":{"resourceName":"customers/7904459880/campaigns/-2","status":"PAUSED","selectiveOptimization":{"conversionActions":["customers/7904459880/conversionActions/-4"]}}}}
+]
