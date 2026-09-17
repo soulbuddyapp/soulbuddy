@@ -1,7 +1,7 @@
 {
   "script": "SoulBuddy-Ready-to-Run.js",
-  "sha256": "cd89ef387ae7d0a6a170b8797a6a1d32826d39cdf71211cb8e730bcb978135c2",
-  "bytes": 663965,
+  "sha256": "6a6574909703bb7fd20c4d3591f6901d2506fbceb72eaf9724e25ac2b5fecb42",
+  "bytes": 670281,
   "imageCount": 3,
   "uploadedVideoCount": 0,
   "images": [
@@ -32,5 +32,11 @@
       "source": "media/export/images/01-transformation-portrait-1200x1500.png",
       "sourceSha256": "5bcb818b75f3a09dfe7ce43ec6e92b36c4ee77da02e335b57cada03504bc8729"
     }
-  ]
+  ],
+  "diagnostic": {
+    "script": "SoulBuddy-Preview-Check.js",
+    "previewOnly": true,
+    "sha256": "5947bf9d2c81bbcf10ddfe212358e1febe20707d5f2e1caf4264a4f1c3f6cea6",
+    "bytes": 670280
+  }
 }
