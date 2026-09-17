@@ -9,7 +9,7 @@
  * Do not schedule this installer. See README.md for budget and review details.
  * The generated Preview Check variant refuses to operate outside Google Preview.
  */
-const SCRIPT_REVISION = '2026-09-17.conversion-order-1';
+const SCRIPT_REVISION = '2026-09-17.criteria-names-1';
 const PREVIEW_CHECK_ONLY = true; // @SOULBUDDY_PREVIEW_CHECK@
 const PILOT = Object.freeze({
   customerId: '7904459880',
@@ -225,6 +225,7 @@ function submitBatch(operations) {
     check(bound || (!selection && AdsApp.getExecutionInfo().isPreview() === true),
       'Campaign submission requires a real install-conversion ID. Temporary IDs and live unbound campaigns are forbidden.');
   });
+  validateTargetingReferences(operations);
   let results;
   try {
     results = AdsApp.mutateAll(operations, {apiVersion: PILOT.apiVersion, partialFailure: false});
@@ -358,15 +359,61 @@ function buildOperations(context, plan, countryResource, languageResource, conve
       conversionActions: [conversion.resourceName]
     };
   }
-  operations.push({campaignCriterionOperation: {create: {campaign, location: {geoTargetConstant: countryResource}}}});
-  operations.push({campaignCriterionOperation: {create: {campaign, language: {languageConstant: languageResource}}}});
+  // CampaignCriterion has a COMPOSITE resource name. Explicitly preserve the
+  // parent campaign ID in both fields instead of leaving Preview to infer it.
+  // The final negative IDs identify these new criteria, not the geo/language constants.
+  const criteriaPrefix = campaign.replace('/campaigns/', '/campaignCriteria/') + '~';
+  operations.push({campaignCriterionOperation: {create: {
+    resourceName: criteriaPrefix + '-5', campaign, location: {geoTargetConstant: countryResource}
+  }}});
+  operations.push({campaignCriterionOperation: {create: {
+    resourceName: criteriaPrefix + '-6', campaign, language: {languageConstant: languageResource}
+  }}});
   operations.push({adGroupOperation: {create: {resourceName: adGroup, campaign,
     name: 'Christ-centered daily habits', status: 'ENABLED'}}});
   operations.push({adGroupAdOperation: {create: {adGroup, status: 'ENABLED', ad: {appAd: {
     headlines: HEADLINES.map(text => ({text})), descriptions: DESCRIPTIONS.map(text => ({text})),
     images: imageResources.map(asset => ({asset}))
   }}}}});
+  validateTargetingReferences(operations);
   return {operations, campaignIndex};
+}
+
+// Project-specific preflight, not a reimplementation of Google's API validation.
+// Refuse missing targeting, mismatched composite parents or duplicate temp IDs.
+function validateTargetingReferences(operations) {
+  const campaigns = operations.filter(op => op.campaignOperation).map(op => op.campaignOperation.create);
+  const criteria = operations.filter(op => op.campaignCriterionOperation).map(op => op.campaignCriterionOperation.create);
+  if (!campaigns.length && !criteria.length) return; // standalone conversion stage
+  check(campaigns.length === 1 && criteria.length === 2,
+    'Targeting preflight: the pilot requires one campaign and both location and language criteria.');
+  const parent = campaigns[0] && campaigns[0].resourceName;
+  check(typeof parent === 'string' &&
+    new RegExp('^customers/' + PILOT.customerId + '/campaigns/-[1-9][0-9]*$').test(parent),
+    'Targeting preflight: unexpected parent campaign resource.');
+  const prefix = parent.replace('/campaigns/', '/campaignCriteria/') + '~';
+  criteria.forEach(criterion => {
+    check(criterion && criterion.campaign === parent && typeof criterion.resourceName === 'string' &&
+      criterion.resourceName.startsWith(prefix) && /^-[1-9][0-9]*$/.test(criterion.resourceName.slice(prefix.length)),
+      'Targeting preflight: criterion resourceName must contain the SAME campaign ID and a unique negative criterion ID.');
+    check(criterion.negative === undefined || criterion.negative === false,
+      'Targeting preflight: the pilot requires positive targets, not exclusions.');
+  });
+  const locations = criteria.filter(c => c.location && !c.language);
+  const languages = criteria.filter(c => c.language && !c.location);
+  check(locations.length === 1 && languages.length === 1 &&
+    /^geoTargetConstants\/[1-9][0-9]*$/.test(locations[0].location.geoTargetConstant) &&
+    /^languageConstants\/[1-9][0-9]*$/.test(languages[0].language.languageConstant),
+    'Targeting preflight: one valid location and one valid language are required.');
+  const ids = new Set();
+  operations.forEach(operation => {
+    const create = Object.values(operation)[0].create;
+    if (!create || typeof create.resourceName !== 'string') return;
+    const id = create.resourceName.split(/[\/~]/).pop();
+    if (!/^-[1-9][0-9]*$/.test(id)) return;
+    check(!ids.has(id), 'Targeting preflight: duplicate temporary resource ID ' + id + '.');
+    ids.add(id);
+  });
 }
 
 function validateImages(images) {

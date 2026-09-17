@@ -1,7 +1,7 @@
 {
   "script": "SoulBuddy-Ready-to-Run.js",
-  "sha256": "fb9376465fd7f42063c97e0811f246feb132558849c85a0216a3832cb4796509",
-  "bytes": 671379,
+  "sha256": "de24192eef63b452aa9807771193741f50bb17cbc08591459df077a7d0ba1cfa",
+  "bytes": 674309,
   "imageCount": 3,
   "uploadedVideoCount": 0,
   "images": [
@@ -36,7 +36,7 @@
   "diagnostic": {
     "script": "SoulBuddy-Preview-Check.js",
     "previewOnly": true,
-    "sha256": "d4390877945f1ea84d45f4d0f6491dab3469630732e041165bc0fd6803759777",
-    "bytes": 671378
+    "sha256": "1029ecd75273b95e676feef819bd53e1696511fa09f3c0e54f0b1ac1bb8a9a3b",
+    "bytes": 674308
   }
 }
