@@ -1,0 +1,36 @@
+{
+  "script": "SoulBuddy-Ready-to-Run.js",
+  "sha256": "cd89ef387ae7d0a6a170b8797a6a1d32826d39cdf71211cb8e730bcb978135c2",
+  "bytes": 663965,
+  "imageCount": 3,
+  "uploadedVideoCount": 0,
+  "images": [
+    {
+      "name": "SoulBuddy transformation landscape 72be28f6355106f1",
+      "width": 1200,
+      "height": 628,
+      "bytes": 92929,
+      "sha256": "72be28f6355106f11bccf2657b7f4380d15309247ed9d329092205e8455e4ca7",
+      "source": "media/export/images/01-transformation-landscape-1200x628.png",
+      "sourceSha256": "ad62acac35a59f4d7df1e5919a60375c847246e242b1cd587b2b0864e7277c88"
+    },
+    {
+      "name": "SoulBuddy transformation square 8ed533e47a38583b",
+      "width": 1200,
+      "height": 1200,
+      "bytes": 154081,
+      "sha256": "8ed533e47a38583b2a791eb2d8a478404d5c6ea491013261f14d12fc70789311",
+      "source": "media/export/images/01-transformation-square-1200x1200.png",
+      "sourceSha256": "3ab1b68420007e003b49966448d81ac9ba4cc9b38121fc04e1f88ecf43d87290"
+    },
+    {
+      "name": "SoulBuddy transformation portrait 7ebe82f3e0a5def1",
+      "width": 1200,
+      "height": 1500,
+      "bytes": 237537,
+      "sha256": "7ebe82f3e0a5def1362e46715a9102a588c9349b9c42a792721e19e74bbeeda8",
+      "source": "media/export/images/01-transformation-portrait-1200x1500.png",
+      "sourceSha256": "5bcb818b75f3a09dfe7ce43ec6e92b36c4ee77da02e335b57cada03504bc8729"
+    }
+  ]
+}
