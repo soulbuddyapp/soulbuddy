@@ -1,54 +1,42 @@
-# Campaign targeting and install-conversion reference repairs
+# Targeting repair: observed evidence and validation limits
 
-Current revision: `2026-09-17.criteria-names-1`.
+## Observed user logs, 17 September 2026
 
-## Latest supplied evidence: 18:01 Preview
+The original batch failed to resolve `selectiveOptimization.conversionActions` when it referenced a new temporary conversion. Separating conversion creation and using its real returned ID removed that failure from the next structural Preview. The conversion binding still requires live validation on a fresh account.
 
-The user's 17 September 2026 log (Africa/Lagos) reported success for the images, budget, campaign, ad group and ad. Only the location and language criteria failed, both with:
+At 18:01, `conversion-order-1` passed the image, budget, campaign, ad-group and ad operations, but both location and language failed with:
 
-> The field's contents don't match another field that represents the same data. At campaignCriterionOperation.create.resourceName
-
-Both requests referenced `customers/7904459880/campaigns/-2` but omitted their own `resourceName`. The location and language constants were `geoTargetConstants/2566` and `languageConstants/1000`.
-
-The earlier 17:24 log contained the same two resource-name errors, in addition to the independent conversion-selection failure. Treating all the other failures as downstream campaign failures was too broad; this log distinguishes the two targeting defects. Preview success entries do not establish persistence.
-
-## Targeted change
-
-`CampaignCriterion.resource_name` is a composite of customer, campaign and criterion IDs. The new request explicitly provides:
-
-```text
-Location: customers/7904459880/campaignCriteria/-2~-5
-Language: customers/7904459880/campaignCriteria/-2~-6
-Campaign: customers/7904459880/campaigns/-2  (in both entries)
+```
+The field's contents don't match another field that represents the same data.
+At campaignCriterionOperation.create.resourceName
 ```
 
-The final negative IDs are unique temporary IDs for the two newly created criteria. The country and language constants remain unchanged. A preflight validates matching parents, unique temporary IDs, and the presence of both positive targets. It runs while building the request before a conversion write and again at the campaign mutation boundary.
+At 19:20, `criteria-names-1` produced the same two errors despite explicitly supplying `campaignCriteria/-2~-5` and `campaignCriteria/-2~-6`. That proposed repair did not work. The remaining operations again reported Preview success. These are simulated operation results, not evidence of saved account resources.
 
-No targeting is omitted or relaxed in Preview or Run. The same campaign batch remains atomic (`partialFailure: false`); there is no automatic retry or reduced-payload fallback. The paused campaign, install goal, bidding, budget, dates, ad text and embedded image bytes are otherwise unchanged.
+The error identifies a resource-name conflict but does not expose the internal inferred/resolved values or prove that all temporary-ID use is unsupported. No exact undocumented Google-internal cause is asserted here.
 
-This makes the request's two redundant parent representations explicit and consistent. The log does not reveal which implicit resource name Google constructed or identify an internal implementation bug. The local checks enforce the documented name format; they do not prove Google's acceptance of the revised batch.
+## Current change
 
-## Earlier conversion-selection repair remains
+`2026-09-17.persisted-targeting-1` no longer relies on that failing temporary-parent path. It saves the paused campaign first and uses Google's returned positive campaign resource for a later targeting request. It omits criterion resourceName and criterionId entirely. This follows the lifecycle and criterion construction in Google's Add App Campaign sample:
 
-The 17:24 diagnostic separately reported `Resource was not found` at `campaignOperation.create.selectiveOptimization.conversionActions`, referring to `conversionActions/-4`. Removing only that selection allowed the isolated campaign to pass; removing only the geographic override did not.
+https://developers.google.com/google-ads/api/samples/add-app-campaign
 
-Run now creates a missing SoulBuddy Play-download conversion in a separate request, reads its actual positive resource ID and binds it before campaign creation. A malformed or missing returned ID blocks the campaign. If the campaign request fails, that earlier conversion may remain saved and is reused on a subsequent run.
+Both Nigeria and English remain required. The installer does not launch a wider campaign or reduce targeting to obtain a passing result. Budget, bidding, duration, copy and image bytes are unchanged.
 
-Fresh-account Preview cannot persist a new conversion, so it tests the campaign structure without that binding and says so. It does include both corrected targeting entries. Existing-conversion Preview tests the real binding as well. No live campaign can be submitted without the real install-goal ID.
+## Preview is explicitly partial before a parent exists
 
-## Use
+Google Preview saves no parent. Consequently, fresh Preview validates parent and creative structure but does not submit targeting against a fake/new campaign ID. It says `TARGETING: DEFERRED, NOT VALIDATED BY GOOGLE` and `PREVIEW PARTIAL CHECK PASSED`, not full setup success. A missing conversion binding is also deferred. These limits cannot be erased by locally invented IDs or mocked tests.
 
-Replace all the older installer text with `ready/SoulBuddy-Ready-to-Run.js`. Verify the first log line contains `2026-09-17.criteria-names-1` and click Preview. Run only after the Preview completes without failed operations. The fresh-conversion success message still says `PREVIEW STRUCTURE PASSED` and explains its binding limitation.
+Run is needed to save a real paused parent, attach targets to it and inspect the resulting state. A Preview performed after a partial Run can validate attachment against that actual saved parent without changing it. The optional diagnostic file itself never performs live writes.
 
-Do not use the Preview Check variant to install; that file refuses live writes. On successful Run, the campaign remains PAUSED. Review previews, Nigeria/English targeting, conversion tracking, dates and billing before manually enabling it. No new media uploads or code edits are required.
+## Completion and interrupted setup
 
-## Verification boundaries
+Only `SETUP COMPLETE - PAUSED` (or `ALREADY CONFIGURED AND PAUSED` on a verified rerun) means the installer read back the expected campaign, install goal, country, language and creative. It does not mean policy approval, billing readiness or actual delivery.
 
-The observed criterion requests and error are retained in `fixtures/criteria-resource-name-error.json`. New tests check that the old omitted-name request is rejected by the local preflight, verify exact generated composite names, and exercise missing/mismatched targeting and duplicate-ID cases. These are reference-contract tests, not a reconstruction of Google's server or a live integration result. The existing conversion-order and safety suite remains intact.
+On a failure after the parent stage, the parent and conversion remain saved. Keep the campaign paused. The final target/creative batch is atomic per request, not a rollback of the earlier stages. The installer can resume the same matching paused pilot without resetting its dates or creating a duplicate. It will not overwrite conflicting targets, edited creative, changed budgets/bids/dates or enabled/removed campaigns. There is no automatic retry after transport errors.
 
-Sources:
+An incomplete readback may reflect eventual visibility or a genuine mismatch. In either case it is not treated as success. Inspect the existing campaign and logs before rerunning. Do not delete resources or rename the campaign solely to bypass the safety check.
 
-- [CampaignCriterion resource-name format](https://developers.google.com/google-ads/api/reference/rpc/v25/CampaignCriterion)
-- [Temporary resource names and unique negative IDs](https://developers.google.com/google-ads/api/docs/mutating/best-practices)
-- [Ads Scripts mutate and result handling](https://developers.google.com/google-ads/scripts/docs/concepts/mutate)
-- [Google Ads Preview limitations](https://developers.google.com/google-ads/scripts/docs/preview)
+## Verification status
+
+Local tests model the observed failure and the new staged lifecycle; they do not reproduce Google's backend. The next account-side Run is still needed to establish whether Google accepts the revised target request. No current source claims otherwise.

@@ -1,0 +1,12 @@
+{
+  "revision": "2026-09-17.criteria-names-1",
+  "mode": "PREVIEW",
+  "observedAt": "2026-09-17T19:20:53+01:00",
+  "campaignOperation": "SUCCESS",
+  "adGroupOperation": "SUCCESS",
+  "adGroupAdOperation": "SUCCESS",
+  "failedOperations": ["location campaignCriterionOperation", "language campaignCriterionOperation"],
+  "message": "The field's contents don't match another field that represents the same data.",
+  "field": "campaignCriterionOperation.create.resourceName",
+  "note": "Observed output supplied by the advertiser; no claim to reconstruct Google internals."
+}
