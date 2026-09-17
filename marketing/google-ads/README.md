@@ -1,6 +1,6 @@
 # SoulBuddy: ready-to-run Google Ads installer
 
-Revision **2026-09-17.conversion-order-1**, for **790-445-9880**. Replaces the earlier configurable kit. No configuration edits or separate image/video uploads are required.
+Revision **2026-09-17.criteria-names-1**, for **790-445-9880**. Replaces the earlier configurable kit. No configuration edits or separate image/video uploads are required.
 
 ## Run
 
@@ -11,6 +11,12 @@ When no persisted SoulBuddy download action exists, Preview reports **PREVIEW ST
 Use the generated file, not the shorter `setup-google-ads.js` source template. The long image-data line is necessary. No developer token, external hosting, private-repository access, Drive folder or YouTube channel is needed.
 
 Review the new campaign's settings, ad previews, approval, install tracking, dates and billing; then enable it manually. Nothing starts spending during installation. Do not schedule or run simultaneous copies of this installer. Reruns stop for a same-named pilot (including removed), or another enabled/paused SoulBuddy App campaign. Existing campaigns are never changed or re-enabled.
+
+## Targeting reference repair
+
+The 18:01 Preview log accepted the campaign structure except for the two targeting operations, both at `campaignCriterionOperation.create.resourceName`. Their own resource names were omitted. The installer now provides `campaignCriteria/-2~-5` and `campaignCriteria/-2~-6` (under this customer), with the same campaign ID `-2` as each entry's `campaign` reference. The final negative IDs identify the newly created criteria; they are not replacements for Nigeria's `2566` or English's `1000` constants.[12][13]
+
+A local preflight checks those parent references, both required positive targets and temporary-ID uniqueness before any conversion write and again before campaign submission. It does not remove criteria, skip targeting in Preview, retry reduced campaigns or broaden the market. This is a targeted repair to the reported resource-name inconsistency; Google's internal inferred name was not exposed by the log and has not been independently reconstructed. Account-side acceptance of this revision remains unverified until Preview/Run succeeds. See `TROUBLESHOOTING.md`.
 
 ## Chosen setup
 
@@ -70,12 +76,12 @@ Build using Python 3.10+, Pillow 10+, and Node 20+:
 python -m pip install Pillow
 python marketing/google-ads/build-ready-script.py
 node --check marketing/google-ads/ready/SoulBuddy-Ready-to-Run.js
-node --test marketing/google-ads/setup-google-ads.test.cjs
+node --test marketing/google-ads/*.test.cjs
 ```
 
 The GitHub workflow builds, tests, publishes an artifact and commits the generated script/manifest without app releases or Ads/YouTube uploads. There is one readable implementation, not a separate unmaintained installer.
 
-**68 offline regression tests pass**, including staged conversion creation, the original temporary-ID failure, Preview without persistence, retained conversion reuse, refusal of unbound live submissions, and the real generated image bundle, currency budgets, wrong account, new/existing conversions, manager ownership, duplicate campaigns, asset reuse, corruption, paused state, dates, atomic references, Preview and errors. AdsApp is mocked: this is NOT live API/account validation, policy approval or evidence of performance. Run Google's Preview and review the campaign before activation.
+**The offline regression suite covers** explicit composite targeting names, matching parent references, required positive location/language targets and unique temporary IDs, as well as staged conversion creation, the original temporary-ID failure, Preview without persistence, retained conversion reuse, refusal of unbound live submissions, and the real generated image bundle, currency budgets, wrong account, new/existing conversions, manager ownership, duplicate campaigns, asset reuse, corruption, paused state, dates, atomic references, Preview and errors. AdsApp is mocked: this is NOT live API/account validation, policy approval or evidence of performance. Run Google's Preview and review the campaign before activation.
 
 ## Official references
 
@@ -100,3 +106,7 @@ The GitHub workflow builds, tests, publishes an artifact and commits the generat
 [10] https://developers.google.com/google-ads/api/docs/conversions/getting-started
 
 [11] https://support.google.com/adspolicy/answer/143465
+
+[12] https://developers.google.com/google-ads/api/reference/rpc/v25/CampaignCriterion
+
+[13] https://developers.google.com/google-ads/api/docs/mutating/best-practices

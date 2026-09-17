@@ -1,0 +1,11 @@
+{
+  "source": "User-supplied Google Ads Preview log, 17 September 2026 at 18:01:46 Africa/Lagos",
+  "scriptRevision": "2026-09-17.conversion-order-1",
+  "message": "The field's contents don't match another field that represents the same data.",
+  "location": "campaignCriterionOperation.create.resourceName",
+  "scope": "Campaign, assets, budget, ad group and ad reported SUCCESS; these two criterion operations reported FAILED. Preview saved no resources.",
+  "criteria": [
+    {"campaign": "customers/7904459880/campaigns/-2", "location": {"geoTargetConstant": "geoTargetConstants/2566"}},
+    {"campaign": "customers/7904459880/campaigns/-2", "language": {"languageConstant": "languageConstants/1000"}}
+  ]
+}
