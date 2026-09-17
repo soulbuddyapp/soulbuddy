@@ -1,238 +1,251 @@
 'use strict';
-// Offline contract/safety tests. These mock AdsApp, not Google's live validation.
+// These are offline tests with a mocked AdsApp, NOT live Google Ads API validation.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, 'setup-google-ads.js'), 'utf8');
 const clone = value => JSON.parse(JSON.stringify(value));
-const CUSTOMER = '1234567890';
-const CONVERSION = 'customers/' + CUSTOMER + '/conversionActions/77';
-const context = {customerId: CUSTOMER, currency: 'USD', today: '2026-09-17'};
-
-function harness(overrides = {}) {
+const CID = '7904459880', OWNER = 'customers/' + CID;
+const ACTION = OWNER + '/conversionActions/77';
+const eligible = (id = 77, changes = {}) => ({resourceName: OWNER + '/conversionActions/' + id,
+  name: 'SoulBuddy downloads', type: 'GOOGLE_PLAY_DOWNLOAD', appId: 'app.soulbuddy.soulbuddy',
+  status: 'ENABLED', primaryForGoal: true, ...changes});
+const fakeImages = () => [['landscape', 1200, 628], ['square', 1200, 1200], ['portrait', 1200, 1500]]
+  .map(([shape, width, height], i) => {
+    const data = Buffer.from([255, 216, i, 255, 217]);
+    const sha256 = crypto.createHash('sha256').update(data).digest('hex');
+    return {name: 'SoulBuddy transformation ' + shape + ' ' + sha256.slice(0, 16), width, height,
+      bytes: data.length, sha256, data: data.toString('base64')};
+  });
+function harness(options = {}) {
   const state = {queries: [], mutations: [], logs: []};
-  const sandbox = {
-    console: {log: (...args) => state.logs.push(args.join(' '))},
-    Utilities: {formatDate: (_date, zone, format) => {
-      assert.equal(zone, 'Africa/Lagos');
+  const images = options.images === undefined ? fakeImages() : options.images;
+  const utilities = {
+    DigestAlgorithm: {SHA_256: 'sha256'},
+    base64Decode: value => Array.from(Buffer.from(value, 'base64')),
+    computeDigest: (algorithm, bytes) => Array.from(crypto.createHash(algorithm).update(Buffer.from(bytes)).digest()),
+    formatDate: (_date, timezone, format) => {
+      assert.equal(timezone, options.timezone || 'Africa/Lagos');
       assert.equal(format, 'yyyy-MM-dd');
-      return context.today;
-    }},
-    AdsApp: {
-      currentAccount: () => ({getCustomerId: () => '123-456-7890',
-        getCurrencyCode: () => 'USD', getTimeZone: () => 'Africa/Lagos'}),
-      search: (query, options) => {
-        assert.equal(options.apiVersion, 'v25');
-        state.queries.push(query);
-        let rows;
-        if (query.includes('FROM campaign ')) rows = overrides.existing || [];
-        else if (query.includes('FROM geo_target_constant ')) rows = overrides.countries ||
-          [{geoTargetConstant: {resourceName: 'geoTargetConstants/2566', name: 'Nigeria'}}];
-        else if (query.includes('FROM language_constant ')) rows =
-          [{languageConstant: {resourceName: 'languageConstants/1000'}}];
-        else if (query.includes('FROM conversion_action ')) rows = overrides.conversions ||
-          [{conversionAction: {resourceName: CONVERSION, name: 'SoulBuddy downloads',
-            appId: 'app.soulbuddy.soulbuddy', primaryForGoal: true}}];
-        else if (query.includes('FROM asset ')) rows = overrides.assets || [];
-        else throw new Error('Unexpected query: ' + query);
-        let index = 0;
-        return {hasNext: () => index < rows.length, next: () => rows[index++]};
-      },
-      mutateAll: (operations, options) => {
-        state.mutations.push({operations: clone(operations), options: clone(options)});
-        if (overrides.transportError) throw new Error('Simulated transport failure');
-        if (overrides.shortResponse) return [];
-        return operations.map((_op, index) => ({
-          isSuccessful: () => !overrides.apiFailure,
-          getErrorMessages: () => ['Simulated API validation error'],
-          getResourceName: () => 'customers/' + CUSTOMER + '/campaigns/' + (9000 + index)
-        }));
-      },
-      getExecutionInfo: () => ({isPreview: () => Boolean(overrides.preview)})
+      return options.today || '2026-09-17';
     }
   };
+  const sandbox = {console: {log: (...args) => state.logs.push(args.join(' '))}, Utilities: utilities,
+    AdsApp: {
+      currentAccount: () => ({getCustomerId: () => options.customerId || '790-445-9880',
+        getCurrencyCode: () => options.currency || 'USD', getTimeZone: () => options.timezone || 'Africa/Lagos'}),
+      search: (query, settings) => {
+        assert.equal(settings.apiVersion, 'v25'); state.queries.push(query);
+        let rows;
+        if (query.includes('FROM campaign ') && query.includes('campaign.name =')) rows = options.named || [];
+        else if (query.includes('FROM campaign ')) rows = options.active || [];
+        else if (query.includes('FROM customer')) rows = options.customerRows || [{customer: {
+          id: CID, manager: Boolean(options.manager), conversionTrackingSetting: {
+            googleAdsConversionCustomer: options.owner === undefined ? OWNER : options.owner}}}];
+        else if (query.includes('FROM geo_target_constant ')) rows = options.countries ||
+          [{geoTargetConstant: {resourceName: 'geoTargetConstants/2566', name: 'Nigeria'}}];
+        else if (query.includes('FROM language_constant ')) rows = options.languages ||
+          [{languageConstant: {resourceName: 'languageConstants/1000'}}];
+        else if (query.includes('FROM conversion_action ')) rows =
+          (options.conversions === undefined ? [eligible()] : options.conversions).map(conversionAction => ({conversionAction}));
+        else if (query.includes('FROM asset ')) rows = (options.assets || []).map(asset => ({asset}));
+        else throw new Error('Unexpected query: ' + query);
+        let i = 0;
+        return {hasNext: () => i < rows.length, next: () => rows[i++]};
+      },
+      mutateAll: (operations, settings) => {
+        state.mutations.push({operations: clone(operations), settings: clone(settings)});
+        if (options.transportError) throw new Error('network timeout');
+        if (options.shortResponse) return [];
+        return operations.map((_operation, index) => ({
+          isSuccessful: () => !options.apiFailure,
+          getErrorMessages: () => ['test validation rejection'],
+          getResourceName: () => options.badResource || OWNER + '/campaigns/' + (9000 + index)
+        }));
+      },
+      getExecutionInfo: () => ({isPreview: () => Boolean(options.preview)})
+    }};
   vm.createContext(sandbox);
-  vm.runInContext(source + '\nglobalThis.h = {CONFIG, main, validateConfig, buildOperations,' +
-    'chooseConversion, gaqlString, toMicros, addDays, validDate};', sandbox);
-  const h = sandbox.h;
-  Object.assign(h.CONFIG, {expectedCustomerId: CUSTOMER, expectedCurrency: 'USD',
-    countryCode: 'NG', dailyBudget: 5});
-  return {h, state, config: h.CONFIG};
+  const code = options.code || source.replace('const EMBEDDED_IMAGES = []; // @SOULBUDDY_IMAGES@',
+    'const EMBEDDED_IMAGES = ' + JSON.stringify(images) + ';');
+  vm.runInContext(code + '\nglobalThis.h = {main, PILOT, HEADLINES, DESCRIPTIONS, EMBEDDED_IMAGES, makePlan,' +
+    'planConversion, buildOperations, validateImages, validateText, compareResourceIds, quoted, toMicros, validDate, addDays};', sandbox);
+  return {h: sandbox.h, state, utilities};
 }
-function create(overrides, edits = {}) {
-  const x = harness(overrides);
-  Object.assign(x.config, {mode: 'CREATE_PAUSED', acknowledgeSpendLimits: true}, edits);
-  return x;
-}
+function run(options = {}) {const x = harness(options); x.h.main(); return x;}
+function operations(x, key) {return x.state.mutations[0].operations.filter(op => op[key]).map(op => op[key].create);}
 
-test('packaged defaults cannot create or spend; identity, geography and money are blank', () => {
-  const box = {};
-  vm.createContext(box);
-  vm.runInContext(source + '\nglobalThis.c = CONFIG;', box);
-  assert.equal(box.c.mode, 'PLAN');
-  assert.equal(box.c.dailyBudget, null);
-  assert.equal(box.c.countryCode, '');
-  assert.equal(box.c.expectedCustomerId, '');
-  assert.equal(box.c.expectedCurrency, '');
-  assert.equal(box.c.acknowledgeSpendLimits, false);
-});
-test('PLAN performs reads only and exposes spend arithmetic', () => {
-  const {h, state} = harness(); h.main();
-  assert.equal(state.mutations.length, 0);
-  assert.match(state.logs.join('\n'), /"conservativeExposureBeforeTaxes": 140/);
-  assert.match(state.logs.join('\n'), /NOT a lifetime cap/);
-});
-test('campaign is paused; all six dependent operations are submitted atomically', () => {
-  const {h, state} = create(); h.main();
-  assert.equal(state.mutations.length, 1);
-  const {operations: ops, options} = state.mutations[0];
-  assert.deepEqual(options, {apiVersion: 'v25', partialFailure: false});
-  assert.equal(ops.length, 6);
-  const budget = ops[0].campaignBudgetOperation.create;
-  const campaign = ops[1].campaignOperation.create;
-  assert.equal(budget.amountMicros, '5000000');
-  assert.equal(budget.explicitlyShared, false);
-  assert.equal(campaign.campaignBudget, budget.resourceName);
+for (const [currency, daily] of [['USD', 3], ['NGN', 3000], ['EUR', 3], ['GBP', 2], ['CAD', 4], ['AUD', 4]]) {
+  test('zero-configuration ' + currency + ' allowance is explicit and read automatically', () => {
+    const x = run({currency});
+    assert.equal(operations(x, 'campaignBudgetOperation')[0].amountMicros, String(daily * 1000000));
+    assert.match(x.state.logs.join('\n'), new RegExp('"averageDailyBudget": ' + daily));
+    assert.match(x.state.logs.join('\n'), new RegExp('"conservativeWindowExposureBeforeTaxes": ' + daily * 28));
+  });
+}
+test('all campaign resources and three embedded image assets are atomic; parent always paused', () => {
+  const x = run();
+  assert.equal(x.state.mutations.length, 1);
+  assert.deepEqual(x.state.mutations[0].settings, {apiVersion: 'v25', partialFailure: false});
+  assert.equal(x.state.mutations[0].operations.length, 9);
+  const campaign = operations(x, 'campaignOperation')[0];
   assert.equal(campaign.status, 'PAUSED');
   assert.equal(campaign.advertisingChannelType, 'MULTI_CHANNEL');
   assert.equal(campaign.advertisingChannelSubType, 'APP_CAMPAIGN');
   assert.equal(campaign.appCampaignSetting.appId, 'app.soulbuddy.soulbuddy');
   assert.equal(campaign.appCampaignSetting.appStore, 'GOOGLE_APP_STORE');
-  assert.equal(campaign.appCampaignSetting.biddingStrategyGoalType,
-    'OPTIMIZE_INSTALLS_WITHOUT_TARGET_INSTALL_COST');
+  assert.equal(campaign.appCampaignSetting.biddingStrategyGoalType, 'OPTIMIZE_INSTALLS_WITHOUT_TARGET_INSTALL_COST');
   assert.deepEqual(campaign.maximizeConversions, {});
   assert.equal(campaign.targetCpa, undefined);
-  assert.deepEqual(campaign.selectiveOptimization.conversionActions, [CONVERSION]);
   assert.equal(campaign.startDateTime, '2026-09-17 00:00:00');
   assert.equal(campaign.endDateTime, '2026-09-30 23:59:59');
   assert.equal(campaign.geoTargetTypeSetting.positiveGeoTargetType, 'PRESENCE');
-  assert.equal(ops[2].campaignCriterionOperation.create.campaign, campaign.resourceName);
-  assert.equal(ops[3].campaignCriterionOperation.create.language.languageConstant, 'languageConstants/1000');
-  assert.equal(ops[4].adGroupOperation.create.type, undefined);
-  assert.equal(ops[5].adGroupAdOperation.create.adGroup, ops[4].adGroupOperation.create.resourceName);
-  assert.equal(ops[5].adGroupAdOperation.create.ad.appAd.headlines.length, 5);
-  assert.equal(ops[5].adGroupAdOperation.create.ad.appAd.descriptions.length, 5);
-  assert.doesNotMatch(JSON.stringify(ops), /userList|audience|customAudience|keyword|customerMatch/);
+  assert.deepEqual(campaign.selectiveOptimization.conversionActions, [ACTION]);
+  const assets = operations(x, 'assetOperation');
+  assert.equal(assets.length, 3);
+  const ad = operations(x, 'adGroupAdOperation')[0].ad.appAd;
+  assert.equal(ad.headlines.length, 5); assert.equal(ad.descriptions.length, 5);
+  assert.deepEqual(ad.images.map(item => item.asset), assets.map(asset => asset.resourceName));
+  assert.equal(ad.youtubeVideos, undefined);
+  assert.equal(operations(x, 'campaignBudgetOperation')[0].explicitlyShared, false);
+  for (const op of x.state.mutations[0].operations) assert.deepEqual(Object.keys(Object.values(op)[0]), ['create']);
+  assert.doesNotMatch(JSON.stringify(x.state.mutations), /userList|audience|keyword|customerMatch|youtubeVideo|videoAsset/);
+  assert.match(x.state.logs.join('\n'), /CREATED PAUSED/);
 });
-test('conversion query requires correct package, source, enabled and primary status', () => {
-  const {h, state} = harness(); h.main();
-  const query = state.queries.find(q => q.includes('FROM conversion_action '));
-  for (const part of ["'GOOGLE_PLAY_DOWNLOAD'", "'ENABLED'", 'primary_for_goal = TRUE',
-    "app_id = 'app.soulbuddy.soulbuddy'"]) assert.ok(query.includes(part));
+test('fresh account gets exactly one package-specific install action in the same atomic request', () => {
+  const x = run({conversions: []});
+  assert.equal(x.state.mutations[0].operations.length, 10);
+  const action = operations(x, 'conversionActionOperation')[0];
+  assert.equal(action.type, 'GOOGLE_PLAY_DOWNLOAD');
+  assert.equal(action.category, 'DOWNLOAD'); assert.equal(action.appId, 'app.soulbuddy.soulbuddy');
+  assert.equal(action.primaryForGoal, true); assert.equal(action.status, 'ENABLED');
+  assert.equal(action.countingType, 'ONE_PER_CLICK'); assert.equal(action.valueSettings.defaultValue, 0);
+  assert.equal(action.valueSettings.alwaysUseDefaultValue, true);
+  assert.equal(action.mobileAppVendor, undefined); // output-only field must not be supplied
+  assert.deepEqual(operations(x, 'campaignOperation')[0].selectiveOptimization.conversionActions, [action.resourceName]);
+  assert.match(x.state.logs.join('\n'), /account-level measurement resource/);
 });
-test('target CPI opt-in uses targetCpa and never silently increases budget', () => {
-  const {h, state} = create({}, {targetCpi: 0.5}); h.main();
-  const ops = state.mutations[0].operations;
-  assert.deepEqual(ops[1].campaignOperation.create.targetCpa, {targetCpaMicros: '500000'});
-  assert.equal(ops[1].campaignOperation.create.maximizeConversions, undefined);
-  assert.equal(ops[0].campaignBudgetOperation.create.amountMicros, '5000000');
-  assert.match(state.logs.join('\n'), /recommended 50 x target CPI/);
+test('preview builds/validates unchanged request but accurately reports no persistence', () => {
+  const x = run({preview: true, conversions: []});
+  assert.match(x.state.logs.join('\n'), /PREVIEW PASSED/);
+  assert.doesNotMatch(x.state.logs.join('\n'), /CREATED PAUSED/);
+  assert.equal(operations(x, 'campaignOperation')[0].status, 'PAUSED');
 });
-test('preview is identified accurately and never reported as persisted', () => {
-  const {h, state} = create({preview: true}); h.main();
-  assert.match(state.logs.join('\n'), /No campaign was persisted/);
-  assert.doesNotMatch(state.logs.join('\n'), /CREATED PAUSED/);
-});
-for (const status of ['PAUSED', 'ENABLED', 'REMOVED']) {
-  test('existing ' + status + ' campaign is never duplicated, updated or enabled', () => {
-    const {h, state} = create({existing: [{campaign: {resourceName: 'customers/1234567890/campaigns/90', status}}]});
-    h.main(); assert.equal(state.mutations.length, 0);
-    assert.equal(state.queries.length, 1);
+for (const status of ['ENABLED', 'PAUSED', 'REMOVED']) {
+  test('same-named ' + status + ' campaign blocks duplication and changes', () => {
+    const x = run({named: [{campaign: {name: 'same', status}}]});
+    assert.equal(x.state.mutations.length, 0); assert.equal(x.state.queries.length, 1);
   });
 }
-for (const [label, edits] of [
-  ['wrong account', {expectedCustomerId: '9999999999'}],
-  ['wrong currency', {expectedCurrency: 'NGN'}],
-  ['missing country', {countryCode: ''}], ['invalid country', {countryCode: 'NG,US'}],
-  ['missing budget', {dailyBudget: null}], ['zero budget', {dailyBudget: 0}],
-  ['negative budget', {dailyBudget: -1}], ['string budget', {dailyBudget: '5'}],
-  ['infinite budget', {dailyBudget: Infinity}], ['NaN budget', {dailyBudget: NaN}],
-  ['excess precision', {dailyBudget: 0.0000001}], ['unsafe budget', {dailyBudget: 1e12}],
-  ['invalid mode', {mode: 'ENABLE'}], ['no spend consent', {acknowledgeSpendLimits: false}],
-  ['zero days', {testDays: 0}], ['fractional days', {testDays: 1.5}], ['unbounded days', {testDays: 31}],
-  ['past date', {startDate: '2026-09-16'}], ['invalid date', {startDate: '2026-02-30'}],
-  ['overflow date', {startDate: '9999-12-31'}], ['zero CPI', {targetCpi: 0}],
-  ['infinite CPI', {targetCpi: Infinity}], ['invalid key', {campaignKey: 'x\ny'}],
-  ['URL instead of asset', {imageAssetResources: ['https://example.test/image.png']}],
-  ['cross-account asset', {imageAssetResources: ['customers/9999999999/assets/42']}],
-  ['malformed conversion', {installConversionResource: '77'}],
-  ['overlong headline', {headlines: ['a'.repeat(31), 'Faithful habits']}],
-  ['overlong description', {descriptions: ['a'.repeat(91), 'Faithful daily habits.']}],
-  ['duplicate text', {headlines: ['Pray', 'Pray']}],
-  ['multibyte text fails safe', {headlines: ['Pray today', 'Pray 🙏']}]
+for (const status of ['ENABLED', 'PAUSED']) {
+  test('other SoulBuddy ' + status + ' campaign prevents a second pilot', () => {
+    const x = run({active: [{campaign: {name: 'legacy', status}}]});
+    assert.equal(x.state.mutations.length, 0); assert.equal(x.state.queries.length, 2);
+  });
+}
+for (const [name, options] of [
+  ['wrong account', {customerId: '123-456-7890'}], ['unsupported currency', {currency: 'JPY'}],
+  ['prototype currency key', {currency: 'toString'}], ['manager account', {manager: true}],
+  ['missing conversion owner', {owner: ''}], ['foreign conversion owner with no action', {owner: 'customers/1234', conversions: []}],
+  ['ambiguous customer', {customerRows: []}], ['missing country', {countries: []}], ['missing language', {languages: []}],
+  ['disabled existing conversion', {conversions: [eligible(77, {status: 'HIDDEN'})]}],
+  ['removed existing conversion', {conversions: [eligible(77, {status: 'REMOVED'})]}],
+  ['secondary existing conversion', {conversions: [eligible(77, {primaryForGoal: false})]}],
+  ['wrong app conversion', {conversions: [eligible(77, {appId: 'another.app'})]}],
+  ['wrong conversion type', {conversions: [eligible(77, {type: 'WEBPAGE'})]}],
+  ['invalid local date', {today: '2026-02-30'}], ['date overflow', {today: '9999-12-31'}],
+  ['no bundled images', {images: []}]
 ]) {
-  test(label + ' fails without mutation', () => {
-    const {h, state} = create({}, edits);
-    assert.throws(() => h.main()); assert.equal(state.mutations.length, 0);
+  test(name + ' fails before any mutation', () => {
+    const x = harness(options); assert.throws(() => x.h.main()); assert.equal(x.state.mutations.length, 0);
   });
 }
-test('missing conversion still permits read-only planning', () => {
-  const {h, state} = harness({conversions: []}); h.main();
-  assert.equal(state.mutations.length, 0); assert.match(state.logs.join('\n'), /MISSING/);
+test('chooses one oldest eligible install ID deterministically, never duplicate counting', () => {
+  const x = run({conversions: [eligible(100), eligible(9), eligible(77)]});
+  assert.equal(operations(x, 'conversionActionOperation').length, 0);
+  assert.deepEqual(operations(x, 'campaignOperation')[0].selectiveOptimization.conversionActions,
+    [OWNER + '/conversionActions/9']);
 });
-test('missing conversion blocks creation, including budget creation', () => {
-  const {h, state} = create({conversions: []});
-  assert.throws(() => h.main(), /No unique enabled primary/); assert.equal(state.mutations.length, 0);
+test('manager-owned eligible conversions can be reused, never written by child account', () => {
+  const ref = 'customers/1234/conversionActions/77';
+  const x = run({owner: 'customers/1234', conversions: [eligible(77, {resourceName: ref})]});
+  assert.deepEqual(operations(x, 'campaignOperation')[0].selectiveOptimization.conversionActions, [ref]);
+  assert.equal(operations(x, 'conversionActionOperation').length, 0);
 });
-test('ambiguous conversions require exact selection, never a guessed goal', () => {
-  const rows = [77, 88].map(id => ({conversionAction: {resourceName: 'customers/' + CUSTOMER + '/conversionActions/' + id}}));
-  const x = create({conversions: rows});
-  assert.throws(() => x.h.main(), /No unique/); assert.equal(x.state.mutations.length, 0);
-  x.config.installConversionResource = CONVERSION; x.h.main();
+test('existing matching image assets are reused without upload', () => {
+  const assets = fakeImages().map((image, i) => ({resourceName: OWNER + '/assets/' + (100 + i),
+    name: image.name, type: 'IMAGE', imageAsset: {fullSize: {widthPixels: String(image.width), heightPixels: String(image.height)}}}));
+  const x = run({assets});
+  assert.equal(operations(x, 'assetOperation').length, 0);
+  assert.deepEqual(operations(x, 'adGroupAdOperation')[0].ad.appAd.images.map(image => image.asset),
+    assets.map(asset => asset.resourceName));
+});
+for (const defect of ['type', 'width', 'owner']) {
+  test('image reuse rejects wrong ' + defect, () => {
+    const image = fakeImages()[0];
+    const asset = {name: image.name, resourceName: OWNER + '/assets/1', type: 'IMAGE',
+      imageAsset: {fullSize: {widthPixels: 1200, heightPixels: 628}}};
+    if (defect === 'type') asset.type = 'YOUTUBE_VIDEO';
+    if (defect === 'width') asset.imageAsset.fullSize.widthPixels = 99;
+    if (defect === 'owner') asset.resourceName = 'customers/1234/assets/1';
+    const x = harness({assets: [asset]}); assert.throws(() => x.h.main()); assert.equal(x.state.mutations.length, 0);
+  });
+}
+for (const defect of ['checksum', 'base64', 'bytes', 'name', 'dimensions', 'missing-ratio']) {
+  test('embedded image ' + defect + ' corruption fails closed', () => {
+    const images = fakeImages();
+    if (defect === 'checksum') images[0].sha256 = '0'.repeat(64);
+    if (defect === 'base64') images[0].data = 'not valid!';
+    if (defect === 'bytes') images[0].bytes += 1;
+    if (defect === 'name') images[0].name = 'arbitrary';
+    if (defect === 'dimensions') images[0].width = 123;
+    if (defect === 'missing-ratio') images[0].height = 1200;
+    const x = harness({images}); assert.throws(() => x.h.main()); assert.equal(x.state.mutations.length, 0);
+  });
+}
+test('API rejection is surfaced; no retry or false success', () => {
+  const x = harness({apiFailure: true, conversions: []});
+  assert.throws(() => x.h.main(), /Atomic request rejected/);
+  assert.equal(x.state.mutations.length, 1); assert.doesNotMatch(x.state.logs.join('\n'), /CREATED PAUSED/);
+});
+test('ambiguous transport error never retries or assumes nothing was created', () => {
+  const x = harness({transportError: true});
+  assert.throws(() => x.h.main(), /transport error can hide a committed paused result/);
   assert.equal(x.state.mutations.length, 1);
 });
-test('explicit conversion must match discovered package-specific candidates', () => {
-  const {h, state} = create({}, {installConversionResource: 'customers/1234567890/conversionActions/999'});
-  assert.throws(() => h.main(), /Selected conversion/); assert.equal(state.mutations.length, 0);
+test('short response requires inspection', () => {
+  const x = harness({shortResponse: true}); assert.throws(() => x.h.main(), /Unexpected Google Ads response/);
 });
-test('missing country never falls back to worldwide', () => {
-  const {h, state} = create({countries: []});
-  assert.throws(() => h.main(), /resolve enabled country/); assert.equal(state.mutations.length, 0);
+test('returned campaign account is validated', () => {
+  const x = harness({badResource: 'customers/1234/campaigns/1'});
+  assert.throws(() => x.h.main(), /Unexpected campaign resource/);
 });
-test('optional image/video asset references are verified and attached', () => {
-  const image = 'customers/' + CUSTOMER + '/assets/100';
-  const video = 'customers/' + CUSTOMER + '/assets/101';
-  const {h, state} = create({assets: [{asset: {resourceName: image, type: 'IMAGE'}}]},
-    {imageAssetResources: [image]});
-  h.main();
-  assert.deepEqual(state.mutations[0].operations[5].adGroupAdOperation.create.ad.appAd.images, [{asset: image}]);
-  const x = create({assets: [{asset: {resourceName: video, type: 'YOUTUBE_VIDEO'}}]},
-    {videoAssetResources: [video]}); x.h.main();
-  assert.deepEqual(x.state.mutations[0].operations[5].adGroupAdOperation.create.ad.appAd.youtubeVideos, [{asset: video}]);
+test('uses the account-local calendar including leap and year boundaries', () => {
+  const x = run({today: '2028-02-28', timezone: 'America/Los_Angeles'});
+  assert.equal(operations(x, 'campaignOperation')[0].endDateTime, '2028-03-12 23:59:59');
+  assert.equal(x.h.addDays('2026-12-31', 1), '2027-01-01');
 });
-test('missing or mistyped assets fail closed', () => {
-  const {h, state} = create({assets: []}, {imageAssetResources: ['customers/' + CUSTOMER + '/assets/100']});
-  assert.throws(() => h.main(), /asset is missing/); assert.equal(state.mutations.length, 0);
-});
-test('API validation failure is surfaced and never reported as success', () => {
-  const {h, state} = create({apiFailure: true});
-  assert.throws(() => h.main(), /Atomic request failed/);
-  assert.equal(state.mutations[0].options.partialFailure, false);
-  assert.doesNotMatch(state.logs.join('\n'), /CREATED PAUSED/);
-});
-test('unexpected API response requires inspection rather than blind retry', () => {
-  const {h} = create({shortResponse: true}); assert.throws(() => h.main(), /Inspect Google Ads before retrying/);
-});
-test('transport errors do not trigger a second mutation', () => {
-  const {h, state} = create({transportError: true});
-  assert.throws(() => h.main(), /transport failure/); assert.equal(state.mutations.length, 1);
-});
-test('inclusive dates cover leap year, month/year rollover and single-day window', () => {
-  const {h, config} = harness();
-  assert.equal(h.addDays('2028-02-28', 1), '2028-02-29');
-  assert.equal(h.addDays('2026-12-31', 1), '2027-01-01');
-  config.testDays = 1; assert.equal(h.validateConfig(config, context).end, context.today);
-  config.startDate = '2027-12-25'; config.testDays = 14;
-  assert.equal(h.validateConfig(config, context).end, '2028-01-07');
-});
-test('money uses exact micros for supported decimal inputs', () => {
+test('integer IDs above JS precision are sorted as decimal strings', () => {
   const {h} = harness();
-  assert.equal(h.toMicros(0.29), 290000); assert.equal(h.toMicros(0.000001), 1);
-  assert.equal(h.toMicros(5000), 5000000000);
+  assert.equal(h.compareResourceIds('x/9999999999999999999', 'x/10000000000000000000'), -1);
 });
-test('GAQL escapes quotes/backslashes and permits safe names', () => {
+test('all copy is within limits, query literals are escaped and money is exact', () => {
   const {h} = harness();
-  assert.equal(h.gaqlString("SoulBuddy's\\test"), "'SoulBuddy\\'s\\\\test'");
+  h.validateText(h.HEADLINES, 30); h.validateText(h.DESCRIPTIONS, 90);
+  assert.equal(h.toMicros(3000), 3000000000); assert.equal(h.toMicros(3), 3000000);
+  assert.throws(() => h.toMicros(Infinity)); assert.throws(() => h.toMicros(-1));
+  assert.equal(h.quoted("a'b\\c"), "'a\\'b\\\\c'");
+});
+test('actual distributed bundle verifies real images and constructs the full request', () => {
+  const filename = path.join(__dirname, 'ready', 'SoulBuddy-Ready-to-Run.js');
+  assert.ok(fs.existsSync(filename), 'Run build-ready-script.py before the test suite');
+  const code = fs.readFileSync(filename, 'utf8');
+  const x = run({code, conversions: []});
+  assert.equal(operations(x, 'assetOperation').length, 3);
+  for (const asset of operations(x, 'assetOperation')) assert.ok(Buffer.from(asset.imageAsset.data, 'base64').length > 10000);
+  assert.ok(Buffer.byteLength(code) < 1024 * 1024);
+  assert.doesNotMatch(code, /UrlFetchApp|DriveApp|eval\(|new Function\(/);
 });

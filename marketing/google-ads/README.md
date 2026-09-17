@@ -1,176 +1,98 @@
-# SoulBuddy Google Ads install pilot
+# SoulBuddy: ready-to-run Google Ads installer
 
-Reviewed against Google's public documentation on 17 September 2026. Targets Android package `app.soulbuddy.soulbuddy` using Google Ads Scripts and API v25.
+Prepared 17 September 2026 for **790-445-9880**. Replaces the earlier configurable kit. No configuration edits or separate image/video uploads are required.
 
-**Nothing in this package starts advertising automatically.** The installer has a read-only PLAN mode and a CREATE_PAUSED mode. Only manually enabling the resulting campaign can start its delivery, subject to approval, dates and account eligibility. This is a campaign setup package, not a promise of low-cost installs or a substitute for account validation.
+## Run
 
-## Files
+Open `ready/SoulBuddy-Ready-to-Run.js` as text. Copy ALL of it into a new script under Google Ads > Tools > Bulk actions > Scripts, inside account 790-445-9880. Authorize, Preview, inspect the log, then Run the same unchanged script. Preview does not persist AdsApp mutations; Run creates PAUSED.[1][2]
 
-- `setup-google-ads.js`: paste this whole file into Google Ads Scripts. No developer token, external hosting, npm dependency or app modification is required.
-- `setup-google-ads.test.cjs`: offline safety/contract tests using Node's built-in test runner.
-- `README.md`: setup, creative, measurement and spending guidance.
+Use the generated file, not the shorter `setup-google-ads.js` source template. The long image-data line is necessary. No developer token, external hosting, private-repository access, Drive folder or YouTube channel is needed.
 
-## Proposed first test
+Review the new campaign's settings, ad previews, approval, install tracking, dates and billing; then enable it manually. Nothing starts spending during installation. Do not schedule or run simultaneous copies of this installer. Reruns stop for a same-named pilot (including removed), or another enabled/paused SoulBuddy App campaign. Existing campaigns are never changed or re-enabled.
 
-Use one Android App campaign for installs, one chosen country, English, one ad group and one coherent creative theme: **Christ-centered transformation through daily habits**. The default pilot window is 14 calendar days. Do not split a small initial budget between multiple countries, campaign objectives and creative themes before collecting useful evidence; this is a testing recommendation, not a country-cost forecast.
+## Chosen setup
 
-The default bid strategy is **Maximize conversions (installs)** with no target CPI. Google seeks installs while spending the budget; this does not promise a particular cost per install.[1] Set `targetCpi` only after obtaining credible account guidance or observed performance. A tiny invented CPI target is not a way to force cheap traffic. Google's target-CPI guidance recommends an average daily budget of at least 50 times the target CPI; this is a recommendation, not a mandatory minimum or performance guarantee.[2]
+- Android App campaign for `app.soulbuddy.soulbuddy`, Nigeria presence targeting, English.
+- Maximize installs without a target CPI; one campaign/ad group, five headlines and descriptions.
+- Three embedded transformation images: 1200x628, 1200x1200 and 1200x1500. No video uploads.
+- 14 calendar days inclusive, starting on the creation day in the account timezone. Parent campaign PAUSED.
 
-No default money amount or launch country is supplied. The advertiser must choose both. An illustrative $5/day test is not a claim that $5/day will produce adequate learning in a particular country. If an affordable budget produces too little data, the result is inconclusive, not evidence of success or failure.
+Nigeria is a focused initial market, not a claim of the cheapest CPI. These conservative allowances may produce insufficient learning. No performance, installation count or cost is guaranteed. Maximize installs seeks installations while spending the budget.[3]
 
-App campaigns assemble ads and deliver across Google's supported inventory using your app listing and supplied assets. This is not a Search keyword campaign and does not accept a keyword upload as its targeting strategy.[3]
+The currency is read automatically. These are fixed planning allowances, **not exchange-rate conversions**:
 
-## Setup
+| Currency | Average daily budget | Daily budget x 14 | Conservative 2x-daily exposure over 14 days, before taxes |
+| --- | ---: | ---: | ---: |
+| USD | 3 | 42 | 84 |
+| NGN | 3,000 | 42,000 | 84,000 |
+| GBP | 2 | 28 | 56 |
+| EUR | 3 | 42 | 84 |
+| CAD | 4 | 56 | 112 |
+| AUD | 4 | 56 | 112 |
 
-### 1. Prepare the actual advertising account
+**Daily budget x 14 is NOT a lifetime cap.** Google may spend up to 2x the average budget on a day for most campaigns. The usual unchanged-budget monthly charging limit does not make a shorter test a fixed-total purchase.[4] The last column is conservative arithmetic using that daily limit and unchanged dates/budget, before taxes/fees; other campaigns are excluded. The script sets neither an account spending limit nor a cumulative-spend rule. It never makes payments or enables automatic budget increases. The supplied screenshot showed a balance-exhausted/nearly-exhausted warning: review Billing before activation.
 
-Open the Google Ads customer account that will pay for the campaign, not a manager-account script context. Complete billing and any required advertiser verification. Confirm the current Play release is publicly installable in the country you choose, and that its listing and app match the ad's feature claims.
+The end date does not move when activation is delayed. Review dates before enabling; subsequent budget/date changes invalidate the arithmetic. An unreviewed account currency stops without mutation and identifies itself in the log, rather than applying an unsafe unit.
 
-Use an **enabled, primary Google Play download conversion for SoulBuddy**. The installer looks up the exact app package and does not create, modify or guess conversion actions. Google documents automatic creation of the Android download event during App campaign construction when one does not already exist; you can begin that UI flow, select SoulBuddy, allow the event to be created, and cancel without publishing.[4] Check it under Goals > Conversions. Google Play downloads do not require adding Firebase Analytics for this initial test.
+## Embedded images and no video uploads
 
-The current repository's Flutter dependency manifest does not declare Firebase Analytics. No in-app event integration is assumed or added by this package. An install is not proof that a user opened the app, formed a habit or returned.
+Existing `media/export/images/01-transformation-*.png` ads are converted to RGB JPEG at unchanged dimensions/layout, then embedded in the script. No artwork, UI or copy is regenerated. Source PNG and embedded JPEG hashes appear in `ready/manifest.json`. JPEG bytes can vary across encoder versions; the manifest identifies the actual output.
 
-Manager-owned conversions, third-party install sources and accounts whose conversion actions cannot be read from the current customer are outside this installer's narrow scope. Use Google's UI setup in those cases; do not substitute an unrelated conversion or bypass the guard.
+The script checks JPEG length/signature/SHA-256 before Ads queries or changes. It creates image assets from the embedded bytes and attaches them to the App ad.[5][6] Existing assets with matching content-derived names are reused after type/account/dimension checks. Name-based reuse is not remote cryptographic validation, so inspect the ad previews too.
 
-### 2. Paste and configure
+**No video upload is not a guarantee of image-only delivery.** Google may automatically assemble video from images/store assets; its documentation says App campaign auto-generated videos are not visible in the normal auto-generated-video reporting view.[7] This installer does not claim to disable them and requests no YouTube access. The older optional MP4s remain in the media library but are not required or bundled here.
 
-Go to **Tools > Bulk actions > Scripts**, create a script, and paste the entire `setup-google-ads.js` file. The Google Ads Scripts editor is the destination, not Google Ads Editor's CSV import. Menu labels can vary; search Google Ads for "Scripts" when necessary. Authorize the script when Google prompts you.[5]
+Screenshots derive from the repository's September 9 device captures. Confirm the Nigerian Play release still matches them. Neither regional Play availability nor UI equivalence has been verified by the installer.
 
-Edit only the CONFIG block initially:
+## Automatic install measurement
 
-| Setting | Required value |
-| --- | --- |
-| `expectedCustomerId` | The paying account's 10-digit ID, with or without hyphens. |
-| `expectedCurrency` | Exact account currency code. Amounts are never converted. |
-| `countryCode` | One uppercase two-letter country code you deliberately choose. |
-| `dailyBudget` | A positive number in that account currency, without currency symbols or commas. |
-| `startDate` | Optional `YYYY-MM-DD`, in the account timezone; blank means the creation day. |
-| `testDays` | 1-30 calendar days, inclusive of the start day; default 14. |
+It reuses one enabled primary Google Play download action for the exact SoulBuddy package and the account's conversion owner. Multiple eligible actions are reduced to the lowest numeric ID, never combined for double counting.
 
-Keep `mode: 'PLAN'`, `targetCpi: null` and `acknowledgeSpendLimits: false` for the first run. The selected country uses presence targeting; the language is English. The script resolves country and language IDs rather than relying on copied numeric location codes.
+When none exists and this customer owns its conversions, the atomic request creates `GOOGLE_PLAY_DOWNLOAD` / `DOWNLOAD`, primary, default monetary value zero, and selects it for this campaign. Google Play downloads do not require adding Firebase Analytics code.[8][9] Downloads do not measure opens, retention or spiritual progress.
 
-Run PLAN and read the logs. This is a read-only preflight, **not server-side validation of the mutation payload**. It shows the account identity, resolved location, eligible conversion actions, dates, ad text and spending arithmetic. If multiple matching install conversions exist, set `installConversionResource` to the exact resource of the one you deliberately select, then rerun PLAN. If none exists, complete step 1 first.
+A new primary action is an account-level measurement resource: review other campaigns using account-default DOWNLOAD goals, which may include the new action. No existing conversion action, campaign or goal setting is overwritten. Existing disabled/removed/secondary actions are not silently promoted or duplicated. Visible eligible manager-owned actions can be reused; missing actions are never created under the wrong owner.[10]
 
-### 3. Preview, create paused, inspect, then enable manually
+Unexpected ownership, disabled measurement or currency conditions stop before mutation with a readable log, not a fallback to unrelated conversion goals. Such account-side issues can require review, but there is no configuration form to fill into the code.
 
-After reviewing the plan and spending limits, set `mode: 'CREATE_PAUSED'` and `acknowledgeSpendLimits: true`. Use Google's **Preview** first. AdsApp mutations in Preview do not persist account changes.[6] Resolve any API, conversion or eligibility error before proceeding.
+## Safety and verification
 
-Run once to create the campaign **PAUSED**. The six dependent operations use one atomic `mutateAll` request with `partialFailure: false`: budget, campaign, country, language, ad group and app ad. A validation rejection should leave none of those requested objects committed.[5]
+One `AdsApp.mutateAll` request with `partialFailure: false` contains the optional new conversion, up to three images, budget, paused campaign, country, language, ad group and ad. A validation rejection commits none of those requested operations.[1] A transport failure can hide a committed paused result: inspect the account before retrying. No blind retry or false success follows an ambiguous response.
 
-In the Google Ads UI, review the campaign's app, country/presence setting, language, dates, budget, install conversion, bids, ad previews and policy status. Add or review real screenshots and a video. Confirm that the proposed text is accurate for the released app. Only then enable the campaign manually. Ad group/ad status is enabled beneath the paused parent so parent activation can serve the intended ad; the script never enables the parent.
+No customer/remarketing lists, inferred religious profiles, addiction-based audiences or private prayer/journal data are supplied. Religious content has personalized-advertising restrictions; approval is not guaranteed.[11] The installer does not modify billing, existing campaigns, existing conversions, account-default goals, recommendations or the app. New primary-action implications are described above. This is not an ongoing budget monitor.
 
-A campaign created today with a 14-day window still ends 14 calendar days from today even if you enable it later. Set future dates before creation or adjust them in the UI after review. Do not let a paused review period consume the intended learning window unnoticed.
-
-Do not schedule this installer to repeat. Rerunning stops if the same campaign name exists, including paused or removed campaigns; it never updates/re-enables that campaign. Run only one copy at a time. Different campaign keys create separate campaigns, and simultaneous independently configured copies are not coordinated. Inspect the account after an ambiguous transport error before retrying.
-
-## Spending: read before enabling
-
-An average daily budget is **not a hard daily cap**. Google can spend up to twice the average daily budget on a day for most campaigns. The usual monthly charging limit is 30.4 times an unchanged average daily budget; that does not turn a shorter campaign into a fixed-lifetime-budget purchase.[7]
-
-For illustration only, at $5/day for 14 days:
-
-- `$5 x 14 = $70` is average-budget arithmetic, **not a guaranteed $70 maximum**.
-- A day may spend up to $10.
-- `$5 x 2 x 14 = $140` is a conservative campaign-window exposure estimate before applicable taxes/fees, assuming the same budget and dates and the stated daily limit.
-
-The script prints both the average-budget arithmetic and the conservative exposure. It does not create an account-level spending limit, purchase prepaid credit, apply a lifetime campaign cap or pause on an accumulated-spend threshold. Reporting and automated-rule delays mean a threshold rule should not be represented as an exact cap either.
-
-Do not enable account rules, recommendations or other tools that increase the pilot budget automatically. Review spend daily. Pausing stops future serving; it does not undo accrued charges. For a strict total allowance, leave room for possible overdelivery and taxes, lower the daily amount accordingly, and confirm account-specific billing controls before launch. Budget or date changes invalidate the original arithmetic.
-
-## Included text assets
-
-All five headlines are at most 30 characters and all five descriptions at most 90. They can be combined independently; they do not assume a sequence.[8]
-
-| Headline | Characters |
-| --- | ---: |
-| Let Christ Reshape Your Life | 28 |
-| Build Faithful Daily Habits | 27 |
-| Put Your Faith Into Practice | 28 |
-| Prayer, Scripture & Reflection | 30 |
-| Grow in Christ, Day by Day | 26 |
-
-Descriptions:
-
-1. Let Christ reshape everyday life through prayer, Scripture and small, faithful actions.
-2. Choose a personal goal. Build habits of prayer, reflection, forgiveness and love.
-3. Keep a prayer journal, set reminders and put your faith into practice each day.
-4. Begin with one faithful step. Pray, reflect and grow in the life you already have.
-5. Move beyond good intentions. Cultivate daily habits rooted in Christ.
-
-The text invites the user into a practice; it does not claim the app guarantees transformation, infer an individual's religion or announce that the viewer has a personal struggle. More figurative Kingdom/cross language can remain in the store narrative while the short ad explains the practical mechanism.
-
-### Images and video
-
-The installer works with text plus assets Google may source from the store. That is a setup starting point, not a claim of optimal creative coverage. Review automatically generated previews, especially any assembled video.[3][8]
-
-Prefer authentic current app screens. Existing repository assets are under `marketing/store-listing/2026-09/`; confirm they still match the released UI. Recommended optional image sizes are 1200x1200, 1200x628 and 1200x1500. Google's listed formats are PNG/JPG with a 5 MB maximum.[8] Do not stretch a Play feature graphic into every ad format.
-
-A proposed 20-second real-screen recording:
-
-| Time | Actual interface action | Overlay |
-| --- | --- | --- |
-| 0-4 s | Open Today with a concrete daily action. | Let Christ reshape your life. |
-| 4-9 s | Choose a personal goal and relevant prayer. | Begin with one faithful habit. |
-| 9-15 s | Show Scripture, a reminder or a reflection. | Pray. Reflect. Put faith into practice. |
-| 15-20 s | Return to Today, then app name and install prompt. | SoulBuddy. Your next faithful step. |
-
-Use only screens and capabilities included in the release, with fictional/non-sensitive journal content. No user confession, private prayer or identifying personal information should appear. Upload video to YouTube and add it through the campaign's asset interface. You may alternatively populate `imageAssetResources` / `videoAssetResources` with already-uploaded Google Ads asset resource names from the same account. These are not local file paths, public image URLs or raw YouTube IDs.
-
-## Religious-content and privacy safeguards
-
-Google treats religious beliefs/guidance as a sensitive-interest category for personalized advertising. That does not amount to a blanket ban on advertising a prayer app. It restricts the audience tools that may be used.[9][10]
-
-This installer adds no customer lists, remarketing lists, religion-based custom audiences, lookalikes, inferred-belief signals or addiction-based targeting. It uses country and language settings only. Do not add user lists derived from app usage, church membership, prayer requests or journal entries. Do not pass goals, private text, confessions or inferred religious profiles into ad-event parameters. The script cannot certify Google's eventual approval: the destination, creative and account are still subject to review.
-
-## Evaluate results without confusing cheap installs with growth
-
-Before launch, verify one real installation/opening journey, onboarding, one prayer/goal action and a return visit on the release build. This manual product check is independent of ad attribution.
-
-During the first days, inspect approval, delivery, spend and conversion reporting. Avoid repeatedly changing budgets, bids and assets in response to a few installs. Google describes an initial learning/stabilization period of roughly 7-14 days for App campaigns; sparse data can require longer.[2] This does not prevent pausing for a budget, policy or broken-product problem.
-
-Review installs and cost per install, but do not call the pilot successful solely because downloads are cheap. The meaningful next question is whether acquired users begin and return. The package does not instrument activation or retention. Design privacy-respecting, consent-appropriate measurement separately before using deeper events for optimization. Do not export spiritual or personal content to obtain attribution.
-
-## Validation and limitations
-
-Run locally with Node 20+:
+Build using Python 3.10+, Pillow 10+, and Node 20+:
 
 ```sh
-node --check setup-google-ads.js
-node --test setup-google-ads.test.cjs
+python -m pip install Pillow
+python marketing/google-ads/build-ready-script.py
+node --check marketing/google-ads/ready/SoulBuddy-Ready-to-Run.js
+node --test marketing/google-ads/setup-google-ads.test.cjs
 ```
 
-52 offline tests pass, covering required account/budget inputs, money conversion, creative limits, invalid dates, account-timezone date handling, primary install selection, optional asset validation, duplicate prevention, atomic request shape, paused creation, preview logging and error paths. Tests mock AdsApp: they do not execute Google's live API, validate account eligibility, certify ad approval, or demonstrate campaign performance.
+The GitHub workflow builds, tests, publishes an artifact and commits the generated script/manifest without app releases or Ads/YouTube uploads. There is one readable implementation, not a separate unmaintained installer.
 
-The account has not been connected or accessed for this package. No campaign or ad spend has been created by preparing these files. Google Ads Preview and account review remain necessary. API v25 is explicitly pinned to the reviewed documentation; do not switch versions blindly if a future account/runtime rejects it. Use the UI App promotion > App installs flow with the same settings and text as a fallback.
+**51 local tests pass**, including the real generated image bundle, currency budgets, wrong account, new/existing conversions, manager ownership, duplicate campaigns, asset reuse, corruption, paused state, dates, atomic references, Preview and errors. AdsApp is mocked: this is NOT live API/account validation, policy approval or evidence of performance. Run Google's Preview and review the campaign before activation.
 
-## Official sources
+## Official references
 
-[1] [App campaign bidding strategies](https://support.google.com/google-ads/answer/12073727)
+[1] https://developers.google.com/google-ads/scripts/docs/concepts/mutate
 
-[2] [App campaign optimization guidance](https://support.google.com/google-ads/answer/6167156)
+[2] https://developers.google.com/google-ads/scripts/docs/preview
 
-[3] [About App campaigns](https://support.google.com/google-ads/answer/6247380)
+[3] https://support.google.com/google-ads/answer/12073727
 
-[4] [Create an App campaign for installs](https://support.google.com/google-ads/answer/12575501)
+[4] https://support.google.com/google-ads/answer/1704443
 
-[5] [Google Ads Scripts mutate and atomic operations](https://developers.google.com/google-ads/scripts/docs/concepts/mutate)
+[5] https://developers.google.com/google-ads/scripts/docs/campaigns/performance-max/assets
 
-[6] [Google Ads Scripts preview](https://developers.google.com/google-ads/scripts/docs/preview)
+[6] https://developers.google.com/google-ads/api/docs/app-campaigns/create-ad-group
 
-[7] [Average daily budgets and spending limits](https://support.google.com/google-ads/answer/1704443)
+[7] https://support.google.com/google-ads/answer/16430641
 
-[8] [App campaign assets](https://support.google.com/google-ads/answer/9948381)
+[8] https://developers.google.com/google-ads/api/docs/conversions/categories
 
-[9] [Personalized advertising policy](https://support.google.com/adspolicy/answer/143465)
+[9] https://support.google.com/google-ads/answer/6255257
 
-[10] [Religious beliefs in personalized advertising](https://support.google.com/adspolicy/answer/16701958)
+[10] https://developers.google.com/google-ads/api/docs/conversions/getting-started
 
-[11] [App campaign API creation](https://developers.google.com/google-ads/api/docs/app-campaigns/create-campaign)
-
-[12] [App campaign ad groups and ads](https://developers.google.com/google-ads/api/docs/app-campaigns/create-ad-group)
-
-[13] [API v25 install bidding goals](https://developers.google.com/google-ads/api/reference/rpc/v25/AppCampaignBiddingStrategyGoalTypeEnum.AppCampaignBiddingStrategyGoalType)
-
-[14] [API v25 campaign fields and date-time settings](https://developers.google.com/google-ads/api/reference/rpc/v25/Campaign)
-
-[15] [API v25 conversion action fields](https://developers.google.com/google-ads/api/reference/rpc/v25/ConversionAction)
+[11] https://support.google.com/adspolicy/answer/143465

@@ -1,253 +1,282 @@
 /**
- * SoulBuddy Android install pilot | Google Ads Scripts | reviewed 2026-09-17.
- * Paste this entire file into Tools > Bulk actions > Scripts in the AD account.
- * No developer token, external service, package, secret, or app change is needed.
- * PLAN is read-only. CREATE_PAUSED creates a PAUSED campaign, never enables it.
- * Read README.md before changing configuration. Run only one copy at a time.
+ * SoulBuddy account-ready install pilot. Reviewed 2026-09-17; Google Ads API v25.
+ * This source is bundled with three EXISTING image ads by build-ready-script.py.
+ * Paste the generated SoulBuddy-Ready-to-Run.js into Google Ads Scripts.
+ * No configuration, video upload, media hosting, token, or app change is needed.
+ * Preview validates without saving. Run creates PAUSED. Never enables advertising.
+ * Do not schedule this installer. See README.md for budget and review details.
  */
-const CONFIG = {
-  mode: 'PLAN', // PLAN | CREATE_PAUSED
-  expectedCustomerId: '', // Your 10-digit Google Ads customer ID, with or without hyphens.
-  expectedCurrency: '', // Exact account currency, e.g. USD or NGN; no currency conversion.
-  countryCode: '', // ONE chosen ISO country code, e.g. NG. No location is assumed.
-  dailyBudget: null, // Positive amount in ACCOUNT currency; an AVERAGE, not a hard daily cap.
-  testDays: 14, // Finite 1-30 day window, including startDate.
-  startDate: '', // YYYY-MM-DD in account timezone. Empty = day of creation.
-  targetCpi: null, // null = Maximize installs. Set a positive amount ONLY with evidence.
-  acknowledgeSpendLimits: false, // Read the logged exposure before setting true for creation.
-  installConversionResource: '', // Optional exact resource from PLAN when multiple installs exist.
-  campaignKey: 'SoulBuddy | Android | Faithful habits | Pilot v1',
-  // Optional assets ALREADY uploaded to THIS Ads account, not URLs or file paths.
-  imageAssetResources: [], // e.g. customers/1234567890/assets/123
-  videoAssetResources: [], // YouTube video asset resources, not raw YouTube IDs.
-  headlines: [
-    'Let Christ Reshape Your Life',
-    'Build Faithful Daily Habits',
-    'Put Your Faith Into Practice',
-    'Prayer, Scripture & Reflection',
-    'Grow in Christ, Day by Day'
-  ],
-  descriptions: [
-    'Let Christ reshape everyday life through prayer, Scripture and small, faithful actions.',
-    'Choose a personal goal. Build habits of prayer, reflection, forgiveness and love.',
-    'Keep a prayer journal, set reminders and put your faith into practice each day.',
-    'Begin with one faithful step. Pray, reflect and grow in the life you already have.',
-    'Move beyond good intentions. Cultivate daily habits rooted in Christ.'
-  ]
-};
-const APP_ID = 'app.soulbuddy.soulbuddy';
-const API_VERSION = 'v25';
+const PILOT = Object.freeze({
+  customerId: '7904459880',
+  appId: 'app.soulbuddy.soulbuddy',
+  name: 'SoulBuddy | Android installs | NG | EN | Images v1',
+  countryCode: 'NG', days: 14, apiVersion: 'v25'
+});
+// Fixed conservative planning allowances, NOT exchange rates or CPI forecasts.
+const DAILY_ALLOWANCES = Object.freeze({USD: 3, NGN: 3000, GBP: 2, EUR: 3, CAD: 4, AUD: 4});
+const HEADLINES = Object.freeze([
+  'Let Christ Reshape Your Life',
+  'Build Faithful Daily Habits',
+  'Put Your Faith Into Practice',
+  'Prayer, Scripture & Reflection',
+  'Grow in Christ, Day by Day'
+]);
+const DESCRIPTIONS = Object.freeze([
+  'Let Christ reshape everyday life through prayer, Scripture and small, faithful actions.',
+  'Choose a personal goal. Build habits of prayer, reflection, forgiveness and love.',
+  'Keep a prayer journal, set reminders and put your faith into practice each day.',
+  'Begin with one faithful step. Pray, reflect and grow in the life you already have.',
+  'Move beyond good intentions. Cultivate daily habits rooted in Christ.'
+]);
+// Build-time marker. An unbundled source fails before reading or changing Ads data.
+const EMBEDDED_IMAGES = []; // @SOULBUDDY_IMAGES@
 
 function main() {
   const account = AdsApp.currentAccount();
   const context = {
     customerId: account.getCustomerId().replace(/-/g, ''),
     currency: account.getCurrencyCode(),
-    today: Utilities.formatDate(new Date(), account.getTimeZone(), 'yyyy-MM-dd')
+    timezone: account.getTimeZone()
   };
-  console.log('Account: ' + context.customerId + ' | ' + context.currency + ' | ' + account.getTimeZone());
-  const plan = validateConfig(CONFIG, context);
-  const existing = searchRows(
-    'SELECT campaign.resource_name, campaign.name, campaign.status FROM campaign ' +
-    'WHERE campaign.name = ' + gaqlString(plan.name) +
-    " AND campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')"
-  );
-  if (existing.length) {
-    console.log('STOP: this campaign name already exists. Nothing was changed or re-enabled.');
-    existing.forEach(row => console.log(JSON.stringify(row.campaign)));
-    return;
-  }
-  const country = exactlyOne(searchRows(
+  check(context.customerId === PILOT.customerId,
+    'Wrong account. Open Google Ads account 790-445-9880 and run the same file there. No changes made.');
+  context.today = Utilities.formatDate(new Date(), context.timezone, 'yyyy-MM-dd');
+  const plan = makePlan(context);
+  validateText(HEADLINES, 30);
+  validateText(DESCRIPTIONS, 90);
+  validateImages(EMBEDDED_IMAGES);
+
+  // Do not create another copy, restart a removed pilot, or disturb another app campaign.
+  const named = searchRows('SELECT campaign.resource_name, campaign.name, campaign.status FROM campaign ' +
+    'WHERE campaign.name = ' + quoted(PILOT.name) +
+    " AND campaign.status IN ('ENABLED', 'PAUSED', 'REMOVED')");
+  if (named.length) return reportExisting(named);
+  const active = searchRows('SELECT campaign.resource_name, campaign.name, campaign.status FROM campaign ' +
+    'WHERE campaign.app_campaign_setting.app_id = ' + quoted(PILOT.appId) +
+    " AND campaign.status IN ('ENABLED', 'PAUSED')");
+  if (active.length) return reportExisting(active);
+
+  const customer = one(searchRows('SELECT customer.id, customer.manager, ' +
+    'customer.conversion_tracking_setting.google_ads_conversion_customer FROM customer'), 'customer').customer;
+  check(String(customer.id) === context.customerId && customer.manager !== true,
+    'Run this inside the paying customer account, not a manager account. No changes made.');
+  const owner = customer.conversionTrackingSetting &&
+    customer.conversionTrackingSetting.googleAdsConversionCustomer;
+  check(typeof owner === 'string' && /^customers\/[1-9][0-9]*$/.test(owner),
+    'Google did not return a conversion-owner account. No changes made; keep the execution log.');
+
+  const country = one(searchRows(
     'SELECT geo_target_constant.resource_name, geo_target_constant.name FROM geo_target_constant ' +
-    'WHERE geo_target_constant.country_code = ' + gaqlString(CONFIG.countryCode) +
-    " AND geo_target_constant.target_type = 'Country' AND geo_target_constant.status = 'ENABLED'"
-  ), 'enabled country').geoTargetConstant;
-  const language = exactlyOne(searchRows(
+    "WHERE geo_target_constant.country_code = 'NG' AND geo_target_constant.target_type = 'Country' " +
+    "AND geo_target_constant.status = 'ENABLED'"), 'Nigeria country').geoTargetConstant;
+  const language = one(searchRows(
     'SELECT language_constant.resource_name FROM language_constant ' +
-    "WHERE language_constant.code = 'en' AND language_constant.targetable = TRUE"
-  ), 'targetable English language').languageConstant;
-  const conversions = searchRows(
-    'SELECT conversion_action.resource_name, conversion_action.name, conversion_action.app_id, ' +
-    'conversion_action.type, conversion_action.status, conversion_action.primary_for_goal FROM conversion_action ' +
-    "WHERE conversion_action.type = 'GOOGLE_PLAY_DOWNLOAD' AND conversion_action.status = 'ENABLED' " +
-    "AND conversion_action.primary_for_goal = TRUE " +
-    'AND conversion_action.app_id = ' + gaqlString(APP_ID)
-  ).map(row => row.conversionAction);
-  console.log('Matching enabled primary Google Play download conversions: ' + JSON.stringify(conversions));
-  const conversion = chooseConversion(conversions, CONFIG.installConversionResource);
-  verifyAssets(CONFIG.imageAssetResources, 'IMAGE');
-  verifyAssets(CONFIG.videoAssetResources, 'YOUTUBE_VIDEO');
+    "WHERE language_constant.code = 'en' AND language_constant.targetable = TRUE"), 'English').languageConstant;
+
+  const conversions = searchRows('SELECT conversion_action.resource_name, conversion_action.name, ' +
+    'conversion_action.type, conversion_action.app_id, conversion_action.status, ' +
+    'conversion_action.primary_for_goal FROM conversion_action ' +
+    "WHERE conversion_action.type = 'GOOGLE_PLAY_DOWNLOAD' AND conversion_action.app_id = " + quoted(PILOT.appId) +
+    " AND conversion_action.status IN ('ENABLED', 'HIDDEN', 'REMOVED')")
+    .map(row => row.conversionAction);
+  const conversion = planConversion(conversions, owner, context);
+  const assets = searchRows('SELECT asset.resource_name, asset.name, asset.type, ' +
+    'asset.image_asset.full_size.width_pixels, asset.image_asset.full_size.height_pixels FROM asset ' +
+    'WHERE asset.name IN (' + EMBEDDED_IMAGES.map(image => quoted(image.name)).join(', ') + ')')
+    .map(row => row.asset);
+  const request = buildOperations(context, plan, country.resourceName, language.resourceName,
+    conversion, EMBEDDED_IMAGES, assets);
+
   console.log(JSON.stringify({
-    campaign: plan.name, appId: APP_ID, country: country.name, language: 'English',
-    currency: context.currency, averageDailyBudget: CONFIG.dailyBudget,
-    bidding: CONFIG.targetCpi === null ? 'Maximize installs (no CPI guarantee)' : 'Target CPI',
-    targetCpi: CONFIG.targetCpi, startDate: plan.start, endDate: plan.end,
-    averageBudgetTimesDays: plan.plannedSpend,
-    conservativeExposureBeforeTaxes: plan.conservativeExposure,
-    note: 'Average budget x days is NOT a lifetime cap. Daily spend may be up to 2x average.',
-    installConversion: conversion ? conversion.resourceName : 'MISSING: configure before creation',
-    statusOnCreation: 'PAUSED', headlines: CONFIG.headlines, descriptions: CONFIG.descriptions
+    account: '790-445-9880', currency: context.currency, timezone: context.timezone,
+    campaign: PILOT.name, country: country.name, language: 'English',
+    averageDailyBudget: plan.daily, start: plan.start, end: plan.end,
+    averageBudgetTimesDays: plan.planned, conservativeWindowExposureBeforeTaxes: plan.exposure,
+    bidStrategy: 'Maximize installs; no target CPI', status: 'PAUSED',
+    images: 3, videosUploaded: 0,
+    installMeasurement: conversion.create ? 'Create SoulBuddy Google Play download action' : conversion.resourceName
   }, null, 2));
-  if (CONFIG.targetCpi !== null && CONFIG.dailyBudget / CONFIG.targetCpi < 50) {
-    console.log('WARNING: daily budget is below Google\'s recommended 50 x target CPI. ' +
-      'Do not invent a lower CPI just to fit this ratio. No budget or bid was changed.');
+  console.log('Average budget x days is NOT a lifetime cap. A day may spend up to 2x the average. ' +
+    'Taxes/fees and later budget/date changes are not included. Review before enabling.');
+  console.log('No video upload or YouTube account is needed. Google may auto-generate video from image/store assets.');
+  if (conversion.create) console.log('A new primary DOWNLOAD conversion is an account-level measurement resource. ' +
+    'Review any other campaigns that use account-default DOWNLOAD goals before enabling this pilot.');
+
+  let results;
+  try {
+    results = AdsApp.mutateAll(request.operations, {apiVersion: PILOT.apiVersion, partialFailure: false});
+  } catch (error) {
+    throw new Error('Google Ads request did not complete cleanly. Nothing was enabled. ' +
+      'Inspect the account before retrying; a transport error can hide a committed paused result. ' + String(error));
   }
-  if (!CONFIG.imageAssetResources.length || !CONFIG.videoAssetResources.length) {
-    console.log('CREATIVE REVIEW: add real app images/video before launch where possible. ' +
-      'Google can use store assets and may automatically assemble video. Review generated previews.');
-  }
-  if (CONFIG.mode === 'PLAN') {
-    console.log('PLAN ONLY: no mutation submitted; this is not server-side mutation validation.');
-    return;
-  }
-  check(CONFIG.acknowledgeSpendLimits === true,
-    'Read the exposure above, then set acknowledgeSpendLimits=true to create a PAUSED campaign.');
-  check(conversion, 'No unique enabled primary Google Play download conversion found. ' +
-    'Set up/select SoulBuddy downloads in Goals > Conversions (or begin App campaign setup ' +
-    'to generate the download event, then cancel without publishing). Run PLAN again. ' +
-    'For manager-owned conversions, configure the campaign in the Google Ads UI instead.');
-  const operations = buildOperations(CONFIG, context, plan, country.resourceName,
-    language.resourceName, conversion.resourceName);
-  const results = AdsApp.mutateAll(operations, {apiVersion: API_VERSION, partialFailure: false});
-  check(Array.isArray(results) && results.length === operations.length,
-    'Unexpected API result. Inspect Google Ads before retrying; nothing has been enabled.');
+  check(Array.isArray(results) && results.length === request.operations.length,
+    'Unexpected Google Ads response. Nothing was enabled. Inspect the account before retrying.');
   const errors = [];
   results.forEach((result, index) => {
     if (!result.isSuccessful()) errors.push('Operation ' + index + ': ' + result.getErrorMessages().join('; '));
   });
-  check(!errors.length, 'Atomic request failed (no requested changes committed):\n' + errors.join('\n'));
+  check(errors.length === 0, 'Atomic request rejected; requested changes were not committed.\n' + errors.join('\n'));
   if (AdsApp.getExecutionInfo().isPreview()) {
-    console.log('PREVIEW completed. No campaign was persisted. Run once to create it PAUSED.');
-  } else {
-    console.log('CREATED PAUSED: ' + results[1].getResourceName());
-    console.log('Review conversions, dates, budget, country, assets and policy status in Google Ads. ' +
-      'Enable it manually only after review. Re-running this installer will not update it.');
+    console.log('PREVIEW PASSED. Nothing saved. Click Run using this same unchanged script to create PAUSED.');
+    return;
   }
+  const resource = results[request.campaignIndex].getResourceName();
+  check(new RegExp('^customers/' + PILOT.customerId + '/campaigns/[1-9][0-9]*$').test(resource),
+    'Unexpected campaign resource. Inspect the account before retrying. Nothing was enabled.');
+  console.log('CREATED PAUSED: ' + resource);
+  console.log('Images and text are attached. Confirm the Nigeria Play release, previews, install tracking, dates, ' +
+    'spend and billing in Google Ads, then enable the campaign manually. No code editing is needed. ' +
+    'The 14-day calendar window starts on the creation date, not when you later enable it.');
 }
 
-function validateConfig(c, context) {
-  check(['PLAN', 'CREATE_PAUSED'].includes(c.mode), 'Use mode PLAN or CREATE_PAUSED.');
-  check(typeof c.expectedCustomerId === 'string' && /^(\d{10}|\d{3}-\d{3}-\d{4})$/.test(c.expectedCustomerId),
-    'Fill expectedCustomerId using the account shown above.');
-  check(c.expectedCustomerId.replace(/-/g, '') === context.customerId, 'Wrong Ads account; refusing to continue.');
-  check(typeof c.expectedCurrency === 'string' && /^[A-Z]{3}$/.test(c.expectedCurrency) &&
-    c.expectedCurrency === context.currency, 'Fill expectedCurrency with the exact account currency.');
-  check(typeof c.countryCode === 'string' && /^[A-Z]{2}$/.test(c.countryCode), 'Choose one ISO countryCode.');
-  toMicros(c.dailyBudget);
-  check(Number.isInteger(c.testDays) && c.testDays >= 1 && c.testDays <= 30, 'testDays must be 1-30.');
-  check(c.targetCpi === null || (typeof c.targetCpi === 'number' && c.targetCpi > 0),
-    'targetCpi must be null or a positive number.');
-  if (c.targetCpi !== null) toMicros(c.targetCpi);
-  check(typeof c.startDate === 'string', 'startDate must be empty or YYYY-MM-DD.');
-  const start = c.startDate || context.today;
-  check(/^\d{4}-\d{2}-\d{2}$/.test(start) && validDate(start), 'Invalid startDate.');
-  check(start >= context.today, 'startDate is in the past in the Ads account timezone.');
-  check(typeof c.campaignKey === 'string' && c.campaignKey.trim() === c.campaignKey &&
-    c.campaignKey.length > 0 && c.campaignKey.length <= 100 && !/[\u0000-\u001f\u007f]/.test(c.campaignKey),
-    'Use a non-empty campaignKey of at most 100 characters without control characters.');
-  check(typeof c.acknowledgeSpendLimits === 'boolean', 'acknowledgeSpendLimits must be boolean.');
-  check(typeof c.installConversionResource === 'string' && (!c.installConversionResource ||
-    /^customers\/\d+\/conversionActions\/\d+$/.test(c.installConversionResource)), 'Invalid conversion resource.');
-  validateText(c.headlines, 30, 'headlines');
-  validateText(c.descriptions, 90, 'descriptions');
-  [c.imageAssetResources, c.videoAssetResources].forEach(resources => {
-    check(Array.isArray(resources) && resources.length <= 20, 'Use 0-20 resources per asset type.');
-    check(new Set(resources).size === resources.length, 'Duplicate creative resource.');
-    resources.forEach(resource => check(typeof resource === 'string' &&
-      new RegExp('^customers/' + context.customerId + '/assets/[1-9][0-9]*$').test(resource),
-      'Asset must be an existing resource in this account, not a URL, path or another account\'s asset.'));
-  });
-  const plannedMicros = toMicros(c.dailyBudget) * c.testDays;
-  check(Number.isSafeInteger(plannedMicros * 2), 'Budget is too large to represent safely.');
-  const end = addDays(start, c.testDays - 1);
-  check(validDate(end), 'End date falls outside the supported calendar range.');
-  return {
-    name: c.campaignKey + ' | ' + c.countryCode + ' | EN',
-    start: start, end: end,
-    plannedSpend: plannedMicros / 1000000, conservativeExposure: plannedMicros * 2 / 1000000
-  };
+function makePlan(context) {
+  check(context.customerId === PILOT.customerId, 'Wrong account.');
+  check(Object.prototype.hasOwnProperty.call(DAILY_ALLOWANCES, context.currency),
+    'No reviewed allowance for account currency ' + context.currency + '. No changes made; keep this log.');
+  check(typeof context.today === 'string' && validDate(context.today), 'Invalid account-local date.');
+  const daily = DAILY_ALLOWANCES[context.currency];
+  const end = addDays(context.today, PILOT.days - 1);
+  check(validDate(end), 'End date is outside the supported calendar range.');
+  return {daily, start: context.today, end, planned: daily * PILOT.days, exposure: daily * 2 * PILOT.days};
 }
 
-function buildOperations(c, context, plan, countryResource, languageResource, conversionResource) {
-  check(/^geoTargetConstants\/[1-9][0-9]*$/.test(countryResource), 'Invalid country resource.');
-  check(/^languageConstants\/[1-9][0-9]*$/.test(languageResource), 'Invalid language resource.');
-  check(/^customers\/\d+\/conversionActions\/[1-9][0-9]*$/.test(conversionResource), 'Missing conversion.');
+function planConversion(rows, owner, context) {
+  const valid = rows.filter(row => row.type === 'GOOGLE_PLAY_DOWNLOAD' && row.appId === PILOT.appId);
+  check(valid.length === rows.length, 'Unexpected conversion response. No changes made.');
+  const eligible = valid.filter(row => row.status === 'ENABLED' && row.primaryForGoal === true &&
+    typeof row.resourceName === 'string' &&
+    new RegExp('^' + owner + '/conversionActions/[1-9][0-9]*$').test(row.resourceName))
+    .sort((a, b) => compareResourceIds(a.resourceName, b.resourceName));
+  if (eligible.length) {
+    if (eligible.length > 1) console.log('Multiple primary Play-download actions exist for this exact app; ' +
+      'selecting the oldest ID only to avoid counting the same installation twice.');
+    return {create: false, resourceName: eligible[0].resourceName};
+  }
+  check(valid.length === 0, 'SoulBuddy install measurement already exists but is disabled, secondary or owned elsewhere. ' +
+    'Its settings were not overridden and no duplicate was created. Keep this log for review.');
+  check(owner === 'customers/' + context.customerId,
+    'Install conversions are managed by ' + owner + ', not this customer. No changes made; keep this log.');
+  return {create: true, resourceName: owner + '/conversionActions/-4'};
+}
+
+function buildOperations(context, plan, countryResource, languageResource, conversion, images, existingAssets) {
+  check(context.customerId === PILOT.customerId, 'Wrong account.');
+  check(/^geoTargetConstants\/[1-9][0-9]*$/.test(countryResource), 'Invalid country.');
+  check(/^languageConstants\/[1-9][0-9]*$/.test(languageResource), 'Invalid language.');
+  check(/^customers\/[1-9][0-9]*\/conversionActions\/(?:[1-9][0-9]*|-4)$/.test(conversion.resourceName),
+    'Invalid install conversion.');
   const prefix = 'customers/' + context.customerId;
   const budget = prefix + '/campaignBudgets/-1';
   const campaign = prefix + '/campaigns/-2';
   const adGroup = prefix + '/adGroups/-3';
-  const campaignData = {
-    resourceName: campaign, name: plan.name, status: 'PAUSED', campaignBudget: budget,
+  const operations = [];
+  if (conversion.create) {
+    check(conversion.resourceName === prefix + '/conversionActions/-4', 'Invalid new conversion owner.');
+    operations.push({conversionActionOperation: {create: {
+      resourceName: conversion.resourceName, name: 'SoulBuddy | Google Play downloads | Install pilot',
+      type: 'GOOGLE_PLAY_DOWNLOAD', category: 'DOWNLOAD', appId: PILOT.appId,
+      status: 'ENABLED', primaryForGoal: true, countingType: 'ONE_PER_CLICK',
+      clickThroughLookbackWindowDays: '30', viewThroughLookbackWindowDays: '1',
+      valueSettings: {defaultValue: 0, defaultCurrencyCode: context.currency, alwaysUseDefaultValue: true}
+    }}});
+  }
+  const imageResources = images.map((image, index) => {
+    const matches = existingAssets.filter(asset => asset.name === image.name);
+    matches.forEach(asset => {
+      const full = asset.imageAsset && asset.imageAsset.fullSize;
+      check(asset.type === 'IMAGE' && full && Number(full.widthPixels) === image.width &&
+        Number(full.heightPixels) === image.height &&
+        new RegExp('^' + prefix + '/assets/[1-9][0-9]*$').test(asset.resourceName),
+        'An existing named image has an unexpected type, size or owner. No changes made.');
+    });
+    if (matches.length) return matches.sort((a, b) => compareResourceIds(a.resourceName, b.resourceName))[0].resourceName;
+    const resourceName = prefix + '/assets/' + (-10 - index);
+    operations.push({assetOperation: {create: {
+      resourceName, name: image.name, type: 'IMAGE', imageAsset: {data: image.data}
+    }}});
+    return resourceName;
+  });
+  operations.push({campaignBudgetOperation: {create: {
+    resourceName: budget, name: PILOT.name + ' | budget', amountMicros: String(toMicros(plan.daily)),
+    explicitlyShared: false, deliveryMethod: 'STANDARD'
+  }}});
+  const campaignIndex = operations.length;
+  operations.push({campaignOperation: {create: {
+    resourceName: campaign, name: PILOT.name, status: 'PAUSED', campaignBudget: budget,
     advertisingChannelType: 'MULTI_CHANNEL', advertisingChannelSubType: 'APP_CAMPAIGN',
-    appCampaignSetting: {
-      appId: APP_ID, appStore: 'GOOGLE_APP_STORE',
-      biddingStrategyGoalType: c.targetCpi === null ? 'OPTIMIZE_INSTALLS_WITHOUT_TARGET_INSTALL_COST' :
-        'OPTIMIZE_INSTALLS_TARGET_INSTALL_COST'
-    },
+    appCampaignSetting: {appId: PILOT.appId, appStore: 'GOOGLE_APP_STORE',
+      biddingStrategyGoalType: 'OPTIMIZE_INSTALLS_WITHOUT_TARGET_INSTALL_COST'},
+    maximizeConversions: {},
+    selectiveOptimization: {conversionActions: [conversion.resourceName]},
     containsEuPoliticalAdvertising: 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
     startDateTime: plan.start + ' 00:00:00', endDateTime: plan.end + ' 23:59:59',
-    geoTargetTypeSetting: {positiveGeoTargetType: 'PRESENCE', negativeGeoTargetType: 'PRESENCE'},
-    selectiveOptimization: {conversionActions: [conversionResource]}
-  };
-  if (c.targetCpi === null) campaignData.maximizeConversions = {};
-  else campaignData.targetCpa = {targetCpaMicros: String(toMicros(c.targetCpi))};
-  const appAd = {
-    headlines: c.headlines.map(text => ({text})), descriptions: c.descriptions.map(text => ({text}))
-  };
-  if (c.imageAssetResources.length) appAd.images = c.imageAssetResources.map(asset => ({asset}));
-  if (c.videoAssetResources.length) appAd.youtubeVideos = c.videoAssetResources.map(asset => ({asset}));
-  return [
-    {campaignBudgetOperation: {create: {resourceName: budget, name: plan.name + ' | budget',
-      amountMicros: String(toMicros(c.dailyBudget)), explicitlyShared: false, deliveryMethod: 'STANDARD'}}},
-    {campaignOperation: {create: campaignData}},
-    {campaignCriterionOperation: {create: {campaign, location: {geoTargetConstant: countryResource}}}},
-    {campaignCriterionOperation: {create: {campaign, language: {languageConstant: languageResource}}}},
-    {adGroupOperation: {create: {resourceName: adGroup, campaign, name: 'Faithful daily habits', status: 'ENABLED'}}},
-    {adGroupAdOperation: {create: {adGroup, status: 'ENABLED', ad: {appAd}}}}
-  ];
+    geoTargetTypeSetting: {positiveGeoTargetType: 'PRESENCE', negativeGeoTargetType: 'PRESENCE'}
+  }}});
+  operations.push({campaignCriterionOperation: {create: {campaign, location: {geoTargetConstant: countryResource}}}});
+  operations.push({campaignCriterionOperation: {create: {campaign, language: {languageConstant: languageResource}}}});
+  operations.push({adGroupOperation: {create: {resourceName: adGroup, campaign,
+    name: 'Christ-centered daily habits', status: 'ENABLED'}}});
+  operations.push({adGroupAdOperation: {create: {adGroup, status: 'ENABLED', ad: {appAd: {
+    headlines: HEADLINES.map(text => ({text})), descriptions: DESCRIPTIONS.map(text => ({text})),
+    images: imageResources.map(asset => ({asset}))
+  }}}}});
+  return {operations, campaignIndex};
 }
 
-function chooseConversion(conversions, selected) {
-  if (selected) {
-    const matches = conversions.filter(conversion => conversion.resourceName === selected);
-    check(matches.length === 1, 'Selected conversion is not an enabled primary Google Play download for SoulBuddy.');
-    return matches[0];
-  }
-  return conversions.length === 1 ? conversions[0] : null;
+function validateImages(images) {
+  check(Array.isArray(images) && images.length === 3,
+    'Use the complete generated SoulBuddy-Ready-to-Run.js file, which contains three images. No changes made.');
+  const expected = ['1200x628', '1200x1200', '1200x1500'];
+  check(new Set(images.map(image => image.name)).size === 3, 'Duplicate embedded image names.');
+  images.forEach(image => {
+    check(expected.includes(image.width + 'x' + image.height), 'Unexpected embedded image dimensions.');
+    check(typeof image.name === 'string' && /^SoulBuddy transformation [a-z]+ [a-f0-9]{16}$/.test(image.name),
+      'Invalid embedded image name.');
+    check(typeof image.data === 'string' && image.data.length < 7 * 1024 * 1024 &&
+      image.data.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(image.data),
+      'Embedded image data is incomplete. Copy the entire generated file.');
+    const bytes = Utilities.base64Decode(image.data);
+    check(bytes.length === image.bytes && bytes.length >= 4 && bytes.length <= 5 * 1024 * 1024 &&
+      (bytes[0] & 255) === 255 && (bytes[1] & 255) === 216 &&
+      (bytes[bytes.length - 2] & 255) === 255 && (bytes[bytes.length - 1] & 255) === 217,
+      'Embedded JPEG failed integrity checks.');
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
+      .map(byte => ('0' + (byte & 255).toString(16)).slice(-2)).join('');
+    check(digest === image.sha256 && image.name.endsWith(digest.slice(0, 16)), 'Embedded image checksum mismatch.');
+  });
+  check(new Set(images.map(image => image.width + 'x' + image.height)).size === 3,
+    'One of the three image aspect ratios is missing.');
 }
-function verifyAssets(resources, type) {
-  if (!resources.length) return;
-  const rows = searchRows('SELECT asset.resource_name, asset.type FROM asset WHERE asset.resource_name IN (' +
-    resources.map(gaqlString).join(', ') + ')');
-  check(rows.length === resources.length && rows.every(row => row.asset.type === type),
-    'An optional asset is missing or has the wrong type: ' + type);
+function validateText(values, maximum) {
+  check(Array.isArray(values) && values.length === 5 && new Set(values).size === 5, 'Invalid ad text count.');
+  values.forEach(value => check(typeof value === 'string' && value.length > 0 && value.length <= maximum &&
+    value.trim() === value && /^[\x20-\x7e]+$/.test(value), 'Invalid ad text.'));
+}
+function compareResourceIds(a, b) {
+  const left = a.slice(a.lastIndexOf('/') + 1), right = b.slice(b.lastIndexOf('/') + 1);
+  return left.length - right.length || (left < right ? -1 : left > right ? 1 : 0);
+}
+function reportExisting(rows) {
+  console.log('STOP: a SoulBuddy campaign already exists. Nothing duplicated, changed or re-enabled.');
+  rows.forEach(row => console.log(JSON.stringify(row.campaign)));
 }
 function searchRows(query) {
-  const iterator = AdsApp.search(query, {apiVersion: API_VERSION});
+  const iterator = AdsApp.search(query, {apiVersion: PILOT.apiVersion});
   const rows = [];
   while (iterator.hasNext()) rows.push(iterator.next());
   return rows;
 }
-function exactlyOne(rows, description) {
-  check(rows.length === 1, 'Could not uniquely resolve ' + description + '. No changes made.');
+function one(rows, label) {
+  check(rows.length === 1, 'Could not uniquely resolve ' + label + '. No changes made.');
   return rows[0];
 }
-function gaqlString(value) {
+function quoted(value) {
   return "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
 }
-function validateText(values, limit, name) {
-  check(Array.isArray(values) && values.length >= 2 && values.length <= 5, name + ': provide 2-5 entries.');
-  check(new Set(values).size === values.length, name + ': duplicate text.');
-  values.forEach(text => check(typeof text === 'string' && text.trim() === text && text.length > 0 &&
-    text.length <= limit && !/[^\x20-\x7e]/.test(text),
-    name + ': use non-empty English ASCII text, no newlines, at most ' + limit + ' characters.'));
-}
 function toMicros(value) {
-  check(typeof value === 'number' && Number.isFinite(value) && value > 0, 'Budget/bid must be a positive finite number.');
-  const micros = Math.round(value * 1000000);
-  check(Number.isSafeInteger(micros) && micros > 0 && Math.abs(value * 1000000 - micros) < 0.00001,
-    'Budget/bid must fit an integer number of micros, at most six decimal places.');
-  return micros;
+  const result = value * 1000000;
+  check(Number.isSafeInteger(result) && result > 0, 'Invalid budget amount.');
+  return result;
 }
 function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
