@@ -15,10 +15,11 @@ concurrency:
 jobs:
   publish:
     name: Build and publish Android bundle
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 30
     defaults:
       run:
+        shell: pwsh
         working-directory: apps/soulbuddy
 
     steps:
@@ -45,25 +46,33 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
-          cat > android/key.properties <<EOF
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
+          if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_BASE64) -or
+              [string]::IsNullOrWhiteSpace($env:ANDROID_KEY_ALIAS) -or
+              [string]::IsNullOrWhiteSpace($env:ANDROID_KEY_PASSWORD) -or
+              [string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_PASSWORD)) {
+            throw 'Android signing material is incomplete.'
+          }
+          [IO.File]::WriteAllBytes(
+            'android/upload-keystore.jks',
+            [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
+          )
+          @"
+          storePassword=$env:ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$env:ANDROID_KEY_PASSWORD
+          keyAlias=$env:ANDROID_KEY_ALIAS
           storeFile=../upload-keystore.jks
-          EOF
-          test -s android/upload-keystore.jks
+          "@ | Set-Content -LiteralPath android/key.properties -NoNewline
+          if (-not (Test-Path -LiteralPath android/upload-keystore.jks) -or
+              (Get-Item -LiteralPath android/upload-keystore.jks).Length -eq 0) {
+            throw 'Android upload keystore restoration failed.'
+          }
 
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
       - name: Verify bundled Scripture database
         run: |
-          python3 - <<'PY'
+          @'
           import sqlite3
           from pathlib import Path
 
@@ -80,7 +89,8 @@ jobs:
           required_tables = {'books', 'chapters', 'verses'}
           if not required_tables <= tables:
               raise SystemExit('The bundled Scripture database has an unexpected schema.')
-          PY
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run Flutter tests
         run: flutter test
@@ -88,14 +98,14 @@ jobs:
       - name: Build signed Android App Bundle
         id: build
         run: |
-          version_name="${GITHUB_REF_NAME#v}"
-          if ! [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release tags must use a semantic version such as v1.2.3." >&2
-            exit 1
-          fi
-          build_number=$((1000 + GITHUB_RUN_NUMBER))
-          flutter build appbundle --release --build-name "$version_name" --build-number "$build_number"
-          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          $versionName = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ($versionName -notmatch '^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$') {
+            throw 'Release tags must use a semantic version such as v1.2.3.'
+          }
+          $buildNumber = 1000 + [int]$env:GITHUB_RUN_NUMBER
+          flutter build appbundle --release --build-name $versionName --build-number $buildNumber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "version_name=$versionName" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
 
       - name: Upload Android App Bundle artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
