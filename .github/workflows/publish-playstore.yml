@@ -15,11 +15,14 @@ concurrency:
 jobs:
   publish:
     name: Build and publish Android bundle
-    runs-on: windows-latest
-    timeout-minutes: 30
+    # The Android bundle itself is platform-independent. Linux runners build it
+    # substantially faster than Windows runners; Windows remains covered by the
+    # app's regular test workflows, which need the native PowerSync library.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
-        shell: pwsh
+        shell: bash
         working-directory: apps/soulbuddy
 
     steps:
@@ -39,6 +42,18 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Restore Flutter and Gradle build caches
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.pub-cache
+            apps/soulbuddy/.dart_tool
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: android-release-${{ runner.os }}-flutter-3.35.7-${{ hashFiles('apps/soulbuddy/pubspec.lock', 'apps/soulbuddy/android/**/*.gradle*', 'apps/soulbuddy/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            android-release-${{ runner.os }}-flutter-3.35.7-
+
       - name: Restore Android signing material
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -46,33 +61,25 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_BASE64) -or
-              [string]::IsNullOrWhiteSpace($env:ANDROID_KEY_ALIAS) -or
-              [string]::IsNullOrWhiteSpace($env:ANDROID_KEY_PASSWORD) -or
-              [string]::IsNullOrWhiteSpace($env:ANDROID_KEYSTORE_PASSWORD)) {
-            throw 'Android signing material is incomplete.'
-          }
-          [IO.File]::WriteAllBytes(
-            'android/upload-keystore.jks',
-            [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64)
-          )
-          @"
-          storePassword=$env:ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$env:ANDROID_KEY_PASSWORD
-          keyAlias=$env:ANDROID_KEY_ALIAS
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
           storeFile=../upload-keystore.jks
-          "@ | Set-Content -LiteralPath android/key.properties -NoNewline
-          if (-not (Test-Path -LiteralPath android/upload-keystore.jks) -or
-              (Get-Item -LiteralPath android/upload-keystore.jks).Length -eq 0) {
-            throw 'Android upload keystore restoration failed.'
-          }
+          EOF
+          test -s android/upload-keystore.jks
 
       - name: Resolve Flutter dependencies
         run: flutter pub get
 
       - name: Verify bundled Scripture database
         run: |
-          @'
+          python - <<'PY'
           import sqlite3
           from pathlib import Path
 
@@ -89,23 +96,19 @@ jobs:
           required_tables = {'books', 'chapters', 'verses'}
           if not required_tables <= tables:
               raise SystemExit('The bundled Scripture database has an unexpected schema.')
-          '@ | python -
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Run Flutter tests
-        run: flutter test
+          PY
 
       - name: Build signed Android App Bundle
         id: build
         run: |
-          $versionName = $env:GITHUB_REF_NAME -replace '^v', ''
-          if ($versionName -notmatch '^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$') {
-            throw 'Release tags must use a semantic version such as v1.2.3.'
-          }
-          $buildNumber = 1000 + [int]$env:GITHUB_RUN_NUMBER
-          flutter build appbundle --release --build-name $versionName --build-number $buildNumber
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          "version_name=$versionName" | Add-Content -LiteralPath $env:GITHUB_OUTPUT
+          versionName="${GITHUB_REF_NAME#v}"
+          if [[ ! "$versionName" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo 'Release tags must use a semantic version such as v1.2.3.' >&2
+            exit 1
+          fi
+          buildNumber=$((1000 + GITHUB_RUN_NUMBER))
+          flutter build appbundle --release --no-pub --build-name "$versionName" --build-number "$buildNumber"
+          echo "version_name=$versionName" >> "$GITHUB_OUTPUT"
 
       - name: Upload Android App Bundle artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
