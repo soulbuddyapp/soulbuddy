@@ -44,6 +44,17 @@ Future<OrientationJourneyStatus> loadKingdomJourney(
   );
 }
 
+Future<bool> loadKingdomMeditationReadiness(
+  List<OrientationCourse> catalog,
+  OrientationProgressRepository repository,
+) async {
+  if (catalog.length < 6) return false;
+  for (final nugget in catalog.take(6)) {
+    if (!(await repository.load(nugget.id)).completed) return false;
+  }
+  return true;
+}
+
 final kingdomCatalogProvider = FutureProvider<List<OrientationCourse>>(
   (ref) => loadKingdomCatalog(),
 );
@@ -54,4 +65,10 @@ final kingdomJourneyStatusProvider = FutureProvider<OrientationJourneyStatus>((
   final catalog = await ref.watch(kingdomCatalogProvider.future);
   final repository = ref.watch(orientationProgressRepositoryProvider);
   return loadKingdomJourney(catalog, repository);
+});
+
+final kingdomMeditationReadyProvider = FutureProvider<bool>((ref) async {
+  final catalog = await ref.watch(kingdomCatalogProvider.future);
+  final repository = ref.watch(orientationProgressRepositoryProvider);
+  return loadKingdomMeditationReadiness(catalog, repository);
 });

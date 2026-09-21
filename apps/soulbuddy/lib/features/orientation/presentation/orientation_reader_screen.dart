@@ -603,6 +603,16 @@ _NuggetResponse _nuggetResponse(String id, String tenet) => switch (id) {
     'What faithful step might I be postponing?',
     'Name one goal and set a daily or weekly meditation time.',
   ),
+  '07-open-hands' => const _NuggetResponse(
+    'Father, I entrust my hopes to you. Loosen the grip of pride and fear.',
+    'What outcome am I unwilling to release?',
+    'Serve once today without seeking credit.',
+  ),
+  '08-discern-and-carry' => const _NuggetResponse(
+    'Holy Spirit, guide me in truth and keep my desires from distorting love.',
+    'Where might my bias be rewriting a good thought?',
+    'Confirm a safe, loving step in prayer, then take it.',
+  ),
   '01-pull-the-weeds' => const _NuggetResponse(
     'Jesus, show me the weed while it is small, and give me courage to pull it early.',
     'What temptation have I been negotiating with?',

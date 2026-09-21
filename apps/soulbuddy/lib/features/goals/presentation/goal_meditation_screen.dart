@@ -83,7 +83,9 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
     try {
       await _repository.saveDraft(widget.goalId, _notes.text);
     } on Object {
-      if (mounted) setState(() => _error = 'Notebook draft could not be saved.');
+      if (mounted) {
+        setState(() => _error = 'Notebook draft could not be saved.');
+      }
     }
   }
 
@@ -308,16 +310,16 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
 
   @override
   Widget build(BuildContext context) {
-    final kingdom = ref.watch(kingdomJourneyStatusProvider);
-    if (kingdom case AsyncData(value: final status)) {
-      if (!status.complete) {
+    final kingdom = ref.watch(kingdomMeditationReadyProvider);
+    if (kingdom case AsyncData(value: final ready)) {
+      if (!ready) {
         return Scaffold(
           appBar: AppBar(title: const Text('Goal meditation')),
           body: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Complete Kingdom life to begin this practice.'),
+                const Text('Complete the first six Kingdom Nuggets to begin.'),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () => context.go('/kingdom'),
@@ -332,7 +334,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       return Scaffold(
         body: Center(
           child: TextButton(
-            onPressed: () => ref.invalidate(kingdomJourneyStatusProvider),
+            onPressed: () => ref.invalidate(kingdomMeditationReadyProvider),
             child: const Text('Try again'),
           ),
         ),

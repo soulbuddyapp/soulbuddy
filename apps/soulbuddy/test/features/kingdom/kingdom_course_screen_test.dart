@@ -6,7 +6,7 @@ import 'package:soulbuddy/features/orientation/data/orientation_progress_reposit
 import 'package:soulbuddy/features/orientation/providers/orientation_providers.dart';
 
 void main() {
-  testWidgets('completed Orientation reveals the six Kingdom Nuggets', (
+  testWidgets('completed Orientation reveals the Kingdom Nuggets', (
     tester,
   ) async {
     final repository = OrientationProgressRepository(

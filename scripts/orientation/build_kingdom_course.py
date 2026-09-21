@@ -1,4 +1,4 @@
-"""Build the six narrated Kingdom Life nuggets and synchronized transcripts.
+"""Build the narrated Kingdom Life nuggets and synchronized transcripts.
 
 Run: python scripts/orientation/build_kingdom_course.py
 Requires edge-tts and FFmpeg. Audio is generated once and committed as an asset.
@@ -58,6 +58,18 @@ LESSONS = [
         "What if the next answer to your prayer begins with a step you would rather postpone?\n\n"
         "A woman came to prayer with a goal she cared deeply about. She wanted to begin work that would help her neighborhood. She opened a notebook and asked God for mercy and guidance. In the quiet she remembered a colleague she had dismissed too quickly. She wrote the thought down, then waited. Later she tested it against Scripture, love, and the counsel of someone she trusted. She did not call every thought a message from God. But she knew an honest apology would be good. The next day she made it. Their conversation became the first small step toward the work she hoped to do.\n\n"
         "Cooperation with grace has room for listening and for action. Name a goal that matters. Set a daily or weekly period and bring a notebook. Begin by entrusting the time to God. Sit, listen, and write what arises without forcing an answer. Then discern patiently: does it agree with Christ's love and with wise counsel? Choose one faithful action within your reach. If the page stays blank, the time is still prayer. Return at the next appointed time. A willing heart is formed through attention, truth, and service."
+    ),
+    (
+        '07-open-hands', 'Open Hands', 'Train the heart in detachment',
+        "Can you hear God clearly while gripping the answer you already want?\n\n"
+        "A young woman prayed that God would use her voice. She pictured a crowded room listening. Then her choir leader asked her to visit an older singer who could no longer leave home. She felt the sting of being unseen. A friend asked, Would your voice still be a gift if only one person heard it? The question stayed with her. She prayed for a willing heart, visited the woman, and sang beside her chair. The song was quieter than she had imagined. Its love was no smaller.\n\n"
+        "Detachment does not mean having no hopes. It means entrusting our hopes and their outcome to God, so that pride, fear, and preference do not choose for us. This takes training. Each day, name what you desire, and notice what you refuse to consider. Ask whether you would still do the good if it brought no credit. Offer the goal again in prayer. Take one small action that loosens your grip: listen before defending yourself, serve without being seen, or accept a correction. To abandon ourselves to God is not to despise the self. It is to trust his care more than our own control. Open your hands, then keep them open."
+    ),
+    (
+        '08-discern-and-carry', 'Discern and Carry', 'Test the prompting; act in love',
+        "What if the first thought after prayer is gentle, inconvenient, and easy to edit?\n\n"
+        "A man prayed about a quarrel with his friend. The first thought that came was simple: call him, listen, and apologize for your part. A quiet sense of rightness accompanied it. Then another thought arrived: wait until he admits everything, and tell others how patient you have been. The man wrote down the first thought before his pride could dress it in better clothes. He prayed again, weighed it against Christ's call to truth and love, and made the call. His friend did not say everything he hoped to hear. Still, the conversation began to heal.\n\n"
+        "Often the first thought after sincere prayer arrives before self protection has time to edit it. Attend to it, especially when it brings a steady peace and asks for love rather than applause. That feeling is a signal to discern, not proof that every thought comes from God. Bias can enter as we interpret or carry out an insight. Ask: would I hear the same thing if it cost me comfort or credit? Confirm it in prayer. Test it with Scripture and wise counsel, especially when a decision could seriously affect someone. Then do not let endless hesitation replace a safe, faithful act. Carry the good without letting ego rewrite it."
     ),
 ]
 

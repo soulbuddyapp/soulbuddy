@@ -82,8 +82,8 @@ class MeditationScreen extends ConsumerWidget {
                           title: const Text('Kingdom life'),
                           subtitle: Text(
                             status.complete
-                                ? 'Six Nuggets complete · Listen again'
-                                : '${status.completedCount} of 6 Nuggets complete',
+                                ? 'Eight Nuggets complete · Listen again'
+                                : '${status.completedCount} of 8 Nuggets complete',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => context.go(

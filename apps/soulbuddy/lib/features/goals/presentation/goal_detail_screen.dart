@@ -38,7 +38,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
 
   Widget _buildGoal(BuildContext context, Goal goal) {
     final kingdomComplete =
-        ref.watch(kingdomJourneyStatusProvider).value?.complete ?? false;
+        ref.watch(kingdomMeditationReadyProvider).value ?? false;
     final returnPlan = ref.watch(goalReturnPlanProvider(goal.id));
     final returnRelevant =
         goal.starterKey == GoalStarterKey.stopControl ||

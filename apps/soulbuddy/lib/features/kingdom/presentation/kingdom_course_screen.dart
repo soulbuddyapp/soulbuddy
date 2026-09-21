@@ -152,12 +152,17 @@ class _KingdomCourseScreenState extends ConsumerState<KingdomCourseScreen> {
           courseIndex: index < 0 ? 0 : index,
           courseCount: nuggets?.length ?? 1,
           collectionName: 'Kingdom life',
-          onCompleted: () => ref.invalidate(kingdomJourneyStatusProvider),
+          onCompleted: () {
+            ref.invalidate(kingdomJourneyStatusProvider);
+            ref.invalidate(kingdomMeditationReadyProvider);
+          },
         ),
       );
     }
 
     final journey = ref.watch(kingdomJourneyStatusProvider).value;
+    final meditationReady =
+        ref.watch(kingdomMeditationReadyProvider).value ?? false;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kingdom life'),
@@ -212,7 +217,7 @@ class _KingdomCourseScreenState extends ConsumerState<KingdomCourseScreen> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  if (journey?.complete == true) ...[
+                  if (meditationReady) ...[
                     const SizedBox(height: 12),
                     FilledButton.icon(
                       onPressed: () => createMeditationGoal(context, ref),

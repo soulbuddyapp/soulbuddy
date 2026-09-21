@@ -46,5 +46,21 @@
     "durationMs": 74760,
     "audioAsset": "kingdom/06-listen-and-write.mp3",
     "transcriptAsset": "assets/kingdom/06-listen-and-write.json"
+  },
+  {
+    "id": "07-open-hands",
+    "title": "Open Hands",
+    "tenet": "Train the heart in detachment",
+    "durationMs": 73824,
+    "audioAsset": "kingdom/07-open-hands.mp3",
+    "transcriptAsset": "assets/kingdom/07-open-hands.json"
+  },
+  {
+    "id": "08-discern-and-carry",
+    "title": "Discern and Carry",
+    "tenet": "Test the prompting; act in love",
+    "durationMs": 76728,
+    "audioAsset": "kingdom/08-discern-and-carry.mp3",
+    "transcriptAsset": "assets/kingdom/08-discern-and-carry.json"
   }
 ]

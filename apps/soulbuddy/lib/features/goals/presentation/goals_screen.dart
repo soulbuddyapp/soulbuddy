@@ -29,7 +29,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
     final goals = ref.watch(visibleGoalsProvider);
     final personalPrayers = ref.watch(personalPrayersProvider);
     final kingdomComplete =
-        ref.watch(kingdomJourneyStatusProvider).value?.complete ?? false;
+        ref.watch(kingdomMeditationReadyProvider).value ?? false;
     return SafeArea(
       child: Align(
         alignment: Alignment.topCenter,
