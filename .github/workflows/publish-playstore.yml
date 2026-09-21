@@ -74,8 +74,19 @@ jobs:
           EOF
           test -s android/upload-keystore.jks
 
-      - name: Resolve Flutter dependencies
-        run: flutter pub get
+      - name: Resolve release dependencies
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          pubspec = Path('pubspec.yaml')
+          source = pubspec.read_text(encoding='utf-8')
+          test_plugin = '  integration_test:\n    sdk: flutter\n'
+          if source.count(test_plugin) != 1:
+              raise SystemExit('Expected one test-only integration_test dependency.')
+          pubspec.write_text(source.replace(test_plugin, ''), encoding='utf-8')
+          PY
+          flutter pub get
 
       - name: Verify bundled Scripture database
         run: |
