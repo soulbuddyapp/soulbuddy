@@ -5,11 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/design/sacred_piece.dart';
 import '../../../core/presentation/sacred_piece_medallion.dart';
-import '../../../core/presentation/sanctuary_artwork.dart';
 import '../../prayers/domain/personal_prayer.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
 import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
+import '../../kingdom/providers/kingdom_course_providers.dart';
+import 'create_meditation_goal.dart';
 
 class GoalsScreen extends ConsumerStatefulWidget {
   const GoalsScreen({super.key});
@@ -27,69 +28,101 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
   Widget build(BuildContext context) {
     final goals = ref.watch(visibleGoalsProvider);
     final personalPrayers = ref.watch(personalPrayersProvider);
+    final kingdomComplete =
+        ref.watch(kingdomJourneyStatusProvider).value?.complete ?? false;
     return SafeArea(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
             children: [
-              const SizedBox(height: AppSpacing.md),
-              const SanctuaryReadingHeading(
-                title: 'My practice',
-                art: SanctuaryArt.renewal,
-                subtitle: 'Grow closer to God through personal prayer & goals.',
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton.icon(
-                key: const Key('open-create-workspace'),
-                onPressed: () => _showCreateSheet(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Create'),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              goals.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, _) => _GoalsUnavailable(
-                  onRetry: () {
-                    ref.invalidate(goalRepositoryProvider);
-                    ref.invalidate(visibleGoalsProvider);
-                  },
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  0,
                 ),
-                data: (items) => personalPrayers.when(
-                  loading: () => _CreatedWorkspace(
-                    goals: items,
-                    prayers: const [],
-                    filter: _filter,
-                    sort: _sort,
-                    loadingPrayers: true,
-                    reordering: _reordering,
-                    onFilterChanged: (value) => setState(() => _filter = value),
-                    onSortChanged: (value) => setState(() => _sort = value),
-                    onMoveActive: _moveActive,
-                  ),
-                  error: (_, _) => _CreatedWorkspace(
-                    goals: items,
-                    prayers: const [],
-                    filter: _filter,
-                    sort: _sort,
-                    prayersUnavailable: true,
-                    reordering: _reordering,
-                    onFilterChanged: (value) => setState(() => _filter = value),
-                    onSortChanged: (value) => setState(() => _sort = value),
-                    onMoveActive: _moveActive,
-                  ),
-                  data: (prayers) => _CreatedWorkspace(
-                    goals: items,
-                    prayers: prayers,
-                    filter: _filter,
-                    sort: _sort,
-                    reordering: _reordering,
-                    onFilterChanged: (value) => setState(() => _filter = value),
-                    onSortChanged: (value) => setState(() => _sort = value),
-                    onMoveActive: _moveActive,
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'My practice',
+                        maxLines: 2,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    FilledButton.icon(
+                      key: const Key('open-create-workspace'),
+                      onPressed: () =>
+                          _showCreateSheet(context, ref, kingdomComplete),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  children: [
+                    const Text(
+                      'Grow closer to God through personal prayer & goals.',
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    goals.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (_, _) => _GoalsUnavailable(
+                        onRetry: () {
+                          ref.invalidate(goalRepositoryProvider);
+                          ref.invalidate(visibleGoalsProvider);
+                        },
+                      ),
+                      data: (items) => personalPrayers.when(
+                        loading: () => _CreatedWorkspace(
+                          goals: items,
+                          prayers: const [],
+                          filter: _filter,
+                          sort: _sort,
+                          loadingPrayers: true,
+                          reordering: _reordering,
+                          onFilterChanged: (value) =>
+                              setState(() => _filter = value),
+                          onSortChanged: (value) =>
+                              setState(() => _sort = value),
+                          onMoveActive: _moveActive,
+                        ),
+                        error: (_, _) => _CreatedWorkspace(
+                          goals: items,
+                          prayers: const [],
+                          filter: _filter,
+                          sort: _sort,
+                          prayersUnavailable: true,
+                          reordering: _reordering,
+                          onFilterChanged: (value) =>
+                              setState(() => _filter = value),
+                          onSortChanged: (value) =>
+                              setState(() => _sort = value),
+                          onMoveActive: _moveActive,
+                        ),
+                        data: (prayers) => _CreatedWorkspace(
+                          goals: items,
+                          prayers: prayers,
+                          filter: _filter,
+                          sort: _sort,
+                          reordering: _reordering,
+                          onFilterChanged: (value) =>
+                              setState(() => _filter = value),
+                          onSortChanged: (value) =>
+                              setState(() => _sort = value),
+                          onMoveActive: _moveActive,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -138,72 +171,86 @@ enum _CreatedFilter { all, goals, prayers }
 
 enum _CreatedSort { recent, alphabetical, goalPriority }
 
-Future<void> _showCreateSheet(BuildContext context) =>
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (sheetContext) => SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.md,
-            AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'What would you like to begin?',
-                style: Theme.of(sheetContext).textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              _CreateChoice(
-                key: const Key('create-goal'),
-                icon: Icons.flag_outlined,
-                title: 'Goal',
-                subtitle: 'Name a change, hope, or next faithful step.',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.push('/welcome/goal');
-                },
-              ),
-              _CreateChoice(
-                key: const Key('create-prayer'),
-                icon: Icons.edit_note_outlined,
-                title: 'Prayer',
-                subtitle: 'Keep words you want to return to.',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go('/prayers/create');
-                },
-              ),
-              _CreateChoice(
-                key: const Key('create-meditation'),
-                icon: Icons.self_improvement_outlined,
-                title: 'Meditation',
-                subtitle: 'Read, reflect, and pray with sound if you choose.',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go('/prayers/meditation');
-                },
-              ),
-              _CreateChoice(
-                key: const Key('browse-prayer-library'),
-                icon: Icons.menu_book_outlined,
-                title: 'Browse prayer library',
-                subtitle: 'Find reviewed words for this moment.',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  context.go('/prayers');
-                },
-              ),
-            ],
-          ),
-        ),
+Future<void> _showCreateSheet(
+  BuildContext context,
+  WidgetRef ref,
+  bool kingdomComplete,
+) => showModalBottomSheet<void>(
+  context: context,
+  useSafeArea: true,
+  isScrollControlled: true,
+  builder: (sheetContext) => SingleChildScrollView(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.lg,
       ),
-    );
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'What would you like to begin?',
+            style: Theme.of(sheetContext).textTheme.titleLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _CreateChoice(
+            key: const Key('create-goal'),
+            icon: Icons.flag_outlined,
+            title: 'Goal',
+            subtitle: 'Name a change, hope, or next faithful step.',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              context.push('/welcome/goal');
+            },
+          ),
+          if (kingdomComplete)
+            _CreateChoice(
+              key: const Key('create-meditation-goal'),
+              icon: Icons.self_improvement,
+              title: 'Meditation Goal',
+              subtitle: 'Daily or weekly listening and discernment.',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                createMeditationGoal(context, ref);
+              },
+            ),
+          _CreateChoice(
+            key: const Key('create-prayer'),
+            icon: Icons.edit_note_outlined,
+            title: 'Prayer',
+            subtitle: 'Personal prayer and intercession.',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              context.go('/prayers/create');
+            },
+          ),
+          _CreateChoice(
+            key: const Key('create-meditation'),
+            icon: Icons.self_improvement_outlined,
+            title: 'Meditation',
+            subtitle: 'Scripture, reflection, and prayer.',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              context.go('/prayers/meditation');
+            },
+          ),
+          _CreateChoice(
+            key: const Key('browse-prayer-library'),
+            icon: Icons.menu_book_outlined,
+            title: 'Browse prayer library',
+            subtitle: 'Reviewed prayers for this moment.',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              context.go('/prayers');
+            },
+          ),
+        ],
+      ),
+    ),
+  ),
+);
 
 class _CreateChoice extends StatelessWidget {
   const _CreateChoice({
@@ -434,7 +481,7 @@ class _EmptyCreatedWork extends StatelessWidget {
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Text(
-        'Nothing created yet. Use Create when you are ready to begin.',
+        'Begin with a Goal or personal prayer.',
         style: Theme.of(context).textTheme.bodyLarge,
       ),
     ),

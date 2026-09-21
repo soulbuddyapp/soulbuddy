@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
 import '../../../core/presentation/sanctuary_backdrop.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -332,6 +333,21 @@ class _LibraryState extends ConsumerState<OrientationLibraryScreen> {
                         ),
                       ),
                     ),
+                    if (journey?.complete == true) ...[
+                      const SizedBox(height: 16),
+                      Card(
+                        child: ListTile(
+                          key: const Key('kingdom-course-option'),
+                          leading: const Icon(Icons.auto_awesome),
+                          title: const Text('Kingdom life'),
+                          subtitle: const Text(
+                            'Love, service, righteousness, and listening to God.',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.push('/kingdom'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

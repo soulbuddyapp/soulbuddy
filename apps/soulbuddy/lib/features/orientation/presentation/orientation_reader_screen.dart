@@ -20,6 +20,8 @@ class OrientationReaderScreen extends ConsumerStatefulWidget {
     this.courseCount = 1,
     this.controller,
     this.reduceMotion = false,
+    this.collectionName = 'orientation',
+    this.onCompleted,
     super.key,
   });
   final OrientationCourse course;
@@ -32,6 +34,8 @@ class OrientationReaderScreen extends ConsumerStatefulWidget {
   final int courseCount;
   final OrientationController? controller;
   final bool reduceMotion;
+  final String collectionName;
+  final VoidCallback? onCompleted;
   @override
   ConsumerState<OrientationReaderScreen> createState() => _ReaderState();
 }
@@ -61,10 +65,17 @@ class _ReaderState extends ConsumerState<OrientationReaderScreen>
   void _changed() {
     if (_controller.completed && !_completionNotified) {
       _completionNotified = true;
-      ref.invalidate(orientationSavedProgressProvider(widget.course.id));
-      ref.invalidate(orientationJourneyStatusProvider);
+      unawaited(_confirmCompletion());
     }
     if (mounted) setState(() {});
+  }
+
+  Future<void> _confirmCompletion() async {
+    await _controller.saveProgress();
+    if (!mounted || _controller.persistenceWarning != null) return;
+    ref.invalidate(orientationSavedProgressProvider(widget.course.id));
+    ref.invalidate(orientationJourneyStatusProvider);
+    widget.onCompleted?.call();
   }
 
   @override
@@ -163,10 +174,22 @@ class _ReaderState extends ConsumerState<OrientationReaderScreen>
             const SizedBox(height: 12),
             _ResponsePrompt(label: 'PLANT', text: response.action),
             const SizedBox(height: 16),
+            if (!_controller.completed)
+              OutlinedButton.icon(
+                key: const Key('orientation-finished-reading'),
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  unawaited(_controller.markRead());
+                },
+                icon: const Icon(Icons.check),
+                label: const Text('Finished reading'),
+              ),
             FilledButton.icon(
               onPressed: () {
                 Navigator.pop(sheetContext);
-                context.push('/remember/capture?mode=write&source=orientation');
+                context.push(
+                  '/remember/capture?mode=write&source=${widget.collectionName == 'orientation' ? 'orientation' : 'kingdom'}',
+                );
               },
               icon: const Icon(Icons.edit_note),
               label: const Text('Save a private reflection'),
@@ -217,7 +240,7 @@ class _ReaderState extends ConsumerState<OrientationReaderScreen>
         appBar: AppBar(
           toolbarHeight: large ? 96 : 64,
           leading: IconButton(
-            tooltip: 'Back to orientation',
+            tooltip: 'Back to ${widget.collectionName}',
             onPressed: _leaving ? null : () => _leave(),
             icon: const Icon(Icons.arrow_back),
           ),
@@ -550,6 +573,36 @@ class _NuggetResponse {
 }
 
 _NuggetResponse _nuggetResponse(String id, String tenet) => switch (id) {
+  '01-the-old-life' => const _NuggetResponse(
+    'Jesus, free my heart from the rule of appetite, fear, and pride.',
+    'Which impulse has been directing my choices?',
+    'Practice one act of self control today.',
+  ),
+  '02-the-new-adam' => const _NuggetResponse(
+    'Christ, teach me to live in the new life you give.',
+    'What old pattern needs a Christlike response?',
+    'Choose that response for one person today.',
+  ),
+  '03-kingdom-citizens' => const _NuggetResponse(
+    'Father, shape my conduct with your righteousness and mercy.',
+    'Where should my daily conduct agree more fully with my prayer?',
+    'Make one honest repair or fair choice.',
+  ),
+  '04-gifts-for-service' => const _NuggetResponse(
+    'Holy Spirit, give me what I need to serve others faithfully.',
+    'Who could benefit from a gift placed in my hands?',
+    'Offer one useful gift without seeking attention.',
+  ),
+  '05-love-creation' => const _NuggetResponse(
+    'Lord, teach me to care for people and the world you entrusted to us.',
+    'What person or living place is within my reach?',
+    'Repair, protect, share, or serve in one concrete way.',
+  ),
+  '06-listen-and-write' => const _NuggetResponse(
+    'God of mercy, guide my goals and train my heart to listen.',
+    'Which important goal needs time in prayer and discernment?',
+    'Name that goal and set a daily or weekly meditation time.',
+  ),
   '01-pull-the-weeds' => const _NuggetResponse(
     'Jesus, show me the weed while it is small, and give me courage to pull it early.',
     'What temptation have I been negotiating with?',

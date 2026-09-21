@@ -7,6 +7,8 @@ import '../../guards/presentation/return_sheet.dart';
 import '../../guards/providers/return_providers.dart';
 import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
+import '../../kingdom/providers/kingdom_course_providers.dart';
+import '../providers/goal_meditation_providers.dart';
 
 class GoalDetailScreen extends ConsumerStatefulWidget {
   const GoalDetailScreen({required this.goalId, super.key});
@@ -35,6 +37,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   }
 
   Widget _buildGoal(BuildContext context, Goal goal) {
+    final kingdomComplete =
+        ref.watch(kingdomJourneyStatusProvider).value?.complete ?? false;
     final returnPlan = ref.watch(goalReturnPlanProvider(goal.id));
     final returnRelevant =
         goal.starterKey == GoalStarterKey.stopControl ||
@@ -106,6 +110,14 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                       spacing: AppSpacing.sm,
                       runSpacing: AppSpacing.sm,
                       children: [
+                        if (kingdomComplete)
+                          FilledButton.icon(
+                            key: const Key('meditate-on-goal'),
+                            onPressed: () =>
+                                context.go('/goals/${goal.id}/meditate'),
+                            icon: const Icon(Icons.self_improvement),
+                            label: const Text('Meditate on this Goal'),
+                          ),
                         if (returnRelevant)
                           FilledButton.icon(
                             key: const Key('goal-return'),
@@ -259,6 +271,12 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
     await _run(() async {
       final repository = await ref.read(goalRepositoryProvider.future);
       await repository.setStatus(goal.id, GoalStatus.archived);
+      await ref.read(goalMeditationRepositoryProvider).deletePlan(goal.id);
+      final reminders = await ref.read(
+        goalMeditationReminderCoordinatorProvider.future,
+      );
+      await reminders.cancel(goal.id);
+      ref.invalidate(goalMeditationPlanProvider(goal.id));
       if (mounted) context.go('/goals');
     });
   }

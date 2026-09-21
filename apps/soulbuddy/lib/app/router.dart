@@ -18,6 +18,8 @@ import '../features/daily_formation/presentation/daily_formation_card.dart';
 import '../features/goals/presentation/first_goal_screen.dart';
 import '../features/goals/presentation/goal_detail_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
+import '../features/goals/presentation/goal_meditation_screen.dart';
+import '../features/kingdom/presentation/kingdom_course_screen.dart';
 import '../features/formation/presentation/formation_reading_screen.dart';
 import '../features/onboarding/presentation/legacy_first_prayer_migration_screen.dart';
 import '../features/orientation/presentation/orientation_library_screen.dart';
@@ -51,6 +53,13 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/orientation',
       builder: (context, state) => OrientationLibraryScreen(
+        initialNuggetId: state.uri.queryParameters['nugget'],
+        onClose: () => context.canPop() ? context.pop() : context.go('/today'),
+      ),
+    ),
+    GoRoute(
+      path: '/kingdom',
+      builder: (context, state) => KingdomCourseScreen(
         initialNuggetId: state.uri.queryParameters['nugget'],
         onClose: () => context.canPop() ? context.pop() : context.go('/today'),
       ),
@@ -124,6 +133,14 @@ final GoRouter appRouter = GoRouter(
                   path: ':goalId',
                   builder: (context, state) =>
                       GoalDetailScreen(goalId: state.pathParameters['goalId']!),
+                  routes: [
+                    GoRoute(
+                      path: 'meditate',
+                      builder: (context, state) => GoalMeditationScreen(
+                        goalId: state.pathParameters['goalId']!,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -237,12 +254,15 @@ final GoRouter appRouter = GoRouter(
                               'What may God be teaching me here?',
                             'orientation' =>
                               'What will I remember, pray about, and put into practice from this Nugget?',
+                            'kingdom' =>
+                              'What is God asking me to live out from this Nugget?',
                             'formation' =>
                               'What is God showing me through this Scripture, and what will I practice?',
                             _ => null,
                           },
                       privateReflection:
                           source == 'orientation' ||
+                          source == 'kingdom' ||
                           source == 'formation' ||
                           source == 'daily-scripture',
                     );

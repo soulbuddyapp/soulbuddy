@@ -146,6 +146,8 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
     final circle = notification.kind == ReminderNotificationKind.circle;
     final dailyFormation =
         notification.kind == ReminderNotificationKind.dailyFormation;
+    final goalMeditation =
+        notification.kind == ReminderNotificationKind.goalMeditation;
     final sound = _notificationSound(notification.soundKey);
     return _client.schedule(
       NativeNotificationRequest(
@@ -203,7 +205,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                   showsUserInterface: true,
                 ),
               ]
-            : dailyFormation
+            : dailyFormation || goalMeditation
             ? const [
                 NativeNotificationActionData(
                   id: _beginActionId,

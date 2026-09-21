@@ -36,7 +36,10 @@ void main() {
       expect(find.text('My Collection'), findsOneWidget);
       expect(find.text('Take the next faithful step'), findsOneWidget);
       expect(find.text('My prayer · daily'), findsOneWidget);
-      expect(find.byKey(const Key('collection-piece-goal-active')), findsOneWidget);
+      expect(
+        find.byKey(const Key('collection-piece-goal-active')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('collection-piece-prayer-prayer-1')),
         findsOneWidget,
@@ -131,10 +134,7 @@ void main() {
   testWidgets('empty workspace keeps creation clear', (tester) async {
     await _pump(tester, const []);
 
-    expect(
-      find.text('Nothing created yet. Use Create when you are ready to begin.'),
-      findsOneWidget,
-    );
+    expect(find.text('Begin with a Goal or personal prayer.'), findsOneWidget);
     expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
   });
 

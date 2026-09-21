@@ -128,6 +128,16 @@ class OrientationController extends ChangeNotifier {
 
   Future<void> pause() => _run(_pause);
 
+  Future<void> markRead() => _run(() async {
+    if (!_progressRestored) return;
+    if (_ready) await _player.pause();
+    _playing = false;
+    _completed = true;
+    _atEnd = true;
+    _position = course.duration;
+    await _persist();
+  });
+
   Future<void> _pause() async {
     if (_ready) await _player.pause();
     _playing = false;

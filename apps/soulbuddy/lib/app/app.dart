@@ -25,6 +25,8 @@ import '../features/circles/application/circle_reminder_coordinator.dart';
 import '../features/circles/providers/circle_providers.dart';
 import '../features/daily_formation/providers/daily_formation_providers.dart';
 import '../features/goals/providers/goal_today_providers.dart';
+import '../features/goals/providers/goal_meditation_providers.dart';
+import '../features/goals/application/goal_meditation_reminder_coordinator.dart';
 import '../features/sacred_hours/application/sacred_hour_reminder_coordinator.dart';
 import '../features/sacred_hours/domain/sacred_hour.dart';
 import '../features/sacred_hours/providers/sacred_hour_providers.dart';
@@ -45,6 +47,7 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(sacredHourReminderCoordinatorProvider);
     ref.watch(circleReminderCoordinatorProvider);
     ref.watch(dailyFormationReminderCoordinatorProvider);
+    ref.watch(goalMeditationReminderCoordinatorProvider);
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         final due = occurrence!;
@@ -87,6 +90,11 @@ class SoulBuddyApp extends ConsumerWidget {
     });
     ref.listen(dailyFormationReminderEventsProvider, (previous, next) {
       if (next case AsyncData()) appRouter.go('/formation');
+    });
+    ref.listen(goalMeditationReminderEventsProvider, (previous, next) {
+      if (next case AsyncData(value: GoalMeditationOpened(:final goalId))) {
+        appRouter.go('/goals/$goalId/meditate');
+      }
     });
     return MaterialApp.router(
       title: 'SoulBuddy',
@@ -131,13 +139,17 @@ class SoulBuddyApp extends ConsumerWidget {
                                   onOpen: appRouter.go,
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
-                                const _PrayerReminderOverlayHost(
-                                  key: Key('prayer-reminder-overlay-host'),
-                                ),
-                                const SizedBox(height: AppSpacing.sm),
-                                const AltarReminderOverlayHost(
-                                  key: Key('altar-reminder-overlay-host'),
-                                ),
+                                if (!AppOverlayVisibility.hideReminderOverlays(
+                                  uri,
+                                )) ...[
+                                  const _PrayerReminderOverlayHost(
+                                    key: Key('prayer-reminder-overlay-host'),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  const AltarReminderOverlayHost(
+                                    key: Key('altar-reminder-overlay-host'),
+                                  ),
+                                ],
                               ],
                             );
                           },

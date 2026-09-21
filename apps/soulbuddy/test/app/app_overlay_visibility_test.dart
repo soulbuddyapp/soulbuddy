@@ -2,6 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/app/app_overlay_visibility.dart';
 
 void main() {
+  test('Goals keeps reminders off the work area', () {
+    expect(
+      AppOverlayVisibility.hideReminderOverlays(Uri.parse('/goals')),
+      isTrue,
+    );
+    expect(
+      AppOverlayVisibility.hideReminderOverlays(Uri.parse('/goals/goal-a')),
+      isTrue,
+    );
+    expect(
+      AppOverlayVisibility.hideReminderOverlays(Uri.parse('/today')),
+      isFalse,
+    );
+  });
   test('only Sacred Hour routes suppress global overlays', () {
     for (final route in [
       '/sacred-hours/hour-1?occurrence=hour-1@now',

@@ -122,6 +122,15 @@ void main() {
     },
   );
 
+  test('a finished reading can complete a Nugget without audio', () async {
+    await controller.initialize();
+    expect(player.playCalls, 0);
+    await controller.markRead();
+    expect(controller.completed, true);
+    expect((await repository.load(course.id)).completed, true);
+    expect(player.playCalls, 0);
+  });
+
   test(
     'seek discards position events while the backend seek is pending',
     () async {

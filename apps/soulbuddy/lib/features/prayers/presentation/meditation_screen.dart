@@ -6,6 +6,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../formation/domain/formation_reading.dart';
 import '../../formation/providers/formation_providers.dart';
 import '../../orientation/providers/orientation_providers.dart';
+import '../../kingdom/providers/kingdom_course_providers.dart';
 import '../../scripture/presentation/daily_scripture_card.dart';
 
 class MeditationScreen extends ConsumerWidget {
@@ -68,6 +69,31 @@ class MeditationScreen extends ConsumerWidget {
                         },
                       ),
               ),
+              if (journey.value?.complete == true)
+                ref
+                    .watch(kingdomJourneyStatusProvider)
+                    .when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
+                      data: (status) => Card(
+                        child: ListTile(
+                          key: const Key('kingdom-course-invitation'),
+                          leading: const Icon(Icons.auto_awesome_outlined),
+                          title: const Text('Kingdom life'),
+                          subtitle: Text(
+                            status.complete
+                                ? 'Six Nuggets complete · Listen again'
+                                : '${status.completedCount} of 6 Nuggets complete',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => context.go(
+                            status.firstIncompleteId == null
+                                ? '/kingdom'
+                                : '/kingdom?nugget=${status.firstIncompleteId}',
+                          ),
+                        ),
+                      ),
+                    ),
               const SizedBox(height: AppSpacing.md),
               Card(
                 child: Padding(
