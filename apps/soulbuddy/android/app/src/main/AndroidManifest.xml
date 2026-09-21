@@ -14,10 +14,13 @@
         </intent>
     </queries>
     <application
+        android:name="${applicationName}"
         android:allowBackup="false"
         android:label="soulbuddy"
-        android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="soulbuddy_morning_v1" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

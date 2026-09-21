@@ -205,17 +205,22 @@ Future<void> _showCreateSheet(
               context.push('/welcome/goal');
             },
           ),
-          if (kingdomComplete)
-            _CreateChoice(
-              key: const Key('create-meditation-goal'),
-              icon: Icons.self_improvement,
-              title: 'Meditation Goal',
-              subtitle: 'Daily or weekly listening and discernment.',
-              onTap: () {
-                Navigator.pop(sheetContext);
+          _CreateChoice(
+            key: const Key('create-meditation-goal'),
+            icon: kingdomComplete ? Icons.self_improvement : Icons.lock_outline,
+            title: 'Meditation Goal',
+            subtitle: kingdomComplete
+                ? 'Daily or weekly listening and discernment.'
+                : 'Complete Orientation and six Kingdom Nuggets to unlock.',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              if (kingdomComplete) {
                 createMeditationGoal(context, ref);
-              },
-            ),
+              } else {
+                context.go('/kingdom');
+              }
+            },
+          ),
           _CreateChoice(
             key: const Key('create-prayer'),
             icon: Icons.edit_note_outlined,

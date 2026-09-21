@@ -39,6 +39,11 @@ return [
         'disclosure_version' => env('PRAYER_NARRATION_DISCLOSURE_VERSION', 'deepgram-aura2-1'),
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'service_account_path' => env('FIREBASE_SERVICE_ACCOUNT_PATH'),
+    ],
+
     'goal_guidance' => [
         'key' => env('DEEPSEEK_API_KEY'),
         'base_url' => env('GOAL_GUIDANCE_BASE_URL', 'https://api.deepseek.com'),

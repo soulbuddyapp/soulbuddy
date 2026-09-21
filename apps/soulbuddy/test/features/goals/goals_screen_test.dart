@@ -147,6 +147,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('create-goal')), findsOneWidget);
+    expect(find.byKey(const Key('create-meditation-goal')), findsOneWidget);
+    expect(
+      find.text('Complete Orientation and six Kingdom Nuggets to unlock.'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('create-prayer')), findsOneWidget);
     expect(find.byKey(const Key('create-meditation')), findsOneWidget);
     expect(find.byKey(const Key('browse-prayer-library')), findsOneWidget);

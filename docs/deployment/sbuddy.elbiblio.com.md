@@ -27,6 +27,16 @@ previous release and restarts the same container. Never place narration or
 infrastructure secrets in Git, build arguments, the Flutter binary, or shell
 history.
 
+The morning push job runs through Laravel's scheduler. Host cron calls
+`docker exec soulbuddy-api php artisan schedule:run` every minute; the host
+PHP binary is 8.2 and cannot run this Laravel 13 app. Configure
+`FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT_PATH` in the protected
+shared `.env`. The service account file must be readable by PHP-FPM and must
+remain outside releases. The app registers a Firebase token and IANA timezone
+per installation after notification permission is granted. The scheduler sends
+after 5:30 a.m. local time, records successful sends by local date, and retries
+failed sends on later ticks.
+
 Production choices:
 
 - `DB_CONNECTION=mariadb` with `DB_SOCKET=/run/mysqld/mysqld.sock`

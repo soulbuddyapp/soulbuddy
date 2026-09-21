@@ -18,6 +18,7 @@ import '../features/persons/application/person_prayer_reminder_coordinator.dart'
 import '../features/persons/providers/person_providers.dart';
 import '../features/record/audio/providers/private_audio_cleanup_provider.dart';
 import '../core/identity/local_identity_providers.dart';
+import '../core/notifications/push_registration.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
 import '../features/altar/providers/altar_ritual_providers.dart';
 import '../features/altar/presentation/altar_today_card.dart';
@@ -43,6 +44,7 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(personPrayerReminderCoordinatorProvider);
     ref.watch(privateAudioStartupCleanupProvider);
     ref.watch(installationSessionBootstrapProvider);
+    ref.watch(pushRegistrationProvider);
     ref.watch(sacredHourBootstrapProvider);
     ref.watch(sacredHourReminderCoordinatorProvider);
     ref.watch(circleReminderCoordinatorProvider);

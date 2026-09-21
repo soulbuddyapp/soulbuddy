@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CircleReportController;
 use App\Http\Controllers\Api\DailyScriptureController;
 use App\Http\Controllers\Api\FormationCatalogController;
 use App\Http\Controllers\Api\GoalActionSuggestionController;
+use App\Http\Controllers\Api\InstallationPushController;
 use App\Http\Controllers\Api\InstallationSessionController;
 use App\Http\Controllers\Api\PowerSyncTokenController;
 use App\Http\Controllers\Api\PrayerNarrationController;
@@ -22,6 +23,7 @@ Route::post('/installations/session', InstallationSessionController::class)
     ->middleware('throttle:installation-sessions');
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/installations/push', InstallationPushController::class);
     Route::get('/sync/token', PowerSyncTokenController::class);
     Route::post('/sync/mutations', SyncMutationController::class);
 

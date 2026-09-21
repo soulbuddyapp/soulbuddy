@@ -13,6 +13,11 @@ class AppInstallation extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return ['last_morning_sent_on' => 'date'];
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
