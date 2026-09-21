@@ -1,0 +1,132 @@
+{
+  "source_capture_date": "2026-09-09",
+  "prepared": "2026-09-17",
+  "source_git_blob_sha1": {
+    "today-device.png": "fd5a172d361e4b0290650d0bdb1f00aa4173e5dd",
+    "orientation-device.png": "0fe5f270565ada554db1e41bd68649e3e666b982",
+    "soulbuddy-icon-1024.png": "4ac87f5fca35b086317fda986656244e7cfab047"
+  },
+  "device_crop": {
+    "left": 0,
+    "top": 158,
+    "width": 1280,
+    "height": 2505
+  },
+  "video_type": "Sound-off motion ad from actual still captures, not a live screen recording",
+  "assets": [
+    {
+      "file": "images/01-transformation-landscape-1200x628.png",
+      "width": 1200,
+      "height": 628,
+      "bytes": 232361,
+      "sha256": "ad62acac35a59f4d7df1e5919a60375c847246e242b1cd587b2b0864e7277c88",
+      "concept": "01-transformation",
+      "recommended_first": true
+    },
+    {
+      "file": "images/01-transformation-square-1200x1200.png",
+      "width": 1200,
+      "height": 1200,
+      "bytes": 481742,
+      "sha256": "3ab1b68420007e003b49966448d81ac9ba4cc9b38121fc04e1f88ecf43d87290",
+      "concept": "01-transformation",
+      "recommended_first": true
+    },
+    {
+      "file": "images/01-transformation-portrait-1200x1500.png",
+      "width": 1200,
+      "height": 1500,
+      "bytes": 902944,
+      "sha256": "5bcb818b75f3a09dfe7ce43ec6e92b36c4ee77da02e335b57cada03504bc8729",
+      "concept": "01-transformation",
+      "recommended_first": true
+    },
+    {
+      "file": "images/02-daily-habits-landscape-1200x628.png",
+      "width": 1200,
+      "height": 628,
+      "bytes": 191964,
+      "sha256": "0c9b6c2ef5929e5c8fa337d633e46286511f48706e99fe9869a4e528447f2eac",
+      "concept": "02-daily-habits",
+      "recommended_first": false
+    },
+    {
+      "file": "images/02-daily-habits-square-1200x1200.png",
+      "width": 1200,
+      "height": 1200,
+      "bytes": 389517,
+      "sha256": "32bfe90bad598057330abe353fd2e33f28e394b39002570ca592b277f2720ad4",
+      "concept": "02-daily-habits",
+      "recommended_first": false
+    },
+    {
+      "file": "images/02-daily-habits-portrait-1200x1500.png",
+      "width": 1200,
+      "height": 1500,
+      "bytes": 679418,
+      "sha256": "932e2ae5c88b7569e6aaabf46ee499552c32464c17d60c29436de77ca9092aaf",
+      "concept": "02-daily-habits",
+      "recommended_first": false
+    },
+    {
+      "file": "images/03-app-first-landscape-1200x628.png",
+      "width": 1200,
+      "height": 628,
+      "bytes": 544104,
+      "sha256": "bf24e081b2f4816dd73d71799cfb2293f1238c5ad24ec35cb71c273a5bff476b",
+      "concept": "03-app-first",
+      "recommended_first": false
+    },
+    {
+      "file": "images/03-app-first-square-1200x1200.png",
+      "width": 1200,
+      "height": 1200,
+      "bytes": 895515,
+      "sha256": "45e587e3aff3e4d90f47b33df4583bec18bd19bb5d868d4a5b02dc7210fee803",
+      "concept": "03-app-first",
+      "recommended_first": false
+    },
+    {
+      "file": "images/03-app-first-portrait-1200x1500.png",
+      "width": 1200,
+      "height": 1500,
+      "bytes": 1092771,
+      "sha256": "83d5a71bbbc8f8aaa6ca5314ba3df6da143a8ffede8f75840ccc977bdeae62e8",
+      "concept": "03-app-first",
+      "recommended_first": false
+    },
+    {
+      "file": "videos/soulbuddy-faithful-habits-landscape-1920x1080-20s.mp4",
+      "width": 1920,
+      "height": 1080,
+      "duration_seconds": 20,
+      "fps": 30,
+      "audio": false,
+      "codec": "h264",
+      "bytes": 1325888,
+      "sha256": "40e6486dff4dc4d9c769efa2d7aaa060d16008e75db1eeb88efa9525f5a63acb"
+    },
+    {
+      "file": "videos/soulbuddy-faithful-habits-square-1080x1080-20s.mp4",
+      "width": 1080,
+      "height": 1080,
+      "duration_seconds": 20,
+      "fps": 30,
+      "audio": false,
+      "codec": "h264",
+      "bytes": 952613,
+      "sha256": "38c44174cf5b69aa3cabda5510a1dc32a804296a5c66e3a33df693d7e91ed2bb"
+    },
+    {
+      "file": "videos/soulbuddy-faithful-habits-vertical-1080x1920-20s.mp4",
+      "width": 1080,
+      "height": 1920,
+      "duration_seconds": 20,
+      "fps": 30,
+      "audio": false,
+      "codec": "h264",
+      "bytes": 1340564,
+      "sha256": "0fdb47fe916b3a8c9282805a99345220f0386776bfe68818ff453ff5d3aa177d"
+    }
+  ]
+}
