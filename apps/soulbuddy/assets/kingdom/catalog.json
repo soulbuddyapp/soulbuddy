@@ -3,7 +3,7 @@
     "id": "01-the-old-life",
     "title": "Lay Down the Old Life",
     "tenet": "Let the flesh lose its rule",
-    "durationMs": 44088,
+    "durationMs": 67128,
     "audioAsset": "kingdom/01-the-old-life.mp3",
     "transcriptAsset": "assets/kingdom/01-the-old-life.json"
   },
@@ -11,7 +11,7 @@
     "id": "02-the-new-adam",
     "title": "Life in the New Adam",
     "tenet": "Become more like Christ",
-    "durationMs": 42624,
+    "durationMs": 73440,
     "audioAsset": "kingdom/02-the-new-adam.mp3",
     "transcriptAsset": "assets/kingdom/02-the-new-adam.json"
   },
@@ -19,7 +19,7 @@
     "id": "03-kingdom-citizens",
     "title": "Citizens of the Kingdom",
     "tenet": "Live by its righteousness",
-    "durationMs": 41448,
+    "durationMs": 69000,
     "audioAsset": "kingdom/03-kingdom-citizens.mp3",
     "transcriptAsset": "assets/kingdom/03-kingdom-citizens.json"
   },
@@ -27,7 +27,7 @@
     "id": "04-gifts-for-service",
     "title": "Gifts for the Common Good",
     "tenet": "Receive and serve",
-    "durationMs": 41952,
+    "durationMs": 71160,
     "audioAsset": "kingdom/04-gifts-for-service.mp3",
     "transcriptAsset": "assets/kingdom/04-gifts-for-service.json"
   },
@@ -35,7 +35,7 @@
     "id": "05-love-creation",
     "title": "Love Your Neighbor and Creation",
     "tenet": "Care for what God has entrusted",
-    "durationMs": 44208,
+    "durationMs": 73128,
     "audioAsset": "kingdom/05-love-creation.mp3",
     "transcriptAsset": "assets/kingdom/05-love-creation.json"
   },
@@ -43,7 +43,7 @@
     "id": "06-listen-and-write",
     "title": "Listen, Write, and Act",
     "tenet": "Offer your goals to God",
-    "durationMs": 46560,
+    "durationMs": 74760,
     "audioAsset": "kingdom/06-listen-and-write.mp3",
     "transcriptAsset": "assets/kingdom/06-listen-and-write.json"
   }

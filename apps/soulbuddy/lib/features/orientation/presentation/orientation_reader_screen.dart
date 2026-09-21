@@ -575,33 +575,33 @@ class _NuggetResponse {
 _NuggetResponse _nuggetResponse(String id, String tenet) => switch (id) {
   '01-the-old-life' => const _NuggetResponse(
     'Jesus, free my heart from the rule of appetite, fear, and pride.',
-    'Which impulse has been directing my choices?',
-    'Practice one act of self control today.',
+    'What keeps choosing for me when I mean to choose Christ?',
+    'Name the impulse. Practice one act of self control today.',
   ),
   '02-the-new-adam' => const _NuggetResponse(
     'Christ, teach me to live in the new life you give.',
-    'What old pattern needs a Christlike response?',
-    'Choose that response for one person today.',
+    'Where do I defend myself before understanding someone?',
+    'Pause, listen, and choose a Christlike response.',
   ),
   '03-kingdom-citizens' => const _NuggetResponse(
     'Father, shape my conduct with your righteousness and mercy.',
-    'Where should my daily conduct agree more fully with my prayer?',
-    'Make one honest repair or fair choice.',
+    'What would my neighbors notice of the Kingdom in me?',
+    'Make one honest repair or fair choice today.',
   ),
   '04-gifts-for-service' => const _NuggetResponse(
     'Holy Spirit, give me what I need to serve others faithfully.',
-    'Who could benefit from a gift placed in my hands?',
-    'Offer one useful gift without seeking attention.',
+    'Who needs tenderness more than my advice?',
+    'Offer one useful gift with humility and care.',
   ),
   '05-love-creation' => const _NuggetResponse(
     'Lord, teach me to care for people and the world you entrusted to us.',
-    'What person or living place is within my reach?',
-    'Repair, protect, share, or serve in one concrete way.',
+    'What person or living place have I learned to walk past?',
+    'Repair, protect, share, or serve today.',
   ),
   '06-listen-and-write' => const _NuggetResponse(
     'God of mercy, guide my goals and train my heart to listen.',
-    'Which important goal needs time in prayer and discernment?',
-    'Name that goal and set a daily or weekly meditation time.',
+    'What faithful step might I be postponing?',
+    'Name one goal and set a daily or weekly meditation time.',
   ),
   '01-pull-the-weeds' => const _NuggetResponse(
     'Jesus, show me the weed while it is small, and give me courage to pull it early.',

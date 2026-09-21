@@ -34,6 +34,21 @@ void main() {
     }
   });
 
+  test('each Nugget opens a reflective question and gives the story room', () async {
+    for (final nugget in await loadKingdomCatalog()) {
+      final transcript = OrientationTranscript.fromJson(
+        jsonDecode(await rootBundle.loadString(nugget.transcriptAsset))
+            as Map<String, dynamic>,
+      );
+      final text = transcript.text.trim();
+      expect(text, matches(RegExp(r'^[^.!?]{12,}\?')), reason: nugget.id);
+      expect(text.split(RegExp(r'\s+')).length, greaterThanOrEqualTo(175),
+          reason: nugget.id);
+      expect(text.split('\n\n').length, greaterThanOrEqualTo(3),
+          reason: nugget.id);
+    }
+  });
+
   test('next Kingdom Nugget follows saved completion', () async {
     final catalog = await loadKingdomCatalog();
     final records = <String, String>{};
