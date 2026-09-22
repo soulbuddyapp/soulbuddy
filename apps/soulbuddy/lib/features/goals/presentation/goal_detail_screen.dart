@@ -10,6 +10,8 @@ import '../providers/goal_providers.dart';
 import '../../kingdom/providers/kingdom_course_providers.dart';
 import '../providers/goal_meditation_providers.dart';
 
+enum _GoalAction { edit, pause, resume, reopen, complete, archive }
+
 class GoalDetailScreen extends ConsumerStatefulWidget {
   const GoalDetailScreen({required this.goalId, super.key});
 
@@ -93,19 +95,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _StatusLabel(status: goal.status),
-                    if (_hasText(goal.currentSituation)) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      const _SectionLabel('What is happening now'),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(goal.currentSituation!.trim()),
-                    ],
-                    if (_hasText(goal.whyItMatters)) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      const _SectionLabel('Why this matters'),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(goal.whyItMatters!.trim()),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.md),
                     Wrap(
                       spacing: AppSpacing.sm,
                       runSpacing: AppSpacing.sm,
@@ -119,7 +109,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                             label: const Text('Meditate on this Goal'),
                           ),
                         if (returnRelevant)
-                          FilledButton.icon(
+                          FilledButton.tonalIcon(
                             key: const Key('goal-return'),
                             onPressed: _working
                                 ? null
@@ -128,23 +118,58 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                             icon: const Icon(Icons.reply_outlined),
                             label: const Text('Return'),
                           ),
-                        FilledButton.tonalIcon(
-                          key: const Key('edit-goal'),
-                          onPressed: _working ? null : () => _edit(goal),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Edit'),
-                        ),
-                        ..._statusActions(goal),
-                        OutlinedButton.icon(
-                          key: const Key('goal-prayer-library'),
-                          onPressed: _working
-                              ? null
-                              : () => context.go('/prayers'),
-                          icon: const Icon(Icons.menu_book_outlined),
-                          label: const Text('Prayer library'),
+                        if (!kingdomComplete && !returnRelevant)
+                          FilledButton.tonalIcon(
+                            key: const Key('edit-goal'),
+                            onPressed: _working ? null : () => _edit(goal),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit'),
+                          ),
+                        PopupMenuButton<_GoalAction>(
+                          key: const Key('goal-more-actions'),
+                          tooltip: 'More Goal actions',
+                          enabled: !_working,
+                          onSelected: (action) => switch (action) {
+                            _GoalAction.edit => _edit(goal),
+                            _GoalAction.pause => _setStatus(
+                              goal,
+                              GoalStatus.paused,
+                            ),
+                            _GoalAction.resume || _GoalAction.reopen =>
+                              _setStatus(goal, GoalStatus.active),
+                            _GoalAction.complete => _setStatus(
+                              goal,
+                              GoalStatus.completed,
+                            ),
+                            _GoalAction.archive => _archive(goal),
+                          },
+                          itemBuilder: (_) => [
+                            if (kingdomComplete || returnRelevant)
+                              const PopupMenuItem(
+                                value: _GoalAction.edit,
+                                child: Text('Edit'),
+                              ),
+                            ..._statusActions(goal),
+                          ],
+                          child: const Chip(
+                            avatar: Icon(Icons.more_horiz, size: 18),
+                            label: Text('More'),
+                          ),
                         ),
                       ],
                     ),
+                    if (_hasText(goal.currentSituation)) ...[
+                      const SizedBox(height: AppSpacing.xl),
+                      const _SectionLabel('What is happening now'),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(goal.currentSituation!.trim()),
+                    ],
+                    if (_hasText(goal.whyItMatters)) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      const _SectionLabel('Why this matters'),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(goal.whyItMatters!.trim()),
+                    ],
                   ],
                 ),
               ),
@@ -155,71 +180,55 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
     );
   }
 
-  List<Widget> _statusActions(Goal goal) {
-    final actions = <Widget>[];
+  List<PopupMenuEntry<_GoalAction>> _statusActions(Goal goal) {
+    final actions = <PopupMenuEntry<_GoalAction>>[];
     switch (goal.status) {
       case GoalStatus.active:
         actions.add(
-          OutlinedButton.icon(
-            key: const Key('pause-goal'),
-            onPressed: _working
-                ? null
-                : () => _setStatus(goal, GoalStatus.paused),
-            icon: const Icon(Icons.pause_outlined),
-            label: const Text('Pause'),
+          const PopupMenuItem(
+            key: Key('pause-goal'),
+            value: _GoalAction.pause,
+            child: Text('Pause'),
           ),
         );
         actions.add(
-          FilledButton.icon(
-            key: const Key('complete-goal'),
-            onPressed: _working
-                ? null
-                : () => _setStatus(goal, GoalStatus.completed),
-            icon: const Icon(Icons.check_outlined),
-            label: const Text('Complete'),
+          const PopupMenuItem(
+            key: Key('complete-goal'),
+            value: _GoalAction.complete,
+            child: Text('Complete'),
           ),
         );
       case GoalStatus.paused:
         actions.add(
-          OutlinedButton.icon(
-            key: const Key('resume-goal'),
-            onPressed: _working
-                ? null
-                : () => _setStatus(goal, GoalStatus.active),
-            icon: const Icon(Icons.play_arrow_outlined),
-            label: const Text('Resume'),
+          const PopupMenuItem(
+            key: Key('resume-goal'),
+            value: _GoalAction.resume,
+            child: Text('Resume'),
           ),
         );
         actions.add(
-          FilledButton.icon(
-            key: const Key('complete-goal'),
-            onPressed: _working
-                ? null
-                : () => _setStatus(goal, GoalStatus.completed),
-            icon: const Icon(Icons.check_outlined),
-            label: const Text('Complete'),
+          const PopupMenuItem(
+            key: Key('complete-goal'),
+            value: _GoalAction.complete,
+            child: Text('Complete'),
           ),
         );
       case GoalStatus.completed:
         actions.add(
-          OutlinedButton.icon(
-            key: const Key('reopen-goal'),
-            onPressed: _working
-                ? null
-                : () => _setStatus(goal, GoalStatus.active),
-            icon: const Icon(Icons.replay_outlined),
-            label: const Text('Reopen'),
+          const PopupMenuItem(
+            key: Key('reopen-goal'),
+            value: _GoalAction.reopen,
+            child: Text('Reopen'),
           ),
         );
       case GoalStatus.archived:
         return actions;
     }
     actions.add(
-      TextButton.icon(
-        key: const Key('archive-goal'),
-        onPressed: _working ? null : () => _archive(goal),
-        icon: const Icon(Icons.archive_outlined),
-        label: const Text('Archive'),
+      const PopupMenuItem(
+        key: Key('archive-goal'),
+        value: _GoalAction.archive,
+        child: Text('Archive'),
       ),
     );
     return actions;
@@ -253,7 +262,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Archive this Goal?'),
         content: const Text(
-          'It will leave your Goals list. Its saved resources are not deleted.',
+          'Meditation reminders will stop. Saved reflections remain.',
         ),
         actions: [
           TextButton(

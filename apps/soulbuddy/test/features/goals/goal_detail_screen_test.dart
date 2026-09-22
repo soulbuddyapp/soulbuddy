@@ -37,7 +37,7 @@ void main() {
               size: Size(320, 640),
               textScaler: TextScaler.linear(2),
             ),
-            child: GoalDetailScreen(goalId: goal.id),
+            child: Scaffold(body: GoalDetailScreen(goalId: goal.id)),
           ),
         ),
       ),
@@ -51,18 +51,21 @@ void main() {
     expect(find.byKey(const Key('goal-return')), findsNothing);
     expect(tester.takeException(), isNull);
 
-    for (final key in const [
-      Key('edit-goal'),
-      Key('pause-goal'),
-      Key('complete-goal'),
-      Key('goal-prayer-library'),
-    ]) {
-      await tester.ensureVisible(find.byKey(key));
-      await tester.pumpAndSettle();
-      expect(find.byKey(key).hitTestable(), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    }
-
+    expect(find.byKey(const Key('edit-goal')), findsOneWidget);
+    expect(find.byKey(const Key('pause-goal')), findsNothing);
+    expect(find.byKey(const Key('complete-goal')), findsNothing);
+    expect(find.byKey(const Key('goal-prayer-library')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('goal-more-actions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('goal-more-actions')));
+    await tester.pumpAndSettle();
+    expect(find.text('Pause'), findsOneWidget);
+    expect(find.text('Complete'), findsOneWidget);
+    expect(find.text('Archive'), findsOneWidget);
+    await tester.tapAt(const Offset(12, 12));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('edit-goal')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('edit-goal')));
     await tester.pumpAndSettle();
     expect(find.text('Edit Goal'), findsOneWidget);

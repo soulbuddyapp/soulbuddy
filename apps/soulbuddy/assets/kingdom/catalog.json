@@ -62,5 +62,29 @@
     "durationMs": 76728,
     "audioAsset": "kingdom/08-discern-and-carry.mp3",
     "transcriptAsset": "assets/kingdom/08-discern-and-carry.json"
+  },
+  {
+    "id": "09-forgive-the-neighbor",
+    "title": "Forgive Without Denying the Wound",
+    "tenet": "Leave justice with God; practice mercy",
+    "durationMs": 77688,
+    "audioAsset": "kingdom/09-forgive-the-neighbor.mp3",
+    "transcriptAsset": "assets/kingdom/09-forgive-the-neighbor.json"
+  },
+  {
+    "id": "10-guard-the-temple",
+    "title": "Guard What God Entrusted",
+    "tenet": "Honor God in body and mind",
+    "durationMs": 75120,
+    "audioAsset": "kingdom/10-guard-the-temple.mp3",
+    "transcriptAsset": "assets/kingdom/10-guard-the-temple.json"
+  },
+  {
+    "id": "11-close-the-door",
+    "title": "Close the Door, Begin Again",
+    "tenet": "Repent, repair, and guard the way forward",
+    "durationMs": 72960,
+    "audioAsset": "kingdom/11-close-the-door.mp3",
+    "transcriptAsset": "assets/kingdom/11-close-the-door.json"
   }
 ]

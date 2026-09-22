@@ -44,6 +44,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
   MeditationSoundBed? _sound;
   double _volume = .15;
   bool _setupLoaded = false;
+  bool _editingPlan = false;
   bool _session = false;
   bool _running = false;
   bool _saving = false;
@@ -250,6 +251,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       if (!mounted) return;
       setState(() {
         _saving = false;
+        _editingPlan = false;
         if (reminderUnavailable) {
           _error = 'Meditation time saved. The reminder could not be set.';
         } else if (!allowed) {
@@ -284,7 +286,12 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       await coordinator.cancel(widget.goalId);
       await _repository.deletePlan(widget.goalId);
       ref.invalidate(goalMeditationPlanProvider(widget.goalId));
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _editingPlan = false;
+        });
+      }
     } on Object {
       if (mounted) {
         setState(() {
@@ -392,8 +399,10 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
                     const SizedBox(height: AppSpacing.lg),
                     if (_session)
                       _sessionView(context)
+                    else if (saved != null && !_editingPlan)
+                      _savedPlanView(context, saved)
                     else
-                      _planView(context, hasPlan: saved != null),
+                      _planView(context, savedPlan: saved),
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
@@ -414,7 +423,59 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
     );
   }
 
-  Widget _planView(BuildContext context, {required bool hasPlan}) => Column(
+  Widget _savedPlanView(BuildContext context, GoalMeditationPlan plan) {
+    final day = plan.frequency == GoalMeditationFrequency.daily
+        ? 'Daily'
+        : const [
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+          ][plan.weekday - 1];
+    final time = TimeOfDay(
+      hour: plan.hour,
+      minute: plan.minute,
+    ).format(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Offer this goal to God. Listen, write, and discern one faithful step.',
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.schedule_outlined),
+          title: Text('$day at $time'),
+          subtitle: Text('${plan.durationMinutes} minutes'),
+          trailing: TextButton(
+            key: const Key('change-goal-meditation-plan'),
+            onPressed: () => setState(() => _editingPlan = true),
+            child: const Text('Change'),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        FilledButton.icon(
+          key: const Key('start-goal-meditation'),
+          onPressed: () => _begin(),
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Begin meditation'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        MeditationSoundPicker(selected: _sound, onSelected: _selectSound),
+        const SizedBox(height: AppSpacing.lg),
+        _recentNotes(),
+      ],
+    );
+  }
+
+  Widget _planView(
+    BuildContext context, {
+    GoalMeditationPlan? savedPlan,
+  }) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const Text(
@@ -493,19 +554,40 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
         icon: const Icon(Icons.notifications_active_outlined),
         label: const Text('Save meditation time'),
       ),
-      const SizedBox(height: AppSpacing.sm),
-      OutlinedButton.icon(
-        key: const Key('start-goal-meditation'),
-        onPressed: () => _begin(),
-        icon: const Icon(Icons.play_arrow),
-        label: const Text('Begin now'),
-      ),
-      if (hasPlan)
+      if (savedPlan == null) ...[
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          key: const Key('start-goal-meditation'),
+          onPressed: () => _begin(),
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Begin now'),
+        ),
+      ],
+      if (savedPlan != null) ...[
+        TextButton(
+          key: const Key('cancel-goal-meditation-plan'),
+          onPressed: _saving
+              ? null
+              : () {
+                  setState(() {
+                    _frequency = savedPlan.frequency;
+                    _weekday = savedPlan.weekday;
+                    _time = TimeOfDay(
+                      hour: savedPlan.hour,
+                      minute: savedPlan.minute,
+                    );
+                    _duration = savedPlan.durationMinutes;
+                    _editingPlan = false;
+                  });
+                },
+          child: const Text('Cancel'),
+        ),
         TextButton(
           key: const Key('remove-goal-meditation-plan'),
           onPressed: _saving ? null : _removePlan,
           child: const Text('Remove meditation time'),
         ),
+      ],
       const SizedBox(height: AppSpacing.lg),
       _recentNotes(),
     ],

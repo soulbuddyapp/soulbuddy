@@ -48,7 +48,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       ),
       data: (progress) => Scaffold(
         appBar: AppBar(
-          title: const Text('Your first Goal'),
+          title: const Text('New Goal'),
           leading: _canGoBack(progress)
               ? IconButton(
                   tooltip: 'Back',

@@ -32,7 +32,6 @@ void main() {
         personalPrayers: [_prayer()],
       );
 
-      expect(find.text('My practice'), findsOneWidget);
       expect(find.text('My Collection'), findsOneWidget);
       expect(find.text('Take the next faithful step'), findsOneWidget);
       expect(find.text('My prayer · daily'), findsOneWidget);
@@ -138,9 +137,7 @@ void main() {
     expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
   });
 
-  testWidgets('Create collects Goal, Prayer, Meditation and browsing choices', (
-    tester,
-  ) async {
+  testWidgets('Create contains creation choices only', (tester) async {
     await _pump(tester, const []);
 
     await tester.tap(find.byKey(const Key('open-create-workspace')));
@@ -153,8 +150,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('create-prayer')), findsOneWidget);
-    expect(find.byKey(const Key('create-meditation')), findsOneWidget);
-    expect(find.byKey(const Key('browse-prayer-library')), findsOneWidget);
+    expect(find.byKey(const Key('create-meditation')), findsNothing);
+    expect(find.byKey(const Key('browse-prayer-library')), findsNothing);
   });
 
   testWidgets('Goals remains usable at 200 percent text on a small phone', (
@@ -179,7 +176,7 @@ void main() {
     );
 
     expect(find.byType(Scrollable), findsWidgets);
-    expect(find.text('My practice'), findsOneWidget);
+    expect(find.text('My Collection'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -360));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);

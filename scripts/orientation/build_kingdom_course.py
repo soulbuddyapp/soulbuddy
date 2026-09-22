@@ -5,6 +5,7 @@ Requires edge-tts and FFmpeg. Audio is generated once and committed as an asset.
 """
 
 import asyncio
+import argparse
 import json
 import re
 import subprocess
@@ -71,6 +72,24 @@ LESSONS = [
         "A man prayed about a quarrel with his friend. The first thought that came was simple: call him, listen, and apologize for your part. A quiet sense of rightness accompanied it. Then another thought arrived: wait until he admits everything, and tell others how patient you have been. The man wrote down the first thought before his pride could dress it in better clothes. He prayed again, weighed it against Christ's call to truth and love, and made the call. His friend did not say everything he hoped to hear. Still, the conversation began to heal.\n\n"
         "Often the first thought after sincere prayer arrives before self protection has time to edit it. Attend to it, especially when it brings a steady peace and asks for love rather than applause. That feeling is a signal to discern, not proof that every thought comes from God. Bias can enter as we interpret or carry out an insight. Ask: would I hear the same thing if it cost me comfort or credit? Confirm it in prayer. Test it with Scripture and wise counsel, especially when a decision could seriously affect someone. Then do not let endless hesitation replace a safe, faithful act. Carry the good without letting ego rewrite it."
     ),
+    (
+        '09-forgive-the-neighbor', 'Forgive Without Denying the Wound', 'Leave justice with God; practice mercy',
+        "What if forgiving a wrong did not require you to call it right?\n\n"
+        "A girl lent her neighbor a lamp for an evening gathering. He broke it, hid the pieces, and told her it had already been cracked. She was hurt more by the lie than by the glass. For days she imagined a way to embarrass him. Then she told him plainly what she knew and asked him to make it right. He offered to repair the lamp. She accepted the repair, but did not lend him another precious thing while trust was being rebuilt. She stopped rehearsing revenge. Her boundaries stayed.\n\n"
+        "God called creation very good, yet the world we inhabit bears real wounds. No wrong is beneath God's notice, but we cannot promise when or how another person's choices will meet their consequences. Justice belongs to God; safety and truthful repair still matter to us. When a neighbor sins against you, forgiveness is an opportunity to receive and extend mercy, not a bargain for a reward. It does not excuse abuse or demand unsafe closeness. What hurt have you been carrying into every new day? Name the wrong without minimizing it. Ask God for freedom from revenge. Seek protection, accountability, and repair where needed. Then take one step toward a heart no longer ruled by the injury."
+    ),
+    (
+        '10-guard-the-temple', 'Guard What God Entrusted', 'Honor God in body and mind',
+        "What do you protect when nobody else can see the cost?\n\n"
+        "A young man kept a small lamp beside the notebook where he wrote his hopes. Each night he meant to pray and plan the next day. Instead he stayed awake chasing a pleasure that left him restless. One morning the glass was dark with soot, and he could scarcely read the page. His sister helped him clean it. The lamp was not worthless; its light had been obscured. He moved it, made room for sleep, and asked a trusted friend to help him keep the new rhythm.\n\n"
+        "We can wrong a neighbor. When we sin against ourselves, we also sin against God, who entrusted this life to us. Scripture calls the body a temple of the Holy Spirit. Flee sexual immorality and anything that treats another person as an object. Resist drunkenness and chronic laziness when they become patterns that steal attention from love and work. If weariness, illness, or dependence is involved, seek care rather than hiding in shame. Sin does not erase your worth or place you beyond God's mercy. It can cloud the witness and freedom God wants to grow in you. Ask daily for grace to guard your body and purify your mind. Put one goal you prayed for before your eyes, and make one choice that serves it today."
+    ),
+    (
+        '11-close-the-door', 'Close the Door, Begin Again', 'Repent, repair, and guard the way forward',
+        "Which door keeps opening after you have asked God to close it?\n\n"
+        "A man prayed each morning to leave a destructive habit behind. Each evening he walked the same route, passed the same doorway, and told himself he would only look inside. When he fell again, he thought repentance meant saying better words the next morning. An older friend listened, then walked home with him by a different street. Together they removed the easy access and planned whom he would call when the urge returned. The man still needed mercy. He also needed a new path.\n\n"
+        "True repentance is neither denial nor a life of shame. Confess the wrong; God is faithful to forgive and cleanse. Make repair where you can. Learn the hour, place, feeling, or excuse that leads you back, and seal that door with a practical boundary. Ask for support when the pattern is hard to control; some struggles need skilled care as well as prayer. Do not leave the cleared space empty. Return to the goals you have offered God. Fill your mind each day with Scripture, prayer, honest work, and service. If you stumble, come into the light again. Mercy is not exhausted, and a guarded path can be walked one faithful step at a time."
+    ),
 ]
 
 
@@ -110,10 +129,15 @@ def _cues(text: str, boundaries: list[dict], duration: int) -> tuple[list[dict],
     return words, sentences
 
 
-async def build() -> None:
+async def build(only: set[str] | None = None) -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
     catalog = []
     for lesson_id, title, tenet, text in LESSONS:
+        if only is not None and lesson_id not in only:
+            existing = json.loads((ASSETS / f'{lesson_id}.json').read_text(encoding='utf-8'))
+            catalog.append({key: existing[key] for key in (
+                'id', 'title', 'tenet', 'durationMs', 'audioAsset', 'transcriptAsset')})
+            continue
         boundaries = []
         with tempfile.TemporaryDirectory() as directory:
             voice = Path(directory) / 'voice.mp3'
@@ -146,4 +170,7 @@ async def build() -> None:
 
 
 if __name__ == '__main__':
-    asyncio.run(build())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--only', nargs='*', metavar='ID', help='Regenerate only these lesson IDs')
+    args = parser.parse_args()
+    asyncio.run(build(set(args.only) if args.only is not None else None))

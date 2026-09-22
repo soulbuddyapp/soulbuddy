@@ -48,7 +48,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        'My practice',
+                        'My Collection',
                         maxLines: 2,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
@@ -231,26 +231,6 @@ Future<void> _showCreateSheet(
               context.go('/prayers/create');
             },
           ),
-          _CreateChoice(
-            key: const Key('create-meditation'),
-            icon: Icons.self_improvement_outlined,
-            title: 'Meditation',
-            subtitle: 'Scripture, reflection, and prayer.',
-            onTap: () {
-              Navigator.pop(sheetContext);
-              context.go('/prayers/meditation');
-            },
-          ),
-          _CreateChoice(
-            key: const Key('browse-prayer-library'),
-            icon: Icons.menu_book_outlined,
-            title: 'Browse prayer library',
-            subtitle: 'Reviewed prayers for this moment.',
-            onTap: () {
-              Navigator.pop(sheetContext);
-              context.go('/prayers');
-            },
-          ),
         ],
       ),
     ),
@@ -329,8 +309,6 @@ class _CreatedWorkspace extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('My Collection', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: AppSpacing.md),
         Wrap(
           spacing: AppSpacing.xs,
           runSpacing: AppSpacing.xs,
@@ -433,16 +411,17 @@ class _CreatedItemTile extends StatelessWidget {
         : activeGoals.indexWhere((item) => item.id == goal.id);
     return Card(
       child: ListTile(
-        minTileHeight: 64,
+        minTileHeight: 56,
+        dense: true,
         leading: SacredPieceMedallion(
           key: Key(
             'collection-piece-${piece.name}-${goal?.id ?? item.prayer!.id}',
           ),
           piece: piece,
           decorative: true,
-          size: 44,
+          size: 38,
         ),
-        title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           goal == null
               ? 'Personal prayer'

@@ -9,13 +9,13 @@ import 'package:soulbuddy/features/orientation/domain/orientation_course.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Kingdom course has eight playable and readable Nuggets', () async {
+  test('Kingdom course has eleven playable and readable Nuggets', () async {
     final catalog = await loadKingdomCatalog();
-    expect(catalog, hasLength(8));
+    expect(catalog, hasLength(11));
     expect(catalog.first.title, 'Lay Down the Old Life');
-    expect(catalog.last.title, 'Discern and Carry');
+    expect(catalog.last.title, 'Close the Door, Begin Again');
     for (final nugget in catalog) {
-      expect(nugget.id, startsWith('0'));
+      expect(nugget.id, matches(RegExp(r'^\d{2}-')));
       expect(nugget.audioAsset, startsWith('kingdom/'));
       expect(nugget.transcriptAsset, startsWith('assets/kingdom/'));
       final transcript = OrientationTranscript.fromJson(
@@ -33,6 +33,27 @@ void main() {
       expect(audio.lengthInBytes, greaterThan(20000));
     }
   });
+
+  test(
+    'later Nuggets teach forgiveness, bodily dignity, and repentance',
+    () async {
+      final catalog = await loadKingdomCatalog();
+      final texts = await Future.wait(
+        catalog
+            .skip(8)
+            .map((nugget) => rootBundle.loadString(nugget.transcriptAsset)),
+      );
+      expect(texts[0].toLowerCase(), contains('forgive'));
+      expect(texts[0].toLowerCase(), contains('boundaries'));
+      expect(texts[1].toLowerCase(), contains('body'));
+      expect(texts[1].toLowerCase(), contains('worth'));
+      expect(texts[1].toLowerCase(), contains('sin against god'));
+      expect(texts[1].toLowerCase(), contains('drunkenness'));
+      expect(texts[1].toLowerCase(), contains('chronic laziness'));
+      expect(texts[2].toLowerCase(), contains('repent'));
+      expect(texts[2].toLowerCase(), contains('door'));
+    },
+  );
 
   test('advanced Nuggets teach detachment and careful discernment', () async {
     final catalog = await loadKingdomCatalog();
