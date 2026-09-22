@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/audio/narration_speed.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/screen_awake.dart';
@@ -223,6 +224,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       return;
     }
     await _guide.play(AssetSource('kingdom/goal-meditation-guide.mp3'));
+    await _guide.setPlaybackRate(defaultNarrationSpeed);
     if (mounted) setState(() => _guidePlaying = true);
   }
 

@@ -54,13 +54,14 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    FilledButton.icon(
+                    IconButton.filledTonal(
                       key: const Key('open-create-workspace'),
+                      tooltip: 'Create',
                       onPressed: () =>
                           _showCreateSheet(context, ref, kingdomComplete),
                       icon: const Icon(Icons.add),
-                      label: const Text('Create'),
                     ),
+                    const SizedBox(width: 56),
                   ],
                 ),
               ),
@@ -378,8 +379,18 @@ class _CreatedItem {
   final Goal? goal;
   final PersonalPrayer? prayer;
 
-  String get title => goal?.title ?? prayer!.title;
+  String get title => goal?.displayTitle ?? _prayerDisplayTitle(prayer!);
   DateTime get updatedAt => goal?.updatedAt ?? prayer!.updatedAt;
+}
+
+String _prayerDisplayTitle(PersonalPrayer prayer) {
+  if (prayer.title != 'Grow closer to God') return prayer.title;
+  final firstThought = prayer.body
+      .trim()
+      .split(RegExp(r'[.!?\n]'))
+      .first
+      .trim();
+  return firstThought.isEmpty ? prayer.title : firstThought;
 }
 
 class _CreatedItemTile extends StatelessWidget {
@@ -424,8 +435,14 @@ class _CreatedItemTile extends StatelessWidget {
         title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           goal == null
-              ? 'Personal prayer'
-              : 'Goal · ${_statusLabel(goal.status)}',
+              ? item.title == item.prayer!.title
+                    ? 'Personal prayer'
+                    : '${item.prayer!.title} · Prayer'
+              : item.title == goal.title
+              ? 'Goal · ${_statusLabel(goal.status)}'
+              : '${goal.title} · ${_statusLabel(goal.status)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         trailing: canReorder
             ? PopupMenuButton<_GoalMove>(

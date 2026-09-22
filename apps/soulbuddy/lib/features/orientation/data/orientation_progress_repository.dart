@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../core/audio/narration_speed.dart';
+
 class OrientationProgress {
   const OrientationProgress({
     this.position = Duration.zero,
@@ -11,14 +13,17 @@ class OrientationProgress {
 }
 
 class OrientationPreferences {
-  const OrientationPreferences({this.speed = 1, this.textScale = 1});
+  const OrientationPreferences({
+    this.speed = defaultNarrationSpeed,
+    this.textScale = 1,
+  });
 
   static const speeds = <double>[.5, .75, .85, 1, 1.25, 1.5];
   final double speed;
   final double textScale;
 
   static double validSpeed(double value) =>
-      value.isFinite && speeds.contains(value) ? value : 1;
+      value.isFinite && speeds.contains(value) ? value : defaultNarrationSpeed;
 
   static double validTextScale(double value) =>
       value.isFinite && value >= .85 && value <= 1.6 ? value : 1;
@@ -62,7 +67,9 @@ class OrientationProgressRepository {
   Future<OrientationPreferences> loadPreferences() async {
     final json = _decode(await _read(_preferencesKey));
     return OrientationPreferences(
-      speed: OrientationPreferences.validSpeed(_number(json?['speed'])),
+      speed: OrientationPreferences.validSpeed(
+        _number(json?['speed'], fallback: defaultNarrationSpeed),
+      ),
       textScale: OrientationPreferences.validTextScale(
         _number(json?['textScale']),
       ),
@@ -84,7 +91,8 @@ class OrientationProgressRepository {
     return write;
   }
 
-  static double _number(dynamic value) => value is num ? value.toDouble() : 1;
+  static double _number(dynamic value, {double fallback = 1}) =>
+      value is num ? value.toDouble() : fallback;
 
   static Map<String, dynamic>? _decode(String? raw) {
     if (raw == null) return null;

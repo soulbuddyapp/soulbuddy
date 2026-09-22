@@ -83,7 +83,13 @@ final visibleGoalsProvider = StreamProvider.autoDispose<List<Goal>>((
       .watch(
         '''
         SELECT goal.*, revision.title, revision.current_situation,
-               revision.why_it_matters
+               revision.why_it_matters,
+               (SELECT action.body FROM goal_actions AS action
+                WHERE action.goal_id = goal.id
+                  AND action.owner_id = goal.owner_id
+                  AND action.archived_at IS NULL
+                ORDER BY action.created_at DESC, action.id DESC
+                LIMIT 1) AS next_action
         FROM goals AS goal
         JOIN goal_revisions AS revision
           ON revision.id = goal.current_revision_id

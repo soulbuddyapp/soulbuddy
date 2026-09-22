@@ -126,5 +126,13 @@
     "durationMs": 83760,
     "audioAsset": "kingdom/16-restored-in-christ.mp3",
     "transcriptAsset": "assets/kingdom/16-restored-in-christ.json"
+  },
+  {
+    "id": "17-live-intentionally",
+    "title": "Live Intentionally",
+    "tenet": "Notice, choose, and bless",
+    "durationMs": 94032,
+    "audioAsset": "kingdom/17-live-intentionally.mp3",
+    "transcriptAsset": "assets/kingdom/17-live-intentionally.json"
   }
 ]

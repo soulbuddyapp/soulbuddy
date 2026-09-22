@@ -89,8 +89,13 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (goal.displayTitle != goal.title)
+                      Text(
+                        goal.title,
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
                     Text(
-                      goal.title,
+                      goal.displayTitle,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -158,7 +163,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         ),
                       ],
                     ),
-                    if (_hasText(goal.currentSituation)) ...[
+                    if (_hasText(goal.currentSituation) &&
+                        goal.currentSituation!.trim() != goal.displayTitle) ...[
                       const SizedBox(height: AppSpacing.xl),
                       const _SectionLabel('What is happening now'),
                       const SizedBox(height: AppSpacing.xs),

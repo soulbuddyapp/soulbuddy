@@ -67,6 +67,8 @@ void main() {
       expect(find.text('BibleProject'), findsWidgets);
       expect(find.text('Fr. Mike Schmitz · Ascension'), findsOneWidget);
       expect(find.text('Dr. Myles Munroe · Munroe Global'), findsOneWidget);
+      await tester.ensureVisible(find.text('RyanMakCC · practical skills'));
+      expect(find.text('RyanMakCC · practical skills'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

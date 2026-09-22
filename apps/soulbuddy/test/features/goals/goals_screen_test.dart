@@ -65,6 +65,33 @@ void main() {
     expect(find.text('My prayer · daily'), findsOneWidget);
   });
 
+  testWidgets('generic Goals and prayers show the words saved with them', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      [
+        _goal(
+          id: 'first',
+          title: 'Grow closer to God',
+          nextAction: 'Go to Church',
+        ),
+      ],
+      personalPrayers: [_prayer(title: 'Grow closer to God')],
+    );
+
+    expect(find.text('Go to Church'), findsOneWidget);
+    expect(
+      find.byKey(const Key('collection-piece-goal-first')),
+      findsOneWidget,
+    );
+    expect(find.text('Father, keep me close to You today'), findsOneWidget);
+    expect(
+      find.byKey(const Key('collection-piece-prayer-prayer-1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('active Goals can move earlier or later without drag gestures', (
     tester,
   ) async {
@@ -180,6 +207,10 @@ void main() {
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -360));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('open-create-workspace')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('open-create-workspace'))).width,
+      lessThanOrEqualTo(56),
+    );
     expect(tester.takeException(), isNull);
   });
 }
@@ -220,6 +251,7 @@ Goal _goal({
   required String title,
   GoalStatus status = GoalStatus.active,
   int position = 0,
+  String? nextAction,
 }) => Goal(
   id: id,
   ownerId: 'owner-1',
@@ -228,14 +260,15 @@ Goal _goal({
   currentRevisionId: 'revision-$id',
   position: position,
   title: title,
+  nextAction: nextAction,
   createdAt: DateTime.utc(2026, 8, 28, 8),
   updatedAt: DateTime.utc(2026, 8, 28, 8),
 );
 
-PersonalPrayer _prayer() => PersonalPrayer(
+PersonalPrayer _prayer({String title = 'My prayer · daily'}) => PersonalPrayer(
   id: 'prayer-1',
   ownerId: 'owner-1',
-  title: 'My prayer · daily',
+  title: title,
   style: 'own_words',
   reach: 'private',
   grounding: PrayerGrounding.generalChristian,

@@ -24,6 +24,8 @@ class VoiceTabletSection extends ConsumerWidget {
     required this.title,
     required this.prayerBody,
     this.onKeepOnAltar,
+    this.compact = false,
+    this.showPrayerActions = true,
     super.key,
   });
 
@@ -31,6 +33,8 @@ class VoiceTabletSection extends ConsumerWidget {
   final String title;
   final String prayerBody;
   final FutureOr<void> Function(VoiceTablet)? onKeepOnAltar;
+  final bool compact;
+  final bool showPrayerActions;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,7 +60,12 @@ class VoiceTabletSection extends ConsumerWidget {
               icon: const Icon(Icons.mic_none),
               label: const Text('Record in my voice'),
             )
-          : VoiceTabletPlayer(tablet: value, onKeepOnAltar: onKeepOnAltar),
+          : VoiceTabletPlayer(
+              tablet: value,
+              onKeepOnAltar: onKeepOnAltar,
+              compact: compact,
+              showPrayerActions: showPrayerActions,
+            ),
     );
   }
 }
@@ -68,6 +77,8 @@ class VoiceTabletPlayer extends ConsumerStatefulWidget {
     this.onKeepOnAltar,
     this.onPlayed,
     this.onPrayed,
+    this.compact = false,
+    this.showPrayerActions = true,
     super.key,
   });
 
@@ -76,6 +87,8 @@ class VoiceTabletPlayer extends ConsumerStatefulWidget {
   final FutureOr<void> Function(VoiceTablet)? onKeepOnAltar;
   final FutureOr<void> Function(VoiceTabletAudio)? onPlayed;
   final FutureOr<void> Function()? onPrayed;
+  final bool compact;
+  final bool showPrayerActions;
 
   @override
   ConsumerState<VoiceTabletPlayer> createState() => _VoiceTabletPlayerState();
@@ -108,29 +121,36 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
       child: ColoredBox(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
+          padding: widget.compact
+              ? const EdgeInsets.all(AppSpacing.sm)
+              : const EdgeInsets.fromLTRB(20, 22, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CovenantPairedSlabMark(),
-                  const SizedBox(width: AppSpacing.sm),
+                  if (!widget.compact) ...[
+                    const CovenantPairedSlabMark(),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (!widget.compact)
+                          Text(
+                            'Voice Tablet',
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
                         Text(
-                          'Voice Tablet',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                        ),
-                        Text(
-                          widget.tablet.title,
-                          style: Theme.of(context).textTheme.titleLarge,
+                          widget.compact ? 'My recording' : widget.tablet.title,
+                          style: widget.compact
+                              ? Theme.of(context).textTheme.titleSmall
+                              : Theme.of(context).textTheme.titleLarge,
                         ),
                       ],
                     ),
@@ -140,6 +160,11 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                     enabled: !_removing,
                     onSelected: _handleMenu,
                     itemBuilder: (_) => [
+                      if (widget.compact && widget.onKeepOnAltar != null)
+                        const PopupMenuItem(
+                          value: _TabletAction.keepOnAltar,
+                          child: Text('Keep on my Altar'),
+                        ),
                       if (widget.onRecordAgain != null)
                         const PopupMenuItem(
                           value: _TabletAction.recordAgain,
@@ -153,7 +178,7 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                   ),
                 ],
               ),
-              const CovenantIncisedDivider(),
+              if (!widget.compact) const CovenantIncisedDivider(),
               if (widget.tablet.refrainAudio != null) ...[
                 Wrap(
                   spacing: AppSpacing.sm,
@@ -177,11 +202,15 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.md),
+                SizedBox(
+                  height: widget.compact ? AppSpacing.xs : AppSpacing.md,
+                ),
               ],
               if (_selectedAudio case final audio?) ...[
-                _Waveform(samples: audio.waveform),
-                const SizedBox(height: AppSpacing.sm),
+                if (!widget.compact) ...[
+                  _Waveform(samples: audio.waveform),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
                 coordinator.when(
                   loading: () => const Center(
                     child: CircularProgressIndicator(strokeWidth: 2),
@@ -198,6 +227,7 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                     title: widget.tablet.title,
                     route: _tabletRoute(widget.tablet.source),
                     onSessionComplete: _recordPrayer,
+                    compact: widget.compact,
                   ),
                 ),
               ] else
@@ -205,44 +235,50 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
                   'This recording is not on this device.',
                   textAlign: TextAlign.center,
                 ),
-              if (_selectedAudio case final selectedAudio?) ...[
-                const SizedBox(height: AppSpacing.xs),
-                TextButton.icon(
-                  style: TextButton.styleFrom(
+              if (!widget.compact) ...[
+                if (_selectedAudio case final selectedAudio?) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
+                    ),
+                    onPressed: () => showMeditationSessionSheet(
+                      context,
+                      ref,
+                      tablet: widget.tablet,
+                      selectedAudio: selectedAudio,
+                    ),
+                    icon: const Icon(Icons.self_improvement_outlined),
+                    label: const Text('Pray and remain'),
+                  ),
+                ],
+              ],
+              if (widget.showPrayerActions) ...[
+                const SizedBox(height: AppSpacing.md),
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
                     minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
                   ),
-                  onPressed: () => showMeditationSessionSheet(
-                    context,
-                    ref,
-                    tablet: widget.tablet,
-                    selectedAudio: selectedAudio,
+                  onPressed: _savingPrayer ? null : _recordPrayer,
+                  icon: _savingPrayer
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check),
+                  label: Text(
+                    _lastSession == null ? 'I prayed' : 'Prayed today',
                   ),
-                  icon: const Icon(Icons.self_improvement_outlined),
-                  label: const Text('Pray and remain'),
                 ),
+                if (_lastSession != null)
+                  Center(
+                    child: TextButton(
+                      onPressed: _savingPrayer ? null : _undoPrayer,
+                      child: const Text('Undo'),
+                    ),
+                  ),
               ],
-              const SizedBox(height: AppSpacing.md),
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
-                ),
-                onPressed: _savingPrayer ? null : _recordPrayer,
-                icon: _savingPrayer
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.check),
-                label: Text(_lastSession == null ? 'I prayed' : 'Prayed today'),
-              ),
-              if (_lastSession != null)
-                Center(
-                  child: TextButton(
-                    onPressed: _savingPrayer ? null : _undoPrayer,
-                    child: const Text('Undo'),
-                  ),
-                ),
-              if (widget.onKeepOnAltar != null) ...[
+              if (!widget.compact && widget.onKeepOnAltar != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
@@ -342,6 +378,12 @@ class _VoiceTabletPlayerState extends ConsumerState<VoiceTabletPlayer> {
   }
 
   Future<void> _handleMenu(_TabletAction action) async {
+    if (action == _TabletAction.keepOnAltar) {
+      if (widget.onKeepOnAltar != null) {
+        await widget.onKeepOnAltar!(widget.tablet);
+      }
+      return;
+    }
     if (action == _TabletAction.recordAgain) {
       widget.onRecordAgain?.call();
       return;
@@ -394,6 +436,7 @@ class _PlaybackControls extends StatefulWidget {
     required this.title,
     required this.route,
     required this.onSessionComplete,
+    required this.compact,
   });
 
   final MemoryAudioPlaybackCoordinator coordinator;
@@ -403,6 +446,7 @@ class _PlaybackControls extends StatefulWidget {
   final String title;
   final String route;
   final Future<void> Function() onSessionComplete;
+  final bool compact;
 
   @override
   State<_PlaybackControls> createState() => _PlaybackControlsState();
@@ -454,6 +498,34 @@ class _PlaybackControlsState extends State<_PlaybackControls> {
     final playing =
         selected && state.status == MemoryAudioPlaybackStatus.playing;
     final position = selected ? state.position : Duration.zero;
+    if (widget.compact) {
+      return Row(
+        children: [
+          IconButton.filledTonal(
+            tooltip: playing ? 'Pause' : 'Listen',
+            onPressed: () => _toggle(playing, state),
+            icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+          ),
+          Expanded(
+            child: Slider(
+              value: position.inMilliseconds
+                  .clamp(0, widget.audio.duration.inMilliseconds)
+                  .toDouble(),
+              max: widget.audio.duration.inMilliseconds.toDouble(),
+              onChanged: selected
+                  ? (value) => widget.coordinator.seek(
+                      Duration(milliseconds: value.round()),
+                    )
+                  : null,
+            ),
+          ),
+          Text(
+            '${_clock(position)} / ${_clock(widget.audio.duration)}',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
+      );
+    }
     return Column(
       children: [
         Semantics(
@@ -639,4 +711,4 @@ String _clock(Duration value) {
 String _spoken(Duration value) =>
     '${value.inMinutes} minutes ${value.inSeconds % 60} seconds';
 
-enum _TabletAction { recordAgain, remove }
+enum _TabletAction { recordAgain, keepOnAltar, remove }

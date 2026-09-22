@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 
+import '../../../core/audio/narration_speed.dart';
+
 abstract interface class PrayerNarrationPlayer {
   Future<void> play(Uint8List bytes);
   Future<void> pause();
@@ -14,14 +16,17 @@ class AudioplayersPrayerNarrationPlayer implements PrayerNarrationPlayer {
   final AudioPlayer _player = AudioPlayer();
 
   @override
-  Future<void> play(Uint8List bytes) => _player.play(
-    BytesSource(bytes, mimeType: 'audio/mpeg'),
-    ctx: AudioContextConfig(
-      respectSilence: true,
-      stayAwake: false,
-      focus: AudioContextConfigFocus.gain,
-    ).build(),
-  );
+  Future<void> play(Uint8List bytes) async {
+    await _player.play(
+      BytesSource(bytes, mimeType: 'audio/mpeg'),
+      ctx: AudioContextConfig(
+        respectSilence: true,
+        stayAwake: false,
+        focus: AudioContextConfigFocus.gain,
+      ).build(),
+    );
+    await _player.setPlaybackRate(defaultNarrationSpeed);
+  }
 
   @override
   Future<void> stop() => _player.stop();

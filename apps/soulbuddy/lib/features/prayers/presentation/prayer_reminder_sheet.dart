@@ -12,9 +12,14 @@ import '../providers/prayer_practice_providers.dart';
 enum _ReminderChoice { once, daily, weekdays }
 
 class PrayerReminderControl extends ConsumerWidget {
-  const PrayerReminderControl({required this.prayer, super.key});
+  const PrayerReminderControl({
+    required this.prayer,
+    this.compact = false,
+    super.key,
+  });
 
   final PersonalPrayer prayer;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,21 +37,43 @@ class PrayerReminderControl extends ConsumerWidget {
     bool enabled = true,
   }) => SizedBox(
     width: double.infinity,
-    child: OutlinedButton.icon(
-      key: const Key('personal-prayer-reminder-control'),
-      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-      onPressed: enabled
-          ? () => showPrayerReminderSheet(
-              context,
-              prayer: prayer,
-              existing: reminder,
-            )
-          : null,
-      icon: const Icon(Icons.notifications_none),
-      label: Text(
-        reminder == null ? 'Set reminder' : _scheduleLabel(context, reminder),
-      ),
-    ),
+    child: compact
+        ? Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('personal-prayer-reminder-control'),
+              onPressed: enabled
+                  ? () => showPrayerReminderSheet(
+                      context,
+                      prayer: prayer,
+                      existing: reminder,
+                    )
+                  : null,
+              icon: const Icon(Icons.notifications_none),
+              label: Text(
+                reminder == null
+                    ? 'Set reminder'
+                    : _scheduleLabel(context, reminder),
+              ),
+            ),
+          )
+        : OutlinedButton.icon(
+            key: const Key('personal-prayer-reminder-control'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+            onPressed: enabled
+                ? () => showPrayerReminderSheet(
+                    context,
+                    prayer: prayer,
+                    existing: reminder,
+                  )
+                : null,
+            icon: const Icon(Icons.notifications_none),
+            label: Text(
+              reminder == null
+                  ? 'Set reminder'
+                  : _scheduleLabel(context, reminder),
+            ),
+          ),
   );
 }
 

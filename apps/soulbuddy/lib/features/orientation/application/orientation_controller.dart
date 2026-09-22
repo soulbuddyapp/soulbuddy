@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/audio/narration_speed.dart';
+
 import '../data/orientation_progress_repository.dart';
 import '../domain/orientation_course.dart';
 import 'orientation_player.dart';
@@ -23,7 +25,7 @@ class OrientationController extends ChangeNotifier {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   Duration _position = Duration.zero;
   Duration _lastSavedPosition = Duration.zero;
-  double _speed = 1;
+  double _speed = defaultNarrationSpeed;
   double _textScale = 1;
   bool _playing = false;
   bool _loading = true;

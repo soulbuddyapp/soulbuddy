@@ -41,6 +41,7 @@ void main() {
   );
 
   test('missing and malformed records safely fall back', () async {
+    expect((await repository.loadPreferences()).speed, .85);
     expect((await repository.load('a')).position, Duration.zero);
     await repository.save('a', const OrientationProgress());
     storage.updateAll((_, __) => '{broken');
@@ -48,7 +49,7 @@ void main() {
     await repository.savePreferences(const OrientationPreferences());
     final key = storage.keys.last;
     storage[key] = jsonEncode({'speed': 3, 'textScale': -1});
-    expect((await repository.loadPreferences()).speed, 1);
+    expect((await repository.loadPreferences()).speed, .85);
     expect((await repository.loadPreferences()).textScale, 1);
     storage.updateAll(
       (_, __) => jsonEncode({'positionMs': -50, 'completed': 'yes'}),
@@ -61,7 +62,7 @@ void main() {
       OrientationPreferences(speed: double.nan, textScale: double.infinity),
     );
     final preferences = await repository.loadPreferences();
-    expect(preferences.speed, 1);
+    expect(preferences.speed, .85);
     expect(preferences.textScale, 1);
   });
 }

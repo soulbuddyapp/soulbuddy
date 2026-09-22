@@ -85,6 +85,12 @@ void main() {
     expect(controller.loading, false);
   });
 
+  test('fresh narration starts at the default slower speed', () async {
+    await controller.initialize();
+    expect(controller.speed, .85);
+    expect(player.speed, .85);
+  });
+
   test(
     'media position drives state and saves at five second intervals',
     () async {
@@ -397,6 +403,7 @@ class FakePlayer implements OrientationPlayer {
   bool failPrepare = false;
   bool resumeOnRate = false;
   bool isPlaying = false;
+  double? speed;
   int playCalls = 0;
   int closeCalls = 0;
   final seeked = <Duration>[];
@@ -433,6 +440,7 @@ class FakePlayer implements OrientationPlayer {
 
   @override
   Future<void> setSpeed(double speed) async {
+    this.speed = speed;
     if (resumeOnRate) {
       isPlaying = true;
       playingEvents.add(true);

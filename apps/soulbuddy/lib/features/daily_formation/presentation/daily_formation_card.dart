@@ -246,6 +246,10 @@ const _formationSources = [
     'Dr. Myles Munroe · Munroe Global',
     'https://www.youtube.com/MunroeGlobal',
   ),
+  _FormationSource(
+    'RyanMakCC · practical skills',
+    'https://www.youtube.com/@ryanmakcc',
+  ),
 ];
 
 class _VideoTile extends StatelessWidget {

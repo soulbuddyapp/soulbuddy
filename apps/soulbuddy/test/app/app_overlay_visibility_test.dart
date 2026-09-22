@@ -12,6 +12,12 @@ void main() {
       isTrue,
     );
     expect(
+      AppOverlayVisibility.hideReminderOverlays(
+        Uri.parse('/prayers/saved/prayer-1'),
+      ),
+      isTrue,
+    );
+    expect(
       AppOverlayVisibility.hideReminderOverlays(Uri.parse('/today')),
       isFalse,
     );

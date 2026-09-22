@@ -95,6 +95,7 @@ class Goal {
     this.starterKey,
     this.currentSituation,
     this.whyItMatters,
+    this.nextAction,
     this.archivedAt,
   });
 
@@ -108,9 +109,19 @@ class Goal {
   final String title;
   final String? currentSituation;
   final String? whyItMatters;
+  final String? nextAction;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? archivedAt;
+
+  String get displayTitle {
+    if (title != 'Grow closer to God') return title;
+    for (final specific in [currentSituation, nextAction]) {
+      final value = specific?.trim();
+      if (value != null && value.isNotEmpty && value != title) return value;
+    }
+    return title;
+  }
 
   factory Goal.fromRow(Map<String, dynamic> row) => Goal(
     id: row['id'] as String,
@@ -123,6 +134,7 @@ class Goal {
     title: row['title'] as String,
     currentSituation: row['current_situation'] as String?,
     whyItMatters: row['why_it_matters'] as String?,
+    nextAction: row['next_action'] as String?,
     createdAt: DateTime.parse(row['created_at'] as String),
     updatedAt: DateTime.parse(row['updated_at'] as String),
     archivedAt: switch (row['archived_at']) {

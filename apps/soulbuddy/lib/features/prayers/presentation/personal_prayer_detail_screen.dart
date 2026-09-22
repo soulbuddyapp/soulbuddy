@@ -79,13 +79,15 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       ),
                       title: value.title,
                       prayerBody: value.body,
+                      compact: true,
+                      showPrayerActions: false,
                       onKeepOnAltar: (tablet) =>
                           showAltarRitualSheet(context, ref, tablet: tablet),
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    PrayerReminderControl(prayer: value),
                     const SizedBox(height: AppSpacing.sm),
                     PrayerSessionActions(prayer: value),
+                    const SizedBox(height: AppSpacing.xs),
+                    PrayerReminderControl(prayer: value, compact: true),
                   ],
                 );
               },

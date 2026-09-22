@@ -9,11 +9,11 @@ import 'package:soulbuddy/features/orientation/domain/orientation_course.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Kingdom course has sixteen playable and readable Nuggets', () async {
+  test('Kingdom course has seventeen playable and readable Nuggets', () async {
     final catalog = await loadKingdomCatalog();
-    expect(catalog, hasLength(16));
+    expect(catalog, hasLength(17));
     expect(catalog.first.title, 'Lay Down the Old Life');
-    expect(catalog.last.title, 'Restored in Christ');
+    expect(catalog.last.title, 'Live Intentionally');
     for (final nugget in catalog) {
       expect(nugget.id, matches(RegExp(r'^\d{2}-')));
       expect(nugget.audioAsset, startsWith('kingdom/'));
@@ -72,18 +72,40 @@ void main() {
     expect(texts[2].toLowerCase(), contains('doubt is not automatically'));
   });
 
-  test('later Nuggets pair dignity and connection with mercy and hope', () async {
-    final catalog = await loadKingdomCatalog();
-    final connection = await rootBundle.loadString(catalog[14].transcriptAsset);
-    final restoration = await rootBundle.loadString(catalog[15].transcriptAsset);
-    expect(connection.toLowerCase(), contains('loneliness'));
-    expect(connection.toLowerCase(), contains('dignity'));
-    expect(connection.toLowerCase(), contains('trusted person'));
-    expect(restoration.toLowerCase(), contains('confess'));
-    expect(restoration.toLowerCase(), contains('new adam'));
-    expect(restoration.toLowerCase(), contains('healing'));
-    expect(restoration.toLowerCase(), contains('not a guarantee'));
-  });
+  test(
+    'later Nuggets pair dignity and connection with mercy and hope',
+    () async {
+      final catalog = await loadKingdomCatalog();
+      final connection = await rootBundle.loadString(
+        catalog[14].transcriptAsset,
+      );
+      final restoration = await rootBundle.loadString(
+        catalog[15].transcriptAsset,
+      );
+      expect(connection.toLowerCase(), contains('loneliness'));
+      expect(connection.toLowerCase(), contains('dignity'));
+      expect(connection.toLowerCase(), contains('trusted person'));
+      expect(restoration.toLowerCase(), contains('confess'));
+      expect(restoration.toLowerCase(), contains('new adam'));
+      expect(restoration.toLowerCase(), contains('healing'));
+      expect(restoration.toLowerCase(), contains('not a guarantee'));
+    },
+  );
+
+  test(
+    'the new life Nugget joins awareness, repentance, and service',
+    () async {
+      final catalog = await loadKingdomCatalog();
+      final text = (await rootBundle.loadString(
+        catalog.last.transcriptAsset,
+      )).toLowerCase();
+      expect(text, contains('notice the lure'));
+      expect(text, contains('apologize'));
+      expect(text, contains('holy spirit'));
+      expect(text, contains('bless'));
+      expect(text, contains('rest'));
+    },
+  );
 
   test('advanced Nuggets teach detachment and careful discernment', () async {
     final catalog = await loadKingdomCatalog();

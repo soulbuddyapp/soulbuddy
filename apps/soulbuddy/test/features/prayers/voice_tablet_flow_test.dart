@@ -94,6 +94,42 @@ void main() {
     expect(sessions.state.session?.id, 'prayer:audio-1');
   });
 
+  testWidgets('compact saved prayer recording has one prayer action', (
+    tester,
+  ) async {
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: _FakeAudioStore(),
+      driver: _FakeAudioDriver(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => coordinator,
+          ),
+          spiritualSessionControllerProvider.overrideWithValue(
+            SpiritualSessionController(),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: VoiceTabletPlayer(
+              tablet: _tablet(),
+              compact: true,
+              showPrayerActions: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.byTooltip('Listen'), findsOneWidget);
+    expect(find.text('I prayed'), findsNothing);
+    expect(find.text('Pray and remain'), findsNothing);
+    expect(find.text('Voice Tablet'), findsNothing);
+  });
+
   testWidgets('offers one optional Prayer Refrain after the full recording', (
     tester,
   ) async {
