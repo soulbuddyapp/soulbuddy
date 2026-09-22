@@ -27,57 +27,76 @@ class OrientationPath extends StatelessWidget {
     return Semantics(
       label: '$completed of $total Nuggets complete',
       child: ExcludeSemantics(
-        child: Row(
-          key: const Key('orientation-path'),
-          children: [
-            for (var index = 0; index < total; index++) ...[
-              Container(
-                key: Key('orientation-path-marker-$index'),
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: index < completed
-                      ? scheme.primary
-                      : index == current
-                      ? colors.lightWash
-                      : scheme.surfaceContainerHighest,
-                  border: Border.all(
-                    color: index == current
-                        ? colors.covenantGold
-                        : scheme.outlineVariant,
-                    width: index == current ? 2 : 1,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const preferredMarkerDiameter = 26.0;
+            const minimumMarkerDiameter = 14.0;
+            const trackWidth = 2.0;
+            final availableForMarkers =
+                constraints.maxWidth - ((total - 1) * trackWidth);
+            final markerDiameter = total == 0
+                ? preferredMarkerDiameter
+                : (availableForMarkers / total).clamp(
+                    minimumMarkerDiameter,
+                    preferredMarkerDiameter,
+                  );
+            final iconSize = (markerDiameter * 0.58).clamp(7.0, 15.0);
+
+            return Row(
+              key: const Key('orientation-path'),
+              children: [
+                for (var index = 0; index < total; index++) ...[
+                  Container(
+                    key: Key('orientation-path-marker-$index'),
+                    width: markerDiameter,
+                    height: markerDiameter,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: index < completed
+                          ? scheme.primary
+                          : index == current
+                          ? colors.lightWash
+                          : scheme.surfaceContainerHighest,
+                      border: Border.all(
+                        color: index == current
+                            ? colors.covenantGold
+                            : scheme.outlineVariant,
+                        width: index == current ? 2 : 1,
+                      ),
+                      boxShadow: index == current
+                          ? [
+                              BoxShadow(
+                                color: colors.covenantGold.withValues(
+                                  alpha: 0.28,
+                                ),
+                                blurRadius: 10,
+                              ),
+                            ]
+                          : const [],
+                    ),
+                    child: Icon(
+                      index < completed ? Icons.check : Icons.circle,
+                      size: iconSize,
+                      color: index < completed
+                          ? scheme.onPrimary
+                          : index == current
+                          ? colors.covenantGold
+                          : scheme.onSurfaceVariant,
+                    ),
                   ),
-                  boxShadow: index == current
-                      ? [
-                          BoxShadow(
-                            color: colors.covenantGold.withValues(alpha: 0.28),
-                            blurRadius: 10,
-                          ),
-                        ]
-                      : const [],
-                ),
-                child: Icon(
-                  index < completed ? Icons.check : Icons.circle,
-                  size: index < completed ? 15 : 8,
-                  color: index < completed
-                      ? scheme.onPrimary
-                      : index == current
-                      ? colors.covenantGold
-                      : scheme.onSurfaceVariant,
-                ),
-              ),
-              if (index != total - 1)
-                Expanded(
-                  child: Container(
-                    height: 2,
-                    color: index < completed
-                        ? scheme.primary
-                        : scheme.outlineVariant,
-                  ),
-                ),
-            ],
-          ],
+                  if (index != total - 1)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: index < completed
+                            ? scheme.primary
+                            : scheme.outlineVariant,
+                      ),
+                    ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
