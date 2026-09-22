@@ -87,6 +87,8 @@ void main() {
     );
     expect(renewal['title'], 'Renew my mind');
     expect(renewal['body'], contains('test every impression'));
+    expect(renewal['body'], contains("By Jesus' blood"));
+    expect(renewal['body'], contains('real connection'));
     expect(renewal['action'], contains('morning, midday, and evening'));
     for (final row in rows) {
       expect(row['id'], matches(uuidPattern));

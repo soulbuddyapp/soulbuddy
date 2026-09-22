@@ -110,5 +110,21 @@
     "durationMs": 72552,
     "audioAsset": "kingdom/14-test-the-voice.mp3",
     "transcriptAsset": "assets/kingdom/14-test-the-voice.json"
+  },
+  {
+    "id": "15-dignity-and-connection",
+    "title": "Dignity and Connection",
+    "tenet": "Meet loneliness with love and truth",
+    "durationMs": 80400,
+    "audioAsset": "kingdom/15-dignity-and-connection.mp3",
+    "transcriptAsset": "assets/kingdom/15-dignity-and-connection.json"
+  },
+  {
+    "id": "16-restored-in-christ",
+    "title": "Restored in Christ",
+    "tenet": "Receive mercy and pray with hope",
+    "durationMs": 83760,
+    "audioAsset": "kingdom/16-restored-in-christ.mp3",
+    "transcriptAsset": "assets/kingdom/16-restored-in-christ.json"
   }
 ]

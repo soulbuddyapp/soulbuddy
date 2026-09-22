@@ -9,11 +9,11 @@ import 'package:soulbuddy/features/orientation/domain/orientation_course.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Kingdom course has fourteen playable and readable Nuggets', () async {
+  test('Kingdom course has sixteen playable and readable Nuggets', () async {
     final catalog = await loadKingdomCatalog();
-    expect(catalog, hasLength(14));
+    expect(catalog, hasLength(16));
     expect(catalog.first.title, 'Lay Down the Old Life');
-    expect(catalog.last.title, 'Test the Voice');
+    expect(catalog.last.title, 'Restored in Christ');
     for (final nugget in catalog) {
       expect(nugget.id, matches(RegExp(r'^\d{2}-')));
       expect(nugget.audioAsset, startsWith('kingdom/'));
@@ -61,6 +61,7 @@ void main() {
     final texts = await Future.wait(
       catalog
           .skip(11)
+          .take(3)
           .map((nugget) => rootBundle.loadString(nugget.transcriptAsset)),
     );
     expect(texts[0].toLowerCase(), contains('subconscious'));
@@ -69,6 +70,19 @@ void main() {
     expect(texts[1].toLowerCase(), contains('not a spell'));
     expect(texts[2].toLowerCase(), contains('peter'));
     expect(texts[2].toLowerCase(), contains('doubt is not automatically'));
+  });
+
+  test('later Nuggets pair dignity and connection with mercy and hope', () async {
+    final catalog = await loadKingdomCatalog();
+    final connection = await rootBundle.loadString(catalog[14].transcriptAsset);
+    final restoration = await rootBundle.loadString(catalog[15].transcriptAsset);
+    expect(connection.toLowerCase(), contains('loneliness'));
+    expect(connection.toLowerCase(), contains('dignity'));
+    expect(connection.toLowerCase(), contains('trusted person'));
+    expect(restoration.toLowerCase(), contains('confess'));
+    expect(restoration.toLowerCase(), contains('new adam'));
+    expect(restoration.toLowerCase(), contains('healing'));
+    expect(restoration.toLowerCase(), contains('not a guarantee'));
   });
 
   test('advanced Nuggets teach detachment and careful discernment', () async {
