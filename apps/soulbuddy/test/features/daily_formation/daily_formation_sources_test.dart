@@ -72,4 +72,72 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('later formation material presents its attached resources', (
+    tester,
+  ) async {
+    final catalog = FormationCatalog.fromJson({
+      'version': 1,
+      'sourceSha256': 'test',
+      'videos': [
+        for (var index = 1; index <= 3; index++)
+          {
+            'id': 'V$index',
+            'title': 'Teaching $index',
+            'channel': 'BibleProject',
+            'youtubeUrl': 'https://www.youtube.com/watch?v=test$index',
+            'youtubeId': 'test$index',
+            'runtimeSeconds': 300,
+            'status': 'PRODUCTION_READY',
+          },
+      ],
+      'resources': [
+        {
+          'id': 'R001',
+          'title': 'Sexual integrity support',
+          'source': 'Helpful material',
+          'youtubeUrl': 'https://www.youtube.com/watch?v=aFyQT1bwacQ',
+          'youtubeId': 'aFyQT1bwacQ',
+        },
+      ],
+      'packs': [
+        {'id': 'P03', 'order': 3, 'title': 'Freedom'},
+      ],
+      'days': [
+        {
+          'id': 'D016',
+          'day': 16,
+          'packId': 'P03',
+          'focus': 'Holiness reaches the body',
+          'objective': 'Choose holiness.',
+          'scripture': '1 Corinthians 6:19–20',
+          'reflection': 'What needs care?',
+          'action': 'Choose a faithful action.',
+          'videoIds': ['V1', 'V2', 'V3'],
+          'resourceIds': ['R001'],
+        },
+      ],
+      'rules': <Map<String, dynamic>>[],
+    });
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dailyFormationCatalogProvider.overrideWith((ref) async => catalog),
+          dailyFormationProfileProvider.overrideWith(
+            (ref) async => const FormationProfile(ready: true, minutes: 10),
+          ),
+          dailyFormationProgressProvider.overrideWith(
+            (ref) async => const FormationProgress.initial(),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: DailyFormationCard())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Resources'), findsOneWidget);
+    expect(find.text('Sexual integrity support'), findsOneWidget);
+    expect(find.text('Helpful material'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

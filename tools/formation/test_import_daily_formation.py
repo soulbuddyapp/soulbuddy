@@ -20,6 +20,24 @@ class FormationImportTest(unittest.TestCase):
 
         self.assertEqual(1, catalog["version"])
         self.assertEqual(45, len(catalog["videos"]))
+        self.assertEqual(
+            [
+                {
+                    "id": "R001",
+                    "title": "Sexual integrity support",
+                    "youtubeId": "aFyQT1bwacQ",
+                },
+                {
+                    "id": "R002",
+                    "title": "Renewal support",
+                    "youtubeId": "zfQL-WIWKSU",
+                },
+            ],
+            [
+                {key: resource[key] for key in ("id", "title", "youtubeId")}
+                for resource in catalog.get("resources", [])
+            ],
+        )
         self.assertEqual(10, len(catalog["packs"]))
         self.assertEqual(70, len(catalog["days"]))
         self.assertEqual("A Plentiful Harvest", catalog["packs"][0]["title"])
@@ -46,6 +64,8 @@ class FormationImportTest(unittest.TestCase):
         self.assertTrue(all(video["runtimeSeconds"] <= 630 for video in catalog["videos"]))
         self.assertTrue(all(len(set(day["videoIds"])) == 3 for day in catalog["days"]))
         self.assertIn("V045", catalog["days"][56]["videoIds"])
+        self.assertEqual(["R001"], catalog["days"][15]["resourceIds"])
+        self.assertEqual(["R002"], catalog["days"][17]["resourceIds"])
 
     def test_writes_identical_api_and_mobile_snapshots(self):
         catalog = build_catalog(BOOK)

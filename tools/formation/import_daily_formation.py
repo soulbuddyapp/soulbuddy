@@ -20,6 +20,29 @@ CATALOG_VERSION = 1
 YOUTUBE_URL = "https://www.youtube.com/watch?v={youtube_id}"
 PROHIBITED_GARDEN_EMPTY = re.compile(r"garden.{0,24}empty", re.IGNORECASE)
 
+# Optional material is attached to the relevant later formation days without
+# becoming a required daily-video selection or affecting completion progress.
+RESOURCES = [
+    {
+        "id": "R001",
+        "title": "Sexual integrity support",
+        "source": "Helpful material",
+        "youtubeId": "aFyQT1bwacQ",
+        "youtubeUrl": YOUTUBE_URL.format(youtube_id="aFyQT1bwacQ"),
+    },
+    {
+        "id": "R002",
+        "title": "Renewal support",
+        "source": "Helpful material",
+        "youtubeId": "zfQL-WIWKSU",
+        "youtubeUrl": YOUTUBE_URL.format(youtube_id="zfQL-WIWKSU"),
+    },
+]
+RESOURCE_IDS_BY_DAY = {
+    16: ["R001"],
+    18: ["R002"],
+}
+
 
 def _clean_text(value: str) -> str:
     replacements = {
@@ -241,6 +264,7 @@ def build_catalog(workbook_path: Path) -> dict[str, Any]:
                 "anchor": str(_cell(row, day_headers, "Garden anchor")),
                 "presentation": str(_cell(row, day_headers, "Default presentation")),
                 "videoIds": video_ids,
+                "resourceIds": RESOURCE_IDS_BY_DAY.get(int(day_number), []),
                 "alternativeConditions": [
                     str(_cell(row, day_headers, "When to offer Alt 1")),
                     str(_cell(row, day_headers, "When to offer Alt 2")),
@@ -282,6 +306,7 @@ def build_catalog(workbook_path: Path) -> dict[str, Any]:
         "version": CATALOG_VERSION,
         "sourceSha256": _source_sha256(workbook_path),
         "videos": sorted(videos, key=lambda video: video["id"]),
+        "resources": RESOURCES,
         "packs": sorted(packs, key=lambda pack: pack["order"]),
         "days": sorted(days, key=lambda day: day["day"]),
         "rules": sorted(rules, key=lambda rule: rule["priority"]),
@@ -294,6 +319,7 @@ def validate_catalog(catalog: dict[str, Any]) -> None:
     if catalog.get("version") != CATALOG_VERSION:
         raise ValueError("Catalog version must be 1.")
     videos = catalog.get("videos", [])
+    resources = catalog.get("resources", [])
     packs = catalog.get("packs", [])
     days = catalog.get("days", [])
     rules = catalog.get("rules", [])
@@ -311,6 +337,15 @@ def validate_catalog(catalog: dict[str, Any]) -> None:
         if video["youtubeUrl"] != YOUTUBE_URL.format(youtube_id=video["youtubeId"]):
             raise ValueError(f"Video {video['id']} has an invalid YouTube URL.")
 
+    resource_ids = {resource["id"] for resource in resources}
+    if len(resource_ids) != len(resources):
+        raise ValueError("Resource IDs must be unique.")
+    for resource in resources:
+        if resource["youtubeUrl"] != YOUTUBE_URL.format(
+            youtube_id=resource["youtubeId"]
+        ):
+            raise ValueError(f"Resource {resource['id']} has an invalid YouTube URL.")
+
     pack_ids = {pack["id"] for pack in packs}
     if len(pack_ids) != len(packs):
         raise ValueError("Pack IDs must be unique.")
@@ -324,6 +359,8 @@ def validate_catalog(catalog: dict[str, Any]) -> None:
             raise ValueError(f"Day {day['id']} must have three distinct video choices.")
         if any(video_id not in video_ids for video_id in day["videoIds"]):
             raise ValueError(f"Day {day['id']} references an unknown video.")
+        if any(resource_id not in resource_ids for resource_id in day["resourceIds"]):
+            raise ValueError(f"Day {day['id']} references an unknown resource.")
         if not all(day[field].strip() for field in ("objective", "scripture", "reflection", "action", "completionRule")):
             raise ValueError(f"Day {day['id']} is missing required formation copy.")
 

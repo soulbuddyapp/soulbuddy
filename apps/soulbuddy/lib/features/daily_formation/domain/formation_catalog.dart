@@ -3,6 +3,7 @@ class FormationCatalog {
     required this.version,
     required this.sourceSha256,
     required this.videos,
+    this.resources = const [],
     required this.packs,
     required this.days,
     required this.rules,
@@ -11,6 +12,7 @@ class FormationCatalog {
   final int version;
   final String sourceSha256;
   final List<FormationVideo> videos;
+  final List<FormationResource> resources;
   final List<FormationPack> packs;
   final List<FormationDay> days;
   final List<FormationRule> rules;
@@ -19,11 +21,18 @@ class FormationCatalog {
     for (final video in videos) video.id: video,
   };
 
+  Map<String, FormationResource> get resourcesById => {
+    for (final resource in resources) resource.id: resource,
+  };
+
   factory FormationCatalog.fromJson(Map<dynamic, dynamic> json) =>
       FormationCatalog(
         version: json['version'] as int,
         sourceSha256: json['sourceSha256'] as String,
         videos: _list(json['videos']).map(FormationVideo.fromJson).toList(),
+        resources: _listOrEmpty(
+          json['resources'],
+        ).map(FormationResource.fromJson).toList(),
         packs: _list(json['packs']).map(FormationPack.fromJson).toList(),
         days: _list(json['days']).map(FormationDay.fromJson).toList(),
         rules: _list(json['rules']).map(FormationRule.fromJson).toList(),
@@ -31,6 +40,9 @@ class FormationCatalog {
 
   static List<Map<dynamic, dynamic>> _list(dynamic value) =>
       (value as List).cast<Map<dynamic, dynamic>>();
+
+  static List<Map<dynamic, dynamic>> _listOrEmpty(dynamic value) =>
+      value == null ? const [] : (value as List).cast<Map<dynamic, dynamic>>();
 }
 
 class FormationVideo {
@@ -63,6 +75,31 @@ class FormationVideo {
   );
 }
 
+class FormationResource {
+  const FormationResource({
+    required this.id,
+    required this.title,
+    required this.source,
+    required this.youtubeUrl,
+    required this.youtubeId,
+  });
+
+  final String id;
+  final String title;
+  final String source;
+  final String youtubeUrl;
+  final String youtubeId;
+
+  factory FormationResource.fromJson(Map<dynamic, dynamic> json) =>
+      FormationResource(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        source: json['source'] as String,
+        youtubeUrl: json['youtubeUrl'] as String,
+        youtubeId: json['youtubeId'] as String,
+      );
+}
+
 class FormationPack {
   const FormationPack({
     required this.id,
@@ -92,6 +129,7 @@ class FormationDay {
     required this.reflection,
     required this.action,
     required this.videoIds,
+    this.resourceIds = const [],
   });
 
   final String id;
@@ -103,6 +141,7 @@ class FormationDay {
   final String reflection;
   final String action;
   final List<String> videoIds;
+  final List<String> resourceIds;
 
   factory FormationDay.fromJson(Map<dynamic, dynamic> json) => FormationDay(
     id: json['id'] as String,
@@ -114,6 +153,7 @@ class FormationDay {
     reflection: json['reflection'] as String,
     action: json['action'] as String,
     videoIds: (json['videoIds'] as List).cast<String>(),
+    resourceIds: (json['resourceIds'] as List? ?? const []).cast<String>(),
   );
 }
 

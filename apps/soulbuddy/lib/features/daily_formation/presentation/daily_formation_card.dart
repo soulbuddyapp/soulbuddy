@@ -38,6 +38,10 @@ class DailyFormationCard extends ConsumerWidget {
       progress.value.selectedVideoId,
       profile.value.minutes,
     );
+    final resources = day.resourceIds
+        .map((id) => catalog.value.resourcesById[id])
+        .whereType<FormationResource>()
+        .toList();
     return SacredSurface(
       marble: true,
       padding: const EdgeInsets.all(16),
@@ -76,6 +80,18 @@ class DailyFormationCard extends ConsumerWidget {
               ),
             ],
           ),
+          if (resources.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text('Resources', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            for (final resource in resources)
+              _ResourceTile(
+                resource: resource,
+                onTap: () => _launchResource(context, resource),
+              ),
+          ],
         ],
       ),
     );
@@ -112,6 +128,21 @@ class DailyFormationCard extends ConsumerWidget {
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('The video could not be opened.')),
+      );
+    }
+  }
+
+  Future<void> _launchResource(
+    BuildContext context,
+    FormationResource resource,
+  ) async {
+    final opened = await _videoLauncher.open(
+      youtubeId: resource.youtubeId,
+      webUrl: Uri.parse(resource.youtubeUrl),
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The resource could not be opened.')),
       );
     }
   }
@@ -284,6 +315,48 @@ class _VideoTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    ),
+  );
+}
+
+class _ResourceTile extends StatelessWidget {
+  const _ResourceTile({required this.resource, required this.onTap});
+
+  final FormationResource resource;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.menu_book_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(resource.title),
+                  Text(
+                    resource.source,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.open_in_new_rounded, size: 18),
+          ],
+        ),
       ),
     ),
   );
