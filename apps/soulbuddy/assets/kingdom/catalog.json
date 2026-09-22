@@ -86,5 +86,29 @@
     "durationMs": 72960,
     "audioAsset": "kingdom/11-close-the-door.mp3",
     "transcriptAsset": "assets/kingdom/11-close-the-door.json"
+  },
+  {
+    "id": "12-guard-what-enters",
+    "title": "Guard What Enters",
+    "tenet": "Let the Word shape the inner life",
+    "durationMs": 82224,
+    "audioAsset": "kingdom/12-guard-what-enters.mp3",
+    "transcriptAsset": "assets/kingdom/12-guard-what-enters.json"
+  },
+  {
+    "id": "13-answer-with-the-word",
+    "title": "Answer With the Word",
+    "tenet": "Meet temptation with truth and action",
+    "durationMs": 75576,
+    "audioAsset": "kingdom/13-answer-with-the-word.mp3",
+    "transcriptAsset": "assets/kingdom/13-answer-with-the-word.json"
+  },
+  {
+    "id": "14-test-the-voice",
+    "title": "Test the Voice",
+    "tenet": "Listen with courage and discernment",
+    "durationMs": 72552,
+    "audioAsset": "kingdom/14-test-the-voice.mp3",
+    "transcriptAsset": "assets/kingdom/14-test-the-voice.json"
   }
 ]

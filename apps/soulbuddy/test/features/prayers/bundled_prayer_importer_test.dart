@@ -25,7 +25,7 @@ void main() {
     await temporaryDirectory.delete(recursive: true);
   });
 
-  test('imports exactly eight controlled starter prayers idempotently', () async {
+  test('imports reviewed starter prayers idempotently', () async {
     final database = await openTestDatabase(
       '${temporaryDirectory.path}/soulbuddy.db',
     );
@@ -73,8 +73,8 @@ void main() {
       r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     );
 
-    expect(rows, hasLength(8));
-    expect(rows.map((row) => row['id']).toSet(), hasLength(8));
+    expect(rows, hasLength(9));
+    expect(rows.map((row) => row['id']).toSet(), hasLength(9));
     expect(rows.map((row) => row['purpose']).toSet(), approvedPurposes);
     expect(
       rows.singleWhere(
@@ -82,6 +82,12 @@ void main() {
       )['title'],
       'For this day',
     );
+    final renewal = rows.singleWhere(
+      (row) => row['id'] == '0198a100-0000-7000-8000-000000000009',
+    );
+    expect(renewal['title'], 'Renew my mind');
+    expect(renewal['body'], contains('test every impression'));
+    expect(renewal['action'], contains('morning, midday, and evening'));
     for (final row in rows) {
       expect(row['id'], matches(uuidPattern));
       expect((row['title'] as String).trim(), isNotEmpty);
@@ -170,8 +176,8 @@ void main() {
           .toSet();
 
       expect(firstArchivedAt, isNotNull);
-      expect(activeRows, hasLength(8));
-      expect(surfacedIds, hasLength(8));
+      expect(activeRows, hasLength(9));
+      expect(surfacedIds, hasLength(9));
       expect(surfacedIds, isNot(contains(staleId)));
 
       await importer.ensureLoaded(database.powersync);
@@ -185,7 +191,7 @@ void main() {
         await database.powersync.getAll(
           'SELECT id FROM bundled_prayers WHERE archived_at IS NULL',
         ),
-        hasLength(8),
+        hasLength(9),
       );
       expect(await database.powersync.getNextCrudTransaction(), isNull);
     },
@@ -260,7 +266,7 @@ void main() {
     _InvalidPayloadCase(
       name: 'incorrect prayer count',
       mutate: (payload) => _prayers(payload).removeLast(),
-      diagnostic: 'must contain exactly 8 prayers',
+      diagnostic: 'must contain at least 8 prayers',
     ),
     _InvalidPayloadCase(
       name: 'unsupported content version',

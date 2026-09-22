@@ -9,11 +9,11 @@ import 'package:soulbuddy/features/orientation/domain/orientation_course.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('Kingdom course has eleven playable and readable Nuggets', () async {
+  test('Kingdom course has fourteen playable and readable Nuggets', () async {
     final catalog = await loadKingdomCatalog();
-    expect(catalog, hasLength(11));
+    expect(catalog, hasLength(14));
     expect(catalog.first.title, 'Lay Down the Old Life');
-    expect(catalog.last.title, 'Close the Door, Begin Again');
+    expect(catalog.last.title, 'Test the Voice');
     for (final nugget in catalog) {
       expect(nugget.id, matches(RegExp(r'^\d{2}-')));
       expect(nugget.audioAsset, startsWith('kingdom/'));
@@ -41,6 +41,7 @@ void main() {
       final texts = await Future.wait(
         catalog
             .skip(8)
+            .take(3)
             .map((nugget) => rootBundle.loadString(nugget.transcriptAsset)),
       );
       expect(texts[0].toLowerCase(), contains('forgive'));
@@ -54,6 +55,21 @@ void main() {
       expect(texts[2].toLowerCase(), contains('door'));
     },
   );
+
+  test('renewal Nuggets distinguish Scripture from mental shortcuts', () async {
+    final catalog = await loadKingdomCatalog();
+    final texts = await Future.wait(
+      catalog
+          .skip(11)
+          .map((nugget) => rootBundle.loadString(nugget.transcriptAsset)),
+    );
+    expect(texts[0].toLowerCase(), contains('subconscious'));
+    expect(texts[0].toLowerCase(), contains('not a translation'));
+    expect(texts[1].toLowerCase(), contains('morning, midday, and evening'));
+    expect(texts[1].toLowerCase(), contains('not a spell'));
+    expect(texts[2].toLowerCase(), contains('peter'));
+    expect(texts[2].toLowerCase(), contains('doubt is not automatically'));
+  });
 
   test('advanced Nuggets teach detachment and careful discernment', () async {
     final catalog = await loadKingdomCatalog();

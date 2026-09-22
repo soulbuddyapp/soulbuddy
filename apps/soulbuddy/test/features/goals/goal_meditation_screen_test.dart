@@ -72,5 +72,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('start-goal-meditation')), findsOneWidget);
     expect(find.byKey(const Key('save-goal-meditation-plan')), findsNothing);
+
+    await tester.ensureVisible(find.byKey(const Key('start-goal-meditation')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('start-goal-meditation')));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('goal-scripture-response-picker')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('goal-scripture-response-picker')));
+    await tester.pumpAndSettle();
+    expect(find.text('Anger · James 1:19–20'), findsOneWidget);
+    await tester.tap(find.text('Anger · James 1:19–20'));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('read-goal-scripture-response')),
+      findsOneWidget,
+    );
   });
 }

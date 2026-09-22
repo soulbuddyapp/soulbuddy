@@ -48,7 +48,7 @@ void main() {
           .map((row) => row['id'])
           .toList(growable: false);
 
-      expect(editorialRows, hasLength(8));
+      expect(editorialRows, hasLength(9));
       expect(editorialIds, prayerIds);
       for (final row in editorialRows) {
         final item = EditorialItem.fromRow(row);
@@ -57,8 +57,15 @@ void main() {
         expect(item.provenance, 'soulbuddy_editorial');
         expect(item.sourceRef, 'prayer_library:v2');
         expect(item.reviewState, EditorialReviewState.approved);
-        expect(item.reviewedOn, DateTime.utc(2026, 8, 29));
-        expect(item.publishedAt, DateTime.utc(2026, 8, 29));
+        final isRenewal = item.id == '0198a100-0000-7000-8000-000000000009';
+        expect(
+          item.reviewedOn,
+          isRenewal ? DateTime.utc(2026, 9, 22) : DateTime.utc(2026, 8, 29),
+        );
+        expect(
+          item.publishedAt,
+          isRenewal ? DateTime.utc(2026, 9, 22) : DateTime.utc(2026, 8, 29),
+        );
         expect(item.tags, contains('prayer'));
         expect(item.isSelectable, isTrue);
       }
@@ -112,7 +119,7 @@ void main() {
         await database.powersync.getAll(
           'SELECT id FROM editorial_items WHERE archived_at IS NULL',
         ),
-        hasLength(8),
+        hasLength(9),
       );
     },
   );

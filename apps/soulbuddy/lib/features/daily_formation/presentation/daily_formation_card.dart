@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
 import '../application/formation_video_launcher.dart';
@@ -123,42 +124,77 @@ class DailyFormationCard extends ConsumerWidget {
   ) async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Choose today’s video',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              for (final id in day.videoIds)
-                if (catalog.videosById[id] case final video?)
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Choose today’s video',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                for (final id in day.videoIds)
+                  if (catalog.videosById[id] case final video?)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(video.title),
+                      subtitle: Text(
+                        '${video.channel} · ${_duration(video.runtimeSeconds)}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () async {
+                        await selectDailyFormationVideo(
+                          ref,
+                          day: day.day,
+                          videoId: video.id,
+                        );
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                    ),
+                const Divider(),
+                Text(
+                  'More teaching',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                for (final source in _formationSources)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(video.title),
-                    subtitle: Text(
-                      '${video.channel} · ${_duration(video.runtimeSeconds)}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
+                    title: Text(source.name),
+                    trailing: const Icon(Icons.open_in_new),
                     onTap: () async {
-                      await selectDailyFormationVideo(
-                        ref,
-                        day: day.day,
-                        videoId: video.id,
-                      );
-                      if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      Navigator.pop(sheetContext);
+                      await _openSource(context, source.url);
                     },
                   ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _openSource(BuildContext context, String url) async {
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } on Object {
+      // Report a failed external launch with the same recovery message.
+    }
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Teaching could not be opened.')),
+      );
+    }
   }
 
   Future<void> _complete(
@@ -190,6 +226,27 @@ class DailyFormationCard extends ConsumerWidget {
   static String _duration(int seconds) =>
       '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
 }
+
+class _FormationSource {
+  const _FormationSource(this.name, this.url);
+  final String name;
+  final String url;
+}
+
+const _formationSources = [
+  _FormationSource(
+    'BibleProject',
+    'https://www.youtube.com/user/jointhebibleproject',
+  ),
+  _FormationSource(
+    'Fr. Mike Schmitz · Ascension',
+    'https://www.youtube.com/@AscensionPresents',
+  ),
+  _FormationSource(
+    'Dr. Myles Munroe · Munroe Global',
+    'https://www.youtube.com/MunroeGlobal',
+  ),
+];
 
 class _VideoTile extends StatelessWidget {
   const _VideoTile({required this.video});

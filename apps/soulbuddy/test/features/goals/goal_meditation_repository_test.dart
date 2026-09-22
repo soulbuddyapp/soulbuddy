@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/goals/data/goal_meditation_repository.dart';
 import 'package:soulbuddy/features/goals/domain/goal_meditation_plan.dart';
+import 'package:soulbuddy/features/goals/domain/goal_scripture_response.dart';
 
 void main() {
   test('daily and weekly plans calculate the next local practice', () {
@@ -77,4 +78,17 @@ void main() {
       expect(await repo().loadDraft('goal-a'), isNull);
     },
   );
+
+  test('a Scripture response stays with its Goal across sessions', () async {
+    final values = <String, String>{};
+    GoalMeditationRepository repo() => GoalMeditationRepository(
+      read: (key) async => values[key],
+      write: (key, value) async => values[key] = value,
+    );
+    await repo().saveScriptureResponseKey('goal-a', 'anger');
+    expect(await repo().loadScriptureResponseKey('goal-a'), 'anger');
+    expect(await repo().loadScriptureResponseKey('goal-b'), isNull);
+    expect(goalScriptureResponseForKey('anger')?.reference, 'James 1:19–20');
+    expect(goalScriptureResponseForKey('unknown'), isNull);
+  });
 }

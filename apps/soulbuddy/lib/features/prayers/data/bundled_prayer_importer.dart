@@ -114,9 +114,9 @@ class BundledPrayerImporter {
     final prayers = prayerValues
         .map(_BundledPrayer.fromJson)
         .toList(growable: false);
-    if (prayers.length != PrayerPurpose.values.length) {
+    if (prayers.length < PrayerPurpose.values.length) {
       throw FormatException(
-        'Bundled prayer content must contain exactly '
+        'Bundled prayer content must contain at least '
         '${PrayerPurpose.values.length} prayers.',
       );
     }
@@ -130,10 +130,9 @@ class BundledPrayerImporter {
     final approvedPurposes = PrayerPurpose.values
         .map((purpose) => purpose.wireValue)
         .toSet();
-    if (purposes.length != prayers.length ||
-        !purposes.containsAll(approvedPurposes)) {
+    if (!purposes.containsAll(approvedPurposes)) {
       throw const FormatException(
-        'Bundled prayers must cover every approved purpose exactly once.',
+        'Bundled prayers must cover every approved purpose.',
       );
     }
 

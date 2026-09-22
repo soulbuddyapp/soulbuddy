@@ -62,6 +62,17 @@ class GoalMeditationRepository {
 
   String _entriesKey(String goalId) => 'goal.meditation.entries.v1.$goalId';
   String _draftKey(String goalId) => 'goal.meditation.draft.v1.$goalId';
+  String _scriptureResponseKey(String goalId) =>
+      'goal.meditation.scripture_response.v1.$goalId';
+
+  Future<String?> loadScriptureResponseKey(String goalId) async {
+    await _pending;
+    final value = await read(_scriptureResponseKey(goalId));
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  Future<void> saveScriptureResponseKey(String goalId, String key) =>
+      _queue(() => write(_scriptureResponseKey(goalId), key));
 
   Future<String?> loadDraft(String goalId) async {
     await _pending;

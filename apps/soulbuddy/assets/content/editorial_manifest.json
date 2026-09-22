@@ -88,6 +88,17 @@
       "reviewed_on": "2026-08-29",
       "published_at": "2026-08-29T00:00:00.000Z",
       "tags": ["prayer", "difficult_time"]
+    },
+    {
+      "id": "0198a100-0000-7000-8000-000000000009",
+      "kind": "prepared_prayer",
+      "content_version": 1,
+      "provenance": "soulbuddy_editorial",
+      "source_ref": "prayer_library:v2",
+      "review_state": "approved",
+      "reviewed_on": "2026-09-22",
+      "published_at": "2026-09-22T00:00:00.000Z",
+      "tags": ["prayer", "daily", "renewal"]
     }
   ]
 }

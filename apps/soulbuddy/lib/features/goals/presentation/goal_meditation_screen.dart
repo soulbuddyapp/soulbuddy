@@ -16,6 +16,7 @@ import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
 import '../data/goal_meditation_repository.dart';
 import '../domain/goal_meditation_plan.dart';
+import '../domain/goal_scripture_response.dart';
 import '../providers/goal_meditation_providers.dart';
 import '../providers/goal_providers.dart';
 
@@ -42,6 +43,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
   int _duration = 10;
   int _remaining = 10 * 60;
   MeditationSoundBed? _sound;
+  GoalScriptureResponse? _scriptureResponse;
   double _volume = .15;
   bool _setupLoaded = false;
   bool _editingPlan = false;
@@ -58,6 +60,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
     _repository = ref.read(goalMeditationRepositoryProvider);
     _notes.addListener(_scheduleDraftSave);
     unawaited(_loadDraft());
+    unawaited(_loadScriptureResponse());
     _guide.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _guidePlaying = false);
     });
@@ -70,6 +73,40 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       if (mounted && draft != null && _notes.text.isEmpty) _notes.text = draft;
     } on Object {
       if (mounted) setState(() => _error = 'Notebook draft is unavailable.');
+    }
+  }
+
+  Future<void> _loadScriptureResponse() async {
+    try {
+      final key = await _repository.loadScriptureResponseKey(widget.goalId);
+      if (mounted) {
+        setState(() => _scriptureResponse = goalScriptureResponseForKey(key));
+      }
+    } on Object {
+      // A missing optional passage must not interrupt meditation.
+    }
+  }
+
+  Future<void> _selectScriptureResponse(GoalScriptureResponse response) async {
+    setState(() {
+      _scriptureResponse = response;
+      _error = null;
+    });
+    try {
+      await _repository.saveScriptureResponseKey(widget.goalId, response.key);
+    } on Object {
+      if (mounted) {
+        setState(() => _error = 'Scripture choice could not be saved.');
+      }
+    }
+  }
+
+  Future<void> _readScriptureResponse(GoalScriptureResponse response) async {
+    if (_running) await _pause();
+    if (mounted) {
+      context.push(
+        '/remember/scripture/${Uri.encodeComponent(response.book)}/${response.chapter}',
+      );
     }
   }
 
@@ -621,6 +658,65 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
         ],
       ),
       const SizedBox(height: AppSpacing.md),
+      Card(
+        child: Column(
+          children: [
+            PopupMenuButton<GoalScriptureResponse>(
+              key: const Key('goal-scripture-response-picker'),
+              tooltip: 'Choose Scripture response',
+              onSelected: _selectScriptureResponse,
+              itemBuilder: (_) => [
+                for (final response in goalScriptureResponses)
+                  PopupMenuItem(
+                    value: response,
+                    child: Text('${response.label} · ${response.reference}'),
+                  ),
+              ],
+              child: ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                title: const Text('Answer with Scripture'),
+                subtitle: Text(
+                  _scriptureResponse?.reference ??
+                      'Choose a recurring struggle',
+                ),
+                trailing: const Icon(Icons.expand_more),
+              ),
+            ),
+            if (_scriptureResponse case final response?) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  0,
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(response.practice),
+                ),
+              ),
+              TextButton.icon(
+                key: const Key('read-goal-scripture-response'),
+                onPressed: () => _readScriptureResponse(response),
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Read chapter'),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  0,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                ),
+                child: Text(
+                  'Read morning, midday, evening, and when the urge returns.',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(height: AppSpacing.md),
       TextField(
         key: const Key('goal-meditation-notebook'),
         controller: _notes,
@@ -628,8 +724,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
         maxLines: 12,
         decoration: const InputDecoration(
           labelText: 'Notebook',
-          hintText:
-              'Write what comes to mind. Discern it with Scripture, love, and wise counsel.',
+          hintText: 'Name the trigger, the passage, and one faithful response.',
           border: OutlineInputBorder(),
           alignLabelWithHint: true,
         ),
