@@ -90,7 +90,8 @@ The new top-level routes are:
 |---|---|
 | `/welcome/commitment` | Immersive first-use journey outside the normal shell |
 | `/commitments/:commitmentId` | Private, read-only Commitment summary |
-| `/commitments/:commitmentId/readiness` | Optional readiness teaching |
+| `/welcome/commitment/readiness` | Optional readiness teaching before a Commitment is saved |
+| `/commitments/:commitmentId/readiness` | Optional readiness teaching after a Commitment is saved |
 | `/commitments/:commitmentId/meditate` | Guided meditation preparation and session |
 | `/commitments/:commitmentId/listen` | User-led Listening and Discernment session |
 
@@ -177,8 +178,9 @@ timeline. Music is never required for access to the journey.
 ### 2. Optional readiness teaching
 
 Beside **Play the invitation**, a quiet **Why wait? A word about readiness** link
-opens `/commitments/:commitmentId/readiness`. It is optional and never blocks
-the journey. The same link is available later from the summary.
+opens `/welcome/commitment/readiness` while the user is still drafting. It is
+optional and never blocks the journey. After a Commitment is saved, the same
+link opens `/commitments/:commitmentId/readiness` from the summary.
 
 The reviewed teaching contains three parts and a closing reflection:
 
