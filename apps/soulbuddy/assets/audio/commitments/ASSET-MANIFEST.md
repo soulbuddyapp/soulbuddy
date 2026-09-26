@@ -2,11 +2,11 @@
 
 All spoken words are static public copy from the approved Commitment design and plan. No personal prayer, calling, need, practice, declaration, or other private user content was read or sent to a provider.
 
-Regenerate with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/audio/generate_commitment_assets.ps1`. Requires Python, edge-tts, ffmpeg, ffprobe, curl.exe, internet access, and the explicitly selected Microsoft en-US-JennyNeural voice. A failed voice request aborts; there is no substitute or silent placeholder.
+Regenerate with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/audio/generate_commitment_assets.ps1`. Requires Python, edge-tts, ffmpeg, ffprobe, curl.exe, internet access, and the explicitly selected Microsoft en-US-JennyNeural voice. Use `-InvitationOnly` to revise the invitation without regenerating other recordings. A failed voice request aborts; there is no substitute or silent placeholder.
 
 ## Playback and captions
 
-WAV masters are mono PCM16 at 24 kHz. Generic foreground narration defaults to 0.85x; notification playback and music use 1.0x. Sentence cues use source media milliseconds, so players use reported media position directly. Guides end with “Now listen.” The common opening’s closing sentence is moved after the guide-specific paragraph to preserve the guide/bell/timer handoff. The design’s “You do not carry this alone” supersedes the plan’s one-word invitation discrepancy.
+WAV masters are mono PCM16 at 24 kHz. Generic foreground narration defaults to 0.85x; notification playback and music use 1.0x. Sentence cues use source media milliseconds, so players use reported media position directly. Guides end with “Now listen.” The common opening’s closing sentence is moved after the guide-specific paragraph to preserve the guide/bell/timer handoff. The invitation follows the active-language revision requested on 26 September 2026; its source synthesis rate is neutral, while playback remains 0.85x.
 
 Narration is normalized to -19 LUFS with a -2 dBTP target. Guides and Listening have approximately 55 seconds of source media (64.7 seconds at 0.85x). Microsoft neural TTS is the production voice, replacing the plan’s optional/prototype desktop Zira voice. Provider sentence boundaries are scaled by the exact tempo used for the finished recording. No artificial silence is used to imitate a spoken guide.
 
@@ -33,7 +33,7 @@ SoulBuddy owns its editorial guidance; the synthetic recordings use Microsoft Ed
 | Asset ID | File | Duration (s) | Format | SHA-256 |
 |---|---|---:|---|---|
 | readiness_v1 | readiness_v1.wav | 63.363 | pcm_s16le | `e68d384aafa43278c7e55ff4b1b1993bb9b59a414bcc243b6637df40b9c6ba12` |
-| invitation_v1 | invitation_v1.wav | 21.603 | pcm_s16le | `a47da4d18eb70ae4adad40ecbf72cc932138e7c0eabaaffcca63e3ebb02b1125` |
+| invitation_v1 | invitation_v1.wav | 30.819 | pcm_s16le | `63d7607c02c7dea976746ab9b2b2aa08bb4d40fbc732bf1cbf5cee6cec81cce8` |
 | guide_surrender_v1 | guide_surrender_v1.wav | 54.974 | pcm_s16le | `707e42299644c38e1a1299a91263e7d3ba5695369a7c58b221d66536d2798fd4` |
 | guide_direction_v1 | guide_direction_v1.wav | 54.978 | pcm_s16le | `5feb4502342a740932b52f9c495fa8f18586fc046b8f71bfcd52b70571b52a21` |
 | guide_peace_v1 | guide_peace_v1.wav | 54.977 | pcm_s16le | `fe0c0879582d4936d8c79ebea7a011155837bb08eeef2c051b0c4152da49bf6b` |

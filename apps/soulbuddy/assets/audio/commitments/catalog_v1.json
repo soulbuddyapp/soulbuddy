@@ -123,42 +123,82 @@
       "codec": "pcm_s16le",
       "sampleRate": 24000,
       "channels": 1,
-      "durationMs": 21603,
+      "durationMs": 30819,
       "durationBoundsMs": [
-        21503,
-        21703
+        30719,
+        30919
       ],
-      "sha256": "a47da4d18eb70ae4adad40ecbf72cc932138e7c0eabaaffcca63e3ebb02b1125",
-      "transcript": "What you name before God can shape the way you live. A commitment is not pretending to be finished. It is presenting your life honestly and asking the Father, through Jesus Christ, to reshape your desires, your calling, and your daily choices. You do not carry this alone. Bring it into His presence now.",
+      "sha256": "63d7607c02c7dea976746ab9b2b2aa08bb4d40fbc732bf1cbf5cee6cec81cce8",
+      "transcript": "Rise. Bring your whole life before God. Name the calling you will answer. Choose the good you will do today. Lay down the habit that holds you captive. Ask the Father, through Jesus Christ, for strength. Then take the next faithful step. Serve someone. Keep your word. Plant something good in the garden each day. Commit your life to God. Put your faith into action. Begin now.",
       "transcriptPath": "assets/audio/commitments/invitation_v1.txt",
-      "transcriptSha256": "19fdf51af33744f3655a7ecef084930e0e597da08ea84f4271f2ea3b1261d216",
+      "transcriptSha256": "9b3cfbb90d129d3103af1ad79ebc9312c06170fafc54e1ace72605feb8241e93",
       "captionsPath": "assets/audio/commitments/invitation_v1.vtt",
-      "captionsSha256": "05fbb5c4ba4a560c14aaf3a3957f632a7e32362fcf69dcac6584d16b55b74cd2",
+      "captionsSha256": "9379a5e41db35984bc99a359d92a76fed83cd1c15797a5be9568d340f1f8f894",
       "captions": [
         {
           "startMs": 100,
-          "endMs": 3763,
-          "text": "What you name before God can shape the way you live."
+          "endMs": 1550,
+          "text": "Rise."
         },
         {
-          "startMs": 3763,
-          "endMs": 7092,
-          "text": "A commitment is not pretending to be finished."
+          "startMs": 1550,
+          "endMs": 4125,
+          "text": "Bring your whole life before God."
         },
         {
-          "startMs": 7092,
-          "endMs": 16526,
-          "text": "It is presenting your life honestly and asking the Father, through Jesus Christ, to reshape your desires, your calling, and your daily choices."
+          "startMs": 4125,
+          "endMs": 6562,
+          "text": "Name the calling you will answer."
         },
         {
-          "startMs": 16526,
-          "endMs": 19039,
-          "text": "You do not carry this alone."
+          "startMs": 6562,
+          "endMs": 8875,
+          "text": "Choose the good you will do today."
         },
         {
-          "startMs": 19039,
-          "endMs": 21566,
-          "text": "Bring it into His presence now."
+          "startMs": 8875,
+          "endMs": 11838,
+          "text": "Lay down the habit that holds you captive."
+        },
+        {
+          "startMs": 11838,
+          "endMs": 15750,
+          "text": "Ask the Father, through Jesus Christ, for strength."
+        },
+        {
+          "startMs": 15750,
+          "endMs": 18388,
+          "text": "Then take the next faithful step."
+        },
+        {
+          "startMs": 18388,
+          "endMs": 20112,
+          "text": "Serve someone."
+        },
+        {
+          "startMs": 20112,
+          "endMs": 21838,
+          "text": "Keep your word."
+        },
+        {
+          "startMs": 21838,
+          "endMs": 24675,
+          "text": "Plant something good in the garden each day."
+        },
+        {
+          "startMs": 24675,
+          "endMs": 26812,
+          "text": "Commit your life to God."
+        },
+        {
+          "startMs": 26812,
+          "endMs": 29175,
+          "text": "Put your faith into action."
+        },
+        {
+          "startMs": 29175,
+          "endMs": 30788,
+          "text": "Begin now."
         }
       ],
       "required": false,
@@ -169,7 +209,7 @@
         "provider": "Microsoft Edge neural TTS",
         "voice": "en-US-JennyNeural",
         "tool": "edge-tts 7.2.8",
-        "synthesisRate": "-5%",
+        "synthesisRate": "+0%",
         "postprocessTempo": 1.0,
         "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
         "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",

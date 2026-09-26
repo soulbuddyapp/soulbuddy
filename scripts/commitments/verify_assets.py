@@ -54,7 +54,7 @@ def approved_transcripts(root: Path) -> dict[str, str]:
     common = sections['COMMON GUIDE OPENING'].removesuffix(' Now listen.')
     return {
         'readiness_v1': sections['READINESS'],
-        'invitation_v1': sections['INVITATION'].replace('You do not carry it alone.', 'You do not carry this alone.'),
+        'invitation_v1': sections['INVITATION'],
         'listening_v1': sections['LISTENING'],
         'spoken_invitation_v1': sections['SPOKEN INVITATION'],
         **{f'guide_{kind}_v1': common + ' ' + sections[kind.upper()] + ' Now listen.'

@@ -1,4 +1,4 @@
-param([string]$Voice = 'en-US-JennyNeural')
+param([string]$Voice = 'en-US-JennyNeural', [switch]$InvitationOnly)
 $ErrorActionPreference = 'Stop'
 # Public, reviewed copy only. This script never reads a user database or prayer.
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -14,8 +14,10 @@ import edge_tts
 
 ROOT = Path(sys.argv[1])
 VOICE = sys.argv[2]
+INVITATION_ONLY = sys.argv[3] == 'True'
 OUT = ROOT / 'apps/soulbuddy/assets/audio/commitments'
 OUT.mkdir(parents=True, exist_ok=True)
+existing = {a['id']: a for a in json.loads((OUT / 'catalog_v1.json').read_text(encoding='utf-8'))['assets']} if INVITATION_ONLY else {}
 SOURCE = 'https://www.scottbuckley.com.au/library/wp-content/uploads/2026/04/Aphelion.mp3'
 PAGE = 'https://www.scottbuckley.com.au/library/aphelion/'
 CREDIT = '\u201cAphelion\u201d by Scott Buckley \u2014 released under CC BY 4.0. www.scottbuckley.com.au'
@@ -24,8 +26,6 @@ plan = (ROOT / PLAN).read_text(encoding='utf-8')
 block = plan.split('Use these canonical text constants in `catalog_v1.json`:')[1].split('```text')[1].split('```')[0]
 texts = dict(re.findall(r'^([A-Z ]+):\n(.+?)(?=\n\n[A-Z ]+:|\Z)', block.strip(), re.S | re.M))
 texts = {k:v.strip() for k,v in texts.items()}
-# The approved design is authoritative for this one-word plan discrepancy.
-texts['INVITATION'] = texts['INVITATION'].replace('You do not carry it alone.', 'You do not carry this alone.')
 opening = texts['COMMON GUIDE OPENING'].removesuffix(' Now listen.')
 scripts = {
     'readiness_v1': texts['READINESS'],
@@ -56,10 +56,14 @@ async def main():
     with tempfile.TemporaryDirectory(prefix='soulbuddy-commitment-media-') as scratch:
         temp = Path(scratch)
         for asset_id, transcript in scripts.items():
+            if INVITATION_ONLY and asset_id != 'invitation_v1':
+                assets.append(existing[asset_id])
+                continue
             raw = temp / (asset_id + '.mp3')
             cues = []
+            synthesis_rate = '+0%' if asset_id == 'invitation_v1' else '-5%'
             with raw.open('wb') as recording:
-                async for chunk in edge_tts.Communicate(transcript, VOICE, rate='-5%', boundary='SentenceBoundary').stream():
+                async for chunk in edge_tts.Communicate(transcript, VOICE, rate=synthesis_rate, boundary='SentenceBoundary').stream():
                     if chunk['type'] == 'audio': recording.write(chunk['data'])
                     elif chunk['type'] == 'SentenceBoundary':
                         cues.append({'startMs': round(chunk['offset'] / 10000), 'endMs': round((chunk['offset'] + chunk['duration']) / 10000), 'text': chunk['text']})
@@ -90,24 +94,28 @@ async def main():
                 for copy in asset['platformCopies']:
                     destination = ROOT / copy; destination.parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(path, destination)
             assets.append(asset)
+            asset['provenance']['synthesisRate'] = synthesis_rate
             print(asset_id + ': ' + str(total_ms) + ' ms', flush=True)
-        source = temp / 'Aphelion.mp3'
-        # The official server rejects urllib's TLS/client handshake with HTTP 406.
-        # curl's standard HTTPS client succeeds against the same public URL.
-        run('curl.exe', '--fail', '--location', '--silent', '--show-error', '--output', str(source), SOURCE)
-        if sha(source) != '57ae03dbc122f0859e0f9a273e59503e34883728ddb5b06761fbf8244b0eb23e':
-            raise RuntimeError('The official source changed; review the source before regenerating.')
-        music = OUT / 'aphelion_excerpt_v1.mp3'
-        run('ffmpeg', '-v', 'error', '-y', '-i', str(source), '-af', 'atrim=start=105:end=135,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.8,afade=t=out:st=28.5:d=1.5', '-ar', '44100', '-ac', '2', '-codec:a', 'libmp3lame', '-b:a', '192k', '-map_metadata', '-1', str(music))
-        assets.append({'id':'aphelion_excerpt_v1', 'path':'assets/audio/commitments/aphelion_excerpt_v1.mp3', 'format':'mp3', 'codec':'mp3', 'sampleRate':44100, 'channels':2, 'durationMs':round(duration(music)*1000), 'durationBoundsMs':[29950,30100], 'sha256':sha(music), 'transcript':None, 'captions':[], 'required':False, 'fallback':'silent', 'defaultPlaybackRate':1.0, 'provenance':{'kind':'licensed-music-excerpt', 'sourceUrl':SOURCE, 'sourcePage':PAGE, 'sourceSha256':sha(source), 'sourceDurationMs':round(duration(source)*1000), 'sourceIntervalSeconds':[105,135], 'sourceInterval':'00:01:45-00:02:15', 'processing':'Exact decoded source interval; 0.8-second fade in, 1.5-second fade out; 192 kbps stereo MP3; no other music substituted.', 'licenseVerifiedAt':datetime.now(timezone.utc).date().isoformat(), 'privateContent':False}, 'license':{'identifier':'CC-BY-4.0', 'url':'https://creativecommons.org/licenses/by/4.0/', 'text':'Creative Commons Attribution 4.0 International. Redistribution and adaptation, including commercial use, are permitted with attribution, a license link, and an indication of changes.', 'attribution':CREDIT}, 'review':{'content':'approved-exact-source-interval', 'signal':'verified-by-verify_assets.py', 'humanListening':'pending'}})
+        if INVITATION_ONLY:
+            assets.append(existing['aphelion_excerpt_v1'])
+        else:
+            source = temp / 'Aphelion.mp3'
+            # The official server rejects urllib's TLS/client handshake with HTTP 406.
+            # curl's standard HTTPS client succeeds against the same public URL.
+            run('curl.exe', '--fail', '--location', '--silent', '--show-error', '--output', str(source), SOURCE)
+            if sha(source) != '57ae03dbc122f0859e0f9a273e59503e34883728ddb5b06761fbf8244b0eb23e':
+                raise RuntimeError('The official source changed; review the source before regenerating.')
+            music = OUT / 'aphelion_excerpt_v1.mp3'
+            run('ffmpeg', '-v', 'error', '-y', '-i', str(source), '-af', 'atrim=start=105:end=135,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.8,afade=t=out:st=28.5:d=1.5', '-ar', '44100', '-ac', '2', '-codec:a', 'libmp3lame', '-b:a', '192k', '-map_metadata', '-1', str(music))
+            assets.append({'id':'aphelion_excerpt_v1', 'path':'assets/audio/commitments/aphelion_excerpt_v1.mp3', 'format':'mp3', 'codec':'mp3', 'sampleRate':44100, 'channels':2, 'durationMs':round(duration(music)*1000), 'durationBoundsMs':[29950,30100], 'sha256':sha(music), 'transcript':None, 'captions':[], 'required':False, 'fallback':'silent', 'defaultPlaybackRate':1.0, 'provenance':{'kind':'licensed-music-excerpt', 'sourceUrl':SOURCE, 'sourcePage':PAGE, 'sourceSha256':sha(source), 'sourceDurationMs':round(duration(source)*1000), 'sourceIntervalSeconds':[105,135], 'sourceInterval':'00:01:45-00:02:15', 'processing':'Exact decoded source interval; 0.8-second fade in, 1.5-second fade out; 192 kbps stereo MP3; no other music substituted.', 'licenseVerifiedAt':datetime.now(timezone.utc).date().isoformat(), 'privateContent':False}, 'license':{'identifier':'CC-BY-4.0', 'url':'https://creativecommons.org/licenses/by/4.0/', 'text':'Creative Commons Attribution 4.0 International. Redistribution and adaptation, including commercial use, are permitted with attribution, a license link, and an indication of changes.', 'attribution':CREDIT}, 'review':{'content':'approved-exact-source-interval', 'signal':'verified-by-verify_assets.py', 'humanListening':'pending'}})
     catalog = {'schemaVersion':1, 'defaultPlaybackRate':0.85, 'captionTimebase':'sourceMediaMilliseconds', 'invitationTimelineMs':45000, 'musicStartMs':8000, 'bellAtMs':41000, 'assets':assets}
     write_json(OUT / 'catalog_v1.json', catalog)
-    lines = ['# Commitment media manifest', '', 'All spoken words are static public copy from the approved Commitment design and plan. No personal prayer, calling, need, practice, declaration, or other private user content was read or sent to a provider.', '', 'Regenerate with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/audio/generate_commitment_assets.ps1`. Requires Python, edge-tts, ffmpeg, ffprobe, curl.exe, internet access, and the explicitly selected Microsoft en-US-JennyNeural voice. A failed voice request aborts; there is no substitute or silent placeholder.', '', '## Playback and captions', '', 'WAV masters are mono PCM16 at 24 kHz. Generic foreground narration defaults to 0.85x; notification playback and music use 1.0x. Sentence cues use source media milliseconds, so players use reported media position directly. Guides end with \u201cNow listen.\u201d The common opening\u2019s closing sentence is moved after the guide-specific paragraph to preserve the guide/bell/timer handoff. The design\u2019s \u201cYou do not carry this alone\u201d supersedes the plan\u2019s one-word invitation discrepancy.', '', 'Narration is normalized to -19 LUFS with a -2 dBTP target. Guides and Listening have approximately 55 seconds of source media (64.7 seconds at 0.85x). Microsoft neural TTS is the production voice, replacing the plan\u2019s optional/prototype desktop Zira voice. Provider sentence boundaries are scaled by the exact tempo used for the finished recording. No artificial silence is used to imitate a spoken guide.', '', 'Signal verification checks decoding, duration, format, measured loudness, clipping, transcript coverage, and platform-copy identity. Human listening review remains pending; automated checks do not establish aesthetic quality or editorial approval of a recording.', '', '## Music rights and changes', '', CREDIT, '', 'Official source: ' + PAGE, '', 'Official MP3: ' + SOURCE, '', 'License: https://creativecommons.org/licenses/by/4.0/', '', 'Exact source interval: **00:01:45\u201300:02:15** (105\u2013135 seconds). Changes: extract this interval, apply an 0.8-second fade in and a 1.5-second fade out, encode stereo MP3 at 192 kbps. The downloaded full track is kept only in a temporary directory and removed automatically. Include the credit and a link to the official source in app credits.', '', '## Narration and Scripture provenance', '', 'SoulBuddy owns its editorial guidance; the synthetic recordings use Microsoft Edge neural TTS through edge-tts. This manifest does not grant additional Microsoft service rights or assert ownership of Microsoft voices. Psalm 46:10 is quoted from the existing SoulBuddy RSVCE Scripture source and retains its existing distribution conditions. Source text: `' + PLAN + '` and the approved design.', '', '## Files', '', '| Asset ID | File | Duration (s) | Format | SHA-256 |', '|---|---|---:|---|---|']
+    lines = ['# Commitment media manifest', '', 'All spoken words are static public copy from the approved Commitment design and plan. No personal prayer, calling, need, practice, declaration, or other private user content was read or sent to a provider.', '', 'Regenerate with `powershell -NoProfile -ExecutionPolicy Bypass -File tools/audio/generate_commitment_assets.ps1`. Requires Python, edge-tts, ffmpeg, ffprobe, curl.exe, internet access, and the explicitly selected Microsoft en-US-JennyNeural voice. Use `-InvitationOnly` to revise the invitation without regenerating other recordings. A failed voice request aborts; there is no substitute or silent placeholder.', '', '## Playback and captions', '', 'WAV masters are mono PCM16 at 24 kHz. Generic foreground narration defaults to 0.85x; notification playback and music use 1.0x. Sentence cues use source media milliseconds, so players use reported media position directly. Guides end with \u201cNow listen.\u201d The common opening\u2019s closing sentence is moved after the guide-specific paragraph to preserve the guide/bell/timer handoff. The invitation follows the active-language revision requested on 26 September 2026; its source synthesis rate is neutral, while playback remains 0.85x.', '', 'Narration is normalized to -19 LUFS with a -2 dBTP target. Guides and Listening have approximately 55 seconds of source media (64.7 seconds at 0.85x). Microsoft neural TTS is the production voice, replacing the plan\u2019s optional/prototype desktop Zira voice. Provider sentence boundaries are scaled by the exact tempo used for the finished recording. No artificial silence is used to imitate a spoken guide.', '', 'Signal verification checks decoding, duration, format, measured loudness, clipping, transcript coverage, and platform-copy identity. Human listening review remains pending; automated checks do not establish aesthetic quality or editorial approval of a recording.', '', '## Music rights and changes', '', CREDIT, '', 'Official source: ' + PAGE, '', 'Official MP3: ' + SOURCE, '', 'License: https://creativecommons.org/licenses/by/4.0/', '', 'Exact source interval: **00:01:45\u201300:02:15** (105\u2013135 seconds). Changes: extract this interval, apply an 0.8-second fade in and a 1.5-second fade out, encode stereo MP3 at 192 kbps. The downloaded full track is kept only in a temporary directory and removed automatically. Include the credit and a link to the official source in app credits.', '', '## Narration and Scripture provenance', '', 'SoulBuddy owns its editorial guidance; the synthetic recordings use Microsoft Edge neural TTS through edge-tts. This manifest does not grant additional Microsoft service rights or assert ownership of Microsoft voices. Psalm 46:10 is quoted from the existing SoulBuddy RSVCE Scripture source and retains its existing distribution conditions. Source text: `' + PLAN + '` and the approved design.', '', '## Files', '', '| Asset ID | File | Duration (s) | Format | SHA-256 |', '|---|---|---:|---|---|']
     for a in assets: lines.append(f"| {a['id']} | {Path(a['path']).name} | {a['durationMs']/1000:.3f} | {a['codec']} | `{a['sha256']}` |")
     lines += ['', 'Every media file is optional at runtime: narration falls back to its complete transcript; music falls back to silence. Notification fallback is a silent generic notification. Platform sound copies are byte-identical to the master and use the versioned name `commitment_invitation_v1.wav`. The catalog contains full caption/transcript checksums, source checksum, detailed provenance, and per-asset duration bounds.', '']
     (OUT / 'ASSET-MANIFEST.md').write_text('\n'.join(lines), encoding='utf-8')
 
 asyncio.run(main())
 '@
-$generator | python - $repoRoot $Voice
+$generator | python - $repoRoot $Voice $InvitationOnly.IsPresent.ToString()
 if ($LASTEXITCODE -ne 0) { throw 'Commitment media generation failed; do not ship incomplete output.' }
