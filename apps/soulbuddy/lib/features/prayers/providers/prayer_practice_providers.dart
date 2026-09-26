@@ -1,3 +1,5 @@
+import '../application/personal_prayer_narration_preparer.dart';
+import '../domain/prayer_narration.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -60,6 +62,64 @@ final prayerNarrationPlayerProvider = Provider<PrayerNarrationPlayer>((ref) {
   return player;
 });
 
+/// Shared explicit-consent preparation for reminders and Commitment sessions.
+final preparePersonalPrayerNarrationProvider =
+    Provider<
+      Future<PrayerNarration> Function({
+        required String personalPrayerId,
+        required String revisionId,
+        required bool consent,
+      })
+    >((ref) {
+      return ({
+        required personalPrayerId,
+        required revisionId,
+        required consent,
+      }) async {
+        final service = PersonalPrayerNarrationPreparer(
+          repository: ref.read(prayerNarrationRepositoryProvider),
+          uploadPrerequisite:
+              ({required personalPrayerId, required revisionId}) async {
+                ref.invalidate(installationSessionBootstrapProvider);
+                await ref.read(installationSessionBootstrapProvider.future);
+                final database = await ref.read(appDatabaseProvider.future);
+                final identity = await ref.read(localIdentityProvider.future);
+                final owned = await database.powersync.getOptional(
+                  'SELECT id FROM personal_prayers WHERE id=? AND owner_id=? AND current_revision_id=? AND archived_at IS NULL',
+                  [personalPrayerId, identity.ownerId, revisionId],
+                );
+                if (owned == null) {
+                  throw const PrayerNarrationException('narration_unavailable');
+                }
+                final configured = Uri.tryParse(AppConfig.apiBaseUrl);
+                if (configured == null || !configured.hasScheme) {
+                  throw const PrayerNarrationException('narration_unavailable');
+                }
+                final client = http.Client();
+                try {
+                  await PrayerNarrationPrerequisiteUploader(
+                    database: database.powersync,
+                    apiBaseUri: configured,
+                    installationId: identity.deviceId,
+                    accessToken: ref.read(appSessionTokenReaderProvider),
+                    client: client,
+                  ).upload(
+                    personalPrayerId: personalPrayerId,
+                    revisionId: revisionId,
+                  );
+                } finally {
+                  client.close();
+                }
+              },
+        );
+        return service.prepare(
+          personalPrayerId: personalPrayerId,
+          prayerRevisionId: revisionId,
+          consent: consent,
+        );
+      };
+    });
+
 final prepareReminderNarrationProvider =
     Provider<
       Future<void> Function({
@@ -75,33 +135,10 @@ final prepareReminderNarrationProvider =
         required revisionId,
         required autoplay,
       }) async {
-        ref.invalidate(installationSessionBootstrapProvider);
-        await ref.read(installationSessionBootstrapProvider.future);
-        final database = await ref.read(appDatabaseProvider.future);
-        final identity = await ref.read(localIdentityProvider.future);
-        final configured = Uri.tryParse(AppConfig.apiBaseUrl);
-        if (configured == null || !configured.hasScheme) {
-          throw const PrayerNarrationException('narration_unavailable');
-        }
-        final prerequisiteClient = http.Client();
-        try {
-          await PrayerNarrationPrerequisiteUploader(
-            database: database.powersync,
-            apiBaseUri: configured,
-            installationId: identity.deviceId,
-            accessToken: ref.read(appSessionTokenReaderProvider),
-            client: prerequisiteClient,
-          ).upload(personalPrayerId: personalPrayerId, revisionId: revisionId);
-        } on Exception {
-          throw const PrayerNarrationException('narration_unavailable');
-        } finally {
-          prerequisiteClient.close();
-        }
-        final narration = await ref
-            .read(prayerNarrationRepositoryProvider)
-            .prepare(
+        final narration =
+            await ref.read(preparePersonalPrayerNarrationProvider)(
               personalPrayerId: personalPrayerId,
-              prayerRevisionId: revisionId,
+              revisionId: revisionId,
               consent: true,
             );
         final repository = await ref.read(

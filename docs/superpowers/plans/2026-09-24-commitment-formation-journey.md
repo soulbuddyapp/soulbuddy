@@ -948,7 +948,7 @@ READINESS:
 Imagine a three-year-old looking up and saying, “I’m ready to get married. I would like my own home.” You may be stunned for a moment, and most of us laugh. A real desire can be real before a person is ready to carry its weight. Sometimes we ask God to reveal our purpose before we are formed to carry it. Moses wanted to free his enslaved brothers, but the desert became a place of formation. He waited, and God formed him for the mission in God’s timing. We are created by God. In Christ, our whole life—spirit, mind, body, desires, habits, and work—can be brought back to God. Scripture, prayer, a willing attitude, and healthy activity help form us; they are not a spiritual performance. Prayer is not dependent on a perfect posture or a perfectly quiet room. When you can, turn toward God deliberately. What are you asking God to give you, form in you, and help you carry?
 
 INVITATION:
-What you name before God can shape the way you live. A commitment is not pretending to be finished. It is presenting your life honestly and asking the Father, through Jesus Christ, to reshape your desires, your calling, and your daily choices. You do not carry it alone. Bring it into His presence now.
+Rise. Bring your whole life before God. Name the calling you will answer. Choose the good you will do today. Lay down the habit that holds you captive. Ask the Father, through Jesus Christ, for strength. Then take the next faithful step. Serve someone. Keep your word. Plant something good in the garden each day. Commit your life to God. Put your faith into action. Begin now.
 
 SPOKEN INVITATION:
 This is a time to be with God, if you can. Open SoulBuddy when you are ready.

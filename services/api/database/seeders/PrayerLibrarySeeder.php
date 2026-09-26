@@ -97,6 +97,15 @@ class PrayerLibrarySeeder extends Seeder
                 'purpose' => 'difficult_time',
                 'action' => 'Tell one trusted person what practical help you need today.',
             ],
+            [
+                'id' => '0198a100-0000-7000-8000-000000000009',
+                'title' => 'Renew my mind',
+                'body' => 'Father, in Christ I belong to you. By Jesus\' blood, forgive and cleanse me when I fall. Let shame yield to your mercy. Renew my mind with your truth. When an old image, craving, fear, or proud thought rises, help me turn toward what is good. Teach me to answer temptation with your Word, guard what I watch, and seek real connection instead of hiding. Holy Spirit, help me test every impression through Scripture, love, wisdom, and its fruit. Grow in me self control, peace, and courage. Heal the habits I cannot change alone, and lead me into one faithful act of love today. In Jesus\' name. Amen.',
+                'grounding' => 'general_christian',
+                'language_style' => 'jesus',
+                'purpose' => 'daily',
+                'action' => 'Name one trigger and read a fitting Scripture passage morning, midday, and evening.',
+            ],
         ];
     }
 }

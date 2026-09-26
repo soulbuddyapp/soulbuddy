@@ -21,6 +21,7 @@ class OnboardingGate extends ConsumerStatefulWidget {
   const OnboardingGate({
     required this.child,
     required this.onBeginWithGoal,
+    this.onBeginWithCommitment,
     required this.onResumeFirstPrayer,
     required this.onSkip,
     super.key,
@@ -28,6 +29,7 @@ class OnboardingGate extends ConsumerStatefulWidget {
 
   final Widget child;
   final VoidCallback onBeginWithGoal;
+  final VoidCallback? onBeginWithCommitment;
   final VoidCallback onResumeFirstPrayer;
   final VoidCallback onSkip;
 
@@ -191,7 +193,8 @@ class _OnboardingGateState extends ConsumerState<OnboardingGate>
     final systemReduceMotion = MediaQuery.disableAnimationsOf(context);
     return OnboardingScreen(
       onOrientation: () => setState(() => _orientationOpen = true),
-      onBeginWithGoal: () => _finish(widget.onBeginWithGoal),
+      onBeginWithGoal: () =>
+          _finish(widget.onBeginWithCommitment ?? widget.onBeginWithGoal),
       onKeepSacredHours: (selection) =>
           _prepareSacredHours(selection, requestNotifications: true),
       onSkip: () async {

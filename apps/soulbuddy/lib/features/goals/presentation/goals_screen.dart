@@ -11,6 +11,7 @@ import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
 import '../../kingdom/providers/kingdom_course_providers.dart';
 import 'create_meditation_goal.dart';
+import '../../commitments/presentation/commitment_summary_screen.dart';
 
 class GoalsScreen extends ConsumerStatefulWidget {
   const GoalsScreen({super.key});
@@ -73,6 +74,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                       'Grow closer to God through personal prayer & goals.',
                     ),
                     const SizedBox(height: AppSpacing.md),
+                    const CommitmentGoalsEntryCard(),
                     goals.when(
                       loading: () =>
                           const Center(child: CircularProgressIndicator()),

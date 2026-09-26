@@ -102,6 +102,8 @@ flutter:
     - assets/audio/feedback/
     - assets/audio/meditation/
     - assets/audio/sacred_hours/
+    - assets/audio/commitments/
+    - assets/content/commitment_practices.json
 
   fonts:
     - family: Source Serif 4 Display

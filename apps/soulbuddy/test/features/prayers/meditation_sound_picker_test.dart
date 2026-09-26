@@ -21,7 +21,7 @@ void main() {
 
     expect(find.byKey(const Key('meditation-sound-picker')), findsOneWidget);
     expect(find.text('No background sound'), findsOneWidget);
-    expect(find.text('Cinematic rise'), findsNothing);
+    expect(find.text('Aurora'), findsNothing);
 
     await tester.tap(find.byKey(const Key('meditation-sound-picker')));
     await tester.pumpAndSettle();
@@ -30,8 +30,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Motivational music'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Cinematic rise'));
-    await tester.tap(find.text('Cinematic rise'));
+    await tester.ensureVisible(find.text('Aurora'));
+    await tester.tap(find.text('Aurora'));
     await tester.pumpAndSettle();
     expect(selected, MeditationSoundBed.cinematicRise);
   });

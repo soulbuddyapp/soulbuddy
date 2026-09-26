@@ -8,6 +8,7 @@ enum ReminderNotificationKind {
   circle,
   dailyFormation,
   goalMeditation,
+  commitment,
 }
 
 enum ReminderNotificationRecurrence { once, daily, weekly }

@@ -30,34 +30,34 @@ enum MeditationSoundBed {
     assetPath: 'audio/meditation/night_crickets.mp3',
   ),
   hopefulPiano(
-    label: 'Hopeful piano',
+    label: 'Resolutions',
     assetPath: 'audio/meditation/hopeful_piano.mp3',
     category: MeditationSoundCategory.motivational,
-    preferredVolume: 0.18,
+    preferredVolume: 0.22,
   ),
   cinematicRise(
-    label: 'Cinematic rise',
+    label: 'Aurora',
     assetPath: 'audio/meditation/cinematic_rise.mp3',
     category: MeditationSoundCategory.motivational,
-    preferredVolume: 0.20,
+    preferredVolume: 0.22,
   ),
   steadyResolve(
-    label: 'Steady resolve',
+    label: 'Affirmations',
     assetPath: 'audio/meditation/steady_resolve.mp3',
     category: MeditationSoundCategory.motivational,
-    preferredVolume: 0.18,
+    preferredVolume: 0.22,
   ),
   warmStrings(
-    label: 'Warm strings',
+    label: 'First Snow',
     assetPath: 'audio/meditation/warm_strings.mp3',
     category: MeditationSoundCategory.motivational,
-    preferredVolume: 0.16,
+    preferredVolume: 0.22,
   ),
   victoriousCalm(
-    label: 'Victorious calm',
+    label: 'A Kind Of Hope',
     assetPath: 'audio/meditation/victorious_calm.mp3',
     category: MeditationSoundCategory.motivational,
-    preferredVolume: 0.18,
+    preferredVolume: 0.22,
   );
 
   const MeditationSoundBed({

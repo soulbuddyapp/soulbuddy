@@ -167,7 +167,8 @@ final class GoalSyncMutationWriter
                     'id' => $operation['id'],
                     'goal_id' => $operation['data']['goal_id'],
                     'user_id' => $user->id,
-                    'body' => trim($operation['data']['body']),
+                    'body' => $operation['data']['action_kind'] === 'commitment_practice'
+                        ? $operation['data']['body'] : trim($operation['data']['body']),
                     'action_kind' => $operation['data']['action_kind'],
                     'schedule_type' => $operation['data']['schedule_type'],
                     'local_time' => $operation['data']['local_time'],

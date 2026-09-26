@@ -50,4 +50,34 @@ class User extends Authenticatable
     {
         return $this->hasMany(AppInstallation::class);
     }
+
+    public function commitments(): HasMany
+    {
+        return $this->hasMany(Commitment::class);
+    }
+
+    public function commitmentPractices(): HasMany
+    {
+        return $this->hasMany(CommitmentPractice::class);
+    }
+
+    public function commitmentDeclarations(): HasMany
+    {
+        return $this->hasMany(CommitmentDeclaration::class);
+    }
+
+    public function commitmentMeditationPlans(): HasMany
+    {
+        return $this->hasMany(CommitmentMeditationPlan::class);
+    }
+
+    public function commitmentPreparationCycles(): HasMany
+    {
+        return $this->hasMany(CommitmentPreparationCycle::class);
+    }
+
+    public function commitmentMeditationSessions(): HasMany
+    {
+        return $this->hasMany(CommitmentMeditationSession::class);
+    }
 }

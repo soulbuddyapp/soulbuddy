@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "practices": [
+    {
+      "id": "joy.help_concrete_need",
+      "category": "joy_pleasure",
+      "text": "Help someone with a concrete need.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "joy.enjoy_task",
+      "category": "joy_pleasure",
+      "text": "Spend time on a task you genuinely enjoy.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "joy.read_for_pleasure",
+      "category": "joy_pleasure",
+      "text": "Read or learn something for pleasure and growth.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "joy.share_meal",
+      "category": "joy_pleasure",
+      "text": "Share a meal, laugh, or celebrate with someone.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "joy.make_something",
+      "category": "joy_pleasure",
+      "text": "Make something or complete a small creative project.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "joy.phone_free_nature",
+      "category": "joy_pleasure",
+      "text": "Take a pleasant, phone-free break in nature.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "exploration.walk_without_scrolling",
+      "category": "exploration_adventure",
+      "text": "Walk outside without doomscrolling.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "exploration.exercise",
+      "category": "exploration_adventure",
+      "text": "Exercise, jog, stretch, or go to the gym.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "exploration.new_route",
+      "category": "exploration_adventure",
+      "text": "Try a new route, neighborhood, trail, or park.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "exploration.new_skill",
+      "category": "exploration_adventure",
+      "text": "Learn a small new skill or hobby.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "exploration.curious_visit",
+      "category": "exploration_adventure",
+      "text": "Visit a museum, event, or place out of curiosity.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "exploration.active_outing",
+      "category": "exploration_adventure",
+      "text": "Bike, hike, or plan a simple active outing.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "attention.trusted_company",
+      "category": "attention_self_esteem",
+      "text": "Spend undistracted time with a trusted friend or family member.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "attention.belonging",
+      "category": "attention_self_esteem",
+      "text": "Join a class, team, or community where you can belong.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "attention.honest_feedback",
+      "category": "attention_self_esteem",
+      "text": "Ask for honest feedback and receive it without performing.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "attention.known_contribution",
+      "category": "attention_self_esteem",
+      "text": "Serve in a responsibility where your contribution is known.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "attention.one_true_sentence",
+      "category": "attention_self_esteem",
+      "text": "Pray, read Scripture, or sit quietly and speak one true sentence to God.",
+      "reviewState": "approved"
+    },
+    {
+      "id": "attention.name_what_was_done_well",
+      "category": "attention_self_esteem",
+      "text": "Finish one small task and name what was done well.",
+      "reviewState": "approved"
+    }
+  ]
+}

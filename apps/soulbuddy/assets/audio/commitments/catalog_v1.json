@@ -1,0 +1,767 @@
+{
+  "schemaVersion": 1,
+  "defaultPlaybackRate": 0.85,
+  "captionTimebase": "sourceMediaMilliseconds",
+  "invitationTimelineMs": 45000,
+  "musicStartMs": 8000,
+  "bellAtMs": 41000,
+  "assets": [
+    {
+      "id": "readiness_v1",
+      "path": "assets/audio/commitments/readiness_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 63363,
+      "durationBoundsMs": [
+        63263,
+        63463
+      ],
+      "sha256": "e68d384aafa43278c7e55ff4b1b1993bb9b59a414bcc243b6637df40b9c6ba12",
+      "transcript": "Imagine a three-year-old looking up and saying, “I’m ready to get married. I would like my own home.” You may be stunned for a moment, and most of us laugh. A real desire can be real before a person is ready to carry its weight. Sometimes we ask God to reveal our purpose before we are formed to carry it. Moses wanted to free his enslaved brothers, but the desert became a place of formation. He waited, and God formed him for the mission in God’s timing. We are created by God. In Christ, our whole life—spirit, mind, body, desires, habits, and work—can be brought back to God. Scripture, prayer, a willing attitude, and healthy activity help form us; they are not a spiritual performance. Prayer is not dependent on a perfect posture or a perfectly quiet room. When you can, turn toward God deliberately. What are you asking God to give you, form in you, and help you carry?",
+      "transcriptPath": "assets/audio/commitments/readiness_v1.txt",
+      "transcriptSha256": "9a45fef3d129b5935578481547a0b396fd88db11fd060ee8b46d302daf78ff14",
+      "captionsPath": "assets/audio/commitments/readiness_v1.vtt",
+      "captionsSha256": "389d4371ba75282dd64eed2aa4dfd1e5cc2673bba86a4fff0ca87b205c744d2a",
+      "captions": [
+        {
+          "startMs": 100,
+          "endMs": 4605,
+          "text": "Imagine a three-year-old looking up and saying, “I’m ready to get married."
+        },
+        {
+          "startMs": 4605,
+          "endMs": 6882,
+          "text": "I would like my own home."
+        },
+        {
+          "startMs": 6882,
+          "endMs": 10776,
+          "text": "You may be stunned for a moment, and most of us laugh."
+        },
+        {
+          "startMs": 10776,
+          "endMs": 15842,
+          "text": "A real desire can be real before a person is ready to carry its weight."
+        },
+        {
+          "startMs": 15842,
+          "endMs": 20882,
+          "text": "Sometimes we ask God to reveal our purpose before we are formed to carry it."
+        },
+        {
+          "startMs": 20882,
+          "endMs": 26868,
+          "text": "Moses wanted to free his enslaved brothers, but the desert became a place of formation."
+        },
+        {
+          "startMs": 26868,
+          "endMs": 31237,
+          "text": "He waited, and God formed him for the mission in God’s timing."
+        },
+        {
+          "startMs": 31237,
+          "endMs": 33605,
+          "text": "We are created by God."
+        },
+        {
+          "startMs": 33605,
+          "endMs": 42237,
+          "text": "In Christ, our whole life—spirit, mind, body, desires, habits, and work—can be brought back to God."
+        },
+        {
+          "startMs": 42237,
+          "endMs": 50224,
+          "text": "Scripture, prayer, a willing attitude, and healthy activity help form us; they are not a spiritual performance."
+        },
+        {
+          "startMs": 50224,
+          "endMs": 55132,
+          "text": "Prayer is not dependent on a perfect posture or a perfectly quiet room."
+        },
+        {
+          "startMs": 55132,
+          "endMs": 58566,
+          "text": "When you can, turn toward God deliberately."
+        },
+        {
+          "startMs": 58566,
+          "endMs": 63316,
+          "text": "What are you asking God to give you, form in you, and help you carry?"
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 0.85,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "-5%",
+        "postprocessTempo": 1.0,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      }
+    },
+    {
+      "id": "invitation_v1",
+      "path": "assets/audio/commitments/invitation_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 30819,
+      "durationBoundsMs": [
+        30719,
+        30919
+      ],
+      "sha256": "63d7607c02c7dea976746ab9b2b2aa08bb4d40fbc732bf1cbf5cee6cec81cce8",
+      "transcript": "Rise. Bring your whole life before God. Name the calling you will answer. Choose the good you will do today. Lay down the habit that holds you captive. Ask the Father, through Jesus Christ, for strength. Then take the next faithful step. Serve someone. Keep your word. Plant something good in the garden each day. Commit your life to God. Put your faith into action. Begin now.",
+      "transcriptPath": "assets/audio/commitments/invitation_v1.txt",
+      "transcriptSha256": "9b3cfbb90d129d3103af1ad79ebc9312c06170fafc54e1ace72605feb8241e93",
+      "captionsPath": "assets/audio/commitments/invitation_v1.vtt",
+      "captionsSha256": "9379a5e41db35984bc99a359d92a76fed83cd1c15797a5be9568d340f1f8f894",
+      "captions": [
+        {
+          "startMs": 100,
+          "endMs": 1550,
+          "text": "Rise."
+        },
+        {
+          "startMs": 1550,
+          "endMs": 4125,
+          "text": "Bring your whole life before God."
+        },
+        {
+          "startMs": 4125,
+          "endMs": 6562,
+          "text": "Name the calling you will answer."
+        },
+        {
+          "startMs": 6562,
+          "endMs": 8875,
+          "text": "Choose the good you will do today."
+        },
+        {
+          "startMs": 8875,
+          "endMs": 11838,
+          "text": "Lay down the habit that holds you captive."
+        },
+        {
+          "startMs": 11838,
+          "endMs": 15750,
+          "text": "Ask the Father, through Jesus Christ, for strength."
+        },
+        {
+          "startMs": 15750,
+          "endMs": 18388,
+          "text": "Then take the next faithful step."
+        },
+        {
+          "startMs": 18388,
+          "endMs": 20112,
+          "text": "Serve someone."
+        },
+        {
+          "startMs": 20112,
+          "endMs": 21838,
+          "text": "Keep your word."
+        },
+        {
+          "startMs": 21838,
+          "endMs": 24675,
+          "text": "Plant something good in the garden each day."
+        },
+        {
+          "startMs": 24675,
+          "endMs": 26812,
+          "text": "Commit your life to God."
+        },
+        {
+          "startMs": 26812,
+          "endMs": 29175,
+          "text": "Put your faith into action."
+        },
+        {
+          "startMs": 29175,
+          "endMs": 30788,
+          "text": "Begin now."
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 0.85,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "+0%",
+        "postprocessTempo": 1.0,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      }
+    },
+    {
+      "id": "guide_surrender_v1",
+      "path": "assets/audio/commitments/guide_surrender_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 54974,
+      "durationBoundsMs": [
+        54874,
+        55074
+      ],
+      "sha256": "707e42299644c38e1a1299a91263e7d3ba5695369a7c58b221d66536d2798fd4",
+      "transcript": "Be still, and know that I am God. Let distracting thoughts pass rather than chasing them. You do not have to solve every feeling or hurry toward a spiritual experience. Receive whatever stillness is available. Focus on the divine Father, approached through Jesus. Present your needs, your calling, and your daily practices to God. Tell Him what you hope for, what you fear, and what you are trying to do with the life He has given you. Surrender your desires and choices. You are not alone, and you do not need to carry this commitment by yourself. Let honesty take the place of performance. Receive what is already yours in Christ. Stay in this place for a moment and listen. Now listen.",
+      "transcriptPath": "assets/audio/commitments/guide_surrender_v1.txt",
+      "transcriptSha256": "26fb3f063ac14fdec4f8373000103547982c5d3db3ccef8558124f073d9f19df",
+      "captionsPath": "assets/audio/commitments/guide_surrender_v1.vtt",
+      "captionsSha256": "932a48c3e661ae180d8fde3c23353bbd8a90e856af90cb6bfcdd3b8cc4c76f7d",
+      "captions": [
+        {
+          "startMs": 111,
+          "endMs": 3363,
+          "text": "Be still, and know that I am God."
+        },
+        {
+          "startMs": 3363,
+          "endMs": 7706,
+          "text": "Let distracting thoughts pass rather than chasing them."
+        },
+        {
+          "startMs": 7706,
+          "endMs": 13424,
+          "text": "You do not have to solve every feeling or hurry toward a spiritual experience."
+        },
+        {
+          "startMs": 13424,
+          "endMs": 16730,
+          "text": "Receive whatever stillness is available."
+        },
+        {
+          "startMs": 16730,
+          "endMs": 21102,
+          "text": "Focus on the divine Father, approached through Jesus."
+        },
+        {
+          "startMs": 21102,
+          "endMs": 26469,
+          "text": "Present your needs, your calling, and your daily practices to God."
+        },
+        {
+          "startMs": 26469,
+          "endMs": 33531,
+          "text": "Tell Him what you hope for, what you fear, and what you are trying to do with the life He has given you."
+        },
+        {
+          "startMs": 33531,
+          "endMs": 36880,
+          "text": "Surrender your desires and choices."
+        },
+        {
+          "startMs": 36880,
+          "endMs": 42437,
+          "text": "You are not alone, and you do not need to carry this commitment by yourself."
+        },
+        {
+          "startMs": 42437,
+          "endMs": 46049,
+          "text": "Let honesty take the place of performance."
+        },
+        {
+          "startMs": 46049,
+          "endMs": 49471,
+          "text": "Receive what is already yours in Christ."
+        },
+        {
+          "startMs": 49471,
+          "endMs": 52981,
+          "text": "Stay in this place for a moment and listen."
+        },
+        {
+          "startMs": 52981,
+          "endMs": 54911,
+          "text": "Now listen."
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 0.85,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "-5%",
+        "postprocessTempo": 0.899781818,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      },
+      "scripture": {
+        "reference": "Psalm 46:10",
+        "translation": "RSVCE",
+        "quotation": "Be still, and know that I am God.",
+        "provenance": "Existing SoulBuddy RSVCE Scripture source; passage quotation retains existing distribution conditions."
+      }
+    },
+    {
+      "id": "guide_direction_v1",
+      "path": "assets/audio/commitments/guide_direction_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 54978,
+      "durationBoundsMs": [
+        54878,
+        55078
+      ],
+      "sha256": "5feb4502342a740932b52f9c495fa8f18586fc046b8f71bfcd52b70571b52a21",
+      "transcript": "Be still, and know that I am God. Let distracting thoughts pass rather than chasing them. You do not have to solve every feeling or hurry toward a spiritual experience. Receive whatever stillness is available. Focus on the divine Father, approached through Jesus. Present your needs, your calling, and your daily practices to God. Tell Him what you hope for, what you fear, and what you are trying to do with the life He has given you. Bring what you believe God has called you to do or become into the light. Ask for clarity around your next faithful step. Receive wisdom, and do not confuse urgency with direction. A calling may take time to become clear. You can ask, listen, learn, and choose the next faithful act without pretending to see the whole road. Now listen.",
+      "transcriptPath": "assets/audio/commitments/guide_direction_v1.txt",
+      "transcriptSha256": "656d2104f2270dff541b9a4526682f00847f77a59dff411deaabe08a3ef79e4b",
+      "captionsPath": "assets/audio/commitments/guide_direction_v1.vtt",
+      "captionsSha256": "e9d912ae8acb48ba2d49c762ffcdcf7daff52c97d2970e4c3897dafdc107aa91",
+      "captions": [
+        {
+          "startMs": 101,
+          "endMs": 3060,
+          "text": "Be still, and know that I am God."
+        },
+        {
+          "startMs": 3060,
+          "endMs": 7013,
+          "text": "Let distracting thoughts pass rather than chasing them."
+        },
+        {
+          "startMs": 7013,
+          "endMs": 12216,
+          "text": "You do not have to solve every feeling or hurry toward a spiritual experience."
+        },
+        {
+          "startMs": 12216,
+          "endMs": 15224,
+          "text": "Receive whatever stillness is available."
+        },
+        {
+          "startMs": 15224,
+          "endMs": 19202,
+          "text": "Focus on the divine Father, approached through Jesus."
+        },
+        {
+          "startMs": 19202,
+          "endMs": 24086,
+          "text": "Present your needs, your calling, and your daily practices to God."
+        },
+        {
+          "startMs": 24086,
+          "endMs": 30513,
+          "text": "Tell Him what you hope for, what you fear, and what you are trying to do with the life He has given you."
+        },
+        {
+          "startMs": 30513,
+          "endMs": 35144,
+          "text": "Bring what you believe God has called you to do or become into the light."
+        },
+        {
+          "startMs": 35144,
+          "endMs": 38843,
+          "text": "Ask for clarity around your next faithful step."
+        },
+        {
+          "startMs": 38843,
+          "endMs": 43141,
+          "text": "Receive wisdom, and do not confuse urgency with direction."
+        },
+        {
+          "startMs": 43141,
+          "endMs": 46348,
+          "text": "A calling may take time to become clear."
+        },
+        {
+          "startMs": 46348,
+          "endMs": 53175,
+          "text": "You can ask, listen, learn, and choose the next faithful act without pretending to see the whole road."
+        },
+        {
+          "startMs": 53175,
+          "endMs": 54931,
+          "text": "Now listen."
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 0.85,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "-5%",
+        "postprocessTempo": 0.9888,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      },
+      "scripture": {
+        "reference": "Psalm 46:10",
+        "translation": "RSVCE",
+        "quotation": "Be still, and know that I am God.",
+        "provenance": "Existing SoulBuddy RSVCE Scripture source; passage quotation retains existing distribution conditions."
+      }
+    },
+    {
+      "id": "guide_peace_v1",
+      "path": "assets/audio/commitments/guide_peace_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 54977,
+      "durationBoundsMs": [
+        54877,
+        55077
+      ],
+      "sha256": "fe0c0879582d4936d8c79ebea7a011155837bb08eeef2c051b0c4152da49bf6b",
+      "transcript": "Be still, and know that I am God. Let distracting thoughts pass rather than chasing them. You do not have to solve every feeling or hurry toward a spiritual experience. Receive whatever stillness is available. Focus on the divine Father, approached through Jesus. Present your needs, your calling, and your daily practices to God. Tell Him what you hope for, what you fear, and what you are trying to do with the life He has given you. Receive God’s presence without trying to manufacture it. Quiet distraction, receive comfort, and let this time become a small faithful practice of attention. You are not required to feel a particular way. Let grace reshape your attention, and receive the peace that is already present in Christ. Now listen.",
+      "transcriptPath": "assets/audio/commitments/guide_peace_v1.txt",
+      "transcriptSha256": "9c0e2b6337dcaa6e4524b8ff0f251d651db2743431fcdbc59030928d2f7f1e8f",
+      "captionsPath": "assets/audio/commitments/guide_peace_v1.vtt",
+      "captionsSha256": "bf554f2bd55e6b44188383257fad9b330d5ade0467f987832db50e4e4cd64532",
+      "captions": [
+        {
+          "startMs": 106,
+          "endMs": 3203,
+          "text": "Be still, and know that I am God."
+        },
+        {
+          "startMs": 3203,
+          "endMs": 7340,
+          "text": "Let distracting thoughts pass rather than chasing them."
+        },
+        {
+          "startMs": 7340,
+          "endMs": 12786,
+          "text": "You do not have to solve every feeling or hurry toward a spiritual experience."
+        },
+        {
+          "startMs": 12786,
+          "endMs": 15934,
+          "text": "Receive whatever stillness is available."
+        },
+        {
+          "startMs": 15934,
+          "endMs": 20098,
+          "text": "Focus on the divine Father, approached through Jesus."
+        },
+        {
+          "startMs": 20098,
+          "endMs": 25209,
+          "text": "Present your needs, your calling, and your daily practices to God."
+        },
+        {
+          "startMs": 25209,
+          "endMs": 31936,
+          "text": "Tell Him what you hope for, what you fear, and what you are trying to do with the life He has given you."
+        },
+        {
+          "startMs": 31936,
+          "endMs": 36184,
+          "text": "Receive God’s presence without trying to manufacture it."
+        },
+        {
+          "startMs": 36184,
+          "endMs": 43301,
+          "text": "Quiet distraction, receive comfort, and let this time become a small faithful practice of attention."
+        },
+        {
+          "startMs": 43301,
+          "endMs": 46909,
+          "text": "You are not required to feel a particular way."
+        },
+        {
+          "startMs": 46909,
+          "endMs": 53093,
+          "text": "Let grace reshape your attention, and receive the peace that is already present in Christ."
+        },
+        {
+          "startMs": 53093,
+          "endMs": 54931,
+          "text": "Now listen."
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 0.85,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "-5%",
+        "postprocessTempo": 0.944727273,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      },
+      "scripture": {
+        "reference": "Psalm 46:10",
+        "translation": "RSVCE",
+        "quotation": "Be still, and know that I am God.",
+        "provenance": "Existing SoulBuddy RSVCE Scripture source; passage quotation retains existing distribution conditions."
+      }
+    },
+    {
+      "id": "listening_v1",
+      "path": "assets/audio/commitments/listening_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 54967,
+      "durationBoundsMs": [
+        54867,
+        55067
+      ],
+      "sha256": "059fad49b5ac357609b223265f9d39605adbc161348cb0e052d37278b787e85e",
+      "transcript": "You have practiced turning toward God. Now practice listening. You do not have to force a revelation or manufacture a feeling. Notice what Scripture stirs in you, what distracts you, and what faithful response is possible. The divine Father, approached through Jesus, can speak through His Word, through wisdom, through circumstances, and through a clear next act. Let the silence become a place where you do not rush to fill every space. Receive what is present, and remain open to correction. You do not need to understand the whole road to take the next faithful step. Now listen.",
+      "transcriptPath": "assets/audio/commitments/listening_v1.txt",
+      "transcriptSha256": "e8c1d9f4682af345d0ef6ab8737a6564a45bb4b945f261e033e5c0210b641638",
+      "captionsPath": "assets/audio/commitments/listening_v1.vtt",
+      "captionsSha256": "56b80a9a41e772867360d6c6f6a6daf6ca65cdd4f4ef6ae7151425c9183de185",
+      "captions": [
+        {
+          "startMs": 136,
+          "endMs": 3934,
+          "text": "You have practiced turning toward God."
+        },
+        {
+          "startMs": 3934,
+          "endMs": 7005,
+          "text": "Now practice listening."
+        },
+        {
+          "startMs": 7005,
+          "endMs": 12984,
+          "text": "You do not have to force a revelation or manufacture a feeling."
+        },
+        {
+          "startMs": 12984,
+          "endMs": 21587,
+          "text": "Notice what Scripture stirs in you, what distracts you, and what faithful response is possible."
+        },
+        {
+          "startMs": 21587,
+          "endMs": 34015,
+          "text": "The divine Father, approached through Jesus, can speak through His Word, through wisdom, through circumstances, and through a clear next act."
+        },
+        {
+          "startMs": 34015,
+          "endMs": 40731,
+          "text": "Let the silence become a place where you do not rush to fill every space."
+        },
+        {
+          "startMs": 40731,
+          "endMs": 46209,
+          "text": "Receive what is present, and remain open to correction."
+        },
+        {
+          "startMs": 46209,
+          "endMs": 52549,
+          "text": "You do not need to understand the whole road to take the next faithful step."
+        },
+        {
+          "startMs": 52549,
+          "endMs": 54919,
+          "text": "Now listen."
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 0.85,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "-5%",
+        "postprocessTempo": 0.732654545,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      }
+    },
+    {
+      "id": "spoken_invitation_v1",
+      "path": "assets/audio/commitments/commitment_invitation_v1.wav",
+      "format": "wav",
+      "codec": "pcm_s16le",
+      "sampleRate": 24000,
+      "channels": 1,
+      "durationMs": 6219,
+      "durationBoundsMs": [
+        6119,
+        6319
+      ],
+      "sha256": "ac589e2811d2346a74fca7d4362d27ed20a1cf4ab3220271dbcb2152630873e3",
+      "transcript": "This is a time to be with God, if you can. Open SoulBuddy when you are ready.",
+      "transcriptPath": "assets/audio/commitments/spoken_invitation_v1.txt",
+      "transcriptSha256": "b472697eeece23db6739894cdf52f09a154d85c9465f7fa5739895a590ead504",
+      "captionsPath": "assets/audio/commitments/spoken_invitation_v1.vtt",
+      "captionsSha256": "ba86eb1b26d1c34f788beef4c11ea8a3c1f9ae704cbed7638bd0d7752e5ec552",
+      "captions": [
+        {
+          "startMs": 100,
+          "endMs": 3461,
+          "text": "This is a time to be with God, if you can."
+        },
+        {
+          "startMs": 3461,
+          "endMs": 6184,
+          "text": "Open SoulBuddy when you are ready."
+        }
+      ],
+      "required": false,
+      "fallback": "transcript",
+      "defaultPlaybackRate": 1.0,
+      "provenance": {
+        "kind": "reviewed-static-tts",
+        "provider": "Microsoft Edge neural TTS",
+        "voice": "en-US-JennyNeural",
+        "tool": "edge-tts 7.2.8",
+        "synthesisRate": "-5%",
+        "postprocessTempo": 1.0,
+        "captionTiming": "Provider sentence boundaries from the generated audio stream, scaled by the measured postprocess tempo; source media milliseconds.",
+        "textSource": "docs/superpowers/plans/2026-09-24-commitment-formation-journey.md",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "SoulBuddy-reviewed-copy",
+        "text": "SoulBuddy editorial guidance; bundled synthetic narration. Microsoft neural voice via Edge TTS; no claim of ownership of the voice or transfer of Microsoft service rights.",
+        "attribution": ""
+      },
+      "review": {
+        "content": "approved-design-and-plan",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      },
+      "platformCopies": [
+        "apps/soulbuddy/android/app/src/main/res/raw/commitment_invitation_v1.wav",
+        "apps/soulbuddy/ios/Runner/Sounds/commitment_invitation_v1.wav"
+      ]
+    },
+    {
+      "id": "aphelion_excerpt_v1",
+      "path": "assets/audio/commitments/aphelion_excerpt_v1.mp3",
+      "format": "mp3",
+      "codec": "mp3",
+      "sampleRate": 44100,
+      "channels": 2,
+      "durationMs": 30000,
+      "durationBoundsMs": [
+        29950,
+        30100
+      ],
+      "sha256": "0cf52084be3a4d937ccdfa6a636ef51e63cb6588a325780c3e931877b1ab2406",
+      "transcript": null,
+      "captions": [],
+      "required": false,
+      "fallback": "silent",
+      "defaultPlaybackRate": 1.0,
+      "provenance": {
+        "kind": "licensed-music-excerpt",
+        "sourceUrl": "https://www.scottbuckley.com.au/library/wp-content/uploads/2026/04/Aphelion.mp3",
+        "sourcePage": "https://www.scottbuckley.com.au/library/aphelion/",
+        "sourceSha256": "57ae03dbc122f0859e0f9a273e59503e34883728ddb5b06761fbf8244b0eb23e",
+        "sourceDurationMs": 422250,
+        "sourceIntervalSeconds": [
+          105,
+          135
+        ],
+        "sourceInterval": "00:01:45-00:02:15",
+        "processing": "Exact decoded source interval; 0.8-second fade in, 1.5-second fade out; 192 kbps stereo MP3; no other music substituted.",
+        "licenseVerifiedAt": "2026-09-26",
+        "privateContent": false
+      },
+      "license": {
+        "identifier": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/",
+        "text": "Creative Commons Attribution 4.0 International. Redistribution and adaptation, including commercial use, are permitted with attribution, a license link, and an indication of changes.",
+        "attribution": "“Aphelion” by Scott Buckley — released under CC BY 4.0. www.scottbuckley.com.au"
+      },
+      "review": {
+        "content": "approved-exact-source-interval",
+        "signal": "verified-by-verify_assets.py",
+        "humanListening": "pending"
+      }
+    }
+  ]
+}

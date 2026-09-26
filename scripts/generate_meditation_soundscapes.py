@@ -1,4 +1,4 @@
-"""Generate deterministic, seamless meditation ambience for SoulBuddy."""
+"""Generate synthetic nature approximations only; never curated music recordings."""
 
 from __future__ import annotations
 
@@ -100,44 +100,6 @@ def crickets(rng: np.random.Generator) -> np.ndarray:
     return sound
 
 
-def instrumental(
-    rng: np.random.Generator,
-    *,
-    root: float,
-    tempo: float,
-    brightness: float,
-) -> np.ndarray:
-    """Create a restrained original pad-and-piano loop beneath narration."""
-    t = np.arange(COUNT) / RATE
-    sound = np.zeros(COUNT, dtype=np.float64)
-    progression = ((0, 4, 7), (7, 11, 14), (9, 12, 16), (5, 9, 12))
-    bar_seconds = 60.0 / tempo * 4
-    for bar, chord in enumerate(progression * 4):
-        start = bar * bar_seconds
-        if start >= DURATION:
-            break
-        stop = min(DURATION, start + bar_seconds)
-        mask = (t >= start) & (t < stop)
-        local = t[mask] - start
-        attack = np.minimum(1.0, local / 0.9)
-        release = np.minimum(1.0, (stop - t[mask]) / 1.2)
-        envelope = attack * release
-        for semitones in chord:
-            frequency = root * 2 ** (semitones / 12)
-            sound[mask] += envelope * (
-                0.055 * np.sin(2 * math.pi * frequency * local)
-                + brightness
-                * 0.018
-                * np.sin(2 * math.pi * frequency * 2 * local)
-            )
-        note = chord[bar % len(chord)] + 12
-        frequency = root * 2 ** (note / 12)
-        pulse = np.exp(-local * 2.4) * np.sin(2 * math.pi * frequency * local)
-        sound[mask] += pulse * 0.045
-    air = smooth(rng.normal(size=COUNT), 1200) * 0.16
-    return sound + air
-
-
 def write_mp3(name: str, values: np.ndarray) -> None:
     values = loop_fade(values)
     values -= values.mean()
@@ -181,21 +143,6 @@ def main() -> None:
         "soft_wind": wind,
         "warm_fireplace": fire,
         "night_crickets": crickets,
-        "hopeful_piano": lambda rng: instrumental(
-            rng, root=220.0, tempo=66.0, brightness=0.45
-        ),
-        "cinematic_rise": lambda rng: instrumental(
-            rng, root=164.81, tempo=72.0, brightness=0.72
-        ),
-        "steady_resolve": lambda rng: instrumental(
-            rng, root=196.0, tempo=64.0, brightness=0.38
-        ),
-        "warm_strings": lambda rng: instrumental(
-            rng, root=174.61, tempo=58.0, brightness=0.25
-        ),
-        "victorious_calm": lambda rng: instrumental(
-            rng, root=246.94, tempo=70.0, brightness=0.55
-        ),
     }
     for index, (name, generator) in enumerate(generators.items()):
         write_mp3(name, generator(np.random.default_rng(20260909 + index)))
