@@ -34,6 +34,8 @@ class RecordScreen extends ConsumerStatefulWidget {
     this.initialPersonIds = const [],
     this.initialBodyPrompt,
     this.initialTitle,
+    this.initialDate,
+    this.allowMemoryTypeChoice = false,
     this.privateReflection = false,
     this.onMemorySaved,
   });
@@ -42,6 +44,8 @@ class RecordScreen extends ConsumerStatefulWidget {
   final List<String> initialPersonIds;
   final String? initialBodyPrompt;
   final String? initialTitle;
+  final DateTime? initialDate;
+  final bool allowMemoryTypeChoice;
   final bool privateReflection;
   final ValueChanged<Encounter>? onMemorySaved;
 
@@ -77,10 +81,13 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         data: (value) => EncounterForm(
           memoryType: _memoryType,
           allowMemoryTypeChoice:
-              _audioDraft != null || widget.startMode == RecordStartMode.person,
+              widget.allowMemoryTypeChoice ||
+              _audioDraft != null ||
+              widget.startMode == RecordStartMode.person,
           initialTitle: _audioDraft == null
               ? widget.initialTitle
-              : _voiceMemoryTitle(DateTime.now()),
+              : widget.initialTitle ?? _voiceMemoryTitle(DateTime.now()),
+          initialDate: widget.initialDate,
           audio: _audioDraft,
           people: people,
           initialPersonIds: widget.initialPersonIds,

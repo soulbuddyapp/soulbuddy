@@ -41,10 +41,50 @@ import '../features/scripture/presentation/daily_scripture_screen.dart';
 import '../features/sacred_hours/presentation/sacred_hour_session_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/today/presentation/today_screen.dart';
+import '../features/commitments/presentation/commitment_journey_screen.dart';
+import '../features/commitments/presentation/commitment_summary_screen.dart';
+import '../features/commitments/presentation/commitment_audio_reader.dart';
+import '../features/commitments/presentation/commitment_meditation_screen.dart';
+import '../features/settings/presentation/audio_credits_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(
+      path: '/welcome/commitment',
+      builder: (_, _) => const CommitmentJourneyScreen(),
+    ),
+    GoRoute(
+      path: '/welcome/commitment/readiness',
+      builder: (_, _) => const CommitmentReadinessScreen(),
+    ),
+    GoRoute(
+      path: '/commitments/:commitmentId',
+      builder: (_, state) => CommitmentSummaryScreen(
+        commitmentId: state.pathParameters['commitmentId']!,
+      ),
+    ),
+    GoRoute(
+      path: '/commitments/:commitmentId/readiness',
+      builder: (_, _) => const CommitmentReadinessScreen(),
+    ),
+    GoRoute(
+      path: '/commitments/:commitmentId/meditate',
+      builder: (_, state) => CommitmentMeditationScreen(
+        commitmentId: state.pathParameters['commitmentId']!,
+      ),
+    ),
+    GoRoute(
+      path: '/commitments/:commitmentId/listen',
+      builder: (_, state) => CommitmentMeditationScreen(
+        commitmentId: state.pathParameters['commitmentId']!,
+        listening: true,
+      ),
+    ),
+    GoRoute(
+      path: '/settings/audio-credits',
+      builder: (_, _) => const AudioCreditsScreen(),
+    ),
     GoRoute(
       path: '/scripture/daily',
       builder: (context, state) => const DailyScriptureScreen(),
@@ -247,6 +287,12 @@ final GoRouter appRouter = GoRouter(
                         _ => const [],
                       },
                       initialTitle: state.uri.queryParameters['title'],
+                      initialDate: source == 'commitment'
+                          ? DateTime.tryParse(
+                              state.uri.queryParameters['date'] ?? '',
+                            )
+                          : null,
+                      allowMemoryTypeChoice: source == 'commitment',
                       initialBodyPrompt:
                           state.uri.queryParameters['prompt'] ??
                           switch (source) {
@@ -264,7 +310,9 @@ final GoRouter appRouter = GoRouter(
                           source == 'orientation' ||
                           source == 'kingdom' ||
                           source == 'formation' ||
-                          source == 'daily-scripture',
+                          source == 'daily-scripture' ||
+                          source == 'commitment',
+                      // A session reflection is private unless explicitly changed.
                     );
                   },
                 ),

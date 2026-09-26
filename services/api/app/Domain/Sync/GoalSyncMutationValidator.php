@@ -95,7 +95,7 @@ final class GoalSyncMutationValidator
             ],
             'goal_actions' => [
                 'body' => ['sometimes', 'string', 'min:1', 'max:1000'],
-                'action_kind' => ['sometimes', 'in:next_step,guard,accountability,care,other'],
+                'action_kind' => ['sometimes', 'in:next_step,guard,accountability,care,other,commitment_practice'],
                 'schedule_type' => ['sometimes', 'in:today,once,daily,selected_days,none'],
                 'local_time' => ['sometimes', 'nullable', 'date_format:H:i'],
                 'timezone' => ['sometimes', 'nullable', 'string', 'max:100'],
@@ -154,7 +154,7 @@ final class GoalSyncMutationValidator
                 'owner_id' => [],
                 'goal_id' => ['required', 'uuid'],
                 'body' => ['required', 'string', 'min:1', 'max:1000'],
-                'action_kind' => ['required', 'in:next_step,guard,accountability,care,other'],
+                'action_kind' => ['required', 'in:next_step,guard,accountability,care,other,commitment_practice'],
                 'schedule_type' => ['required', 'in:today,once,daily,selected_days,none'],
                 'local_time' => ['present', 'nullable', 'date_format:H:i'],
                 'timezone' => ['present', 'nullable', 'string', 'max:100'],

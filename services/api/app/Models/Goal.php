@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Goal extends Model
 {
@@ -49,5 +50,10 @@ class Goal extends Model
     public function actionEvents(): HasMany
     {
         return $this->hasMany(GoalActionEvent::class);
+    }
+
+    public function commitment(): HasOne
+    {
+        return $this->hasOne(Commitment::class);
     }
 }

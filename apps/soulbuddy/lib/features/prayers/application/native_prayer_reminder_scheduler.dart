@@ -148,6 +148,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         notification.kind == ReminderNotificationKind.dailyFormation;
     final goalMeditation =
         notification.kind == ReminderNotificationKind.goalMeditation;
+    final commitment = notification.kind == ReminderNotificationKind.commitment;
     final sound = _notificationSound(notification.soundKey);
     return _client.schedule(
       NativeNotificationRequest(
@@ -155,7 +156,9 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         scheduledAtUtc: notification.scheduledAtUtc,
         title:
             notification.title ??
-            (dailyFormation
+            (commitment
+                ? 'Time with God'
+                : dailyFormation
                 ? 'Daily formation'
                 : sacredHour
                 ? 'Your Sacred Hour'
@@ -166,7 +169,9 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                 : 'Prayer reminder'),
         body:
             notification.body ??
-            (dailyFormation
+            (commitment
+                ? 'A quiet invitation to prayer.'
+                : dailyFormation
                 ? 'Today’s video is ready.'
                 : sacredHour
                 ? 'Begin with prayer. Bring this hour before God.'
@@ -205,7 +210,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
                   showsUserInterface: true,
                 ),
               ]
-            : dailyFormation || goalMeditation
+            : dailyFormation || goalMeditation || commitment
             ? const [
                 NativeNotificationActionData(
                   id: _beginActionId,
@@ -504,22 +509,29 @@ class FlutterLocalNotificationsPrayerClient
     final sacredHour = request.kind == ReminderNotificationKind.sacredHour.name;
     final dailyFormation =
         request.kind == ReminderNotificationKind.dailyFormation.name;
+    final commitment = request.kind == ReminderNotificationKind.commitment.name;
     final channelSuffix = request.playSound
         ? request.soundKey ?? 'device'
         : 'silent';
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        sacredHour
+        commitment
+            ? 'commitment_invitation_v1_$channelSuffix'
+            : sacredHour
             ? 'sacred_hours_alarm_v2_$channelSuffix'
             : dailyFormation
             ? 'daily_formation_v1'
             : 'prayer_reminders_v2',
-        sacredHour
+        commitment
+            ? 'Commitment reminders'
+            : sacredHour
             ? 'Sacred Hour alarms'
             : dailyFormation
             ? 'Daily formation'
             : 'Prayer reminders',
-        channelDescription: sacredHour
+        channelDescription: commitment
+            ? 'Invitations to prayer'
+            : sacredHour
             ? 'Private invitations into a Sacred Hour'
             : dailyFormation
             ? 'Daily video formation reminders'
@@ -552,7 +564,9 @@ class FlutterLocalNotificationsPrayerClient
             : RawResourceAndroidNotificationSound(request.soundKey!),
       ),
       iOS: DarwinNotificationDetails(
-        categoryIdentifier: sacredHour
+        categoryIdentifier: commitment
+            ? _darwinDailyFormationCategoryId
+            : sacredHour
             ? _darwinSacredHourCategoryId
             : dailyFormation
             ? _darwinDailyFormationCategoryId

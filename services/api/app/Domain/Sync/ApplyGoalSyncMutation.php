@@ -17,12 +17,20 @@ final class ApplyGoalSyncMutation
         'goal_actions',
         'goal_action_events',
         'goal_guard_selections',
+        'commitments',
+        'commitment_practices',
+        'commitment_declarations',
+        'commitment_meditation_plans',
+        'commitment_preparation_cycles',
+        'commitment_meditation_sessions',
     ];
 
     public function __construct(
         private readonly GoalSyncMutationValidator $validator,
         private readonly GoalSyncMutationWriter $writer,
         private readonly GoalGuardSelectionSyncMutation $guards,
+        private readonly CommitmentSyncMutationValidator $commitments,
+        private readonly CommitmentSyncMutationWriter $commitmentWriter,
     ) {}
 
     public static function supports(string $table): bool
@@ -83,9 +91,13 @@ final class ApplyGoalSyncMutation
                     ->values();
                 $coreOperations = $pending
                     ->reject(
-                        fn (array $operation): bool => $operation['table'] === 'goal_guard_selections',
+                        fn (array $operation): bool => $operation['table'] === 'goal_guard_selections'
+                            || CommitmentSyncMutationValidator::supports($operation['table']),
                     )
+                    ->map($this->normalizeNullablePutFields(...))
                     ->values();
+
+                $commitmentOperations = $pending->filter(fn (array $operation): bool => CommitmentSyncMutationValidator::supports($operation['table']))->map($this->normalizeNullablePutFields(...))->values();
 
                 if ($coreOperations->isNotEmpty()
                     && ($error = $this->validator->validate($user, $coreOperations)) !== null) {
@@ -95,6 +107,9 @@ final class ApplyGoalSyncMutation
                     && ($error = $this->guards->validate($user, $pending, $guardOperations)) !== null) {
                     return $error;
                 }
+                if (($error = $this->commitments->validate($user, $pending, $commitmentOperations)) !== null) {
+                    return $error;
+                }
 
                 if ($coreOperations->isNotEmpty()) {
                     $this->writer->apply($user, $coreOperations);
@@ -102,6 +117,7 @@ final class ApplyGoalSyncMutation
                 if ($guardOperations->isNotEmpty()) {
                     $this->guards->apply($user, $guardOperations);
                 }
+                $this->commitmentWriter->apply($user, $commitmentOperations);
                 foreach ($pending as $operation) {
                     SyncOperation::create([
                         'operation_id' => $operation['operation_id'],
@@ -166,6 +182,26 @@ final class ApplyGoalSyncMutation
         return $same
             ? $this->result($total, 0, $duplicates + $pending->count())
             : null;
+    }
+
+    /** PowerSync PUTs omit SQL NULLs; preserve the original payload for replay hashes. */
+    private function normalizeNullablePutFields(array $operation): array
+    {
+        if ($operation['type'] !== 'put') {
+            return $operation;
+        }
+        $nullable = match ($operation['table']) {
+            'goals' => ['starter_key', 'archived_at'],
+            'goal_revisions' => ['current_situation', 'why_it_matters'],
+            'goal_links' => ['personal_prayer_id', 'library_prayer_id', 'encounter_id', 'voice_tablet_id', 'circle_id', 'translation', 'book', 'chapter', 'first_verse', 'last_verse', 'archived_at'],
+            'goal_actions' => ['local_time', 'timezone', 'once_at', 'weekdays_mask', 'archived_at'],
+            'commitment_practices' => ['suggestion_id'],
+            'commitment_meditation_plans' => ['weekdays_mask'],
+            default => [],
+        };
+        $operation['data'] += array_fill_keys($nullable, null);
+
+        return $operation;
     }
 
     private function isConstraintViolation(QueryException $exception): bool

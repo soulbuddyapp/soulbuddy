@@ -90,6 +90,7 @@ class PowerSyncGoalRepository implements GoalRepository, GoalDailyActionReader {
         .watch(
           '''
           SELECT action.*,
+            (SELECT practice.position FROM commitment_practices AS practice WHERE practice.goal_action_id=action.id AND practice.owner_id=action.owner_id LIMIT 1) AS commitment_practice_position,
             (
               SELECT event.event_type
               FROM goal_action_events AS event
@@ -221,6 +222,13 @@ class PowerSyncGoalRepository implements GoalRepository, GoalDailyActionReader {
         [goalId, ownerId],
       );
       if (existing == null) throw StateError('Goal is not available');
+      final commitment = await transaction.getOptional(
+        'SELECT name FROM commitments WHERE goal_id=? AND owner_id=?',
+        [goalId, ownerId],
+      );
+      if (commitment != null && commitment['name'] != normalizedTitle) {
+        throw StateError('Commitment name is read-only');
+      }
       await transaction.execute(
         '''
         INSERT INTO goal_revisions(
@@ -434,6 +442,38 @@ class PowerSyncGoalRepository implements GoalRepository, GoalDailyActionReader {
       createdAt: DateTime.parse(timestamp),
       updatedAt: DateTime.parse(timestamp),
     );
+  }
+
+  @override
+  Future<GoalAction> editActionBody(
+    String actionId, {
+    required String body,
+  }) async {
+    final normalized = body.trim();
+    if (normalized.isEmpty || normalized.runes.length > 1000) {
+      throw ArgumentError('Invalid practice text');
+    }
+    return database.writeTransaction((tx) async {
+      final row = await tx.getOptional(
+        'SELECT * FROM goal_actions WHERE id=? AND owner_id=? AND archived_at IS NULL',
+        [actionId, ownerId],
+      );
+      if (row == null) throw StateError('Goal action is not available');
+      final timestamp = _now().toUtc().toIso8601String();
+      await tx.execute(
+        'UPDATE goal_actions SET body=?,updated_at=? WHERE id=? AND owner_id=?',
+        [normalized, timestamp, actionId, ownerId],
+      );
+      await tx.execute(
+        'UPDATE commitment_practices SET body=?,updated_at=? WHERE goal_action_id=? AND owner_id=?',
+        [normalized, timestamp, actionId, ownerId],
+      );
+      return GoalAction.fromRow({
+        ...row,
+        'body': normalized,
+        'updated_at': timestamp,
+      });
+    });
   }
 
   @override

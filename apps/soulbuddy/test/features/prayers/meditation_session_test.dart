@@ -82,11 +82,11 @@ void main() {
       'Soft wind',
       'Warm fireplace',
       'Night crickets',
-      'Hopeful piano',
-      'Cinematic rise',
-      'Steady resolve',
-      'Warm strings',
-      'Victorious calm',
+      'Resolutions',
+      'Aurora',
+      'Affirmations',
+      'First Snow',
+      'A Kind Of Hope',
     ]);
     expect(
       MeditationSoundBed.values.every(

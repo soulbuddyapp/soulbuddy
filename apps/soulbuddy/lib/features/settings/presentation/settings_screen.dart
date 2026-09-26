@@ -107,6 +107,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.open_in_new),
                 onTap: _openPrivacyPolicy,
               ),
+              ListTile(
+                leading: const Icon(Icons.music_note_outlined),
+                title: const Text('Audio credits'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/settings/audio-credits'),
+              ),
             ],
           ),
         ),

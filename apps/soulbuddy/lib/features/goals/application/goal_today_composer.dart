@@ -133,17 +133,38 @@ class GoalTodayComposer {
       candidates.sort((left, right) {
         final byRank = left.rank.compareTo(right.rank);
         if (byRank != 0) return byRank;
+        if (left.rank == -1 && right.rank == -1) {
+          final a = (left.item as GoalTodayActionItem).occurrence.action;
+          final b = (right.item as GoalTodayActionItem).occurrence.action;
+          if (a.commitmentPracticePosition != null &&
+              b.commitmentPracticePosition != null) {
+            final byPosition = a.commitmentPracticePosition!.compareTo(
+              b.commitmentPracticePosition!,
+            );
+            if (byPosition != 0) return byPosition;
+          }
+          final byCreated = a.createdAt.compareTo(b.createdAt);
+          return byCreated != 0 ? byCreated : a.id.compareTo(b.id);
+        }
         final bySequence = left.sequence.compareTo(right.sequence);
         if (bySequence != 0) return bySequence;
         return left.item.stableKey.compareTo(right.item.stableKey);
       });
 
+      final hasCommitmentPractices = candidates.any(
+        (c) =>
+            c.item is GoalTodayActionItem &&
+            (c.item as GoalTodayActionItem).occurrence.action.kind ==
+                GoalActionKind.commitmentPractice,
+      );
       final seen = <String>{};
       final items = <GoalTodayItem>[];
       for (final candidate in candidates) {
         if (!seen.add(candidate.item.dedupeKey)) continue;
         items.add(candidate.item);
-        if (items.length == maximumItemsPerGoal) break;
+        if (!hasCommitmentPractices && items.length == maximumItemsPerGoal) {
+          break;
+        }
       }
       if (items.isEmpty) continue;
       sections.add(
@@ -162,6 +183,7 @@ int _actionRank(GoalAction action) {
     return 0;
   }
   return switch (action.kind) {
+    GoalActionKind.commitmentPractice => -1,
     GoalActionKind.guard => 3,
     GoalActionKind.accountability => 3,
     GoalActionKind.nextStep => 4,

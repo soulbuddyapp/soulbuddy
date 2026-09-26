@@ -33,6 +33,16 @@ import '../features/sacred_hours/domain/sacred_hour.dart';
 import '../features/sacred_hours/providers/sacred_hour_providers.dart';
 import 'router.dart';
 import 'app_overlay_visibility.dart';
+import '../features/commitments/providers/commitment_reminder_providers.dart';
+import '../features/commitments/application/commitment_reminder_coordinator.dart';
+
+final _commitmentReminderEventsProvider =
+    StreamProvider<CommitmentReminderOpened>((ref) async* {
+      final coordinator = await ref.watch(
+        commitmentReminderCoordinatorProvider.future,
+      );
+      yield* coordinator.events;
+    });
 
 class SoulBuddyApp extends ConsumerWidget {
   const SoulBuddyApp({super.key});
@@ -50,6 +60,12 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(circleReminderCoordinatorProvider);
     ref.watch(dailyFormationReminderCoordinatorProvider);
     ref.watch(goalMeditationReminderCoordinatorProvider);
+    ref.watch(commitmentReminderCoordinatorProvider);
+    ref.listen(_commitmentReminderEventsProvider, (previous, next) {
+      if (next case AsyncData(value: final event)) {
+        appRouter.go('/commitments/${event.commitmentId}/meditate');
+      }
+    });
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         final due = occurrence!;
@@ -112,6 +128,8 @@ class SoulBuddyApp extends ConsumerWidget {
             OverlayEntry(
               builder: (_) => OnboardingGate(
                 onBeginWithGoal: () => appRouter.go('/welcome/goal'),
+                onBeginWithCommitment: () =>
+                    appRouter.go('/welcome/commitment'),
                 onResumeFirstPrayer: () => appRouter.go('/welcome/prayer'),
                 onSkip: () => appRouter.go('/today'),
                 child: Stack(

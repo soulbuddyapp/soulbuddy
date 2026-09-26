@@ -462,6 +462,7 @@ IconData _actionIcon(GoalActionKind kind) => switch (kind) {
   GoalActionKind.guard => Icons.shield_outlined,
   GoalActionKind.accountability => Icons.people_outline,
   GoalActionKind.nextStep => Icons.arrow_forward_outlined,
+  GoalActionKind.commitmentPractice => Icons.checklist_outlined,
   GoalActionKind.care => Icons.favorite_border,
   GoalActionKind.other => Icons.circle_outlined,
 };

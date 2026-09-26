@@ -17,6 +17,7 @@ class EncounterForm extends ConsumerStatefulWidget {
     this.memoryType = MemoryType.encounter,
     this.allowMemoryTypeChoice = false,
     this.initialTitle,
+    this.initialDate,
     this.audio,
     this.people = const [],
     this.initialPersonIds = const [],
@@ -33,6 +34,7 @@ class EncounterForm extends ConsumerStatefulWidget {
   final MemoryType memoryType;
   final bool allowMemoryTypeChoice;
   final String? initialTitle;
+  final DateTime? initialDate;
   final MemoryAudioDraft? audio;
   final List<PrayerPerson> people;
   final List<String> initialPersonIds;
@@ -67,7 +69,14 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     super.initState();
     _titleController = TextEditingController(text: widget.initialTitle);
     _bodyController = TextEditingController(text: widget.initialBody);
-    _dateController = TextEditingController(text: _dateOnly(DateTime.now()));
+    final requestedDate = widget.initialDate;
+    final date =
+        requestedDate != null &&
+            requestedDate.year >= 1900 &&
+            !requestedDate.isAfter(DateTime.now())
+        ? requestedDate
+        : DateTime.now();
+    _dateController = TextEditingController(text: _dateOnly(date));
   }
 
   @override

@@ -5,5 +5,8 @@ abstract final class AppOverlayVisibility {
           uri.pathSegments.first == 'prayers');
 
   static bool hideGlobalOverlays(Uri uri) =>
-      uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'sacred-hours';
+      uri.pathSegments.isNotEmpty &&
+      (uri.pathSegments.first == 'sacred-hours' ||
+          uri.pathSegments.first == 'commitments' ||
+          uri.path.startsWith('/welcome/commitment'));
 }

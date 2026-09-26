@@ -1,0 +1,12 @@
+# Merge this bucket into the existing configuration; retain all existing buckets.
+# Authentication is the signed /api/sync/token JWT, never client parameters.
+bucket_definitions:
+  private_commitments:
+    parameters: SELECT public_id AS owner_id FROM users WHERE public_id = request.user_id()
+    data:
+      - SELECT id, owner_id, journey_slot, goal_id, name, key_need_one, key_need_two, key_need_three, calling, guide_id, created_at, updated_at FROM commitments WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, goal_action_id, category, body, position, source, suggestion_id, created_at, updated_at FROM commitment_practices WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, body, reviewed_at, created_at, updated_at FROM commitment_declarations WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, frequency, weekdays_mask, local_time, timezone, duration_minutes, enabled, created_at, updated_at FROM commitment_meditation_plans WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, started_at_utc, started_local_date, start_timezone, review_local_date, state, created_at, updated_at FROM commitment_preparation_cycles WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, session_kind, started_at, ended_at, local_date, planned_duration_seconds, actual_duration_seconds, outcome, device_id FROM commitment_meditation_sessions WHERE owner_id = bucket.owner_id

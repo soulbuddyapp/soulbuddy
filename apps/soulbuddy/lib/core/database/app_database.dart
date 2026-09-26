@@ -1,3 +1,4 @@
+import '../../features/commitments/data/commitment_schema.dart';
 import 'package:powersync/powersync.dart';
 
 import '../../features/editorial/data/editorial_schema.dart';
@@ -8,6 +9,7 @@ import 'app_schema.dart';
 final appRuntimeSchema = Schema([
   ...appSchema.tables,
   ...goalTables,
+  ...commitmentTables,
   ...personTables,
   ...editorialTables,
 ]);

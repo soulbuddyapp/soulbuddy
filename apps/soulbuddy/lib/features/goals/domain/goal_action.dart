@@ -1,5 +1,6 @@
 enum GoalActionKind {
   nextStep('next_step'),
+  commitmentPractice('commitment_practice'),
   guard('guard'),
   accountability('accountability'),
   care('care'),
@@ -71,6 +72,7 @@ class GoalActionDraft {
 
 class GoalAction {
   const GoalAction({
+    this.commitmentPracticePosition,
     required this.id,
     required this.goalId,
     required this.ownerId,
@@ -87,6 +89,8 @@ class GoalAction {
     this.archivedAt,
   });
 
+  /// Read projection from the linked Commitment practice, never uploaded.
+  final int? commitmentPracticePosition;
   final String id;
   final String goalId;
   final String ownerId;
@@ -103,6 +107,8 @@ class GoalAction {
   final DateTime? archivedAt;
 
   factory GoalAction.fromRow(Map<String, dynamic> row) => GoalAction(
+    commitmentPracticePosition: (row['commitment_practice_position'] as num?)
+        ?.toInt(),
     id: row['id'] as String,
     goalId: row['goal_id'] as String,
     ownerId: row['owner_id'] as String,

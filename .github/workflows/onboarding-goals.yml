@@ -10,6 +10,19 @@ on:
       - 'apps/soulbuddy/lib/core/database/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/lib/features/commitments/**'
+      - 'apps/soulbuddy/assets/audio/commitments/**'
+      - 'apps/soulbuddy/assets/audio/meditation/**'
+      - 'apps/soulbuddy/assets/content/commitment_practices.json'
+      - 'apps/soulbuddy/test/features/commitments/**'
+      - 'scripts/commitments/**'
+      - 'services/api/app/Domain/Sync/*Commitment*'
+      - 'services/api/app/Models/Commitment*.php'
+      - 'services/api/database/migrations/*commitment*'
+      - 'services/api/tests/Feature/Commitments/**'
+      - 'services/api/tests/Feature/Sync/CommitmentMutationTest.php'
+      - 'services/api/tests/Fixtures/commitment*'
+      - 'infra/powersync/**'
       - 'apps/soulbuddy/lib/features/scripture/**'
       - 'apps/soulbuddy/lib/features/prayers/data/personal_prayer_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/data/powersync_personal_prayer_repository.dart'
@@ -50,6 +63,19 @@ on:
       - 'apps/soulbuddy/lib/core/database/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
+      - 'apps/soulbuddy/lib/features/commitments/**'
+      - 'apps/soulbuddy/assets/audio/commitments/**'
+      - 'apps/soulbuddy/assets/audio/meditation/**'
+      - 'apps/soulbuddy/assets/content/commitment_practices.json'
+      - 'apps/soulbuddy/test/features/commitments/**'
+      - 'scripts/commitments/**'
+      - 'services/api/app/Domain/Sync/*Commitment*'
+      - 'services/api/app/Models/Commitment*.php'
+      - 'services/api/database/migrations/*commitment*'
+      - 'services/api/tests/Feature/Commitments/**'
+      - 'services/api/tests/Feature/Sync/CommitmentMutationTest.php'
+      - 'services/api/tests/Fixtures/commitment*'
+      - 'infra/powersync/**'
       - 'apps/soulbuddy/lib/features/scripture/**'
       - 'apps/soulbuddy/lib/features/prayers/data/personal_prayer_repository.dart'
       - 'apps/soulbuddy/lib/features/prayers/data/powersync_personal_prayer_repository.dart'
@@ -129,12 +155,12 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dart format lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/powersync_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
+          dart format lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/commitments lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/powersync_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/commitments test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
           git diff --check
-          git diff --exit-code -- lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/powersync_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
+          git diff --exit-code -- lib/app lib/core/database lib/features/onboarding lib/features/goals lib/features/commitments lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/powersync_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart lib/features/today/presentation/today_screen.dart test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/commitments test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
 
       - name: Analyze onboarding
-        run: flutter analyze --fatal-infos lib/features/onboarding lib/features/goals
+        run: flutter analyze --fatal-infos lib/features/onboarding lib/features/goals lib/features/commitments
 
       - name: Analyze Scripture and legacy archive integration
         run: flutter analyze --fatal-infos lib/features/scripture lib/features/prayers/data/personal_prayer_repository.dart lib/features/prayers/data/powersync_personal_prayer_repository.dart lib/features/prayers/data/powersync_prayer_repository.dart lib/features/prayers/data/prayer_generation_repository.dart lib/features/prayers/data/powersync_prayer_generation_repository.dart lib/features/prayers/providers/personal_prayer_providers.dart
@@ -145,8 +171,23 @@ jobs:
       - name: Analyze shell and database boundaries
         run: flutter analyze --fatal-infos lib/app lib/core/database
 
+      - name: Verify Commitment media
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --yes --no-progress
+            $env:PATH += ';C:\ProgramData\chocolatey\bin'
+          }
+          python -m pip install numpy==2.3.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python ../../scripts/commitments/verify_meditation_music.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python ../../scripts/commitments/verify_assets.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s ../../scripts/commitments -p 'test*.py'
+
       - name: Run focused onboarding / Goals tests
-        run: flutter test test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
+        run: flutter test test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/commitments test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
 
       - name: Fail on committed formatting drift
         if: always() && steps.dart-format.outcome == 'failure'
@@ -194,7 +235,7 @@ jobs:
           php artisan key:generate --ansi
 
       - name: Check focused PHP style
-        run: ./vendor/bin/pint --test app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Http/Controllers/Api/SyncMutationController.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php database/migrations/*goal*.php tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php
+        run: ./vendor/bin/pint --test app/Domain/Sync/CommitmentSyncMutationValidator.php app/Domain/Sync/CommitmentSyncMutationWriter.php app/Models/Commitment*.php database/migrations/*commitment*.php app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Http/Controllers/Api/SyncMutationController.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php database/migrations/*goal*.php tests/Feature/Goals tests/Feature/Commitments tests/Feature/Sync/CommitmentMutationTest.php tests/Feature/Sync/GoalMutationTest.php
 
       - name: Run Goal and invariant tests
-        run: php artisan test tests/Feature/Goals tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php
+        run: php artisan test tests/Feature/Goals tests/Feature/Commitments tests/Feature/Sync/CommitmentMutationTest.php tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php

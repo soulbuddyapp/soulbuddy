@@ -39,6 +39,8 @@ abstract interface class GoalRepository {
 
   Future<GoalAction> addAction(String goalId, GoalActionDraft action);
 
+  Future<GoalAction> editActionBody(String actionId, {required String body});
+
   Future<void> archiveAction(String actionId);
 
   Future<GoalActionEvent?> completeAction(

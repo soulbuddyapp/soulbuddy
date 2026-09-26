@@ -245,6 +245,90 @@ void main() {
       );
     },
   );
+  test('all twelve commitment practices precede ordinary resources', () {
+    final goal = _goal('commitment');
+    final practices = [
+      for (var i = 0; i < 12; i++)
+        _occurrence(
+          _action(
+            'practice-$i',
+            goal.id,
+            kind: GoalActionKind.commitmentPractice,
+          ),
+        ),
+    ];
+    final items = composer
+        .compose(
+          goals: [goal],
+          dueActions: [_occurrence(_action('ordinary', goal.id)), ...practices],
+        )
+        .single
+        .items;
+    expect(items, hasLength(13));
+    expect(
+      (items.first as GoalTodayActionItem).occurrence.action.kind,
+      GoalActionKind.commitmentPractice,
+    );
+    expect(
+      (items.last as GoalTodayActionItem).occurrence.action.id,
+      'ordinary',
+    );
+  });
+  test('practice order is stable independently of candidate arrival order', () {
+    final goal = _goal('commitment');
+    final items = composer
+        .compose(
+          goals: [goal],
+          dueActions: [
+            _occurrence(
+              _action('b', goal.id, kind: GoalActionKind.commitmentPractice),
+            ),
+            _occurrence(
+              _action('a', goal.id, kind: GoalActionKind.commitmentPractice),
+            ),
+          ],
+        )
+        .single
+        .items;
+    expect(
+      items.cast<GoalTodayActionItem>().map((i) => i.occurrence.action.id),
+      ['a', 'b'],
+    );
+  });
+  test(
+    'replicated practice position wins over equal server timestamps and random IDs',
+    () {
+      final goal = _goal('commitment');
+      final items = composer
+          .compose(
+            goals: [goal],
+            dueActions: [
+              _occurrence(
+                _action(
+                  'a',
+                  goal.id,
+                  kind: GoalActionKind.commitmentPractice,
+                  commitmentPracticePosition: 1,
+                ),
+              ),
+              _occurrence(
+                _action(
+                  'z',
+                  goal.id,
+                  kind: GoalActionKind.commitmentPractice,
+                  commitmentPracticePosition: 0,
+                ),
+              ),
+            ],
+          )
+          .single
+          .items;
+      expect(
+        items.cast<GoalTodayActionItem>().map((i) => i.occurrence.action.id),
+        ['z', 'a'],
+      );
+    },
+  );
 }
 
 Goal _goal(
@@ -267,6 +351,7 @@ GoalAction _action(
   String id,
   String goalId, {
   GoalActionKind kind = GoalActionKind.nextStep,
+  int? commitmentPracticePosition,
   GoalScheduleType scheduleType = GoalScheduleType.daily,
   String? localTime,
   DateTime? onceAt,
@@ -276,6 +361,7 @@ GoalAction _action(
   ownerId: 'owner-1',
   body: 'Action $id',
   kind: kind,
+  commitmentPracticePosition: commitmentPracticePosition,
   scheduleType: scheduleType,
   localTime: localTime,
   onceAt: onceAt,

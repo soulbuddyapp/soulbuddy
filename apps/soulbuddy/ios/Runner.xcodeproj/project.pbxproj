@@ -18,6 +18,7 @@
 		A10000000000000000000002 /* sacred_dawn_chime.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* sacred_dawn_chime.wav */; };
 		A10000000000000000000003 /* sacred_still_bell.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* sacred_still_bell.wav */; };
 		A10000000000000000000004 /* sacred_evening_chime.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* sacred_evening_chime.wav */; };
+		A10000000000000000000005 /* commitment_invitation_v1.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* commitment_invitation_v1.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +64,7 @@
 		A20000000000000000000002 /* sacred_dawn_chime.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/sacred_dawn_chime.wav; sourceTree = "<group>"; };
 		A20000000000000000000003 /* sacred_still_bell.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/sacred_still_bell.wav; sourceTree = "<group>"; };
 		A20000000000000000000004 /* sacred_evening_chime.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/sacred_evening_chime.wav; sourceTree = "<group>"; };
+		A20000000000000000000005 /* commitment_invitation_v1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/commitment_invitation_v1.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,6 +131,7 @@
 				A20000000000000000000002 /* sacred_dawn_chime.wav */,
 				A20000000000000000000003 /* sacred_still_bell.wav */,
 				A20000000000000000000004 /* sacred_evening_chime.wav */,
+				A20000000000000000000005 /* commitment_invitation_v1.wav */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -232,6 +235,7 @@
 				A10000000000000000000002 /* sacred_dawn_chime.wav in Resources */,
 				A10000000000000000000003 /* sacred_still_bell.wav in Resources */,
 				A10000000000000000000004 /* sacred_evening_chime.wav in Resources */,
+				A10000000000000000000005 /* commitment_invitation_v1.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
