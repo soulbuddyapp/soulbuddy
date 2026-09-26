@@ -79,14 +79,15 @@ void main() {
           ),
         );
       await body.load();
+      final flutterRoot = Platform.environment['FLUTTER_ROOT'] ?? 'C:/flutter';
       for (final pair in [
         [
           'Ahem',
-          'C:/flutter/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
+          '$flutterRoot/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
         ],
         [
           'MaterialIcons',
-          'C:/flutter/bin/cache/artifacts/material_fonts/materialicons-regular.otf',
+          '$flutterRoot/bin/cache/artifacts/material_fonts/materialicons-regular.otf',
         ],
       ]) {
         final loader = FontLoader(pair[0])
