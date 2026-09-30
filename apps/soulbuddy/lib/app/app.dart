@@ -19,6 +19,7 @@ import '../features/persons/providers/person_providers.dart';
 import '../features/record/audio/providers/private_audio_cleanup_provider.dart';
 import '../core/identity/local_identity_providers.dart';
 import '../core/notifications/push_registration.dart';
+import '../core/notifications/local_reminder_recovery_provider.dart';
 import '../features/altar/application/altar_reminder_coordinator.dart';
 import '../features/altar/providers/altar_ritual_providers.dart';
 import '../features/altar/presentation/altar_today_card.dart';
@@ -61,6 +62,7 @@ class SoulBuddyApp extends ConsumerWidget {
     ref.watch(dailyFormationReminderCoordinatorProvider);
     ref.watch(goalMeditationReminderCoordinatorProvider);
     ref.watch(commitmentReminderCoordinatorProvider);
+    ref.watch(localReminderRecoveryProvider);
     ref.listen(_commitmentReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: final event)) {
         appRouter.go('/commitments/${event.commitmentId}/meditate');

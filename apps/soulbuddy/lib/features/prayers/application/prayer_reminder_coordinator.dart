@@ -88,6 +88,8 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   Timer? _timer;
   String? _lastTimezone;
   bool _started = false;
+  bool _initialized = false;
+  final _nativeSchedules = <String, ({int base, String signature})>{};
   bool _disposed = false;
   bool _permissionAsked = false;
   bool _permissionGranted = false;
@@ -118,9 +120,6 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
               if (occurrence.occurrenceAt != null) occurrence.occurrenceKey,
           };
           _hiddenOccurrenceKeys.retainWhere(keys.contains);
-          _processedActions.removeWhere(
-            (actionKey) => !keys.any(actionKey.endsWith),
-          );
           _enqueueReported(() async {
             await _drainPendingResponses();
             await _reconcile();
@@ -133,6 +132,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       onError: _reportError,
     );
     await _scheduler.initialize();
+    _initialized = true;
     await reconcileNow();
   }
 
@@ -147,12 +147,16 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     if (!_permissionAsked) {
       _permissionAsked = true;
       _permissionGranted = await _scheduler.requestPermission();
+    } else {
+      _permissionGranted =
+          await _scheduler.permissionStatus() ==
+          NotificationPermissionStatus.granted;
     }
     await _repository.setDeviceEnabled(reminderId, enabled: _permissionGranted);
     return _permissionGranted;
   }
 
-  Future<void> reconcileNow() => _enqueue(_reconcile);
+  Future<void> reconcileNow() => _enqueue(() => _reconcile(rearm: true));
 
   Future<PrayerSession?> performAction(
     DuePrayerOccurrence occurrence,
@@ -174,12 +178,12 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && !_disposed) {
-      _enqueueReported(_reconcile);
+      _enqueueReported(() => _reconcile(rearm: true));
     }
   }
 
-  Future<void> _reconcile() async {
-    if (_disposed) {
+  Future<void> _reconcile({bool rearm = false}) async {
+    if (_disposed || !_initialized) {
       return;
     }
     final currentTimezone = (await _timezoneName()).trim();
@@ -199,13 +203,42 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
 
     final now = _clock().toUtc();
     DateTime? earliestFuture;
+    final active = {
+      for (final occurrence in _occurrences)
+        if (occurrence.reminder.enabled && occurrence.device.enabledOnDevice)
+          occurrence.reminder.id,
+    };
+    for (final id in _nativeSchedules.keys.toList()) {
+      if (!active.contains(id)) {
+        await _cancelPlatformNotifications(_nativeSchedules[id]!.base);
+        _nativeSchedules.remove(id);
+      }
+    }
     for (final occurrence in _occurrences) {
       if (!occurrence.reminder.enabled || !occurrence.device.enabledOnDevice) {
         continue;
       }
+      // Keep the outstanding occurrence available for acknowledgement while
+      // independently maintaining the next native recurring alarm.
       final outstandingAt =
           occurrence.device.snoozedUntil ?? occurrence.device.nextOccurrenceAt;
       if (outstandingAt != null && !outstandingAt.toUtc().isAfter(now)) {
+        await _ensureNativeNotifications(
+          occurrence,
+          currentTimezone,
+          rearm: rearm,
+        );
+        continue;
+      }
+      if (occurrence.device.snoozedUntil case final snooze?) {
+        await _ensureNativeNotifications(
+          occurrence,
+          currentTimezone,
+          rearm: rearm,
+        );
+        if (earliestFuture == null || snooze.isBefore(earliestFuture)) {
+          earliestFuture = snooze;
+        }
         continue;
       }
       final schedule = _scheduleInTimezone(
@@ -226,6 +259,11 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
           occurrence.device.nextOccurrenceAt?.toUtc() == expectedAt &&
           occurrence.device.scheduledTimezone == currentTimezone;
       if (unchanged) {
+        await _ensureNativeNotifications(
+          occurrence,
+          currentTimezone,
+          rearm: rearm,
+        );
         continue;
       }
       await _replaceNotification(
@@ -259,10 +297,13 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       return null;
     }
     final actionKey =
-        '${response.action.name}:${response.reminderId}:${response.occurrenceKey}';
-    if (!_processedActions.add(actionKey)) {
-      return null;
+        '${response.action.name}:${response.reminderId}:${occurrence.occurrenceKey}';
+    if (_processedActions.contains(actionKey)) return null;
+    // Database advancement must not make a repeated tap actionable again.
+    if (_processedActions.length == 128) {
+      _processedActions.remove(_processedActions.first);
     }
+    _processedActions.add(actionKey);
 
     try {
       switch (response.action) {
@@ -325,7 +366,12 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     );
     if (recurring == null) return exact;
     final occurrenceAt = _latestRecurringOccurrenceAt(
-      recurring.reminder.schedule,
+      _scheduleInTimezone(
+        recurring.reminder.schedule,
+        _lastTimezone ??
+            recurring.device.scheduledTimezone ??
+            recurring.reminder.schedule.timezone,
+      ),
       _clock().toUtc(),
     );
     if (occurrenceAt == null) return exact ?? recurring;
@@ -415,7 +461,6 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
     required String timezoneName,
   }) async {
     final id = occurrence.device.platformNotificationId;
-    await _scheduler.cancel(id);
     _pendingSchedules[occurrence.reminder.id] = _PendingPrayerSchedule(
       nextOccurrenceAt: expectedAt,
       scheduledTimezone: timezoneName,
@@ -428,26 +473,108 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
       scheduledTimezone: timezoneName,
     );
     _occurrences = List.unmodifiable(_occurrences.map(_applyPendingSchedule));
-    await _scheduler.schedule(
-      PrayerScheduledNotification(
-        platformNotificationId: id,
-        reminderId: occurrence.reminder.id,
-        occurrenceKey:
-            '${occurrence.reminder.id}@${expectedAt.toUtc().toIso8601String()}',
-        scheduledAtUtc: expectedAt.toUtc(),
-        timeZoneName: timezoneName,
-        recurrence: _recurrenceFor(occurrence.reminder.schedule),
-      ),
+    await _ensureNativeNotifications(
+      occurrence,
+      timezoneName,
+      rearm: true,
+      includeSnooze: false,
     );
   }
 
-  ReminderNotificationRecurrence _recurrenceFor(
-    PrayerReminderSchedule schedule,
-  ) => switch (schedule.type) {
-    PrayerScheduleType.once => ReminderNotificationRecurrence.once,
-    PrayerScheduleType.daily => ReminderNotificationRecurrence.daily,
-    PrayerScheduleType.weekdays => ReminderNotificationRecurrence.weekly,
-  };
+  // Separate negative slots cannot replace another reminder family's alarms.
+  static int _slotId(int base, int slot) =>
+      -(0x38000000 | (((base * 31) + slot) & 0x07ffffff));
+
+  static Iterable<int> platformNotificationIds(int base) sync* {
+    yield base;
+    for (var slot = 0; slot <= 7; slot++) {
+      yield _slotId(base, slot);
+    }
+  }
+
+  Future<void> _cancelPlatformNotifications(int base) async {
+    for (final id in platformNotificationIds(base)) {
+      await _scheduler.cancel(id);
+    }
+  }
+
+  Future<void> _ensureNativeNotifications(
+    DuePrayerOccurrence occurrence,
+    String timezoneName, {
+    bool rearm = false,
+    bool includeSnooze = true,
+  }) async {
+    if (!_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() !=
+            NotificationPermissionStatus.granted) {
+      return;
+    }
+    final schedule = _scheduleInTimezone(
+      occurrence.reminder.schedule,
+      timezoneName,
+    );
+    final now = _clock().toUtc();
+    final snooze = includeSnooze ? occurrence.device.snoozedUntil : null;
+    final activeSnooze = snooze != null && snooze.isAfter(now) ? snooze : null;
+    final signature =
+        '${schedule.type.name}:${schedule.localTime.wireValue}:'
+        '$timezoneName:${schedule.weekdaysMask}:${schedule.onceAt}:$activeSnooze';
+    final reminderId = occurrence.reminder.id;
+    if (!rearm && _nativeSchedules[reminderId]?.signature == signature) return;
+    final base = occurrence.device.platformNotificationId;
+    await _cancelPlatformNotifications(base);
+    _nativeSchedules.remove(reminderId);
+    final notifications = <PrayerScheduledNotification>[];
+    void add(int id, DateTime at, ReminderNotificationRecurrence recurrence) {
+      notifications.add(
+        PrayerScheduledNotification(
+          platformNotificationId: id,
+          reminderId: reminderId,
+          occurrenceKey: '$reminderId@${at.toUtc().toIso8601String()}',
+          scheduledAtUtc: at.toUtc(),
+          timeZoneName: timezoneName,
+          recurrence: recurrence,
+        ),
+      );
+    }
+
+    if (schedule.type == PrayerScheduleType.weekdays) {
+      for (var weekday = 1; weekday <= 7; weekday++) {
+        if (schedule.weekdaysMask! & (1 << (weekday - 1)) == 0) continue;
+        final day = PrayerReminderSchedule.weekdays(
+          localTime: schedule.localTime,
+          timezone: timezoneName,
+          weekdaysMask: 1 << (weekday - 1),
+        );
+        final next = _calculator.next(day, afterUtc: now);
+        if (next != null) {
+          add(
+            _slotId(base, weekday),
+            next,
+            ReminderNotificationRecurrence.weekly,
+          );
+        }
+      }
+    } else {
+      final next = _calculator.next(schedule, afterUtc: now);
+      if (next != null) {
+        add(
+          base,
+          next,
+          schedule.type == PrayerScheduleType.daily
+              ? ReminderNotificationRecurrence.daily
+              : ReminderNotificationRecurrence.once,
+        );
+      }
+    }
+    if (activeSnooze != null) {
+      add(_slotId(base, 0), activeSnooze, ReminderNotificationRecurrence.once);
+    }
+    for (final notification in notifications) {
+      await _scheduler.schedule(notification);
+    }
+    _nativeSchedules[reminderId] = (base: base, signature: signature);
+  }
 
   DuePrayerOccurrence _applyPendingSchedule(DuePrayerOccurrence occurrence) {
     final pending = _pendingSchedules[occurrence.reminder.id];
@@ -473,7 +600,7 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
         nextOccurrenceAt: pending.nextOccurrenceAt,
         platformNotificationId: device.platformNotificationId,
         scheduledTimezone: pending.scheduledTimezone,
-        snoozedUntil: device.snoozedUntil,
+        snoozedUntil: null,
         dismissedOccurrenceKey: device.dismissedOccurrenceKey,
         updatedAt: device.updatedAt,
       ),
@@ -485,7 +612,10 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
   }
 
   Future<void> _cancelAndDisable(DuePrayerOccurrence occurrence) async {
-    await _scheduler.cancel(occurrence.device.platformNotificationId);
+    await _cancelPlatformNotifications(
+      occurrence.device.platformNotificationId,
+    );
+    _nativeSchedules.remove(occurrence.reminder.id);
     await _repository.setDeviceEnabled(occurrence.reminder.id, enabled: false);
   }
 

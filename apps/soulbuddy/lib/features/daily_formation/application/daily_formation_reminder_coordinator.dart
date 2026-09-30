@@ -26,6 +26,7 @@ class DailyFormationReminderCoordinator {
 
   final DailyFormationRepository _repository;
   final PrayerReminderScheduler _scheduler;
+  bool _initialized = false;
   final DateTime Function() _clock;
   final _events = StreamController<DailyFormationReminderOpened>.broadcast();
   StreamSubscription<PrayerReminderResponse>? _responses;
@@ -46,6 +47,7 @@ class DailyFormationReminderCoordinator {
           }
         });
     await _scheduler.initialize();
+    _initialized = true;
     _allowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.permissionStatus() ==
@@ -62,6 +64,11 @@ class DailyFormationReminderCoordinator {
   }
 
   Future<void> reconcile() async {
+    if (!_initialized) return;
+    _allowed =
+        !_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() ==
+            NotificationPermissionStatus.granted;
     if (!_allowed || !_scheduler.supportsSystemNotifications) return;
     final profile = await _repository.loadProfile();
     if (!profile.ready || !profile.hasReminder) {

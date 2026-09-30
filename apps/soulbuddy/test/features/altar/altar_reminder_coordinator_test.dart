@@ -10,7 +10,8 @@ import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 void main() {
   test('schedules a private Altar notification and reports its open', () async {
     final repository = _Repository();
-    final scheduler = _Scheduler();
+    final scheduler = _Scheduler()
+      ..permission = NotificationPermissionStatus.denied;
     final coordinator = AltarReminderCoordinator(
       repository: repository,
       scheduler: scheduler,
@@ -32,6 +33,13 @@ void main() {
       ),
     ]);
     await pumpEventQueue();
+
+    expect(scheduler.scheduled, isEmpty);
+    scheduler.permission = NotificationPermissionStatus.granted;
+    await coordinator.refresh();
+    expect(scheduler.scheduled, hasLength(1));
+    scheduler.scheduled.clear();
+    await coordinator.refresh();
 
     expect(scheduler.scheduled.single.kind, ReminderNotificationKind.altar);
     expect(scheduler.scheduled.single.reminderId, 'ritual-1');
@@ -263,6 +271,7 @@ class _Scheduler implements PrayerReminderScheduler {
       StreamController<PrayerReminderResponse>.broadcast();
   final scheduled = <PrayerScheduledNotification>[];
   final cancelled = <int>[];
+  var permission = NotificationPermissionStatus.granted;
 
   @override
   Stream<PrayerReminderResponse> get responses => responseController.stream;
@@ -279,8 +288,7 @@ class _Scheduler implements PrayerReminderScheduler {
   Future<void> initialize() async {}
 
   @override
-  Future<NotificationPermissionStatus> permissionStatus() async =>
-      NotificationPermissionStatus.granted;
+  Future<NotificationPermissionStatus> permissionStatus() async => permission;
 
   @override
   Future<bool> requestPermission() async => true;

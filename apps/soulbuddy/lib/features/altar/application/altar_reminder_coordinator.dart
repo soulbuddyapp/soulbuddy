@@ -30,6 +30,7 @@ class AltarReminderCoordinator {
 
   final AltarRitualRepository _repository;
   final PrayerReminderScheduler _scheduler;
+  bool _initialized = false;
   final DateTime Function() _clock;
   late final StreamController<AltarReminderOpened> _events =
       StreamController<AltarReminderOpened>.broadcast(onListen: _flushEvents);
@@ -57,6 +58,7 @@ class AltarReminderCoordinator {
       _enqueue(_reconcile);
     }, onError: (_) {});
     await _scheduler.initialize();
+    _initialized = true;
     _notificationsAllowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.permissionStatus() ==
@@ -71,7 +73,15 @@ class AltarReminderCoordinator {
     return _notificationsAllowed;
   }
 
-  Future<void> _reconcile() async {
+  // Permission and platform alarms may change independently of saved rows.
+  Future<void> refresh() => _enqueue(() => _reconcile(rearm: true));
+
+  Future<void> _reconcile({bool rearm = false}) async {
+    if (!_initialized) return;
+    _notificationsAllowed =
+        !_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() ==
+            NotificationPermissionStatus.granted;
     if (!_notificationsAllowed || !_scheduler.supportsSystemNotifications) {
       return;
     }
@@ -102,7 +112,8 @@ class AltarReminderCoordinator {
 
       for (final notification in desired) {
         final signature = desiredById[notification.platformNotificationId]!;
-        if (previous?[notification.platformNotificationId] == signature) {
+        if (!rearm &&
+            previous?[notification.platformNotificationId] == signature) {
           continue;
         }
         await _scheduler.schedule(notification);

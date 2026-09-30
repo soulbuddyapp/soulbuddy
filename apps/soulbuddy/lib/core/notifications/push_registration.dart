@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/widgets.dart';
@@ -11,97 +10,131 @@ import 'package:http/http.dart' as http;
 import '../../app/router.dart';
 import '../config/app_config.dart';
 import '../identity/local_identity_providers.dart';
+import '../identity/installation_session.dart';
+import '../../features/prayers/providers/prayer_practice_providers.dart';
+import 'push_registration_sync.dart';
 
 final pushReadyProvider = Provider<bool>((ref) => false);
 
 final pushRegistrationProvider = FutureProvider<void>((ref) async {
   if (!ref.watch(pushReadyProvider)) return;
-  await ref.watch(installationSessionBootstrapProvider.future);
+  await ref.read(installationSessionBootstrapProvider.future);
+  if (!ref.mounted) return;
   final identity = await ref.watch(localIdentityProvider.future);
+  if (!ref.mounted) return;
   final readToken = ref.watch(appSessionTokenReaderProvider);
+  final storage = ref.watch(secureStorageProvider);
+  final scheduler = ref.watch(prayerReminderSchedulerProvider);
   final client = http.Client();
   ref.onDispose(client.close);
+  final base = Uri.tryParse(AppConfig.apiBaseUrl);
+  if (base == null || !base.hasScheme) return;
+  final messaging = FirebaseMessaging.instance;
+  var permissionRequested = false;
+  final bootstrap = InstallationSessionBootstrap(
+    apiBaseUri: base,
+    read: (key) => storage.read(key: key),
+    write: (key, value) => storage.write(key: key, value: value),
+    client: client,
+  );
+  final sync = PushRegistrationSync(
+    baseUri: base,
+    deviceId: identity.deviceId,
+    client: client,
+    readPushToken: messaging.getToken,
+    readSession: readToken,
+    refreshSession: () => bootstrap.ensure(identity),
+    readTimeZone: () async =>
+        (await FlutterTimezone.getLocalTimezone()).identifier,
+    readPermission: () async {
+      final settings = permissionRequested
+          ? await messaging.getNotificationSettings()
+          : await messaging.requestPermission();
+      permissionRequested = true;
+      return switch (settings.authorizationStatus) {
+        AuthorizationStatus.authorized ||
+        AuthorizationStatus.provisional => PushPermission.allowed,
+        AuthorizationStatus.denied ||
+        AuthorizationStatus.deniedPermanently => PushPermission.denied,
+        AuthorizationStatus.notDetermined => PushPermission.undetermined,
+      };
+    },
+  );
+  ref.onDispose(sync.dispose);
+  final lifecycle = AppLifecycleListener(
+    onResume: sync.resume,
+    onPause: sync.pause,
+  );
+  ref.onDispose(lifecycle.dispose);
+  // Listen before fetching the current token: an SDK refresh can happen during
+  // startup, permission prompts, or a slow registration request.
+  final tokenSubscription = messaging.onTokenRefresh.listen((_) {
+    unawaited(sync.synchronize());
+  });
+  ref.onDispose(() => unawaited(tokenSubscription.cancel()));
   final notifications = FlutterLocalNotificationsPlugin();
   await notifications
-      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(const AndroidNotificationChannel(
-        'soulbuddy_morning_v1',
-        'Morning prayer',
-        description: 'A daily invitation to pray at 5:30 a.m.',
-        importance: Importance.high,
-      ));
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'soulbuddy_morning_v1',
+          'Morning prayer',
+          description: 'A daily invitation to pray at 5:30 a.m.',
+          importance: Importance.high,
+        ),
+      );
 
-  Future<void> register(String? pushToken) async {
-    final session = await readToken();
-    if (session == null || session.isEmpty) return;
-    final base = Uri.tryParse(AppConfig.apiBaseUrl);
-    if (base == null || !base.hasScheme) return;
-    try {
-      final zone = (await FlutterTimezone.getLocalTimezone()).identifier;
-      await client.post(
-        base.resolve('/api/installations/push'),
-        headers: {
-          'authorization': 'Bearer $session',
-          'accept': 'application/json',
-          'content-type': 'application/json',
-        },
-        body: jsonEncode({
-          'device_id': identity.deviceId,
-          'push_token': pushToken,
-          'time_zone': zone,
-        }),
-      ).timeout(const Duration(seconds: 15));
-    } on Exception {
-      // Retry on app resume or token refresh when the network returns.
-    }
-  }
-
-  Future<void> registerCurrent() async {
-    try {
-      final settings = await FirebaseMessaging.instance.requestPermission();
-      final allowed = settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
-      await register(allowed ? await FirebaseMessaging.instance.getToken() : null);
-    } on Exception {
-      // Notification permission and Google Play services can be unavailable.
-    }
-  }
-
-  await registerCurrent();
-  final tokenSubscription = FirebaseMessaging.instance.onTokenRefresh.listen((token) {
-    unawaited(register(token));
-  });
-  final openSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+  if (!ref.mounted) return;
+  final openSubscription = FirebaseMessaging.onMessageOpenedApp.listen((
+    message,
+  ) {
     if (message.data['kind'] == 'morning') appRouter.go('/today');
   });
   final foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
     if (message.data['kind'] != 'morning') return;
-    unawaited(notifications.show(
-      id: 530,
-      title: message.notification?.title ?? 'Begin with God',
-      body: message.notification?.body ?? 'A new day to pray, listen, and plant something good.',
-      notificationDetails: const NotificationDetails(android: AndroidNotificationDetails(
-        'soulbuddy_morning_v1',
-        'Morning prayer',
-        channelDescription: 'A daily invitation to pray at 5:30 a.m.',
-        importance: Importance.high,
-        priority: Priority.high,
-      )),
-    ));
+    unawaited(
+      () async {
+        await scheduler.initialize();
+        if (!ref.mounted) return;
+        await notifications.show(
+          id: 530,
+          title: message.notification?.title ?? 'Begin with God',
+          body:
+              message.notification?.body ??
+              'A new day to pray, listen, and plant something good.',
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'soulbuddy_morning_v1',
+              'Morning prayer',
+              channelDescription: 'A daily invitation to pray at 5:30 a.m.',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+          ),
+        );
+      }().catchError((Object error) {
+        debugPrint(
+          'Morning notification could not be displayed (${error.runtimeType}).',
+        );
+      }),
+    );
   });
+  ref.onDispose(() {
+    unawaited(openSubscription.cancel());
+    unawaited(foregroundSubscription.cancel());
+  });
+  await sync.synchronize();
+  if (!ref.mounted) return;
   try {
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage?.data['kind'] == 'morning') {
-      WidgetsBinding.instance.addPostFrameCallback((_) => appRouter.go('/today'));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => appRouter.go('/today'),
+      );
     }
   } on Exception {
     // Token registration and later notifications remain active.
   }
-  final lifecycle = AppLifecycleListener(onResume: () => unawaited(registerCurrent()));
-  ref.onDispose(() {
-    unawaited(tokenSubscription.cancel());
-    unawaited(openSubscription.cancel());
-    unawaited(foregroundSubscription.cancel());
-    lifecycle.dispose();
-  });
 });

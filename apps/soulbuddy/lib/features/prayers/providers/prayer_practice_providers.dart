@@ -260,9 +260,12 @@ final prayerReminderPauseProvider = Provider<Future<void> Function(String)>((
     final repository = await ref.read(prayerPracticeRepositoryProvider.future);
     final device = await repository.watchDevice(reminderId).first;
     if (device?.enabledOnDevice == true) {
-      await ref
-          .read(prayerReminderSchedulerProvider)
-          .cancel(device!.platformNotificationId);
+      final scheduler = ref.read(prayerReminderSchedulerProvider);
+      for (final id in PrayerReminderCoordinator.platformNotificationIds(
+        device!.platformNotificationId,
+      )) {
+        await scheduler.cancel(id);
+      }
     }
     await repository.setDeviceEnabled(reminderId, enabled: false);
   };
@@ -275,9 +278,12 @@ final prayerReminderRemoveProvider = Provider<Future<void> Function(String)>((
     final repository = await ref.read(prayerPracticeRepositoryProvider.future);
     final device = await repository.watchDevice(reminderId).first;
     if (device?.enabledOnDevice == true) {
-      await ref
-          .read(prayerReminderSchedulerProvider)
-          .cancel(device!.platformNotificationId);
+      final scheduler = ref.read(prayerReminderSchedulerProvider);
+      for (final id in PrayerReminderCoordinator.platformNotificationIds(
+        device!.platformNotificationId,
+      )) {
+        await scheduler.cancel(id);
+      }
     }
     await repository.archiveReminder(reminderId);
   };

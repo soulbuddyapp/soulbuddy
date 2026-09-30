@@ -30,6 +30,7 @@ class SacredHourReminderCoordinator {
 
   final SacredHourRepository _repository;
   final PrayerReminderScheduler _scheduler;
+  bool _initialized = false;
   final SacredHourAlarmPermission _exactAlarmPermission;
   final DateTime Function() _clock;
   late final StreamController<SacredHourOpened> _events =
@@ -56,6 +57,7 @@ class SacredHourReminderCoordinator {
         )
         .listen((response) => _enqueue(() => _handleResponse(response)));
     await _scheduler.initialize();
+    _initialized = true;
     _notificationsAllowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.permissionStatus() ==
@@ -94,9 +96,15 @@ class SacredHourReminderCoordinator {
     return allowed;
   }
 
-  Future<void> refresh() => _enqueue(_reconcile);
+  // Permission and platform alarms may change independently of saved rows.
+  Future<void> refresh() => _enqueue(() => _reconcile(rearm: true));
 
-  Future<void> _reconcile() async {
+  Future<void> _reconcile({bool rearm = false}) async {
+    if (!_initialized) return;
+    _notificationsAllowed =
+        !_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() ==
+            NotificationPermissionStatus.granted;
     if (!_notificationsAllowed || !_scheduler.supportsSystemNotifications) {
       return;
     }
@@ -132,7 +140,8 @@ class SacredHourReminderCoordinator {
       for (final notification in desired) {
         final wantedSignature =
             desiredById[notification.platformNotificationId]!;
-        if (previous?[notification.platformNotificationId] == wantedSignature) {
+        if (!rearm &&
+            previous?[notification.platformNotificationId] == wantedSignature) {
           scheduledNow[notification.platformNotificationId] = wantedSignature;
           continue;
         }

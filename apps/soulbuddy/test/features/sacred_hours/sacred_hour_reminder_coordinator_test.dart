@@ -9,6 +9,42 @@ import 'package:soulbuddy/features/sacred_hours/data/sacred_hour_repository.dart
 import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 
 void main() {
+  for (final initiallyAllowed in [false, true]) {
+    test(
+      'refresh rearms Sacred Hours after permission or alarm loss ($initiallyAllowed)',
+      () async {
+        final repository = _Repository();
+        final scheduler = _Scheduler()
+          ..permission = initiallyAllowed
+              ? NotificationPermissionStatus.granted
+              : NotificationPermissionStatus.denied;
+        final coordinator = SacredHourReminderCoordinator(
+          repository: repository,
+          scheduler: scheduler,
+          exactAlarmPermission: _ExactPermission(
+            ExactAlarmPermissionStatus.denied,
+          ),
+          clock: () => DateTime.utc(2026, 9, 30),
+        );
+        addTearDown(coordinator.dispose);
+        repository.hours['hour-1'] = _hour();
+        repository.currentDeliveries = [
+          _delivery(next: DateTime.utc(2026, 10, 1, 5)),
+        ];
+        await coordinator.start();
+        await pumpEventQueue();
+        scheduler.scheduled.clear(); // Simulate an alarm removed by Android.
+        scheduler.permission = NotificationPermissionStatus.granted;
+        await coordinator.refresh();
+        expect(scheduler.scheduled, hasLength(1));
+        expect(
+          scheduler.scheduled.single.recurrence,
+          ReminderNotificationRecurrence.daily,
+        );
+      },
+    );
+  }
+
   test(
     'schedules one daily wall-time reminder with the chosen sound',
     () async {
@@ -111,6 +147,9 @@ void main() {
     await pumpEventQueue();
 
     expect(scheduler.cancelled, contains(_alarmId(101)));
+    scheduler.scheduled.clear();
+    await coordinator.refresh();
+    expect(scheduler.scheduled, isEmpty);
   });
 
   test('handles Begin, snooze, and Not now once per occurrence', () async {
@@ -341,6 +380,7 @@ class _Scheduler implements PrayerReminderScheduler {
   final scheduled = <PrayerScheduledNotification>[];
   final cancelled = <int>[];
   var throwOnFirstExact = false;
+  var permission = NotificationPermissionStatus.granted;
 
   @override
   Stream<PrayerReminderResponse> get responses => responsesController.stream;
@@ -371,8 +411,7 @@ class _Scheduler implements PrayerReminderScheduler {
   Future<void> initialize() async {}
 
   @override
-  Future<NotificationPermissionStatus> permissionStatus() async =>
-      NotificationPermissionStatus.granted;
+  Future<NotificationPermissionStatus> permissionStatus() async => permission;
 
   @override
   Future<bool> requestPermission() async => true;

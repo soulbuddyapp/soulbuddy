@@ -37,6 +37,12 @@ per installation after notification permission is granted. The scheduler sends
 after 5:30 a.m. local time, records successful sends by local date, and retries
 failed sends on later ticks.
 
+On 2026-09-30, the notification-only hotfix went live as
+`20260930-notification-recovery-5a855be`: release
+`20260921-morning-push-d900ebe` with three notification files from `5a855be`
+overlaid. Both the host and Snap mirror release pointers were updated;
+health and cron checks passed. Other new API features were not deployed.
+
 Production choices:
 
 - `DB_CONNECTION=mariadb` with `DB_SOCKET=/run/mysqld/mysqld.sock`

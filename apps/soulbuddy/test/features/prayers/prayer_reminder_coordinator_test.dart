@@ -14,6 +14,115 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final now = DateTime.utc(2026, 8, 11, 5);
 
+  for (final savedAt in [
+    DateTime.utc(2026, 8, 11, 6, 30),
+    DateTime.utc(2026, 7, 1, 6, 30),
+  ]) {
+    test('rearms saved daily prayer without another edit ($savedAt)', () async {
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+      repository.emit([_occurrence(nextAt: savedAt)]);
+      await pumpEventQueue();
+      expect(scheduler.scheduled, hasLength(1));
+      expect(
+        scheduler.scheduled.single.recurrence,
+        ReminderNotificationRecurrence.daily,
+      );
+      expect(scheduler.scheduled.single.scheduledAtUtc.isAfter(now), isTrue);
+      scheduler.scheduled.clear();
+      await coordinator.reconcileNow();
+      expect(scheduler.scheduled, hasLength(1));
+    });
+  }
+
+  test(
+    'recurring action deduplication uses the current occurrence, not the original payload',
+    () async {
+      var current = DateTime.utc(2026, 8, 11, 7);
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = PrayerReminderCoordinator(
+        repository: repository,
+        scheduler: scheduler,
+        calculator: TimezonePrayerOccurrenceCalculator.initialize(),
+        clock: () => current,
+        timezoneName: () async => 'UTC',
+      );
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+      final stale = _occurrence(nextAt: DateTime.utc(2026, 7, 1, 6, 30));
+      repository.emit([stale]);
+      await pumpEventQueue();
+      final response = _response(stale, PrayerReminderAction.prayed);
+      scheduler.emit(response);
+      await pumpEventQueue();
+      current = DateTime.utc(2026, 8, 12, 7);
+      scheduler.emit(response);
+      scheduler.emit(response);
+      await pumpEventQueue();
+      expect(repository.sessionRecords.map((r) => r.occurrenceKey), [
+        'reminder-1@2026-08-11T06:30:00.000Z',
+        'reminder-1@2026-08-12T06:30:00.000Z',
+      ]);
+    },
+  );
+
+  test(
+    'database advancement does not repeat the same notification action',
+    () async {
+      final current = DateTime.utc(2026, 8, 11, 7);
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler();
+      final coordinator = _coordinator(repository, scheduler, now: current);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+      final original = _occurrence(nextAt: DateTime.utc(2026, 8, 11, 6, 30));
+      repository.emit([original]);
+      await pumpEventQueue();
+      final response = _response(original, PrayerReminderAction.prayed);
+      scheduler.emit(response);
+      await pumpEventQueue();
+      repository.emit([_occurrence(nextAt: DateTime.utc(2026, 8, 12, 6, 30))]);
+      await pumpEventQueue();
+      scheduler.emit(response);
+      await pumpEventQueue();
+      expect(repository.sessionRecords, hasLength(1));
+    },
+  );
+
+  test('snooze is one-shot and preserves the daily prayer time', () async {
+    final repository = _FakePrayerPracticeRepository();
+    final scheduler = _FakePrayerReminderScheduler();
+    final coordinator = _coordinator(repository, scheduler, now: now);
+    addTearDown(coordinator.dispose);
+    await coordinator.start();
+    repository.emit([
+      _occurrence(
+        nextAt: DateTime.utc(2026, 8, 11, 4, 59),
+        snoozedUntil: DateTime.utc(2026, 8, 11, 5, 10),
+      ),
+    ]);
+    await pumpEventQueue();
+    expect(scheduler.scheduled, hasLength(2));
+    expect(
+      scheduler.scheduled
+          .where((n) => n.recurrence == ReminderNotificationRecurrence.daily)
+          .single
+          .scheduledAtUtc,
+      DateTime.utc(2026, 8, 11, 6, 30),
+    );
+    expect(
+      scheduler.scheduled
+          .where((n) => n.recurrence == ReminderNotificationRecurrence.once)
+          .single
+          .scheduledAtUtc,
+      DateTime.utc(2026, 8, 11, 5, 10),
+    );
+  });
+
   test(
     'device opt-in requests permission once and schedules only when granted',
     () async {
@@ -37,6 +146,21 @@ void main() {
         scheduler.scheduled.single.scheduledAtUtc,
         DateTime.utc(2026, 8, 11, 6, 30),
       );
+    },
+  );
+
+  test(
+    'device opt-in recovers after permission is granted in settings',
+    () async {
+      final repository = _FakePrayerPracticeRepository();
+      final scheduler = _FakePrayerReminderScheduler(permissionGranted: false);
+      final coordinator = _coordinator(repository, scheduler, now: now);
+      addTearDown(coordinator.dispose);
+      await coordinator.start();
+      expect(await coordinator.enableOnThisDevice('reminder-1'), isFalse);
+      scheduler.permissionGranted = true;
+      expect(await coordinator.enableOnThisDevice('reminder-1'), isTrue);
+      expect(repository.deviceChanges.last, ('reminder-1', true));
     },
   );
 
@@ -92,7 +216,8 @@ void main() {
         ),
       ]);
       await pumpEventQueue();
-      expect(scheduler.callOrder.take(2), ['cancel:77', 'schedule:77']);
+      expect(scheduler.callOrder.first, 'cancel:77');
+      expect(scheduler.callOrder.last, 'schedule:77');
       expect(
         repository.scheduleChanges.last.nextOccurrenceAt,
         DateTime.utc(2026, 8, 11, 6, 30),
@@ -152,10 +277,29 @@ void main() {
       ]);
       await pumpEventQueue(times: 20);
 
+      expect(scheduler.scheduled, hasLength(3));
+      expect(scheduler.scheduled.map((n) => n.scheduledAtUtc.weekday).toSet(), {
+        1,
+        3,
+        5,
+      });
       expect(
-        scheduler.scheduled.single.recurrence,
-        ReminderNotificationRecurrence.weekly,
+        scheduler.scheduled.map((n) => n.platformNotificationId).toSet(),
+        hasLength(3),
       );
+      expect(
+        scheduler.scheduled.every(
+          (n) => n.recurrence == ReminderNotificationRecurrence.weekly,
+        ),
+        isTrue,
+      );
+      final ids = scheduler.scheduled
+          .map((n) => n.platformNotificationId)
+          .toSet();
+      scheduler.cancelled.clear();
+      repository.emit([]);
+      await pumpEventQueue();
+      expect(scheduler.cancelled, containsAll(ids));
     },
   );
 
@@ -497,28 +641,30 @@ DuePrayerOccurrence _occurrence({
   String reminderId = 'reminder-1',
   required DateTime? nextAt,
   bool once = false,
+  DateTime? snoozedUntil,
   String scheduledTimezone = 'UTC',
   int localHour = 6,
   PrayerLocalTime? localTime,
   DateTime? reminderUpdatedAt,
   PrayerReminderSchedule? schedule,
 }) {
-  final resolvedSchedule = schedule ??
+  final resolvedSchedule =
+      schedule ??
       (once
-      ? PrayerReminderSchedule.once(
-          localTime: PrayerLocalTime(hour: 4, minute: 59),
-          timezone: 'UTC',
-          onceAt: nextAt ?? DateTime.utc(2026, 8, 11, 4, 59),
-        )
-      : PrayerReminderSchedule.daily(
-          localTime:
-              localTime ??
-              PrayerLocalTime(
-                hour: localHour,
-                minute: localHour == 6 ? 30 : 0,
-              ),
-          timezone: 'UTC',
-        ));
+          ? PrayerReminderSchedule.once(
+              localTime: PrayerLocalTime(hour: 4, minute: 59),
+              timezone: 'UTC',
+              onceAt: nextAt ?? DateTime.utc(2026, 8, 11, 4, 59),
+            )
+          : PrayerReminderSchedule.daily(
+              localTime:
+                  localTime ??
+                  PrayerLocalTime(
+                    hour: localHour,
+                    minute: localHour == 6 ? 30 : 0,
+                  ),
+              timezone: 'UTC',
+            ));
   return DuePrayerOccurrence(
     reminder: PrayerReminder(
       id: reminderId,
@@ -537,6 +683,7 @@ DuePrayerOccurrence _occurrence({
       nextOccurrenceAt: nextAt,
       platformNotificationId: 77,
       scheduledTimezone: scheduledTimezone,
+      snoozedUntil: snoozedUntil,
       updatedAt: DateTime.utc(2026),
     ),
     prayerTitle: 'Morning prayer',
@@ -705,7 +852,7 @@ class _FakePrayerReminderScheduler implements PrayerReminderScheduler {
     this.initializeResponse,
     this.supportsSystemNotifications = true,
   });
-  final bool permissionGranted;
+  bool permissionGranted;
   final PrayerReminderResponse? initializeResponse;
   @override
   final bool supportsSystemNotifications;
