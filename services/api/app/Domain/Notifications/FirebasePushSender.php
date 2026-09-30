@@ -3,8 +3,10 @@
 namespace App\Domain\Notifications;
 
 use Firebase\JWT\JWT;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class FirebasePushSender
@@ -16,7 +18,50 @@ class FirebasePushSender
             throw new RuntimeException('Firebase project is not configured.');
         }
 
-        $response = Http::withToken($this->accessToken())
+        $response = $this->send($project, $deviceToken);
+        if ($response->status() === 401) {
+            // A revoked or stale cached credential must not block the next 50 minutes.
+            Cache::forget('firebase_messaging_access_token');
+            $response = $this->send($project, $deviceToken);
+        }
+        if ($response->successful()) {
+            return true;
+        }
+
+        $code = $this->errorCode($response);
+        Log::warning('Firebase morning notification rejected.', [
+            'http_status' => $response->status(),
+            'error_code' => $code,
+        ]);
+        if ($code === 'UNREGISTERED') {
+            throw new UnregisteredPushToken;
+        }
+
+        return false;
+    }
+
+    private function errorCode(Response $response): string
+    {
+        $details = $response->json('error.details');
+        foreach (is_array($details) ? $details : [] as $detail) {
+            if (! is_array($detail) || ($detail['@type'] ?? null) !== 'type.googleapis.com/google.firebase.fcm.v1.FcmError') {
+                continue;
+            }
+            $code = $detail['errorCode'] ?? null;
+            if (in_array($code, ['UNREGISTERED', 'INVALID_ARGUMENT', 'SENDER_ID_MISMATCH', 'QUOTA_EXCEEDED', 'UNAVAILABLE', 'INTERNAL', 'THIRD_PARTY_AUTH_ERROR'], true)) {
+                return $code;
+            }
+        }
+
+        $status = $response->json('error.status');
+
+        return in_array($status, ['INVALID_ARGUMENT', 'UNAUTHENTICATED', 'PERMISSION_DENIED', 'NOT_FOUND', 'RESOURCE_EXHAUSTED', 'UNAVAILABLE', 'INTERNAL'], true)
+            ? $status : 'UNKNOWN';
+    }
+
+    private function send(string $project, string $deviceToken): Response
+    {
+        return Http::withToken($this->accessToken())
             ->timeout(15)
             ->post("https://fcm.googleapis.com/v1/projects/{$project}/messages:send", [
                 'message' => [
@@ -36,7 +81,6 @@ class FirebasePushSender
                 ],
             ]);
 
-        return $response->successful();
     }
 
     private function accessToken(): string
