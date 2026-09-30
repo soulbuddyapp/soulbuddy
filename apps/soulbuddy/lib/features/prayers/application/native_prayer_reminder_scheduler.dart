@@ -121,7 +121,17 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
       _responses ??= _client.responses.map(_decodeResponse);
 
   @override
-  Future<void> initialize() => _initialization ??= _client.initialize();
+  Future<void> initialize() => _initialization ??= _initialize();
+
+  Future<void> _initialize() async {
+    try {
+      await Future<void>.sync(_client.initialize);
+    } catch (_) {
+      // Keep concurrent callers coalesced, but do not cache a failed attempt.
+      _initialization = null;
+      rethrow;
+    }
+  }
 
   @override
   Future<bool> requestPermission() => _client.requestPermission();

@@ -28,7 +28,8 @@ void main() {
         reminderMinute: 30,
       ),
     );
-    final scheduler = _Scheduler();
+    final scheduler = _Scheduler()
+      ..permission = NotificationPermissionStatus.denied;
     final coordinator = DailyFormationReminderCoordinator(
       repository: repository,
       scheduler: scheduler,
@@ -36,6 +37,9 @@ void main() {
     );
 
     await coordinator.start();
+    expect(scheduler.scheduled, isEmpty);
+    scheduler.permission = NotificationPermissionStatus.granted;
+    await coordinator.reconcile();
 
     final notification = scheduler.scheduled.single;
     expect(notification.kind, ReminderNotificationKind.dailyFormation);
@@ -48,6 +52,7 @@ void main() {
 class _Scheduler implements PrayerReminderScheduler {
   final _events = StreamController<PrayerReminderResponse>.broadcast();
   final scheduled = <PrayerScheduledNotification>[];
+  var permission = NotificationPermissionStatus.granted;
 
   @override
   bool get supportsSystemNotifications => true;
@@ -64,8 +69,7 @@ class _Scheduler implements PrayerReminderScheduler {
   }
 
   @override
-  Future<NotificationPermissionStatus> permissionStatus() async =>
-      NotificationPermissionStatus.granted;
+  Future<NotificationPermissionStatus> permissionStatus() async => permission;
 
   @override
   Future<bool> requestPermission() async => true;

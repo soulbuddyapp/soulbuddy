@@ -8,6 +8,18 @@ on:
       - '.github/workflows/onboarding-goals.yml'
       - 'apps/soulbuddy/lib/app/**'
       - 'apps/soulbuddy/lib/core/database/**'
+      - 'apps/soulbuddy/lib/core/notifications/**'
+      - 'apps/soulbuddy/lib/features/*/application/*reminder*'
+      - 'apps/soulbuddy/lib/features/prayers/providers/prayer_practice_providers.dart'
+      - 'apps/soulbuddy/test/core/notifications/**'
+      - 'apps/soulbuddy/test/features/*/*reminder*'
+      - 'services/api/app/Domain/Notifications/**'
+      - 'services/api/app/Console/Commands/SendMorningNotifications.php'
+      - 'services/api/app/Http/Controllers/Api/InstallationPushController.php'
+      - 'services/api/app/Http/Controllers/Api/InstallationSessionController.php'
+      - 'services/api/app/Models/AppInstallation.php'
+      - 'services/api/routes/console.php'
+      - 'services/api/tests/Feature/Notifications/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
       - 'apps/soulbuddy/lib/features/commitments/**'
@@ -61,6 +73,18 @@ on:
       - '.github/workflows/onboarding-goals.yml'
       - 'apps/soulbuddy/lib/app/**'
       - 'apps/soulbuddy/lib/core/database/**'
+      - 'apps/soulbuddy/lib/core/notifications/**'
+      - 'apps/soulbuddy/lib/features/*/application/*reminder*'
+      - 'apps/soulbuddy/lib/features/prayers/providers/prayer_practice_providers.dart'
+      - 'apps/soulbuddy/test/core/notifications/**'
+      - 'apps/soulbuddy/test/features/*/*reminder*'
+      - 'services/api/app/Domain/Notifications/**'
+      - 'services/api/app/Console/Commands/SendMorningNotifications.php'
+      - 'services/api/app/Http/Controllers/Api/InstallationPushController.php'
+      - 'services/api/app/Http/Controllers/Api/InstallationSessionController.php'
+      - 'services/api/app/Models/AppInstallation.php'
+      - 'services/api/routes/console.php'
+      - 'services/api/tests/Feature/Notifications/**'
       - 'apps/soulbuddy/lib/features/onboarding/**'
       - 'apps/soulbuddy/lib/features/goals/**'
       - 'apps/soulbuddy/lib/features/commitments/**'
@@ -185,6 +209,9 @@ jobs:
       - name: Run focused onboarding / Goals tests
         run: flutter test test/architecture/product_invariants_test.dart test/features/editorial/archived_prayer_history_test.dart test/features/onboarding test/features/goals test/features/commitments test/features/scripture test/features/today/today_prayer_test.dart test/features/prayers/personal_prayer_repository_test.dart test/features/prayers/prayer_generation_repository_test.dart
 
+      - name: Run notification recovery regressions
+        run: flutter test test/core/notifications test/features/prayers/prayer_reminder_coordinator_test.dart test/features/prayers/prayer_reminder_scheduler_test.dart test/features/sacred_hours/sacred_hour_reminder_coordinator_test.dart test/features/persons/person_prayer_reminder_scheduler_test.dart test/features/altar/altar_reminder_coordinator_test.dart test/features/circles/circle_reminder_coordinator_test.dart test/features/daily_formation/daily_formation_reminder_coordinator_test.dart
+
   laravel-goals:
     name: Laravel Goal sync
     runs-on: ubuntu-latest
@@ -229,4 +256,4 @@ jobs:
         run: ./vendor/bin/pint --test app/Domain/Sync/CommitmentSyncMutationValidator.php app/Domain/Sync/CommitmentSyncMutationWriter.php app/Models/Commitment*.php database/migrations/*commitment*.php app/Domain/Sync/ApplyCompositeSyncMutation.php app/Domain/Sync/ApplyGoalSyncMutation.php app/Domain/Sync/GoalSyncMutationValidator.php app/Domain/Sync/GoalSyncMutationWriter.php app/Domain/Sync/SyncOperationIdentity.php app/Http/Controllers/Api/SyncMutationController.php app/Models/Goal.php app/Models/GoalAction.php app/Models/GoalActionEvent.php app/Models/GoalLink.php app/Models/GoalRevision.php app/Policies/GoalPolicy.php database/migrations/*goal*.php tests/Feature/Goals tests/Feature/Commitments tests/Feature/Sync/CommitmentMutationTest.php tests/Feature/Sync/GoalMutationTest.php
 
       - name: Run Goal and invariant tests
-        run: php artisan test tests/Feature/Goals tests/Feature/Commitments tests/Feature/Sync/CommitmentMutationTest.php tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php
+        run: php artisan test tests/Feature/Goals tests/Feature/Commitments tests/Feature/Sync/CommitmentMutationTest.php tests/Feature/Sync/GoalMutationTest.php tests/Architecture/SyntheticSpiritualContentTest.php tests/Feature/PrayerDraft/PrayerGenerationRetirementTest.php tests/Feature/Notifications

@@ -32,6 +32,7 @@ class PersonPrayerReminderCoordinator {
 
   final PersonRepository _repository;
   final PrayerReminderScheduler _scheduler;
+  bool _initialized = false;
   final Future<String> Function() _timezoneName;
   final Future<bool> Function()? _requestExactTiming;
   final DateTime Function() _clock;
@@ -65,6 +66,7 @@ class PersonPrayerReminderCoordinator {
       });
     });
     await _scheduler.initialize();
+    _initialized = true;
     _allowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.permissionStatus() ==
@@ -87,7 +89,15 @@ class PersonPrayerReminderCoordinator {
     return _allowed;
   }
 
-  Future<void> _reconcile() async {
+  // Permission and platform alarms may change independently of saved rows.
+  Future<void> refresh() => _enqueue(() => _reconcile(rearm: true));
+
+  Future<void> _reconcile({bool rearm = false}) async {
+    if (!_initialized) return;
+    _allowed =
+        !_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() ==
+            NotificationPermissionStatus.granted;
     if (!_allowed || !_scheduler.supportsSystemNotifications) return;
     final observed = <String>{};
     final fallbackTimezone = await _fallbackTimezone();
@@ -116,7 +126,7 @@ class PersonPrayerReminderCoordinator {
       final scheduledNow = <int, String>{};
       for (final item in desired) {
         final signature = desiredById[item.platformNotificationId]!;
-        if (previous?[item.platformNotificationId] != signature) {
+        if (rearm || previous?[item.platformNotificationId] != signature) {
           final actual = await _scheduleWithFallback(item);
           scheduledNow[item.platformNotificationId] = _signature(actual);
         } else {

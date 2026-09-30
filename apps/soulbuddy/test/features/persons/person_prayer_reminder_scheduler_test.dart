@@ -11,7 +11,8 @@ import 'package:soulbuddy/features/record/domain/encounter.dart';
 void main() {
   test('schedules daily person reminder with clear private copy', () async {
     final repository = _Repository();
-    final scheduler = _Scheduler();
+    final scheduler = _Scheduler()
+      ..permission = NotificationPermissionStatus.denied;
     final coordinator = PersonPrayerReminderCoordinator(
       repository: repository,
       scheduler: scheduler,
@@ -22,6 +23,13 @@ void main() {
     await coordinator.start();
     repository.people.add([_person()]);
     await pumpEventQueue();
+
+    expect(scheduler.scheduled, isEmpty);
+    scheduler.permission = NotificationPermissionStatus.granted;
+    await coordinator.refresh();
+    expect(scheduler.scheduled, hasLength(1));
+    scheduler.scheduled.clear();
+    await coordinator.refresh();
 
     expect(scheduler.scheduled, hasLength(1));
     expect(scheduler.scheduled.single.kind, ReminderNotificationKind.person);

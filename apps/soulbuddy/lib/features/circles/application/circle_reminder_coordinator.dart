@@ -30,6 +30,7 @@ class CircleReminderCoordinator {
 
   final CircleReminderRepository _repository;
   final PrayerReminderScheduler _scheduler;
+  bool _initialized = false;
   final DateTime Function() _clock;
   late final StreamController<CircleReminderOpened> _events =
       StreamController<CircleReminderOpened>.broadcast(onListen: _flushEvents);
@@ -51,6 +52,7 @@ class CircleReminderCoordinator {
         .where((response) => response.kind == ReminderNotificationKind.circle)
         .listen(_handleResponse);
     await _scheduler.initialize();
+    _initialized = true;
     _notificationsAllowed =
         !_scheduler.supportsSystemNotifications ||
         await _scheduler.permissionStatus() ==
@@ -68,7 +70,15 @@ class CircleReminderCoordinator {
     return _notificationsAllowed;
   }
 
-  Future<void> _reconcile() async {
+  // Permission and platform alarms may change independently of saved rows.
+  Future<void> refresh() => _enqueue(() => _reconcile(rearm: true));
+
+  Future<void> _reconcile({bool rearm = false}) async {
+    if (!_initialized) return;
+    _notificationsAllowed =
+        !_scheduler.supportsSystemNotifications ||
+        await _scheduler.permissionStatus() ==
+            NotificationPermissionStatus.granted;
     if (!_notificationsAllowed || !_scheduler.supportsSystemNotifications) {
       return;
     }
@@ -86,7 +96,7 @@ class CircleReminderCoordinator {
     }
     for (final entry in next.entries) {
       final signature = _signature(entry.value);
-      if (_scheduled[entry.key]?.signature == signature) continue;
+      if (!rearm && _scheduled[entry.key]?.signature == signature) continue;
       await _scheduler.schedule(entry.value);
       _scheduled[entry.key] = (
         id: entry.value.platformNotificationId,

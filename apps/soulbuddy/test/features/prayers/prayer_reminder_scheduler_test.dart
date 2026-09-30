@@ -7,6 +7,15 @@ import 'package:soulbuddy/features/prayers/application/native_prayer_reminder_sc
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
 
 void main() {
+  test('initialization retries after a transient native failure', () async {
+    final client = _FakeNativeNotificationClient()..initializationFailures = 1;
+    final scheduler = NativePrayerReminderScheduler(client: client);
+    await expectLater(scheduler.initialize(), throwsStateError);
+    await scheduler.initialize();
+    await scheduler.initialize();
+    expect(client.initializeCalls, 2);
+  });
+
   test(
     'schedules one generic inexact notification with private payload',
     () async {
@@ -331,6 +340,7 @@ class _FakeNativeNotificationClient implements NativePrayerNotificationClient {
   final requests = <NativeNotificationRequest>[];
   final immediateRequests = <NativeImmediateNotificationRequest>[];
   int initializeCalls = 0;
+  int initializationFailures = 0;
   int permissionCalls = 0;
 
   @override
@@ -339,6 +349,7 @@ class _FakeNativeNotificationClient implements NativePrayerNotificationClient {
   @override
   Future<void> initialize() async {
     initializeCalls++;
+    if (initializationFailures-- > 0) throw StateError('native unavailable');
   }
 
   @override
