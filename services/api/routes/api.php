@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PrayerNarrationController;
 use App\Http\Controllers\Api\PrayerNarrationPlaybackController;
 use App\Http\Controllers\Api\SyncMutationController;
 use App\Http\Controllers\Api\TelegramLinkCodeController;
+use App\Http\Controllers\Api\TelegramLinkStatusController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/scriptures/daily', DailyScriptureController::class)
@@ -31,6 +32,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/account/email/confirm', AccountEmailConfirmationController::class)
         ->middleware('throttle:account-email-challenges');
     Route::post('/companions/telegram/link-codes', TelegramLinkCodeController::class)
+        ->middleware('throttle:account-email-challenges');
+    Route::get('/companions/telegram/link-codes/{id}', TelegramLinkStatusController::class)
+        ->whereUuid('id')
         ->middleware('throttle:account-email-challenges');
     Route::post('/installations/push', InstallationPushController::class);
     Route::get('/sync/token', PowerSyncTokenController::class);

@@ -2,13 +2,17 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+enum TelegramLinkState { pending, connected, expired }
+
 class TelegramLink {
   const TelegramLink({
+    required this.id,
     required this.code,
     required this.expiresAt,
     required this.startUrl,
   });
 
+  final String id;
   final String code;
   final DateTime expiresAt;
   final Uri? startUrl;
@@ -67,6 +71,7 @@ class TelegramLinkClient {
 
     final payload = jsonDecode(response.body);
     if (payload is! Map<String, dynamic> ||
+        payload['id'] is! String ||
         payload['code'] is! String ||
         payload['expires_at'] is! String) {
       throw const TelegramLinkException('The Telegram response is invalid.');
@@ -79,9 +84,50 @@ class TelegramLinkClient {
     }
 
     return TelegramLink(
+      id: payload['id'] as String,
       code: payload['code'] as String,
       expiresAt: expiresAt,
       startUrl: startUrl,
     );
+  }
+
+  Future<TelegramLinkState> status(String linkId) async {
+    if (!apiBaseUri.hasScheme || apiBaseUri.host.isEmpty) {
+      throw StateError('Telegram is unavailable.');
+    }
+    final token = await accessToken();
+    if (token == null || token.trim().isEmpty) {
+      throw StateError('A verified device session is required.');
+    }
+    final endpoint = apiBaseUri.replace(
+      path:
+          '${apiBaseUri.path.replaceFirst(RegExp(r'/$'), '')}/api/companions/telegram/link-codes/$linkId',
+      query: null,
+      fragment: null,
+    );
+    final response = await httpClient
+        .get(
+          endpoint,
+          headers: {
+            'accept': 'application/json',
+            'authorization': 'Bearer ${token.trim()}',
+          },
+        )
+        .timeout(requestTimeout);
+    if (response.statusCode != 200) {
+      throw const TelegramLinkException('Telegram status is unavailable.');
+    }
+    final payload = jsonDecode(response.body);
+    if (payload is! Map<String, dynamic> || payload['status'] is! String) {
+      throw const TelegramLinkException('The Telegram response is invalid.');
+    }
+    return switch (payload['status']) {
+      'pending' => TelegramLinkState.pending,
+      'connected' => TelegramLinkState.connected,
+      'expired' => TelegramLinkState.expired,
+      _ => throw const TelegramLinkException(
+        'The Telegram response is invalid.',
+      ),
+    };
   }
 }

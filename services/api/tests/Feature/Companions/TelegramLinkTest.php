@@ -5,16 +5,19 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
 
 function telegramLinkSession(): array
 {
+    config()->set('services.telegram.bot_username', 'soul_buddy_bot');
     $response = test()->postJson('/api/installations/session', [
         'owner_id' => (string) Str::uuid(),
         'device_id' => (string) Str::uuid(),
         'installation_secret' => Str::random(64),
     ])->assertCreated();
+    auth()->forgetGuards();
 
     return [
         User::query()->where('public_id', $response->json('owner_id'))->firstOrFail(),
@@ -29,7 +32,7 @@ it('issues a short lived Telegram link code without storing the raw code', funct
     $response = $this->withToken($token)
         ->postJson('/api/companions/telegram/link-codes')
         ->assertAccepted()
-        ->assertJsonStructure(['code', 'expires_at', 'start_url']);
+        ->assertJsonStructure(['id', 'code', 'expires_at', 'start_url']);
 
     expect($response->json('code'))->toMatch('/^[A-Za-z0-9_-]{32,64}$/')
         ->and($response->json('start_url'))->toBe(
@@ -38,6 +41,37 @@ it('issues a short lived Telegram link code without storing the raw code', funct
     $stored = DB::table('companion_link_codes')->sole();
     expect($stored->token_hash)->not->toBe($response->json('code'))
         ->and($stored->consumed_at)->toBeNull();
+});
+
+it('does not issue a link code until the bot username is configured', function () {
+    [, $token] = telegramLinkSession();
+    config()->set('services.telegram.bot_username', null);
+
+    $this->withToken($token)
+        ->postJson('/api/companions/telegram/link-codes')
+        ->assertServiceUnavailable();
+    expect(DB::table('companion_link_codes')->count())->toBe(0);
+});
+
+it('returns only the issuing users Telegram link state', function () {
+    [$first, $firstToken] = telegramLinkSession();
+    [$second] = telegramLinkSession();
+    config()->set('services.telegram.bot_username', 'soul_buddy_bot');
+    $id = $this->withToken($firstToken)
+        ->postJson('/api/companions/telegram/link-codes')
+        ->assertAccepted()
+        ->json('id');
+
+    Sanctum::actingAs($second, ['app']);
+    $this
+        ->getJson("/api/companions/telegram/link-codes/{$id}")
+        ->assertNotFound();
+    Sanctum::actingAs($first, ['app']);
+    $this
+        ->getJson("/api/companions/telegram/link-codes/{$id}")
+        ->assertOk()
+        ->assertJsonPath('id', $id)
+        ->assertJsonPath('status', 'pending');
 });
 
 it('binds a Telegram chat once after the webhook secret is verified', function () {

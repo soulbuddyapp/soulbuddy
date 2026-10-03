@@ -4,7 +4,7 @@ import 'package:soulbuddy/core/identity/telegram_link_client.dart';
 import 'package:soulbuddy/features/settings/presentation/telegram_link_section.dart';
 
 void main() {
-  testWidgets('opens the Telegram start link after creating a link code', (
+  testWidgets('shows Telegram steps before opening the bot', (
     tester,
   ) async {
     Uri? opened;
@@ -13,6 +13,7 @@ void main() {
         home: Scaffold(
           body: TelegramLinkSection(
             createLink: () async => TelegramLink(
+              id: 'challenge',
               code: 'code',
               expiresAt: DateTime.utc(2026, 10, 3, 7, 10),
               startUrl: Uri.parse('https://t.me/SoulBuddyBot?start=code'),
@@ -29,7 +30,13 @@ void main() {
     await tester.tap(find.text('Connect Telegram'));
     await tester.pumpAndSettle();
 
+    expect(find.text('1. Open SoulBuddy on Telegram'), findsOneWidget);
+    expect(find.text('2. Select Start'), findsOneWidget);
+    expect(find.text('3. Return after the confirmation message'), findsOneWidget);
+    expect(opened, isNull);
+
+    await tester.tap(find.text('Open Telegram'));
+    await tester.pumpAndSettle();
     expect(opened, Uri.parse('https://t.me/SoulBuddyBot?start=code'));
-    expect(find.text('Telegram opened.'), findsOneWidget);
   });
 }

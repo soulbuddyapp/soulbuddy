@@ -37,9 +37,31 @@ class TelegramLinkService
         $username = trim((string) config('services.telegram.bot_username'));
 
         return [
+            'id' => $id,
             'code' => $code,
             'expires_at' => $expiresAt->toIso8601String(),
             'start_url' => $username === '' ? null : "https://t.me/{$username}?start={$code}",
+        ];
+    }
+
+    /**
+     * @return array{id: string, expires_at: string, status: string}
+     */
+    public function status(User $user, string $id): array
+    {
+        $link = DB::table('companion_link_codes')
+            ->where('id', $id)
+            ->where('user_id', $user->id)
+            ->where('channel', 'telegram')
+            ->first();
+        abort_if($link === null, 404);
+
+        return [
+            'id' => $link->id,
+            'expires_at' => now()->parse($link->expires_at)->toIso8601String(),
+            'status' => $link->consumed_at !== null
+                ? 'connected'
+                : (now()->greaterThan($link->expires_at) ? 'expired' : 'pending'),
         ];
     }
 
