@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\AccountEmailChallengeController;
+use App\Http\Controllers\Api\AccountEmailConfirmationController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleReportController;
 use App\Http\Controllers\Api\DailyScriptureController;
@@ -23,6 +25,10 @@ Route::post('/installations/session', InstallationSessionController::class)
     ->middleware('throttle:installation-sessions');
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/account/email/challenges', AccountEmailChallengeController::class)
+        ->middleware('throttle:account-email-challenges');
+    Route::post('/account/email/confirm', AccountEmailConfirmationController::class)
+        ->middleware('throttle:account-email-challenges');
     Route::post('/installations/push', InstallationPushController::class);
     Route::get('/sync/token', PowerSyncTokenController::class);
     Route::post('/sync/mutations', SyncMutationController::class);
