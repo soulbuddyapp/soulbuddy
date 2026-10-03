@@ -8,6 +8,7 @@ import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/feedback/completion_feedback.dart';
+import '../../../core/identity/local_identity_providers.dart';
 import '../../persons/providers/person_providers.dart';
 import '../../prayers/domain/library_prayer.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
@@ -18,6 +19,7 @@ import '../../sacred_hours/domain/sacred_hour.dart';
 import '../../sacred_hours/presentation/sacred_hour_editor_sheet.dart';
 import '../../sacred_hours/presentation/sacred_hours_settings_section.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
+import 'account_email_link_section.dart';
 
 final privacyPolicyUri = Uri.parse('https://sbuddy.elbiblio.com/privacy');
 
@@ -60,6 +62,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/orientation'),
               ),
+              const SizedBox(height: AppSpacing.lg),
+              const _AccountEmailSettingsHost(),
+              const SizedBox(height: AppSpacing.xl),
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 680),
@@ -161,6 +166,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
     if (mounted) setState(() => _testResult = result);
   }
+}
+
+class _AccountEmailSettingsHost extends ConsumerWidget {
+  const _AccountEmailSettingsHost();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => AccountEmailLinkSection(
+    requestLink: ref.read(accountEmailLinkClientProvider).request,
+  );
 }
 
 class _SacredHoursSettingsHost extends ConsumerWidget {
