@@ -120,3 +120,27 @@ it('acknowledges a successful Telegram link without exposing private content', f
         && $request['chat_id'] === '123456789'
         && $request['text'] === 'SoulBuddy connected. Daily notes are off.');
 });
+
+it('sends the reviewed daily scripture to a linked private chat on request', function () {
+    [, $token] = telegramLinkSession();
+    config()->set('services.telegram.webhook_secret', 'webhook-secret');
+    config()->set('services.telegram.bot_token', 'bot-token');
+    Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
+    $code = $this->withToken($token)
+        ->postJson('/api/companions/telegram/link-codes')
+        ->assertAccepted()
+        ->json('code');
+    $headers = ['X-Telegram-Bot-Api-Secret-Token' => 'webhook-secret'];
+    $this->withHeaders($headers)->postJson('/integrations/telegram/webhook', [
+        'message' => ['chat' => ['id' => 123456789, 'type' => 'private'], 'text' => '/start '.$code],
+    ])->assertOk();
+    Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
+
+    $this->withHeaders($headers)->postJson('/integrations/telegram/webhook', [
+        'message' => ['chat' => ['id' => 123456789, 'type' => 'private'], 'text' => '/today'],
+    ])->assertOk()->assertJsonPath('delivered', true);
+
+    Http::assertSent(fn ($request) => str_contains($request->url(), '/botbot-token/sendMessage')
+        && $request['chat_id'] === '123456789'
+        && str_contains($request['text'], 'Practice:'));
+});

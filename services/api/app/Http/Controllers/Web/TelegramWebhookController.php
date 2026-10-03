@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Domain\Companions\TelegramBotSender;
 use App\Domain\Companions\TelegramLinkService;
+use App\Domain\Scripture\DailyScripture;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class TelegramWebhookController extends Controller
         Request $request,
         TelegramLinkService $links,
         TelegramBotSender $sender,
+        DailyScripture $scriptures,
     ): JsonResponse {
         $expected = (string) config('services.telegram.webhook_secret');
         $received = (string) $request->header('X-Telegram-Bot-Api-Secret-Token');
@@ -29,6 +31,19 @@ class TelegramWebhookController extends Controller
             return response()->json(['linked' => false]);
         }
         $text = $message['text'] ?? null;
+        $chatId = (string) $message['chat']['id'];
+        if ($text === '/today') {
+            $connected = \DB::table('telegram_connections')
+                ->where('chat_id', $chatId)
+                ->exists();
+
+            return response()->json([
+                'delivered' => $connected && $sender->sendDailyScripture(
+                    $chatId,
+                    $scriptures->forDate(now()->toDateString()),
+                ),
+            ]);
+        }
         if (! is_string($text) || ! preg_match('/^\\/start\\s+([A-Za-z0-9_-]{32,64})$/', trim($text), $matches)) {
             return response()->json(['linked' => false]);
         }
@@ -38,7 +53,6 @@ class TelegramWebhookController extends Controller
             ? $from['username']
             : null;
 
-        $chatId = (string) $message['chat']['id'];
         $linked = $links->consume($matches[1], $chatId, $username);
 
         return response()->json([
