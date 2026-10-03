@@ -20,6 +20,7 @@ import '../../sacred_hours/presentation/sacred_hour_editor_sheet.dart';
 import '../../sacred_hours/presentation/sacred_hours_settings_section.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
 import 'account_email_link_section.dart';
+import 'telegram_link_section.dart';
 
 final privacyPolicyUri = Uri.parse('https://sbuddy.elbiblio.com/privacy');
 
@@ -64,6 +65,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               const _AccountEmailSettingsHost(),
+              const SizedBox(height: AppSpacing.lg),
+              _TelegramSettingsHost(openUri: widget.openUri),
               const SizedBox(height: AppSpacing.xl),
               Center(
                 child: ConstrainedBox(
@@ -174,6 +177,18 @@ class _AccountEmailSettingsHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => AccountEmailLinkSection(
     requestLink: ref.read(accountEmailLinkClientProvider).request,
+  );
+}
+
+class _TelegramSettingsHost extends ConsumerWidget {
+  const _TelegramSettingsHost({required this.openUri});
+
+  final ExternalUriLauncher openUri;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => TelegramLinkSection(
+    createLink: ref.read(telegramLinkClientProvider).createLink,
+    openUri: openUri,
   );
 }
 

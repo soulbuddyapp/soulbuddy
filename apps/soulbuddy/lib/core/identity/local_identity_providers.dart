@@ -7,6 +7,7 @@ import '../config/app_config.dart';
 import 'account_email_link_client.dart';
 import 'installation_session.dart';
 import 'local_identity.dart';
+import 'telegram_link_client.dart';
 
 const localOwnerIdStorageKey = 'soulbuddy.local_owner_id';
 const deviceIdStorageKey = 'soulbuddy.device_id';
@@ -47,6 +48,16 @@ final accountEmailLinkClientProvider = Provider<AccountEmailLinkClient>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
   return AccountEmailLinkClient(
+    apiBaseUri: Uri.tryParse(AppConfig.apiBaseUrl) ?? Uri(),
+    accessToken: ref.watch(appSessionTokenReaderProvider),
+    httpClient: client,
+  );
+});
+
+final telegramLinkClientProvider = Provider<TelegramLinkClient>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return TelegramLinkClient(
     apiBaseUri: Uri.tryParse(AppConfig.apiBaseUrl) ?? Uri(),
     accessToken: ref.watch(appSessionTokenReaderProvider),
     httpClient: client,
