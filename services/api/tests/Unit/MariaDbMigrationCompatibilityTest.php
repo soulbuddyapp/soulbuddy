@@ -58,3 +58,22 @@ it('uses datetime columns for commitment session boundaries', function () {
         ->not->toContain("timestamp('started_at')")
         ->not->toContain("timestamp('ended_at')");
 });
+
+it('uses datetime columns for account and companion link lifetimes', function () {
+    foreach ([
+        '2026_10_03_000000_create_account_challenges_table.php',
+        '2026_10_03_000001_create_telegram_companion_tables.php',
+    ] as $filename) {
+        $source = file_get_contents(
+            dirname(__DIR__, 2)."/database/migrations/{$filename}",
+        );
+
+        expect($source)
+            ->toContain("dateTime('expires_at')")
+            ->toContain("dateTime('consumed_at')")
+            ->toContain("dateTime('created_at')")
+            ->not->toContain("timestamp('expires_at')")
+            ->not->toContain("timestamp('consumed_at')")
+            ->not->toContain("timestamp('created_at')");
+    }
+});

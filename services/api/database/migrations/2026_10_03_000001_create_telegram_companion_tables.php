@@ -13,9 +13,9 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('channel', 40);
             $table->char('token_hash', 64)->unique();
-            $table->timestamp('expires_at');
-            $table->timestamp('consumed_at')->nullable();
-            $table->timestamp('created_at');
+            $table->dateTime('expires_at');
+            $table->dateTime('consumed_at')->nullable();
+            $table->dateTime('created_at');
 
             $table->index(['user_id', 'channel', 'expires_at']);
         });
