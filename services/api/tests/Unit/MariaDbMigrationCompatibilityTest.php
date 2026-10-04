@@ -46,3 +46,15 @@ it('provides MariaDB integrity implementations for every prayer migration', func
         expect(Str::contains($source, 'require SQLite or PostgreSQL'))->toBeFalse();
     }
 });
+
+it('uses datetime columns for commitment session boundaries', function () {
+    $source = file_get_contents(
+        dirname(__DIR__, 2).'/database/migrations/2026_09_24_000000_create_commitment_tables.php',
+    );
+
+    expect($source)
+        ->toContain("dateTime('started_at')")
+        ->toContain("dateTime('ended_at')")
+        ->not->toContain("timestamp('started_at')")
+        ->not->toContain("timestamp('ended_at')");
+});

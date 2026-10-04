@@ -69,8 +69,8 @@ return new class extends Migration
         Schema::create('commitment_meditation_sessions', function (Blueprint $table) {
             $this->identity($table);
             $table->enum('session_kind', ['meditation', 'listening']);
-            $table->timestamp('started_at');
-            $table->timestamp('ended_at');
+            $table->dateTime('started_at');
+            $table->dateTime('ended_at');
             $table->date('local_date');
             $table->unsignedInteger('planned_duration_seconds');
             $table->unsignedInteger('actual_duration_seconds');
