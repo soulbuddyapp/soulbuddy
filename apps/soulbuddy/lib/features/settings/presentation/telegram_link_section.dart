@@ -8,10 +8,12 @@ class TelegramLinkSection extends StatefulWidget {
   const TelegramLinkSection({
     super.key,
     required this.createLink,
+    required this.checkStatus,
     required this.openUri,
   });
 
   final Future<TelegramLink> Function() createLink;
+  final Future<TelegramLinkState> Function(String linkId) checkStatus;
   final Future<bool> Function(Uri uri) openUri;
 
   @override
@@ -26,7 +28,12 @@ class _TelegramLinkSectionState extends State<TelegramLinkSection> {
   @override
   Widget build(BuildContext context) {
     if (_link case final link?) {
-      return TelegramLaunchGuide(link: link, openUri: widget.openUri);
+      return TelegramLaunchGuide(
+        link: link,
+        openUri: widget.openUri,
+        checkStatus: widget.checkStatus,
+        onExpired: () => setState(() => _link = null),
+      );
     }
     return Card(
       child: Padding(

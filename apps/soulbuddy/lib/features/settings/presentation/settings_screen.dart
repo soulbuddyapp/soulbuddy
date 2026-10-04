@@ -188,6 +188,7 @@ class _TelegramSettingsHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => TelegramLinkSection(
     createLink: ref.read(telegramLinkClientProvider).createLink,
+    checkStatus: ref.read(telegramLinkClientProvider).status,
     openUri: openUri,
   );
 }
