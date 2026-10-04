@@ -77,3 +77,11 @@ it('uses datetime columns for account and companion link lifetimes', function ()
             ->not->toContain("timestamp('created_at')");
     }
 });
+
+it('exempts the Telegram webhook from Laravel request-forgery checks', function () {
+    $source = file_get_contents(dirname(__DIR__, 2).'/bootstrap/app.php');
+
+    expect($source)->toContain(
+        "validateCsrfTokens(except: ['integrations/telegram/webhook'])",
+    );
+});

@@ -129,6 +129,15 @@ it('does not consume a Telegram link code without the webhook secret', function 
         ->and(DB::table('telegram_connections')->count())->toBe(0);
 });
 
+it('reaches Telegram secret verification without a browser CSRF token', function () {
+    config()->set('services.telegram.webhook_secret', 'webhook-secret');
+
+    $this
+        ->withMiddleware()
+        ->postJson('/integrations/telegram/webhook', [])
+        ->assertForbidden();
+});
+
 it('acknowledges a successful Telegram link without exposing private content', function () {
     [, $token] = telegramLinkSession();
     config()->set('services.telegram.webhook_secret', 'webhook-secret');
