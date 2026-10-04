@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AccountEmailConfirmationController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleReportController;
 use App\Http\Controllers\Api\DailyScriptureController;
+use App\Http\Controllers\Api\FormationActivityController;
 use App\Http\Controllers\Api\FormationCatalogController;
 use App\Http\Controllers\Api\GoalActionSuggestionController;
 use App\Http\Controllers\Api\InstallationPushController;
@@ -42,6 +43,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/goal-action-suggestions', GoalActionSuggestionController::class)
         ->middleware('throttle:goal-action-suggestions');
+    Route::post('/formation/activity', FormationActivityController::class)
+        ->middleware('throttle:120,1');
 
     Route::get('/circles', [CircleController::class, 'index']);
     Route::get('/circles/mine', [CircleController::class, 'mine']);

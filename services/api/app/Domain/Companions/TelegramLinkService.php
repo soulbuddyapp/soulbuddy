@@ -97,20 +97,37 @@ class TelegramLinkService
                     'user_id' => $link->user_id,
                     'chat_id' => $chatId,
                     'username' => $username,
-                    'daily_enabled' => false,
+                    'daily_enabled' => true,
+                    'formation_enabled' => true,
+                    'prayer_enabled' => true,
+                    'sacred_hour_enabled' => true,
+                    'care_enabled' => true,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
             } elseif ($existingUser->chat_id === $chatId) {
                 DB::table('telegram_connections')
                     ->where('id', $existingUser->id)
-                    ->update(['username' => $username, 'updated_at' => now()]);
+                    ->update([
+                        'username' => $username,
+                        'daily_enabled' => true,
+                        'formation_enabled' => true,
+                        'prayer_enabled' => true,
+                        'sacred_hour_enabled' => true,
+                        'care_enabled' => true,
+                        'updated_at' => now(),
+                    ]);
             } else {
                 DB::table('telegram_connections')
                     ->where('id', $existingUser->id)
                     ->update([
                         'chat_id' => $chatId,
                         'username' => $username,
+                        'daily_enabled' => true,
+                        'formation_enabled' => true,
+                        'prayer_enabled' => true,
+                        'sacred_hour_enabled' => true,
+                        'care_enabled' => true,
                         'updated_at' => now(),
                     ]);
             }

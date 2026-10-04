@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('morning-notifications:send')->everyMinute()->withoutOverlapping();
+Schedule::command('telegram-companion:send')->everyMinute()->withoutOverlapping();

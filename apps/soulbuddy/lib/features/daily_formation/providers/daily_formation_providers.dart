@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
+import '../../../core/config/app_config.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../application/daily_formation_reminder_coordinator.dart';
 import '../data/daily_formation_repository.dart';
+import '../data/formation_activity_client.dart';
 import '../domain/formation_catalog.dart';
 import '../domain/formation_profile.dart';
 import '../domain/formation_progress.dart';
@@ -27,6 +31,18 @@ final dailyFormationRepositoryProvider = Provider<DailyFormationRepository>((
   return DailyFormationRepository(
     read: (key) => storage.read(key: key),
     write: (key, value) => storage.write(key: key, value: value),
+  );
+});
+
+final formationActivityClientProvider = Provider<FormationActivityClient>((
+  ref,
+) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return FormationActivityClient(
+    apiBaseUri: Uri.tryParse(AppConfig.apiBaseUrl) ?? Uri(),
+    accessToken: ref.watch(appSessionTokenReaderProvider),
+    httpClient: client,
   );
 });
 
@@ -74,6 +90,14 @@ Future<void> completeDailyFormation(
 ) async {
   await ref.read(dailyFormationRepositoryProvider).complete(completion);
   ref.invalidate(dailyFormationProgressProvider);
+}
+
+void recordDailyFormationOpened(WidgetRef ref, String videoId) {
+  unawaited(ref.read(formationActivityClientProvider).recordOpened(videoId));
+}
+
+void recordDailyFormationCompleted(WidgetRef ref, String videoId) {
+  unawaited(ref.read(formationActivityClientProvider).recordCompleted(videoId));
 }
 
 Future<void> saveDailyFormationProfile(

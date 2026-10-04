@@ -99,7 +99,7 @@ it('binds a Telegram chat once after the webhook secret is verified', function (
         'user_id' => $user->id,
         'chat_id' => '123456789',
         'username' => 'beloved',
-        'daily_enabled' => false,
+        'daily_enabled' => true,
     ]);
     expect(DB::table('companion_link_codes')->sole()->consumed_at)->not->toBeNull();
 
@@ -161,7 +161,7 @@ it('acknowledges a successful Telegram link without exposing private content', f
 
     Http::assertSent(fn ($request) => str_contains($request->url(), '/botbot-token/sendMessage')
         && $request['chat_id'] === '123456789'
-        && $request['text'] === 'SoulBuddy connected. Daily notes are off.');
+        && $request['text'] === 'SoulBuddy is ready. Daily Scripture, formation, prayer, and Sacred Hour prompts are active. Send /settings for the rhythm.');
 });
 
 it('sends the reviewed daily scripture to a linked private chat on request', function () {
