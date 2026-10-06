@@ -21,6 +21,19 @@ class PowerSyncPrayerRepository implements PrayerRepository {
   final DateTime Function() _now;
   final Uuid _uuid;
 
+  // A weekly-release prayer stays out of the ordinary library until this account
+  // has added its collection. Existing Today, Sacred Hour, and reminder records
+  // remain resolvable because they read `_readablePrayers`.
+  static const _downloadedReleasePrayers = '''
+    SELECT item.library_prayer_id AS id
+    FROM prayer_release_item_cache AS item
+    JOIN prayer_release_downloads AS download
+      ON download.release_slug = item.release_slug
+     AND download.release_id = item.release_id
+     AND download.owner_id = ?
+    WHERE item.library_prayer_id IS NOT NULL
+  ''';
+
   static const _mergedPrayers = '''
     SELECT canonical.id, canonical.title, canonical.body, canonical.grounding,
            canonical.language_style, canonical.purpose, canonical.action,
@@ -34,6 +47,12 @@ class PowerSyncPrayerRepository implements PrayerRepository {
         FROM editorial_items AS editorial
         WHERE editorial.id = canonical.id
           AND editorial.content_kind = 'prepared_prayer'
+      )
+      AND canonical.id NOT IN (
+        SELECT item.library_prayer_id
+        FROM prayer_release_item_cache AS item
+        WHERE item.library_prayer_id IS NOT NULL
+          AND item.library_prayer_id NOT IN ($_downloadedReleasePrayers)
       )
     UNION ALL
     SELECT bundled.id, bundled.title, bundled.body, bundled.grounding,
@@ -140,6 +159,8 @@ class PowerSyncPrayerRepository implements PrayerRepository {
                    merged.id ASC
           ''',
           parameters: [
+            // The merged projection resolves downloaded release prayers first.
+            ownerId,
             ownerId,
             grounding?.wireValue,
             grounding?.wireValue,

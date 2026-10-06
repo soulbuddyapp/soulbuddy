@@ -10,9 +10,7 @@ class PrayerReleaseSeeder extends Seeder
 {
     public const SLUG = 'renewed-mind-and-guarded-heart-v1';
 
-    public function __construct(private readonly PrayerReleasePublisher $publisher)
-    {
-    }
+    public function __construct(private readonly PrayerReleasePublisher $publisher) {}
 
     public function run(): void
     {

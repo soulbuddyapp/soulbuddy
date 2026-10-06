@@ -1,0 +1,10 @@
+# Merge this bucket into the existing configuration; retain all existing buckets.
+# Authentication is the signed /api/sync/token JWT, never client parameters.
+# Account-owned rows are selected by the signed-in account only, so one person
+# never receives another person's release downloads or prayer sessions.
+bucket_definitions:
+  private_prayer_releases:
+    parameters: SELECT public_id AS owner_id FROM users WHERE public_id = request.user_id()
+    data:
+      - SELECT id, owner_id, release_id, release_slug, downloaded_at, synced_at FROM prayer_release_downloads WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, release_item_id, local_date, started_at, ended_at, outcome, step_one_count, step_two_count, sound_key, narration_speed, created_at, updated_at FROM affirmation_prayer_sessions WHERE owner_id = bucket.owner_id

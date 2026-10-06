@@ -39,8 +39,7 @@ class PrayerReleaseDeliveryService
     public function __construct(
         private readonly FirebasePushSender $push,
         private readonly TelegramBotSender $telegram,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array{sent: int, failed: int, invalid_tokens_removed: int}

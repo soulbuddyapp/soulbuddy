@@ -208,7 +208,7 @@ it('adds a release once and returns the complete exact content', function () {
 
     expect($payload['items'][3]['body'])
         ->toBe("Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x50)\n"
-            ."In moments that distract me from your perfect will, let Satan be rebuked o Lord (x10)");
+            .'In moments that distract me from your perfect will, let Satan be rebuked o Lord (x10)');
 });
 
 it('makes a repeated add idempotent for the same account', function () {

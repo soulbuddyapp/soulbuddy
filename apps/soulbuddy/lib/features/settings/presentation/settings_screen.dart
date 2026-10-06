@@ -19,6 +19,7 @@ import '../../sacred_hours/domain/sacred_hour.dart';
 import '../../sacred_hours/presentation/sacred_hour_editor_sheet.dart';
 import '../../sacred_hours/presentation/sacred_hours_settings_section.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
+import '../../prayers/presentation/weekly_prayer_preference_tile.dart';
 import 'account_email_link_section.dart';
 import 'telegram_link_section.dart';
 
@@ -84,6 +85,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         _SacredHoursSettingsHost(
                           soundsEnabled: value.soundsEnabled,
                         ),
+                        const SizedBox(height: AppSpacing.lg),
+                        const WeeklyPrayerPreferenceTile(),
                         const SizedBox(height: AppSpacing.xl),
                         _SoundTouchSettings(
                           preferences: value,

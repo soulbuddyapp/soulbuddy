@@ -8,6 +8,4 @@ use RuntimeException;
  * A release artifact failed its own integrity checks, so it must never be
  * seeded or served.
  */
-class InvalidReleaseContent extends RuntimeException
-{
-}
+class InvalidReleaseContent extends RuntimeException {}

@@ -14,8 +14,7 @@ final readonly class ReleaseItem
         public string $title,
         public string $body,
         public ?RepetitionPractice $practice,
-    ) {
-    }
+    ) {}
 
     public function contentHash(): string
     {

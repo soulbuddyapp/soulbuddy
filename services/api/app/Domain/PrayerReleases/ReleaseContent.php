@@ -50,8 +50,7 @@ final class ReleaseContent
         public readonly string $discoveryDetail,
         public readonly string $preparationText,
         public readonly array $items,
-    ) {
-    }
+    ) {}
 
     public static function fromJsonFile(string $path): self
     {
@@ -84,7 +83,7 @@ final class ReleaseContent
 
         $schemaVersion = $data['schema_version'] ?? null;
         if ($schemaVersion !== self::SCHEMA_VERSION) {
-            throw new InvalidReleaseContent("Unsupported prayer release schema_version: ".var_export($schemaVersion, true).'.');
+            throw new InvalidReleaseContent('Unsupported prayer release schema_version: '.var_export($schemaVersion, true).'.');
         }
 
         $slug = self::requireText($data, 'slug');
@@ -214,9 +213,6 @@ final class ReleaseContent
         );
     }
 
-    /**
-     * @return ?RepetitionPractice
-     */
     private static function practice(mixed $practice, string $kind, int $index, string $body): ?RepetitionPractice
     {
         if ($practice === null) {

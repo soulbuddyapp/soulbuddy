@@ -8,8 +8,7 @@ final readonly class RepetitionStep
         public string $phrase,
         public int $targetCount,
         public string $sourceLine,
-    ) {
-    }
+    ) {}
 
     /**
      * The paced repetition text is the source line without its count suffix.

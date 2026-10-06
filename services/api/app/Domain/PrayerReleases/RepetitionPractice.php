@@ -8,8 +8,7 @@ final readonly class RepetitionPractice
     public function __construct(
         public string $mode,
         public array $steps,
-    ) {
-    }
+    ) {}
 
     /**
      * The exact source body these paced steps must rebuild in order.

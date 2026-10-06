@@ -2,6 +2,7 @@
 
 use App\Domain\PrayerReleases\InvalidReleaseContent;
 use App\Domain\PrayerReleases\ReleaseContent;
+use Ramsey\Uuid\Uuid;
 
 const RELEASE_SLUG = 'renewed-mind-and-guarded-heart-v1';
 
@@ -264,6 +265,6 @@ it('derives stable identifiers for the release, its items, and their canonical p
         ->and($release->libraryPrayerId(3))->toBe($first->libraryPrayerId(3))
         ->and($release->releaseId())->not->toBe($release->libraryPrayerId(0))
         ->and($release->itemId(0))->not->toBe($release->itemId(1))
-        ->and(Ramsey\Uuid\Uuid::isValid($release->releaseId()))->toBeTrue()
-        ->and(Ramsey\Uuid\Uuid::isValid($release->libraryPrayerId(4)))->toBeTrue();
+        ->and(Uuid::isValid($release->releaseId()))->toBeTrue()
+        ->and(Uuid::isValid($release->libraryPrayerId(4)))->toBeTrue();
 });

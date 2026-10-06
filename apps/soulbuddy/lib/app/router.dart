@@ -29,8 +29,10 @@ import '../features/persons/presentation/persons_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/domain/library_prayer.dart';
 import '../features/prayers/presentation/meditation_screen.dart';
+import '../features/prayers/presentation/attention_prayer_route.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
+import '../features/prayers/presentation/prayer_release_detail_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
 import '../features/record/presentation/record_screen.dart';
 import '../features/remember/presentation/daily_remembrance_screen.dart';
@@ -217,6 +219,20 @@ final GoRouter appRouter = GoRouter(
                   builder: (context, state) => PersonalPrayerDetailScreen(
                     prayerId: state.pathParameters['prayerId']!,
                   ),
+                ),
+                GoRoute(
+                  path: 'releases/:slug',
+                  builder: (context, state) => PrayerReleaseDetailScreen(
+                    slug: state.pathParameters['slug']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'attention',
+                      builder: (context, state) => AttentionPrayerRoute(
+                        slug: state.pathParameters['slug']!,
+                      ),
+                    ),
+                  ],
                 ),
                 GoRoute(
                   path: ':prayerId',

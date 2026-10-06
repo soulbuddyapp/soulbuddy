@@ -67,7 +67,7 @@ function optedIn(User $user, ?string $timeZone = 'UTC', bool $weekly = true, boo
  * accepts or rejects each one. The collector is an object because a returned
  * array would be copied before any request arrived.
  */
-function recordPushes(?\Closure $accept = null): ArrayObject
+function recordPushes(?Closure $accept = null): ArrayObject
 {
     $sent = new ArrayObject;
     // One fake for the whole test: a later `Http::fake` would not replace the
