@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/speech/speech_capture_controller.dart';
@@ -7,6 +9,7 @@ void main() {
   test('reports unavailable once, not per tap', () async {
     final recognizer = _FakeRecognizer(available: false);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
 
     expect(await controller.ensureAvailable(), isFalse);
     expect(await controller.ensureAvailable(), isFalse);
@@ -18,32 +21,64 @@ void main() {
     final controller = SpeechCaptureController(
       recognizer: _FakeRecognizer(available: true),
     );
+    addTearDown(controller.dispose);
 
     expect(await controller.ensureAvailable(), isTrue);
     expect(controller.notice, isNull);
   });
 
-  test(
-    'starts listening without waiting for the recogniser to agree',
-    () async {
-      final recognizer = _FakeRecognizer(available: true);
-      final controller = SpeechCaptureController(recognizer: recognizer);
-      await controller.ensureAvailable();
+  test('overlapping calls resolve availability once', () async {
+    final recognizer = _FakeRecognizer(available: true);
+    final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
 
-      final started = await controller.listen(onWords: (_) {});
+    final answers = await Future.wait([
+      controller.ensureAvailable(),
+      controller.ensureAvailable(),
+    ]);
 
-      expect(started, isTrue);
-      expect(controller.isListening, isTrue);
-      expect(recognizer.isListening, isTrue);
-    },
-  );
+    expect(answers, [true, true]);
+    expect(
+      recognizer.initializeCalls,
+      1,
+      reason: 'a second initialisation would take the callbacks with it',
+    );
+  });
+
+  test('listening is declared before the platform reports anything', () async {
+    final recognizer = _FakeRecognizer(available: true)
+      ..listenGate = Completer<void>();
+    final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
+    await controller.ensureAvailable();
+
+    final started = controller.listen(onWords: (_) {});
+    await pumpEventQueue();
+
+    expect(
+      controller.isListening,
+      isTrue,
+      reason: 'the platform has reported nothing yet',
+    );
+    expect(
+      recognizer.reportedListening,
+      isFalse,
+      reason: 'so this cannot have been read back from the platform',
+    );
+
+    recognizer.listenGate!.complete();
+
+    expect(await started, isTrue);
+  });
 
   test('delivers words while listening', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
     await controller.ensureAvailable();
     final heard = <String>[];
     await controller.listen(onWords: heard.add);
+    recognizer.reportListening(true);
 
     recognizer.emit('the morning');
     recognizer.emit('the morning light');
@@ -51,11 +86,28 @@ void main() {
     expect(heard, ['the morning', 'the morning light']);
   });
 
+  test('a second tap does not open a second session', () async {
+    final recognizer = _FakeRecognizer(available: true)
+      ..listenGate = Completer<void>();
+    final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
+    await controller.ensureAvailable();
+
+    final first = controller.listen(onWords: (_) {});
+    final second = controller.listen(onWords: (_) {});
+    recognizer.listenGate!.complete();
+
+    expect(await first, isTrue);
+    expect(await second, isFalse);
+    expect(recognizer.listenCalls, 1);
+  });
+
   test(
     'stopping clears listening even when the recogniser is silent',
     () async {
       final recognizer = _FakeRecognizer(available: true);
       final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
       await controller.ensureAvailable();
       await controller.listen(onWords: (_) {});
 
@@ -69,10 +121,11 @@ void main() {
   test('a stop that fails still ends the session here', () async {
     final recognizer = _FakeRecognizer(available: true, failsToStop: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
     await controller.ensureAvailable();
     await controller.listen(onWords: (_) {});
 
-    await expectLater(controller.stop(), throwsStateError);
+    await expectLater(controller.stop(), throwsA(isA<_PlatformFailure>()));
     expect(
       controller.isListening,
       isFalse,
@@ -83,6 +136,7 @@ void main() {
   test('a session that cannot start leaves the field alone', () async {
     final recognizer = _FakeRecognizer(available: true)..complains = true;
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
     await controller.ensureAvailable();
 
     final started = await controller.listen(onWords: (_) {});
@@ -94,27 +148,30 @@ void main() {
   test('an unavailable recogniser never starts a session', () async {
     final recognizer = _FakeRecognizer(available: false);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
 
     expect(await controller.listen(onWords: (_) {}), isFalse);
     expect(recognizer.listenCalls, 0);
     expect(controller.notice, speechUnavailableNotice);
   });
 
-  test('notifies listeners when availability is resolved', () async {
+  test('notifies listeners once when availability is resolved', () async {
     final controller = SpeechCaptureController(
       recognizer: _FakeRecognizer(available: true),
     );
+    addTearDown(controller.dispose);
     var notifications = 0;
     controller.addListener(() => notifications++);
 
     await controller.ensureAvailable();
 
-    expect(notifications, greaterThan(0));
+    expect(notifications, 1);
   });
 
   test('a late status change ends the session', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
     await controller.ensureAvailable();
     await controller.listen(onWords: (_) {});
 
@@ -130,6 +187,7 @@ void main() {
   test('a repeated status change is taken once', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
     await controller.ensureAvailable();
     await controller.listen(onWords: (_) {});
     var notifications = 0;
@@ -142,37 +200,102 @@ void main() {
     expect(notifications, 1);
   });
 
-  test('a permanent failure stops offering the microphone', () async {
+  test('an unavailability report does not retire the mic', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
     await controller.ensureAvailable();
     await controller.listen(onWords: (_) {});
 
     recognizer.reportUnavailable();
 
-    expect(controller.isAvailable, isFalse);
-    expect(controller.notice, speechUnavailableNotice);
-    expect(await controller.listen(onWords: (_) {}), isFalse);
     expect(
-      recognizer.initializeCalls,
-      1,
-      reason: 'the question was already answered, so it is not asked again',
+      controller.isAvailable,
+      isTrue,
+      reason: 'only initialisation can answer whether speech runs here',
     );
+    expect(controller.notice, speechUnavailableNotice);
+    expect(
+      await controller.listen(onWords: (_) {}),
+      isFalse,
+      reason: 'a session is already running',
+    );
+    await controller.stop();
+    expect(await controller.listen(onWords: (_) {}), isTrue);
   });
 
-  test('disposing releases an open session', () async {
+  test('words arriving after a stop are dropped', () async {
+    final recognizer = _FakeRecognizer(available: true);
+    final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
+    await controller.ensureAvailable();
+    final heard = <String>[];
+    await controller.listen(onWords: heard.add);
+    recognizer.reportListening(true);
+    recognizer.emit('the morning');
+
+    await controller.stop();
+    // The platform arms a timer that delivers a final result after a stop.
+    recognizer.emit('the morning light');
+
+    expect(heard, ['the morning']);
+  });
+
+  test(
+    'a session that starts after disposal does not open the microphone',
+    () async {
+      final recognizer = _FakeRecognizer(available: true)
+        ..listenGate = Completer<void>();
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      await controller.ensureAvailable();
+      final started = controller.listen(onWords: (_) {});
+      await pumpEventQueue();
+
+      controller.dispose();
+      await pumpEventQueue();
+      recognizer.listenGate!.complete();
+
+      expect(await started, isFalse);
+      expect(
+        recognizer.stoppedWhileLive,
+        isTrue,
+        reason: 'the platform opened a microphone nobody was left to hold',
+      );
+    },
+  );
+
+  test('words arriving after disposal are dropped', () async {
+    final recognizer = _FakeRecognizer(available: true);
+    final controller = SpeechCaptureController(recognizer: recognizer);
+    await controller.ensureAvailable();
+    final heard = <String>[];
+    await controller.listen(onWords: heard.add);
+
+    controller.dispose();
+    recognizer.emit('the morning');
+
+    expect(heard, isEmpty);
+  });
+
+  test('platform callbacks after disposal are ignored', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
     await controller.ensureAvailable();
     await controller.listen(onWords: (_) {});
 
     controller.dispose();
-    await pumpEventQueue();
 
-    expect(recognizer.stopCalls, 1);
+    expect(
+      () {
+        recognizer.reportListening(false);
+        recognizer.reportUnavailable();
+      },
+      returnsNormally,
+      reason: 'a disposed notifier may not notify',
+    );
   });
 
-  test('disposing does not disturb a session that never started', () async {
+  test('disposing stops whatever the platform might still be doing', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
     await controller.ensureAvailable();
@@ -180,7 +303,7 @@ void main() {
     controller.dispose();
     await pumpEventQueue();
 
-    expect(recognizer.stopCalls, 0);
+    expect(recognizer.stopCalls, 1);
   });
 }
 
@@ -192,25 +315,36 @@ class _FakeRecognizer implements SpeechRecognizer {
   final bool available;
   final bool failsToStop;
 
-  /// Makes the next [listen] throw, the way an implementation that breaks its
-  /// own contract would. Set before the call rather than passed to it, so the
+  /// Makes [listen] throw, the way an implementation that breaks its own
+  /// contract would. Set before the call rather than passed to it, so the
   /// signature here stays exactly the interface's.
   var complains = false;
+
+  /// Holds [listen] open until completed, the way a slow platform does.
+  Completer<void>? listenGate;
+
+  /// Whether a [stop] arrived while the platform was actually listening, which
+  /// is the only kind that closes a microphone.
+  var stoppedWhileLive = false;
 
   var initializeCalls = 0;
   var listenCalls = 0;
   var stopCalls = 0;
-  var _listening = false;
+  bool _listening = false;
   void Function(bool)? _onListeningChanged;
   void Function(String)? _onWords;
   VoidCallback? _onUnavailable;
 
-  @override
-  bool get isListening => _listening;
+  /// What the platform last reported, which is never assumed to match what the
+  /// controller believes.
+  bool get reportedListening => _listening;
 
   void emit(String words) => _onWords?.call(words);
 
-  void reportListening(bool listening) => _onListeningChanged?.call(listening);
+  void reportListening(bool listening) {
+    _listening = listening;
+    _onListeningChanged?.call(listening);
+  }
 
   void reportUnavailable() => _onUnavailable?.call();
 
@@ -229,15 +363,24 @@ class _FakeRecognizer implements SpeechRecognizer {
   @override
   Future<void> listen({required void Function(String words) onWords}) async {
     listenCalls++;
-    if (complains) throw StateError('could not start');
-    _listening = true;
+    if (complains) throw const _PlatformFailure();
     _onWords = onWords;
+    await listenGate?.future;
+    reportListening(true);
   }
 
   @override
   Future<void> stop() async {
     stopCalls++;
-    if (failsToStop) throw StateError('platform stop failed');
+    if (_listening) stoppedWhileLive = true;
     _listening = false;
+    if (failsToStop) throw const _PlatformFailure();
   }
+}
+
+/// The shape of what the platform actually throws. `SpeechToText`'s own
+/// failures implement [Exception], which is why a session that cannot start is
+/// caught rather than a programming error being swallowed.
+class _PlatformFailure implements Exception {
+  const _PlatformFailure();
 }

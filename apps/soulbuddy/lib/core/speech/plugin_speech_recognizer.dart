@@ -20,9 +20,6 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
   final bool _isWeb;
 
   @override
-  bool get isListening => _speech.isListening;
-
-  @override
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
@@ -45,15 +42,14 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
         // The plugin reports every error here, and because `cancelOnError` is
         // set it tears the session down itself without a status notification.
         // So the listening transition is reported here, or a consumer would
-        // believe it were still listening. A transient error only fails this
-        // session, and later attempts may still succeed; a permanent one
-        // blocks recognition itself, which is the only case where speech is
-        // genuinely unavailable on this device.
-        onError: (SpeechRecognitionError error) {
+        // believe it were still listening.
+        //
+        // It marks every error permanent, so `error.permanent` says nothing
+        // about whether speech can run here: a five second pause alone is
+        // enough to end dictation for good if it is believed. Whether this
+        // device can recognise at all is answered by initialisation alone.
+        onError: (SpeechRecognitionError _) {
           onListeningChanged?.call(false);
-          if (error.permanent) {
-            onUnavailable?.call();
-          }
         },
       );
       if (!available) {

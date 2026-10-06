@@ -126,54 +126,40 @@ void main() {
     await recognizer.listen(onWords: (_) {});
 
     await deliver('notifyStatus', 'listening');
-    expect(recognizer.isListening, isTrue);
     await deliver('notifyStatus', 'notListening');
 
     expect(changes, [true, false]);
-    expect(recognizer.isListening, isFalse);
   });
 
-  test('a transient error ends the session but keeps the mic', () async {
-    final recognizer = buildRecognizer();
-    var unavailable = false;
-    final changes = <bool>[];
-    await recognizer.initialize(
-      onListeningChanged: changes.add,
-      onUnavailable: () => unavailable = true,
-    );
-    await recognizer.listen(onWords: (_) {});
-    await deliver('notifyStatus', 'listening');
+  test('an error ends the session without retiring the mic', () async {
+    // The plugin marks every error permanent, so the flag cannot tell a five
+    // second pause apart from a device with no on-device recogniser. A later
+    // attempt may still succeed, so none of these may retire the mic.
+    for (final message in const [
+      'error_speech_timeout',
+      'error_no_match',
+      'error_network',
+      'error_client',
+    ]) {
+      final recognizer = buildRecognizer();
+      var unavailable = false;
+      final changes = <bool>[];
+      await recognizer.initialize(
+        onListeningChanged: changes.add,
+        onUnavailable: () => unavailable = true,
+      );
+      await recognizer.listen(onWords: (_) {});
+      await deliver('notifyStatus', 'listening');
 
-    await deliverError('error_no_match');
+      await deliverError(message, permanent: true);
 
-    expect(changes, [true, false], reason: 'the session ends');
-    expect(
-      unavailable,
-      isFalse,
-      reason: 'a later attempt may still succeed, so the mic stays',
-    );
-  });
-
-  test('a permanent error ends the session and reports unavailable', () async {
-    final recognizer = buildRecognizer();
-    var unavailable = false;
-    final changes = <bool>[];
-    await recognizer.initialize(
-      onListeningChanged: changes.add,
-      onUnavailable: () => unavailable = true,
-    );
-    await recognizer.listen(onWords: (_) {});
-    await deliver('notifyStatus', 'listening');
-
-    await deliverError('error_client', permanent: true);
-
-    expect(changes, [true, false]);
-    expect(
-      recognizer.isListening,
-      isFalse,
-      reason: 'the plugin tears the session down without saying so',
-    );
-    expect(unavailable, isTrue);
+      expect(changes, [true, false], reason: '$message ends the session');
+      expect(
+        unavailable,
+        isFalse,
+        reason: '$message says nothing about whether speech can run here',
+      );
+    }
   });
 
   test('stop ends the session on the platform', () async {
