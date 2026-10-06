@@ -24,17 +24,34 @@ void main() {
       ),
     );
     expect(infoPlist, contains('<key>NSMicrophoneUsageDescription</key>'));
-    expect(
-      infoPlist,
-      contains(
-        '<string>SoulBuddy uses the microphone only when you choose to speak a prayer detail or record a private memory.</string>',
-      ),
-    );
     expect(manifest, contains('android.speech.RecognitionService'));
     expect(
       infoPlist,
       contains('<key>NSSpeechRecognitionUsageDescription</key>'),
     );
+
+    // Apple shows these verbatim in the permission prompt, so each is asserted
+    // against its own key rather than merely present somewhere in the file. The
+    // copy states the guarantee that matters, not which screens speak: the old
+    // wording named prayer details alone, and speech is now offered at many
+    // surfaces.
+    const consent =
+        'SoulBuddy uses the microphone only when you choose to speak, and never '
+        'sends your voice anywhere.';
+    for (final key in const [
+      'NSMicrophoneUsageDescription',
+      'NSSpeechRecognitionUsageDescription',
+    ]) {
+      expect(
+        // The plist is read as bytes, so its CRLF endings are part of the text
+        // a match has to allow for.
+        RegExp(
+          '<key>$key</key>\\s*<string>${RegExp.escape(consent)}</string>',
+        ).hasMatch(infoPlist),
+        isTrue,
+        reason: 'the prompt for $key must carry this exact sentence',
+      );
+    }
   });
 
   test('guided speech never starts browser speech recognition', () {

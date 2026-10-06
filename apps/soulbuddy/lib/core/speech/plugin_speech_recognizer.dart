@@ -9,15 +9,27 @@ import 'speech_recognizer.dart';
 ///
 /// The single place that asks for on-device recognition. `onDevice: true` is
 /// not configurable, so no caller can widen it.
+///
+/// [requestMicrophone] is asked before the recogniser is initialised, because
+/// `speech_to_text` never asks itself: Android's `SpeechRecognizer` requires
+/// `RECORD_AUDIO`, and this app otherwise only comes to hold it as a side
+/// effect of someone recording a memory. It is injected rather than reached for
+/// here so this stays free of `ref` and of the `record` plugin's wiring. A null
+/// requester means the caller has arranged permission some other way.
 class PluginSpeechRecognizer implements SpeechRecognizer {
-  PluginSpeechRecognizer({SpeechToText? speech, bool? isWeb})
-    : _speech = speech ?? SpeechToText(),
-      // Only tests pass [isWeb]. The app reads the compile-time constant,
-      // which no caller can turn off.
-      _isWeb = isWeb ?? kIsWeb;
+  PluginSpeechRecognizer({
+    SpeechToText? speech,
+    bool? isWeb,
+    Future<bool> Function()? requestMicrophone,
+  }) : _speech = speech ?? SpeechToText(),
+       // Only tests pass [isWeb]. The app reads the compile-time constant,
+       // which no caller can turn off.
+       _isWeb = isWeb ?? kIsWeb,
+       _requestMicrophone = requestMicrophone;
 
   final SpeechToText _speech;
   final bool _isWeb;
+  final Future<bool> Function()? _requestMicrophone;
 
   @override
   Future<bool> initialize({
@@ -29,6 +41,14 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
       return _unavailable(onUnavailable);
     }
     try {
+      // Asked first, because initialising without the permission the platform
+      // requires answers `false` for a reason nobody can act on. A refusal is
+      // not a temporary failure, so it is the same unavailable answer as an
+      // absent recogniser: the field stays editable.
+      final granted = await _requestMicrophone?.call() ?? true;
+      if (!granted) {
+        return _unavailable(onUnavailable);
+      }
       final available = await _speech.initialize(
         onStatus: (status) {
           switch (status) {

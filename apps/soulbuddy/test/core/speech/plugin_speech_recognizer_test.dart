@@ -34,11 +34,14 @@ void main() {
 
   // `SpeechToText()` is a singleton that caches its own initialisation, so
   // each test is given a fresh instance instead of inheriting the last one's.
-  PluginSpeechRecognizer buildRecognizer({bool? isWeb}) =>
-      PluginSpeechRecognizer(
-        speech: SpeechToText.withMethodChannel(),
-        isWeb: isWeb,
-      );
+  PluginSpeechRecognizer buildRecognizer({
+    bool? isWeb,
+    Future<bool> Function()? requestMicrophone,
+  }) => PluginSpeechRecognizer(
+    speech: SpeechToText.withMethodChannel(),
+    isWeb: isWeb,
+    requestMicrophone: requestMicrophone,
+  );
 
   Future<void> deliver(String method, Object? arguments) =>
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -173,6 +176,81 @@ void main() {
       calls.map((call) => call.method),
       containsAllInOrder(['initialize', 'listen', 'stop']),
     );
+  });
+
+  test('asks for the microphone before initialising speech', () async {
+    // Injected rather than reaching for a real recorder, so what is being
+    // tested is the order, not the platform.
+    final asked = <String>[];
+    final recognizer = buildRecognizer(
+      requestMicrophone: () async {
+        asked.add('request');
+        return true;
+      },
+    );
+
+    expect(await recognizer.initialize(), isTrue);
+
+    expect(
+      asked,
+      isNotEmpty,
+      reason:
+          'speech_to_text never prompts, and without the permission the '
+          'platform requires, initialisation would fail for no actionable '
+          'reason',
+    );
+    expect(calls.map((call) => call.method), contains('initialize'));
+  });
+
+  test(
+    'a refused microphone leaves speech unavailable and uninitialised',
+    () async {
+      // Reported unavailable rather than thrown: the field stays editable, and a
+      // person who declined is not asked again by a second signal.
+      var unavailable = false;
+      final recognizer = buildRecognizer(requestMicrophone: () async => false);
+
+      expect(
+        await recognizer.initialize(onUnavailable: () => unavailable = true),
+        isFalse,
+      );
+      expect(unavailable, isTrue);
+      expect(
+        calls,
+        isEmpty,
+        reason: 'the recogniser is never started without the microphone',
+      );
+    },
+  );
+
+  test('a microphone request that throws leaves speech unavailable', () async {
+    var unavailable = false;
+    final recognizer = buildRecognizer(
+      requestMicrophone: () async => throw StateError('no permission service'),
+    );
+
+    expect(
+      await recognizer.initialize(onUnavailable: () => unavailable = true),
+      isFalse,
+    );
+    expect(unavailable, isTrue);
+    expect(calls, isEmpty);
+  });
+
+  test('the microphone is not asked for in the browser', () async {
+    // The browser recogniser sends audio off the device, so it is never used
+    // and there is no microphone permission to ask for.
+    var asked = false;
+    final recognizer = buildRecognizer(
+      isWeb: true,
+      requestMicrophone: () async {
+        asked = true;
+        return true;
+      },
+    );
+
+    expect(await recognizer.initialize(), isFalse);
+    expect(asked, isFalse);
   });
 
   test('never starts browser speech recognition', () async {
