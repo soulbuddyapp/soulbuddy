@@ -248,7 +248,6 @@ class PrayerReleaseDeliveryService
         if (! $this->telegram->sendWeeklyPrayerRelease(
             $connection->chat_id,
             $release->title,
-            $release->slug,
         )) {
             return false;
         }

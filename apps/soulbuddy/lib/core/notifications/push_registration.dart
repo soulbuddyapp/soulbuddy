@@ -16,6 +16,46 @@ import 'push_registration_sync.dart';
 
 final pushReadyProvider = Provider<bool>((ref) => false);
 
+/// The in-app route a notice opens, or null when it opens nothing.
+///
+/// A route is honoured only when the server sent it and it points at a path
+/// this app actually serves, so a stale or unknown value cannot strand someone
+/// on a blank screen.
+String? notificationRoute(Map<String, dynamic>? data) {
+  final kind = data?['kind'];
+  if (kind == 'morning') return '/today';
+  if (kind != 'weekly_prayer') return null;
+
+  final slug = data?['route'];
+  if (slug is! String) return null;
+
+  return weeklyPrayerReleaseRoute(slug);
+}
+
+/// Builds the release route from a server-supplied route value, accepting only
+/// the release path this app serves.
+String? weeklyPrayerReleaseRoute(String route) {
+  final uri = Uri.tryParse(route);
+  if (uri == null ||
+      uri.hasScheme ||
+      uri.hasAuthority ||
+      uri.query.isNotEmpty) {
+    return null;
+  }
+  final segments = uri.pathSegments
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: false);
+  if (segments.length != 3 ||
+      segments[0] != 'prayers' ||
+      segments[1] != 'releases') {
+    return null;
+  }
+  final slug = segments[2];
+  if (slug.isEmpty || slug.contains('/')) return null;
+
+  return '/prayers/releases/$slug';
+}
+
 final pushRegistrationProvider = FutureProvider<void>((ref) async {
   if (!ref.watch(pushReadyProvider)) return;
   await ref.read(installationSessionBootstrapProvider.future);
@@ -90,7 +130,8 @@ final pushRegistrationProvider = FutureProvider<void>((ref) async {
   final openSubscription = FirebaseMessaging.onMessageOpenedApp.listen((
     message,
   ) {
-    if (message.data['kind'] == 'morning') appRouter.go('/today');
+    final route = notificationRoute(message.data);
+    if (route != null) appRouter.go(route);
   });
   final foregroundSubscription = FirebaseMessaging.onMessage.listen((message) {
     if (message.data['kind'] != 'morning') return;
@@ -129,9 +170,10 @@ final pushRegistrationProvider = FutureProvider<void>((ref) async {
   if (!ref.mounted) return;
   try {
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-    if (initialMessage?.data['kind'] == 'morning') {
+    final initialRoute = notificationRoute(initialMessage?.data);
+    if (initialRoute != null) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => appRouter.go('/today'),
+        (_) => appRouter.go(initialRoute),
       );
     }
   } on Exception {

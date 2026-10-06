@@ -99,6 +99,20 @@ Release slug: `renewed-mind-and-guarded-heart-v1`.
        ->update(['archived_at' => now()]);
    ```
 
+## Notices and links
+
+The FCM notice carries an in-app `route` of `/prayers/releases/{slug}`. The app
+honours it only when the value parses as that exact shape; an unknown or
+absolute value opens nothing rather than stranding someone on a blank screen.
+
+**There is no app deep link.** The app publishes no web route for a release and
+registers no Android App Links domain, so `https://<app url>/prayers/releases/<slug>`
+returns 404 and would open a browser rather than the app. The Telegram notice
+therefore carries no URL and tells the person to open SoulBuddy and choose
+Prayers. Adding a real link requires a served route, an `assetlinks.json`, and an
+`android:autoVerify` intent filter in `AndroidManifest.xml` — do not add a URL to
+the Telegram message before all three exist.
+
 ## Deployment order
 
 Release the server before the app binary. Old clients ignore the release tables

@@ -387,8 +387,10 @@ it('keeps a linked telegram companion on the same notice and ledger', function (
     expect($payload['chat_id'])->toBe($chatId)
         ->and($payload['text'])->toContain('A new prayer collection is ready')
         ->and($payload['text'])->toContain('Renewed mind & guarded heart')
-        ->and($payload['reply_markup']['inline_keyboard'][0][0]['url'])
-        ->toEndWith('/prayers/releases/renewed-mind-and-guarded-heart-v1');
+        ->and($payload['text'])->toContain('Open SoulBuddy and choose Prayers to add it.');
+    // No URL is offered: this app publishes no web route for a release and
+    // registers no App Links domain, so a link would resolve to nothing.
+    expect($payload)->not->toHaveKey('reply_markup');
 
     expect(Artisan::call('prayer-releases:notify'))->toBe(0);
     expect(PrayerReleaseDelivery::query()->where('channel', 'telegram')->count())->toBe(1)

@@ -55,24 +55,19 @@ class TelegramBotSender
     }
 
     /**
-     * The same notice the app receives, with a deep link into the collection.
+     * The same notice the app receives.
+     *
+     * There is no app deep link: this app publishes no web route for a release
+     * and registers no App Links domain, so any URL sent here would resolve to
+     * nothing. The person is told where the collection is waiting instead.
      */
-    public function sendWeeklyPrayerRelease(string $chatId, string $title, string $slug): bool
+    public function sendWeeklyPrayerRelease(string $chatId, string $title): bool
     {
         return $this->send(
             $chatId,
-            "A new prayer collection is ready\n\n{$title}",
-            [
-                'inline_keyboard' => [
-                    [['text' => 'Open', 'url' => $this->deepLink($slug)]],
-                ],
-            ],
+            "A new prayer collection is ready\n\n{$title}\n\n"
+                .'Open SoulBuddy and choose Prayers to add it.',
         );
-    }
-
-    private function deepLink(string $slug): string
-    {
-        return rtrim((string) config('app.url'), '/')."/prayers/releases/{$slug}";
     }
 
     public function sendWeeklyPersonPrayer(string $chatId, string $name): bool
