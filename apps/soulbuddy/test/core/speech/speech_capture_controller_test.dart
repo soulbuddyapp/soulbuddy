@@ -224,7 +224,7 @@ void main() {
     expect(await controller.listen(onWords: (_) {}), isTrue);
   });
 
-  test('words arriving after a stop are dropped', () async {
+  test('a final result after a stop still reaches the consumer', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
     addTearDown(controller.dispose);
@@ -232,13 +232,35 @@ void main() {
     final heard = <String>[];
     await controller.listen(onWords: heard.add);
     recognizer.reportListening(true);
-    recognizer.emit('the morning');
+    recognizer.emit('I pra');
 
     await controller.stop();
-    // The platform arms a timer that delivers a final result after a stop.
-    recognizer.emit('the morning light');
+    // The platform arms a timer that delivers the last hypothesis after a
+    // stop, and dropping it would strand the person mid-word.
+    recognizer.emit('I pray');
 
-    expect(heard, ['the morning']);
+    expect(heard, ['I pra', 'I pray']);
+  });
+
+  test('words from a superseded session are dropped', () async {
+    final recognizer = _FakeRecognizer(available: true);
+    final controller = SpeechCaptureController(recognizer: recognizer);
+    addTearDown(controller.dispose);
+    await controller.ensureAvailable();
+    final first = <String>[];
+    await controller.listen(onWords: first.add);
+    await controller.stop();
+    final second = <String>[];
+    await controller.listen(onWords: second.add);
+    recognizer.reportListening(true);
+
+    // The first session's platform may still be holding a listener, and its
+    // words would land on a field the person has since edited.
+    recognizer.emitTo(0, 'I pra');
+    recognizer.emitTo(1, 'I pray');
+
+    expect(first, isEmpty);
+    expect(second, ['I pray']);
   });
 
   test(
@@ -295,7 +317,7 @@ void main() {
     );
   });
 
-  test('disposing stops whatever the platform might still be doing', () async {
+  test('disposing without a session asks the platform for nothing', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);
     await controller.ensureAvailable();
@@ -303,7 +325,11 @@ void main() {
     controller.dispose();
     await pumpEventQueue();
 
-    expect(recognizer.stopCalls, 1);
+    expect(
+      recognizer.stopCalls,
+      0,
+      reason: 'the microphone was never opened, so it need not be closed',
+    );
   });
 }
 
@@ -332,14 +358,19 @@ class _FakeRecognizer implements SpeechRecognizer {
   var stopCalls = 0;
   bool _listening = false;
   void Function(bool)? _onListeningChanged;
-  void Function(String)? _onWords;
+  final _wordCallbacks = <void Function(String)>[];
   VoidCallback? _onUnavailable;
 
   /// What the platform last reported, which is never assumed to match what the
   /// controller believes.
   bool get reportedListening => _listening;
 
-  void emit(String words) => _onWords?.call(words);
+  /// Delivers words to the newest session, as the platform would.
+  void emit(String words) => emitTo(_wordCallbacks.length - 1, words);
+
+  /// Delivers words to one session by index, so a test can model a superseded
+  /// session the platform has not finished dropping.
+  void emitTo(int session, String words) => _wordCallbacks[session](words);
 
   void reportListening(bool listening) {
     _listening = listening;
@@ -364,7 +395,7 @@ class _FakeRecognizer implements SpeechRecognizer {
   Future<void> listen({required void Function(String words) onWords}) async {
     listenCalls++;
     if (complains) throw const _PlatformFailure();
-    _onWords = onWords;
+    _wordCallbacks.add(onWords);
     await listenGate?.future;
     reportListening(true);
   }

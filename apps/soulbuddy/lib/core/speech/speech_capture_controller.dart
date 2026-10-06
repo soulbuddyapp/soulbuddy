@@ -30,6 +30,7 @@ class SpeechCaptureController extends ChangeNotifier {
   bool _listening = false;
   bool _disposed = false;
   String? _notice;
+  int _session = 0;
 
   /// Whether speech is available. False until [ensureAvailable] resolves.
   bool get isAvailable => _available ?? false;
@@ -62,8 +63,8 @@ class SpeechCaptureController extends ChangeNotifier {
       }
       return isAvailable;
     } finally {
-      // Set before the future completes, so the answer is read rather than
-      // this same resolution arriving twice.
+      // Lets a throwing initialisation be retried. Defensive only: the seam
+      // answers every failure with `false` rather than an exception.
       _resolving = null;
     }
   }
@@ -78,15 +79,18 @@ class SpeechCaptureController extends ChangeNotifier {
     // and another caller may have opened the session while it was in flight.
     if (_disposed || _listening) return false;
 
+    final mine = ++_session;
     // The platform has not reported listening yet, and may not report it at
     // all before the first words, so the session is declared open here.
     _setListening(true);
     try {
       await _recognizer.listen(
-        // The platform can deliver a final result after a stop, so words are
-        // taken only while a session is actually open here.
+        // The platform can deliver a final result after a stop, and that
+        // result is worth keeping, so words are gated on which session asked
+        // for them rather than on whether listening is still set. A later
+        // session's words cannot reach this one, nor the reverse.
         onWords: (words) {
-          if (_disposed || !_listening) return;
+          if (_disposed || mine != _session) return;
           onWords(words);
         },
       );
@@ -119,16 +123,22 @@ class SpeechCaptureController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _listening = false;
-    // Unconditional, because a session can be starting right now and the flag
-    // alone would not admit it. The platform ignores a stop with nothing open.
-    unawaited(_stopQuietly());
+    if (_listening) {
+      // A microphone opened here is closed here. A session starting right now
+      // is caught by the check at the end of [listen] instead.
+      unawaited(_stopQuietly());
+    }
     super.dispose();
   }
 
   /// Records that this device cannot recognise, without answering the
-  /// question: only initialisation can do that. A failure part-way through a
-  /// session arrives here too, and must leave a later attempt possible.
+  /// question: only initialisation can do that.
+  ///
+  /// A seam that reported unavailability part-way through a session must not
+  /// retire the mic, or an ordinary pause would end dictation for the whole
+  /// app. Were one ever to, `isAvailable` would stay true beside this notice,
+  /// a state nothing here reaches on its own: a screen that keys the mic on
+  /// the notice would hide it for the rest of that session.
   void _showUnavailableNotice() => _setNotice(speechUnavailableNotice);
 
   Future<void> _stopQuietly() async {
