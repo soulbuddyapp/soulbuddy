@@ -242,6 +242,140 @@ void main() {
     expect(heard, ['I pra', 'I pray']);
   });
 
+  group('a leftover final result from the session it replaced', () {
+    // The platform hands results to whichever session is listening now, so a
+    // stopped session's final result is stamped with the session that replaced
+    // it and has already passed the token that fenced it out. Applying it
+    // would say the sentence twice, into a field the person has since typed.
+    Future<(SpeechCaptureController, _FakeRecognizer, List<String>)>
+    restart() async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      await controller.ensureAvailable();
+      await controller.listen(onWords: (_) {});
+      recognizer.emit('I pra');
+      await controller.stop();
+      final live = <String>[];
+      await controller.listen(onWords: live.add);
+      return (controller, recognizer, live);
+    }
+
+    test('is dropped as the new session\'s first callback', () async {
+      final (controller, recognizer, live) = await restart();
+      addTearDown(controller.dispose);
+
+      recognizer.emit('I pray');
+
+      expect(
+        live,
+        isEmpty,
+        reason: 'the stopped session already said this, into the same field',
+      );
+    });
+
+    test('does not swallow a session that opens with something else', () async {
+      final (controller, recognizer, live) = await restart();
+      addTearDown(controller.dispose);
+
+      recognizer.emit('and peace');
+
+      expect(live, ['and peace']);
+    });
+
+    // A new session whose opening words extend the stopped session's last
+    // words is indistinguishable from a leftover result, and is dropped with
+    // one. Recorded here because the cost is real: recognised words grow, so
+    // the second callback restores everything the first held, and that is the
+    // whole bound on what can be lost.
+    test(
+      'costs a new session its first callback when it opens the same way',
+      () async {
+        final (controller, recognizer, live) = await restart();
+        addTearDown(controller.dispose);
+
+        recognizer.emit('I pray for');
+        recognizer.emit('I pray for you');
+
+        expect(live, [
+          'I pray for you',
+        ], reason: 'the second callback carries what the dropped one held');
+      },
+    );
+
+    test('is only ever dropped as the first callback', () async {
+      final (controller, recognizer, live) = await restart();
+      addTearDown(controller.dispose);
+      // Dropped, but not remembered: what a later stop reports as the session's
+      // words is what the consumer was actually told.
+      recognizer.emit('I pray for');
+      await controller.stop();
+      final later = <String>[];
+      await controller.listen(onWords: later.add);
+      recognizer.emit('I pray for you');
+
+      expect(later, ['I pray for you']);
+      expect(
+        live,
+        isEmpty,
+        reason:
+            'this session opened the same way, so it lost its first callback',
+      );
+    });
+
+    test('a session the platform ended on its own arms nothing', () async {
+      // Nothing asked for this session to end, so there is no evidence of what it
+      // was about to say and no leftover to expect.
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      await controller.listen(onWords: (_) {});
+      recognizer.emit('I pra');
+      recognizer.reportListening(false);
+      final live = <String>[];
+      await controller.listen(onWords: live.add);
+
+      recognizer.emit('I pray');
+
+      expect(live, ['I pray']);
+    });
+
+    test('a session stopped without words arms nothing', () async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      await controller.listen(onWords: (_) {});
+      await controller.stop();
+      final live = <String>[];
+      await controller.listen(onWords: live.add);
+
+      // Nothing to match, so even a first callback that repeats is the
+      // person's own.
+      recognizer.emit('I pray');
+
+      expect(live, ['I pray']);
+    });
+
+    test('is not expected a second time, after another restart', () async {
+      final (controller, recognizer, live) = await restart();
+      addTearDown(controller.dispose);
+      recognizer.emit('I pray for');
+      await controller.stop();
+      final later = <String>[];
+      await controller.listen(onWords: later.add);
+
+      recognizer.emit('I pray again');
+
+      expect(
+        later,
+        ['I pray again'],
+        reason:
+            'the words no longer carry what the session it replaced ended on',
+      );
+    });
+  });
+
   test('words from a superseded session are dropped', () async {
     final recognizer = _FakeRecognizer(available: true);
     final controller = SpeechCaptureController(recognizer: recognizer);

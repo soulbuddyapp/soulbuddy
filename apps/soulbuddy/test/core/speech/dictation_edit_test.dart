@@ -107,56 +107,85 @@ void main() {
     });
   });
 
-  group('a result left over from the session it replaced', () {
-    // A stopped session's final result arrives stamped with the session that
-    // replaced it, so the token that fenced it out has already let it through.
-    // Those words are already in the field, so applying them repeats them.
-    DictationEdit restarted(String superseded) {
-      final stopped = DictationEdit.begin('Grace', caret: 5)..apply(superseded);
-      return DictationEdit.begin(
-        stopped.value,
-        caret: stopped.caretOffset,
-        superseded: superseded,
-      );
-    }
-
-    test('is ignored, leaving the field as dictation found it', () {
-      final edit = restarted('Amen');
+  group('the caret dictation began at', () {
+    test('is the start of the text when given a negative offset', () {
+      final edit = DictationEdit.begin('Amen', caret: -4)..apply(' now');
 
       expect(
-        edit.apply('Amen for you'),
-        'GraceAmen',
-        reason: 'the stopped session already put these words in the field',
+        edit.value,
+        ' nowAmen',
+        reason: 'the offset is clamped rather than trusted',
       );
-      expect(edit.caretOffset, 9, reason: 'the caret has not moved');
-      expect(edit.truncated, isFalse);
+      expect(edit.caretOffset, 4);
     });
 
-    test('is ignored in a field that keeps text after the caret', () {
-      final stopped = DictationEdit.begin('beforeafter', caret: 6)..apply('X');
+    test('is moved off the middle of a surrogate pair', () {
+      // A caret inside a character would split it into two halves in the
+      // merged field, which no text field can show.
+      final edit = DictationEdit.begin('🙂Amen', caret: 1)..apply('X');
+
+      expect(edit.value, 'X🙂Amen');
+      expect(edit.caretOffset, 1);
+    });
+
+    test('is left alone at the end of the text', () {
+      final edit = DictationEdit.begin('🙂', caret: 2)..apply('Amen');
+
+      expect(edit.value, '🙂Amen');
+      expect(edit.caretOffset, 6);
+    });
+  });
+
+  group('a limit', () {
+    test('cuts the field back and reports it', () {
+      final edit = DictationEdit.begin('', caret: 0, maxLength: 3)
+        ..apply('naïve prayer');
+
+      expect(edit.value, 'naï');
+      expect(edit.truncated, isTrue);
+    });
+
+    test('stops being reported once the words fit again', () {
+      final edit = DictationEdit.begin('', caret: 0, maxLength: 8)
+        ..apply('far too long');
+      expect(edit.truncated, isTrue);
+
+      // A recogniser can revise its last words into something shorter, and the
+      // field is whole again, so it must stop claiming to have been cut.
+      edit.apply('short');
+
+      expect(edit.value, 'short');
+      expect(
+        edit.truncated,
+        isFalse,
+        reason: 'nothing is cut now, so nothing should be reported',
+      );
+    });
+
+    test('cuts text that was already in the field, and says so', () {
+      final edit = DictationEdit.begin('Grace', caret: 5, maxLength: 3);
+
+      // The limit applies to the whole field, so words or no words it applies.
+      // Losing typed text is worth a report rather than a shrug.
+      edit.apply('');
+
+      expect(edit.value, 'Gra');
+      expect(edit.truncated, isTrue);
+    });
+
+    test('leaves a field already over it uncut until a callback lands', () {
       final edit = DictationEdit.begin(
-        stopped.value,
-        caret: stopped.caretOffset,
-        superseded: 'X',
+        'Grace and peace',
+        caret: 16,
+        maxLength: 4,
       );
 
-      expect(edit.apply('X'), 'beforeXafter');
-    });
-
-    test('is only ever ignored as the first callback of the session', () {
-      final edit = restarted('Amen')..apply('Amen');
-
+      expect(edit.value, 'Grace and peace');
       expect(
-        edit.apply('Amen for you'),
-        'GraceAmenAmen for you',
-        reason: 'later callbacks are the session speaking, and are trusted',
+        edit.truncated,
+        isFalse,
+        reason: 'nothing has been cut yet, so nothing is reported',
       );
-    });
-
-    test('does not stop a session whose words do not carry it', () {
-      final edit = DictationEdit.begin('Grace', caret: 5, superseded: 'Amen');
-
-      expect(edit.apply(' and peace'), 'Grace and peace');
     });
   });
 }

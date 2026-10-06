@@ -19,6 +19,29 @@ const String speechUnavailableNotice =
 /// not re-prompt or re-notice. Listening state is owned here rather than read
 /// back from the recogniser, because the platform reports it late, or not at
 /// all after a stop.
+///
+/// This is also where a session boundary is policed. A stopped session can
+/// deliver its final result after its replacement has started, stamped with the
+/// replacement's session, so the token in [listen] has already let it through
+/// and no consumer downstream can tell it from the new session speaking. The
+/// first callback of a session that follows a stop is therefore dropped when it
+/// carries the stopped session's words forward, because those words are already
+/// in the field. Consumers see this as one callback that never arrives.
+///
+/// Only [stop] arms that check. A session the platform ends on its own — a
+/// pause, a recognition error — is not armed, because nothing asked for it to
+/// be and there is no evidence of what it was about to say. A final result
+/// arriving after one of those is the case this does not cover.
+///
+/// That has a cost, and it is a real one: a session whose opening words extend
+/// the previous session's last words loses that first callback too, and if
+/// nothing follows it the words are gone with no signal to anyone. This is
+/// chosen over the alternative — applying the result and saying the sentence
+/// twice into a field the person has since typed into — because a duplicate
+/// corrupts what gets saved, while a lost opening word is at most a first word,
+/// and only in the case where the recogniser reports once and then stops. The
+/// dropped callback is bounded to the first one: recognised words grow, so any
+/// second callback carries everything the first held.
 class SpeechCaptureController extends ChangeNotifier {
   SpeechCaptureController({SpeechRecognizer? recognizer})
     : _recognizer = recognizer ?? PluginSpeechRecognizer();
@@ -31,6 +54,18 @@ class SpeechCaptureController extends ChangeNotifier {
   bool _disposed = false;
   String? _notice;
   int _session = 0;
+
+  /// The words the running session has most recently reported, so a stop can
+  /// record what the session ended on.
+  String? _sessionWords;
+
+  /// The words the last stopped session most recently reported. A stopped
+  /// session can deliver a final result after its replacement has started, so
+  /// the next session has to recognise that leftover.
+  String? _stoppedWords;
+
+  /// Whether the running session's first callback is still to arrive.
+  bool _awaitingFirstWords = false;
 
   /// Whether speech is available. False until [ensureAvailable] resolves.
   bool get isAvailable => _available ?? false;
@@ -72,6 +107,11 @@ class SpeechCaptureController extends ChangeNotifier {
   /// Starts a session. Returns false when speech is unavailable, a session is
   /// already running, or the start failed, leaving the caller's field
   /// untouched and editable.
+  ///
+  /// The first callback may be dropped when this session follows a stop; see
+  /// the note on this class. A consumer that needs the opening words kept
+  /// whatever it is told should not also be updating a field from them, which
+  /// is the one shape that would notice.
   Future<bool> listen({required void Function(String words) onWords}) async {
     if (_disposed || _listening) return false;
     if (!await ensureAvailable()) return false;
@@ -83,6 +123,15 @@ class SpeechCaptureController extends ChangeNotifier {
     // The platform has not reported listening yet, and may not report it at
     // all before the first words, so the session is declared open here.
     _setListening(true);
+    _sessionWords = null;
+    // The platform hands results to whichever session is listening now, so a
+    // stopped session's final result arrives stamped with this one, already
+    // past the token that fenced it out. Nothing can tell such a leftover from
+    // the new session speaking except that it carries the stopped session's
+    // words forward, which is what the first callback is checked for.
+    final leftover = _stoppedWords;
+    _stoppedWords = null;
+    _awaitingFirstWords = leftover != null && leftover.isNotEmpty;
     try {
       await _recognizer.listen(
         // The platform can deliver a final result after a stop, and that
@@ -91,6 +140,18 @@ class SpeechCaptureController extends ChangeNotifier {
         // session's words cannot reach this one, nor the reverse.
         onWords: (words) {
           if (_disposed || mine != _session) return;
+          if (_awaitingFirstWords) {
+            _awaitingFirstWords = false;
+            // Dropped, and not passed on: the words are already in the field,
+            // so reaching the consumer would say the sentence twice. Only the
+            // first callback is checked, because a session's words then grow
+            // into something the leftover could not be.
+            if (leftover != null && words.startsWith(leftover)) return;
+          }
+          // Recorded only once the words are being passed on, so what a stop
+          // remembers is what the consumer was told rather than a result it
+          // never saw.
+          _sessionWords = words;
           onWords(words);
         },
       );
@@ -110,6 +171,9 @@ class SpeechCaptureController extends ChangeNotifier {
   /// Ends the session. Clears the flag directly because the platform tears
   /// down silently and may send no status change.
   ///
+  /// What the session ended on is kept, because its final result can still
+  /// arrive afterwards and the next session has to recognise it.
+  ///
   /// A caller that is tearing down should dispose this instead: [dispose]
   /// cannot be awaited and never lets a platform failure escape.
   Future<void> stop() async {
@@ -117,6 +181,7 @@ class SpeechCaptureController extends ChangeNotifier {
       await _recognizer.stop();
     } finally {
       _setListening(false);
+      _stoppedWords = _sessionWords;
     }
   }
 
