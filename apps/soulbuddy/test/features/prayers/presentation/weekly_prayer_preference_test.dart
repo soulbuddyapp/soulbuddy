@@ -22,14 +22,16 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prayerReleaseRepositoryProvider.overrideWith((ref) async => repository),
+          prayerReleaseRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(body: WeeklyPrayerPreferenceTile()),
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(textScale),
-            ),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
         ),

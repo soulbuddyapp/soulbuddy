@@ -159,16 +159,17 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
   /// `Be still before God` appears only where an `affirmation_repetition`
   /// profile is available for this prayer.
   List<Widget> _attentionAction(BuildContext context) {
-    final item = ref.watch(prayerReleaseItemContentProvider(widget.prayerId)).value;
+    final item = ref
+        .watch(prayerReleaseItemContentProvider(widget.prayerId))
+        .value;
     if (item == null || item.practice == null) return const [];
 
     return [
       const SizedBox(height: AppSpacing.lg),
       FilledButton.tonalIcon(
         key: const Key('prayer-detail-attention'),
-        onPressed: () => context.go(
-          '/prayers/releases/${item.releaseSlug}/attention',
-        ),
+        onPressed: () =>
+            context.go('/prayers/releases/${item.releaseSlug}/attention'),
         icon: const Icon(Icons.self_improvement),
         label: const Text('Be still before God'),
       ),

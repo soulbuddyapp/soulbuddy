@@ -93,18 +93,21 @@ class RecordingSessions implements AffirmationPrayerSessionRepository {
 
 AffirmationPrayerProfile buildProfile() {
   return AffirmationPrayerProfile.fromPractice(
-    PrayerReleasePractice(mode: PrayerReleasePractice.affirmationRepetition, steps: [
-      PrayerReleasePracticeStep(
-        phrase: stepOnePhrase,
-        targetCount: 50,
-        sourceLine: stepOneSourceLine,
-      ),
-      PrayerReleasePracticeStep(
-        phrase: stepTwoPhrase,
-        targetCount: 10,
-        sourceLine: stepTwoSourceLine,
-      ),
-    ]),
+    PrayerReleasePractice(
+      mode: PrayerReleasePractice.affirmationRepetition,
+      steps: [
+        PrayerReleasePracticeStep(
+          phrase: stepOnePhrase,
+          targetCount: 50,
+          sourceLine: stepOneSourceLine,
+        ),
+        PrayerReleasePracticeStep(
+          phrase: stepTwoPhrase,
+          targetCount: 10,
+          sourceLine: stepTwoSourceLine,
+        ),
+      ],
+    ),
   );
 }
 
@@ -181,7 +184,8 @@ void main() {
               const PrayerReleasePracticeStep(
                 phrase: stepOnePhrase,
                 targetCount: 40,
-                sourceLine: 'Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x40)',
+                sourceLine:
+                    'Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x40)',
               ),
               const PrayerReleasePracticeStep(
                 phrase: stepTwoPhrase,
@@ -201,16 +205,13 @@ void main() {
       final controller = buildController();
 
       expect(controller.state.phase, AffirmationPrayerPhase.recollection);
-      expect(
-        AffirmationPrayerWords.recollectionLines,
-        [
-          'Let your body grow still',
-          'Let the noise fade away',
-          'Lift your heart to God',
-          "Recognize God's presence and sovereignty",
-          'Be still, and know that I am God',
-        ],
-      );
+      expect(AffirmationPrayerWords.recollectionLines, [
+        'Let your body grow still',
+        'Let the noise fade away',
+        'Lift your heart to God',
+        "Recognize God's presence and sovereignty",
+        'Be still, and know that I am God',
+      ]);
 
       for (var index = 0; index < 4; index++) {
         controller.advanceRecollection();
@@ -255,14 +256,17 @@ void main() {
       expect(controller.countLabel, '2 of 50');
     });
 
-    test('narration reading the phrase alone never advances the count', () async {
-      final controller = buildController();
-      await controller.begin();
+    test(
+      'narration reading the phrase alone never advances the count',
+      () async {
+        final controller = buildController();
+        await controller.begin();
 
-      // The guide finished speaking twice on its own.
-      expect(narration.spoken, [stepOnePhrase]);
-      expect(controller.state.stepOneCount, 0);
-    });
+        // The guide finished speaking twice on its own.
+        expect(narration.spoken, [stepOnePhrase]);
+        expect(controller.state.stepOneCount, 0);
+      },
+    );
 
     test('places the count quietly below the phrase', () async {
       final controller = buildController();
@@ -319,30 +323,33 @@ void main() {
   });
 
   group('step transition', () {
-    test('moves quietly from fifty to ten after the fiftieth repetition', () async {
-      final controller = buildController();
-      await controller.begin();
+    test(
+      'moves quietly from fifty to ten after the fiftieth repetition',
+      () async {
+        final controller = buildController();
+        await controller.begin();
 
-      for (var index = 0; index < 50; index++) {
-        await controller.confirmSpoken();
-        if (index < 49 &&
-            controller.state.phase == AffirmationPrayerPhase.groupPause) {
-          await controller.leaveGroupPause();
+        for (var index = 0; index < 50; index++) {
+          await controller.confirmSpoken();
+          if (index < 49 &&
+              controller.state.phase == AffirmationPrayerPhase.groupPause) {
+            await controller.leaveGroupPause();
+          }
         }
-      }
 
-      expect(controller.state.stepOneCount, 50);
-      // The fiftieth repetition pauses before the second phrase begins.
-      expect(controller.state.phase, AffirmationPrayerPhase.groupPause);
+        expect(controller.state.stepOneCount, 50);
+        // The fiftieth repetition pauses before the second phrase begins.
+        expect(controller.state.phase, AffirmationPrayerPhase.groupPause);
 
-      await controller.leaveGroupPause();
+        await controller.leaveGroupPause();
 
-      expect(controller.state.stepOneCount, 50);
-      expect(controller.state.stepTwoCount, 0);
-      expect(controller.state.stepIndex, 1);
-      expect(controller.currentPhrase, stepTwoPhrase);
-      expect(controller.countLabel, '0 of 10');
-    });
+        expect(controller.state.stepOneCount, 50);
+        expect(controller.state.stepTwoCount, 0);
+        expect(controller.state.stepIndex, 1);
+        expect(controller.currentPhrase, stepTwoPhrase);
+        expect(controller.countLabel, '0 of 10');
+      },
+    );
 
     test('counts the second phrase from zero of ten', () async {
       final controller = buildController();
@@ -406,7 +413,10 @@ void main() {
       await controller.end();
 
       expect(sessions.saved, hasLength(1));
-      expect(sessions.saved.single.outcome, AffirmationPrayerOutcome.endedEarly);
+      expect(
+        sessions.saved.single.outcome,
+        AffirmationPrayerOutcome.endedEarly,
+      );
       expect(sessions.saved.single.stepOneCount, 12);
       expect(sessions.saved.single.stepTwoCount, 0);
     });
@@ -416,7 +426,10 @@ void main() {
       await controller.begin();
       await controller.end();
 
-      expect(sessions.saved.single.outcome, AffirmationPrayerOutcome.endedEarly);
+      expect(
+        sessions.saved.single.outcome,
+        AffirmationPrayerOutcome.endedEarly,
+      );
       expect(sessions.saved.single.stepOneCount, 0);
     });
 
@@ -470,28 +483,57 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     });
+
+    test('rejects a session that ends before it starts', () {
+      expect(
+        () => AffirmationPrayerSession.validate(
+          outcome: AffirmationPrayerOutcome.endedEarly,
+          stepOneCount: 12,
+          stepTwoCount: 0,
+          startedAt: DateTime.utc(2026, 10, 6, 9, 12),
+          endedAt: DateTime.utc(2026, 10, 6, 9),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('accepts a session that ends at the moment it started', () {
+      expect(
+        () => AffirmationPrayerSession.validate(
+          outcome: AffirmationPrayerOutcome.endedEarly,
+          stepOneCount: 0,
+          stepTwoCount: 0,
+          startedAt: DateTime.utc(2026, 10, 6, 9),
+          endedAt: DateTime.utc(2026, 10, 6, 9),
+        ),
+        returnsNormally,
+      );
+    });
   });
 
   group('lifecycle', () {
-    test('stops sound on an interruption and resumes only on request', () async {
-      final controller = buildController();
-      await controller.setSound(soundKey: 'gentle_rain', volume: .15);
-      await controller.begin();
-      expect(bed.playing, 'gentle_rain');
+    test(
+      'stops sound on an interruption and resumes only on request',
+      () async {
+        final controller = buildController();
+        await controller.setSound(soundKey: 'gentle_rain', volume: .15);
+        await controller.begin();
+        expect(bed.playing, 'gentle_rain');
 
-      await controller.pauseForInterruption();
-      expect(bed.playing, isNull);
-      expect(narration.stopCount, greaterThan(0));
-      expect(awake.states.last, isFalse);
+        await controller.pauseForInterruption();
+        expect(bed.playing, isNull);
+        expect(narration.stopCount, greaterThan(0));
+        expect(awake.states.last, isFalse);
 
-      // Foregrounding alone must not bring sound back.
-      controller.becameVisible();
-      await Future<void>.delayed(Duration.zero);
-      expect(bed.playing, isNull);
+        // Foregrounding alone must not bring sound back.
+        controller.becameVisible();
+        await Future<void>.delayed(Duration.zero);
+        expect(bed.playing, isNull);
 
-      await controller.resume();
-      expect(bed.playing, 'gentle_rain');
-    });
+        await controller.resume();
+        expect(bed.playing, 'gentle_rain');
+      },
+    );
 
     test('keeps the device awake while the session is active', () async {
       final controller = buildController();
@@ -533,15 +575,18 @@ void main() {
       expect(controller.state.speed, 1.15);
     });
 
-    test('keeps the selected sound and level with the session record', () async {
-      final controller = buildController();
-      await controller.setSound(soundKey: 'ocean_waves', volume: .2);
-      await controller.begin();
-      await controller.end();
+    test(
+      'keeps the selected sound and level with the session record',
+      () async {
+        final controller = buildController();
+        await controller.setSound(soundKey: 'ocean_waves', volume: .2);
+        await controller.begin();
+        await controller.end();
 
-      expect(sessions.saved.single.soundKey, 'ocean_waves');
-      expect(sessions.saved.single.narrationSpeed, .85);
-    });
+        expect(sessions.saved.single.soundKey, 'ocean_waves');
+        expect(sessions.saved.single.narrationSpeed, .85);
+      },
+    );
 
     test('starts the chosen bed only after a deliberate begin', () async {
       final controller = buildController();

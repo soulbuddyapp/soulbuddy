@@ -28,7 +28,8 @@ class _WeeklyPrayerPreferenceTileState
 
   Future<void> _set(bool weeklyEnabled) async {
     if (_saving) return;
-    final current = ref.read(prayerReleasePreferenceProvider).value ??
+    final current =
+        ref.read(prayerReleasePreferenceProvider).value ??
         const PrayerReleasePreference();
     setState(() {
       _saving = true;
@@ -37,9 +38,7 @@ class _WeeklyPrayerPreferenceTileState
     });
 
     try {
-      final repository = await ref.read(
-        prayerReleaseRepositoryProvider.future,
-      );
+      final repository = await ref.read(prayerReleaseRepositoryProvider.future);
       await repository.savePreference(
         PrayerReleasePreference(
           weeklyEnabled: weeklyEnabled,
@@ -67,7 +66,11 @@ class _WeeklyPrayerPreferenceTileState
     if (offset == Duration.zero) return 'UTC';
     final sign = offset.isNegative ? '-' : '+';
     final hours = offset.inHours.abs().toString().padLeft(2, '0');
-    final minutes = offset.inMinutes.abs().remainder(60).toString().padLeft(2, '0');
+    final minutes = offset.inMinutes
+        .abs()
+        .remainder(60)
+        .toString()
+        .padLeft(2, '0');
 
     return 'Etc/GMT$sign$hours:$minutes';
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 
@@ -112,17 +113,27 @@ class AffirmationPrayerBedPlayer implements AffirmationPrayerSoundBed {
   }
 }
 
-/// Speaks the exact phrase text with the device voice at the chosen pace.
+/// Speaks the exact phrase through a validated audio asset.
 ///
-/// The only text ever spoken is the phrase the person can see. No substitute
-/// script is read, and a request for audio the device cannot provide leaves the
-/// person reading the same words in silence.
+/// The asset is fetched only for content whose recorded transcript hash matched
+/// the release content hash on the server. A repeated read replays that same
+/// asset, and neither a first read nor a repeat ever advances a count.
 class AffirmationPrayerVoice implements AffirmationPrayerNarrationPlayer {
-  AffirmationPrayerVoice({required this.speakPhrase});
+  AffirmationPrayerVoice({
+    required this.speakPhrase,
+    AudioPlayer? player,
+    this.downloadBudgetBytes = 2_000_000,
+  }) : _player = player ?? AudioPlayer();
 
   /// Reads one exact phrase at one pace. Injected so the spoken text is the
   /// visible text and nothing else.
   final Future<void> Function(String phrase, double speed) speakPhrase;
+
+  /// Refuse an implausibly large asset rather than buffering it.
+  final int downloadBudgetBytes;
+
+  final AudioPlayer _player;
+  var _generation = 0;
 
   @override
   Future<void> speak(String phrase, {required double speed}) async {
@@ -138,11 +149,44 @@ class AffirmationPrayerVoice implements AffirmationPrayerNarrationPlayer {
     return speak(phrase, speed: speed);
   }
 
-  @override
-  Future<void> stop() async {}
+  /// Plays validated narration bytes at the chosen pace.
+  Future<void> playAsset(Uint8List bytes, {required double speed}) async {
+    if (bytes.isEmpty || bytes.length > downloadBudgetBytes) return;
+
+    final generation = ++_generation;
+    try {
+      await _player.stop();
+      if (generation != _generation) return;
+      await _player.play(
+        BytesSource(bytes, mimeType: 'audio/mpeg'),
+        ctx: AudioContextConfig(
+          respectSilence: true,
+          stayAwake: false,
+          // The guide ducks the bed rather than silencing it.
+          focus: AudioContextConfigFocus.mixWithOthers,
+        ).build(),
+      );
+      await _player.setPlaybackRate(speed);
+    } on Exception {
+      // An unplayable asset leaves the person reading the same words.
+    }
+  }
 
   @override
-  void dispose() {}
+  Future<void> stop() async {
+    _generation++;
+    try {
+      await _player.stop();
+    } on Exception {
+      // Stopping must never throw during teardown.
+    }
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _player.dispose();
+  }
 }
 
 /// Keeps the device awake through the shared screen-awake controller.

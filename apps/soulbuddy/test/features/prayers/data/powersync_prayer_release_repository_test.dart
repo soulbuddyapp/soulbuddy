@@ -21,9 +21,11 @@ const repetitionBody =
 /// A JSON response. Bodies are UTF-8 encoded because the source wording
 /// contains characters outside Latin-1.
 http.Response jsonResponse(String body, int statusCode) {
-  return http.Response.bytes(utf8.encode(body), statusCode, headers: {
-    'content-type': 'application/json; charset=utf-8',
-  });
+  return http.Response.bytes(
+    utf8.encode(body),
+    statusCode,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
 }
 
 Map<String, Object?> releasePayload({
@@ -66,7 +68,9 @@ String discoveryBody({
   bool listed = true,
 }) {
   return jsonEncode({
-    'releases': listed ? [releasePayload(hasAttentionPractice: hasAttentionPractice)] : [],
+    'releases': listed
+        ? [releasePayload(hasAttentionPractice: hasAttentionPractice)]
+        : [],
     'preference': {
       'weekly_enabled': false,
       'notification_enabled': true,
@@ -84,7 +88,9 @@ String addedRow({
     'sort_order': 0,
     'kind': hasPractice ? 'meditation_prayer' : 'prayer',
     'library_prayer_id': libraryPrayerId,
-    'title': hasPractice ? 'New Adam repetitions' : 'Daily Prayer Against Temptations',
+    'title': hasPractice
+        ? 'New Adam repetitions'
+        : 'Daily Prayer Against Temptations',
     'body': hasPractice ? repetitionBody : firstBody,
     'grounding': 'general_christian',
     'language_style': 'christian',
@@ -160,13 +166,16 @@ Future<void> seedReleasePrayer(
   String id = 'release-prayer-0',
   String title = 'Daily Prayer Against Temptations',
 }) async {
-  await database.execute('''
+  await database.execute(
+    '''
     INSERT INTO library_prayers(
       id, title, body, grounding, language_style, purpose, action,
       helpful_count, published_at, archived_at
     ) VALUES (?, ?, ?, 'general_christian', 'christian', 'daily', NULL, 3,
       '2026-10-05T07:00:00Z', NULL)
-    ''', [id, title, firstBody]);
+    ''',
+    [id, title, firstBody],
+  );
 }
 
 Future<void> seedOrdinaryPrayer(
@@ -174,13 +183,16 @@ Future<void> seedOrdinaryPrayer(
   String id = 'ordinary-prayer',
   String title = 'For this day',
 }) async {
-  await database.execute('''
+  await database.execute(
+    '''
     INSERT INTO library_prayers(
       id, title, body, grounding, language_style, purpose, action,
       helpful_count, published_at, archived_at
     ) VALUES (?, ?, 'Ordinary prayer body.', 'general_christian', 'christian',
       'daily', NULL, 5, '2026-10-05T07:00:00Z', NULL)
-    ''', [id, title]);
+    ''',
+    [id, title],
+  );
 }
 
 void main() {
@@ -198,29 +210,32 @@ void main() {
     }
   });
 
-  test('keeps weekly release prayers out of the ordinary library before an add', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
-    await seedReleasePrayer(database.powersync);
-    await seedOrdinaryPrayer(database.powersync);
+  test(
+    'keeps weekly release prayers out of the ordinary library before an add',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      await seedReleasePrayer(database.powersync);
+      await seedOrdinaryPrayer(database.powersync);
 
-    // Discovery has seen the release; the person has not added it.
-    await buildRepository(database.powersync).refresh();
+      // Discovery has seen the release; the person has not added it.
+      await buildRepository(database.powersync).refresh();
 
-    final repository = PowerSyncPrayerRepository(
-      database: database.powersync,
-      ownerId: 'owner-1',
-    );
+      final repository = PowerSyncPrayerRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+      );
 
-    final titles = (await repository.watchLibrary().first)
-        .map((prayer) => prayer.title)
-        .toList();
+      final titles = (await repository.watchLibrary().first)
+          .map((prayer) => prayer.title)
+          .toList();
 
-    expect(titles, contains('For this day'));
-    expect(titles, isNot(contains('Daily Prayer Against Temptations')));
-  });
+      expect(titles, contains('For this day'));
+      expect(titles, isNot(contains('Daily Prayer Against Temptations')));
+    },
+  );
 
   test('shows the exact release prayers in the library after an add', () async {
     final database = await openTestDatabase(
@@ -245,102 +260,117 @@ void main() {
       containsAll(['For this day', 'Daily Prayer Against Temptations']),
     );
     expect(
-      prayers.firstWhere(
-        (prayer) => prayer.title == 'Daily Prayer Against Temptations',
-      ).body,
+      prayers
+          .firstWhere(
+            (prayer) => prayer.title == 'Daily Prayer Against Temptations',
+          )
+          .body,
       firstBody,
     );
   });
 
-  test('does not leak one account download into another account library', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
-    await seedReleasePrayer(database.powersync);
+  test(
+    'does not leak one account download into another account library',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      await seedReleasePrayer(database.powersync);
 
-    await buildRepository(database.powersync, ownerId: 'owner-1').addRelease(
-      slug,
-    );
+      await buildRepository(
+        database.powersync,
+        ownerId: 'owner-1',
+      ).addRelease(slug);
 
-    final otherAccount = PowerSyncPrayerRepository(
-      database: database.powersync,
-      ownerId: 'owner-2',
-    );
-    final titles = (await otherAccount.watchLibrary().first)
-        .map((prayer) => prayer.title)
-        .toList();
+      final otherAccount = PowerSyncPrayerRepository(
+        database: database.powersync,
+        ownerId: 'owner-2',
+      );
+      final titles = (await otherAccount.watchLibrary().first)
+          .map((prayer) => prayer.title)
+          .toList();
 
-    expect(titles, isNot(contains('Daily Prayer Against Temptations')));
-  });
+      expect(titles, isNot(contains('Daily Prayer Against Temptations')));
+    },
+  );
 
-  test('caches the exact content offline so a reopened app still has it', () async {
-    final path = '${temporaryDirectory.path}/soulbuddy.db';
-    var online = true;
-    late http.Client client;
-    client = MockClient((request) async {
-      if (!online) {
-        throw http.ClientException('offline', request.url);
-      }
+  test(
+    'caches the exact content offline so a reopened app still has it',
+    () async {
+      final path = '${temporaryDirectory.path}/soulbuddy.db';
+      var online = true;
+      late http.Client client;
+      client = MockClient((request) async {
+        if (!online) {
+          throw http.ClientException('offline', request.url);
+        }
 
-      return request.method == 'POST'
-          ? jsonResponse(addedRow(hasPractice: true), 201)
-          : jsonResponse(discoveryBody(hasAttentionPractice: true), 200);
-    });
+        return request.method == 'POST'
+            ? jsonResponse(addedRow(hasPractice: true), 201)
+            : jsonResponse(discoveryBody(hasAttentionPractice: true), 200);
+      });
 
-    final first = await openTestDatabase(path);
-    await buildRepository(first.powersync, httpClient: client).addRelease(slug);
-    await first.close();
+      final first = await openTestDatabase(path);
+      await buildRepository(
+        first.powersync,
+        httpClient: client,
+      ).addRelease(slug);
+      await first.close();
 
-    // The network is gone and the app is reopened.
-    online = false;
-    final second = await openTestDatabase(path);
-    addTearDown(second.close);
+      // The network is gone and the app is reopened.
+      online = false;
+      final second = await openTestDatabase(path);
+      addTearDown(second.close);
 
-    final content = await buildRepository(
-      second.powersync,
-      httpClient: client,
-    ).watchReleaseContent(slug).first;
+      final content = await buildRepository(
+        second.powersync,
+        httpClient: client,
+      ).watchReleaseContent(slug).first;
 
-    expect(content, hasLength(1));
-    expect(content.single.body, repetitionBody);
-    expect(content.single.title, 'New Adam repetitions');
-    expect(content.single.action, isNull);
-    expect(content.single.practice?.steps, hasLength(2));
-    expect(content.single.practice?.mode, 'affirmation_repetition');
-    expect(
-      content.single.practice!.steps.first.sourceLine,
-      'Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x50)',
-    );
-    expect(
-      content.single.practice!.steps.map((step) => step.rebuildsSourceLine()),
-      everyElement(isTrue),
-    );
-  });
+      expect(content, hasLength(1));
+      expect(content.single.body, repetitionBody);
+      expect(content.single.title, 'New Adam repetitions');
+      expect(content.single.action, isNull);
+      expect(content.single.practice?.steps, hasLength(2));
+      expect(content.single.practice?.mode, 'affirmation_repetition');
+      expect(
+        content.single.practice!.steps.first.sourceLine,
+        'Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x50)',
+      );
+      expect(
+        content.single.practice!.steps.map((step) => step.rebuildsSourceLine()),
+        everyElement(isTrue),
+      );
+    },
+  );
 
-  test('keeps discovery metadata out of the content cache before an add', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
+  test(
+    'keeps discovery metadata out of the content cache before an add',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
 
-    final repository = buildRepository(database.powersync);
-    await repository.refresh();
+      final repository = buildRepository(database.powersync);
+      await repository.refresh();
 
-    final content = await repository.watchReleaseContent(slug).first;
-    expect(content, isEmpty);
+      final content = await repository.watchReleaseContent(slug).first;
+      expect(content, isEmpty);
 
-    final rows = await database.powersync.getAll(
-      'SELECT * FROM prayer_release_cache',
-    );
-    expect(rows, hasLength(1));
-    expect(rows.single['added_at'], isNull);
+      final rows = await database.powersync.getAll(
+        'SELECT * FROM prayer_release_cache',
+      );
+      expect(rows, hasLength(1));
+      expect(rows.single['added_at'], isNull);
 
-    final body = await database.powersync.getOptional(
-      "SELECT body FROM prayer_release_item_content LIMIT 1",
-    );
-    expect(body, isNull);
-  });
+      final body = await database.powersync.getOptional(
+        "SELECT body FROM prayer_release_item_content LIMIT 1",
+      );
+      expect(body, isNull);
+    },
+  );
 
   test('makes a repeated add idempotent', () async {
     final database = await openTestDatabase(
@@ -409,56 +439,59 @@ void main() {
     expect(added.single.addedAt, DateTime.utc(2026, 10, 6, 9));
   });
 
-  test('caches the weekly preference and keeps opt-in off by default', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
+  test(
+    'caches the weekly preference and keeps opt-in off by default',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
 
-    final repository = buildRepository(
-      database.powersync,
-      httpClient: MockClient((request) async {
-        if (request.method == 'PUT') {
-          final sent = jsonDecode(request.body) as Map<String, dynamic>;
+      final repository = buildRepository(
+        database.powersync,
+        httpClient: MockClient((request) async {
+          if (request.method == 'PUT') {
+            final sent = jsonDecode(request.body) as Map<String, dynamic>;
 
-          return jsonResponse(
-            jsonEncode({
-              'preference': {
-                'weekly_enabled': sent['weekly_enabled'],
-                'notification_enabled': sent['weekly_enabled'] == true
-                    ? sent['notification_enabled']
-                    : false,
-                'time_zone': sent['time_zone'],
-              },
-            }),
-            200,
-          );
-        }
+            return jsonResponse(
+              jsonEncode({
+                'preference': {
+                  'weekly_enabled': sent['weekly_enabled'],
+                  'notification_enabled': sent['weekly_enabled'] == true
+                      ? sent['notification_enabled']
+                      : false,
+                  'time_zone': sent['time_zone'],
+                },
+              }),
+              200,
+            );
+          }
 
-        return jsonResponse(discoveryBody(), 200);
-      }),
-    );
-    await repository.refresh();
+          return jsonResponse(discoveryBody(), 200);
+        }),
+      );
+      await repository.refresh();
 
-    final cached = await repository.watchPreference().first;
-    expect(cached.weeklyEnabled, isFalse);
-    expect(cached.notificationEnabled, isTrue);
-    expect(cached.receivesDelivery, isFalse);
+      final cached = await repository.watchPreference().first;
+      expect(cached.weeklyEnabled, isFalse);
+      expect(cached.notificationEnabled, isTrue);
+      expect(cached.receivesDelivery, isFalse);
 
-    await repository.savePreference(
-      const PrayerReleasePreference(
-        weeklyEnabled: true,
-        notificationEnabled: true,
-        timeZone: 'Africa/Lagos',
-      ),
-    );
+      await repository.savePreference(
+        const PrayerReleasePreference(
+          weeklyEnabled: true,
+          notificationEnabled: true,
+          timeZone: 'Africa/Lagos',
+        ),
+      );
 
-    final saved = await repository.watchPreference().first;
-    expect(saved.weeklyEnabled, isTrue);
-    expect(saved.notificationEnabled, isTrue);
-    expect(saved.timeZone, 'Africa/Lagos');
-    expect(saved.receivesDelivery, isTrue);
-  });
+      final saved = await repository.watchPreference().first;
+      expect(saved.weeklyEnabled, isTrue);
+      expect(saved.notificationEnabled, isTrue);
+      expect(saved.timeZone, 'Africa/Lagos');
+      expect(saved.receivesDelivery, isTrue);
+    },
+  );
 
   test('stops future delivery when weekly opt-in is turned off', () async {
     final database = await openTestDatabase(
@@ -517,36 +550,39 @@ void main() {
     expect(await repository.watchReleaseContent(slug).first, hasLength(1));
   });
 
-  test('keeps an added release readable after the server stops listing it', () async {
-    final database = await openTestDatabase(
-      '${temporaryDirectory.path}/soulbuddy.db',
-    );
-    addTearDown(database.close);
+  test(
+    'keeps an added release readable after the server stops listing it',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
 
-    var listed = true;
-    final repository = buildRepository(
-      database.powersync,
-      httpClient: MockClient((request) async {
-        if (request.method == 'POST') {
-          return jsonResponse(addedRow(), 201);
-        }
+      var listed = true;
+      final repository = buildRepository(
+        database.powersync,
+        httpClient: MockClient((request) async {
+          if (request.method == 'POST') {
+            return jsonResponse(addedRow(), 201);
+          }
 
-        return jsonResponse(
-          listed ? discoveryBody() : discoveryBody(listed: false),
-          200,
-        );
-      }),
-    );
+          return jsonResponse(
+            listed ? discoveryBody() : discoveryBody(listed: false),
+            200,
+          );
+        }),
+      );
 
-    await repository.addRelease(slug);
-    listed = false;
-    await repository.refresh();
+      await repository.addRelease(slug);
+      listed = false;
+      await repository.refresh();
 
-    final content = await repository.watchReleaseContent(slug).first;
-    final added = await repository.watchAddedReleases().first;
+      final content = await repository.watchReleaseContent(slug).first;
+      final added = await repository.watchAddedReleases().first;
 
-    expect(content, hasLength(1));
-    expect(added, hasLength(1));
-    expect(content.single.body, firstBody);
-  });
+      expect(content, hasLength(1));
+      expect(added, hasLength(1));
+      expect(content.single.body, firstBody);
+    },
+  );
 }

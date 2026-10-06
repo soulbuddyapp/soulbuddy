@@ -117,14 +117,14 @@ class PrayerReleaseItemContent {
   PrayerGrounding? get prayerGrounding => grounding == null
       ? null
       : PrayerGrounding.values
-          .where((value) => value.wireValue == grounding)
-          .firstOrNull;
+            .where((value) => value.wireValue == grounding)
+            .firstOrNull;
 
   PrayerPurpose? get prayerPurpose => purpose == null
       ? null
       : PrayerPurpose.values
-          .where((value) => value.wireValue == purpose)
-          .firstOrNull;
+            .where((value) => value.wireValue == purpose)
+            .firstOrNull;
 
   factory PrayerReleaseItemContent.fromRow(Map<String, dynamic> row) {
     return PrayerReleaseItemContent(
@@ -192,10 +192,7 @@ class PrayerReleasePractice {
       );
     }
 
-    return PrayerReleasePractice(
-      mode: mode,
-      steps: List.unmodifiable(steps),
-    );
+    return PrayerReleasePractice(mode: mode, steps: List.unmodifiable(steps));
   }
 }
 
@@ -216,7 +213,8 @@ class PrayerReleasePracticeStep {
   /// The source line must rebuild from the phrase and count, or the profile is
   /// not usable.
   bool rebuildsSourceLine() =>
-      sourceLine == PrayerReleasePracticeStep.sourceLineFor(phrase, targetCount);
+      sourceLine ==
+      PrayerReleasePracticeStep.sourceLineFor(phrase, targetCount);
 
   static String sourceLineFor(String phrase, int targetCount) =>
       '$phrase (x$targetCount)';

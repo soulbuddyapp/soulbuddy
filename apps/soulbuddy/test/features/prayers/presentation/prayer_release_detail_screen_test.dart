@@ -26,14 +26,16 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prayerReleaseRepositoryProvider.overrideWith((ref) async => repository),
+          prayerReleaseRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
         ],
         child: MaterialApp.router(
           routerConfig: router,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(textScale),
-            ),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
         ),
@@ -52,9 +54,8 @@ void main() {
         ),
         GoRoute(
           path: '/prayers/releases/:slug',
-          builder: (context, state) => PrayerReleaseDetailScreen(
-            slug: state.pathParameters['slug']!,
-          ),
+          builder: (context, state) =>
+              PrayerReleaseDetailScreen(slug: state.pathParameters['slug']!),
         ),
         GoRoute(
           path: '/prayers/releases/:slug/attention',
@@ -62,14 +63,17 @@ void main() {
         ),
         GoRoute(
           path: '/prayers/:prayerId',
-          builder: (context, state) =>
-              Scaffold(body: Text('Prayer ${state.pathParameters['prayerId']}')),
+          builder: (context, state) => Scaffold(
+            body: Text('Prayer ${state.pathParameters['prayerId']}'),
+          ),
         ),
       ],
     );
   }
 
-  testWidgets('offers only the compact add action before an add', (tester) async {
+  testWidgets('offers only the compact add action before an add', (
+    tester,
+  ) async {
     final router = buildRouter();
     addTearDown(router.dispose);
 
@@ -99,10 +103,7 @@ void main() {
     await pumpDetail(tester, router: router);
 
     for (var index = 0; index < 5; index++) {
-      expect(
-        find.byKey(Key('prayer-release-item-$index')),
-        findsOneWidget,
-      );
+      expect(find.byKey(Key('prayer-release-item-$index')), findsOneWidget);
     }
 
     expect(find.text('${1} \u00B7 Prayer'), findsOneWidget);

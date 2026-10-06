@@ -338,17 +338,16 @@ const appSchema = Schema([
     Column.text('time_zone'),
     Column.text('refreshed_at'),
   ]),
-  // One row per added collection. Account-owned: the local row is always
-  // written under this account's owner id, and only that owner's downloads
-  // are ever read or synced.
-  Table(
+  // One row per added collection. This mirrors the account's server-side
+  // downloads: the server owns the add, so the local row is a cache written
+  // under this account's owner id and never uploaded as a sync mutation.
+  Table.localOnly(
     'prayer_release_downloads',
     [
       Column.text('owner_id'),
       Column.text('release_id'),
       Column.text('release_slug'),
       Column.text('downloaded_at'),
-      Column.text('synced_at'),
     ],
     indexes: [
       Index('prayer_release_downloads_owner', [

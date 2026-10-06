@@ -21,7 +21,9 @@ class ReleaseItemNarrationClient {
 
   Future<Map<String, dynamic>> fetch(String itemId) async {
     final response = await httpClient.get(
-      Uri.parse('https://api.example.test/api/prayer-release-items/$itemId/narration'),
+      Uri.parse(
+        'https://api.example.test/api/prayer-release-items/$itemId/narration',
+      ),
       headers: {
         'accept': 'application/json',
         'authorization': 'Bearer session-token',
@@ -43,32 +45,36 @@ http.Response jsonBody(Object payload, int statusCode) {
 void main() {
   const itemId = 'release-item-3';
 
-  test('serves the exact visible text with the 0.85x default when no asset matches', () async {
-    late Uri requested;
-    final client = ReleaseItemNarrationClient(
-      httpClient: MockClient((request) async {
-        requested = request.url;
+  test(
+    'serves the exact visible text with the 0.85x default when no asset matches',
+    () async {
+      late Uri requested;
+      final client = ReleaseItemNarrationClient(
+        httpClient: MockClient((request) async {
+          requested = request.url;
 
-        return jsonBody({
-          'status': 'text_only',
-          'default_speed': 0.85,
-          'available_speeds': [0.7, 0.85, 1, 1.15],
-          'content_sha256': 'cf00f39b28e2cb4dd06b5b9611b3f383818646d74da62297a0749569dd6430d3',
-          'text': repetitionsBody,
-        }, 200);
-      }),
-    );
+          return jsonBody({
+            'status': 'text_only',
+            'default_speed': 0.85,
+            'available_speeds': [0.7, 0.85, 1, 1.15],
+            'content_sha256':
+                'cf00f39b28e2cb4dd06b5b9611b3f383818646d74da62297a0749569dd6430d3',
+            'text': repetitionsBody,
+          }, 200);
+        }),
+      );
 
-    final payload = await client.fetch(itemId);
+      final payload = await client.fetch(itemId);
 
-    expect(requested.path, '/api/prayer-release-items/$itemId/narration');
-    expect(payload['status'], 'text_only');
-    expect(payload['default_speed'], 0.85);
-    expect(payload['available_speeds'], [0.7, 0.85, 1, 1.15]);
-    expect(payload['text'], repetitionsBody);
-    expect(payload['text'], contains('(x50)'));
-    expect(payload['text'], contains('rebuked o Lord (x10)'));
-  });
+      expect(requested.path, '/api/prayer-release-items/$itemId/narration');
+      expect(payload['status'], 'text_only');
+      expect(payload['default_speed'], 0.85);
+      expect(payload['available_speeds'], [0.7, 0.85, 1, 1.15]);
+      expect(payload['text'], repetitionsBody);
+      expect(payload['text'], contains('(x50)'));
+      expect(payload['text'], contains('rebuked o Lord (x10)'));
+    },
+  );
 
   test('offers the asset only when its transcript hash matches', () async {
     final client = ReleaseItemNarrationClient(
@@ -98,7 +104,9 @@ void main() {
     );
 
     final response = await client.httpClient.get(
-      Uri.parse('https://api.example.test/api/prayer-release-items/$itemId/narration'),
+      Uri.parse(
+        'https://api.example.test/api/prayer-release-items/$itemId/narration',
+      ),
     );
 
     expect(response.statusCode, 503);
@@ -116,7 +124,9 @@ void main() {
     );
 
     final response = await client.httpClient.get(
-      Uri.parse('https://api.example.test/api/prayer-release-items/$itemId/narration'),
+      Uri.parse(
+        'https://api.example.test/api/prayer-release-items/$itemId/narration',
+      ),
     );
 
     expect(response.statusCode, 404);

@@ -21,7 +21,9 @@ abstract interface class PrayerReleaseRepository {
 
   /// The added item content for one canonical prayer, or null when that prayer
   /// is not part of an added collection.
-  Stream<PrayerReleaseItemContent?> watchContentForPrayer(String libraryPrayerId);
+  Stream<PrayerReleaseItemContent?> watchContentForPrayer(
+    String libraryPrayerId,
+  );
 
   /// Refreshes discovery metadata and the preference from the account's server.
   Future<void> refresh();

@@ -67,6 +67,7 @@ abstract final class AffirmationPrayerWords {
   static const setup = 'Speak these words with attention';
   static const beforeRepetition = 'Receive these words before God';
   static const groupPause = 'Gather your thoughts before God';
+
   /// The primary repetition action.
   static const advance = 'Continue';
   static const hearAgain = 'Hear again';
@@ -265,10 +266,7 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
     }
 
     final stepTwoCount = next;
-    _state = _state.copyWith(
-      stepTwoCount: stepTwoCount,
-      count: stepTwoCount,
-    );
+    _state = _state.copyWith(stepTwoCount: stepTwoCount, count: stepTwoCount);
     notifyListeners();
 
     if (stepTwoCount >= profile.stepTwoTarget) {

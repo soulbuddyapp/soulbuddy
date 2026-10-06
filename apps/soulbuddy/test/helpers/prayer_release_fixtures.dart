@@ -16,7 +16,8 @@ const repetitionsBody =
 const fifthPrayerTitle =
     'Daily Prayer to join our hearts to the heart of Jesus';
 
-const preparationText = 'Before you Pray - Preparation for a graceful prayer\n'
+const preparationText =
+    'Before you Pray - Preparation for a graceful prayer\n'
     'Begin with the sign of the cross.';
 
 PrayerRelease releaseFixture({
@@ -32,7 +33,9 @@ PrayerRelease releaseFixture({
     discoveryDetail:
         'Prayer and meditation for purity, discipline, and a renewed mind.',
     publishedAt: DateTime.utc(2026, 10, 5, 7),
-    addedAt: added ? (DateTime.tryParse(addedAt ?? '2026-10-06T09:00:00Z')) : null,
+    addedAt: added
+        ? (DateTime.tryParse(addedAt ?? '2026-10-06T09:00:00Z'))
+        : null,
     items: [
       PrayerReleaseItem(
         id: 'release-item-0',
@@ -109,8 +112,13 @@ List<PrayerReleaseItemContent> releaseContentFixture() {
       'In moments that distract me from your perfect will, let Satan be rebuked o Lord';
 
   return [
-    item(0, PrayerReleaseItemKind.prayer, firstPrayerTitle, firstPrayerBody,
-        'release-prayer-0'),
+    item(
+      0,
+      PrayerReleaseItemKind.prayer,
+      firstPrayerTitle,
+      firstPrayerBody,
+      'release-prayer-0',
+    ),
     item(
       1,
       PrayerReleaseItemKind.meditationPrayer,
@@ -152,7 +160,7 @@ List<PrayerReleaseItemContent> releaseContentFixture() {
       PrayerReleaseItemKind.prayer,
       fifthPrayerTitle,
       'Heavenly Father, Your Word says that out of the abundance of the heart, '
-      'the mouth speaks.',
+          'the mouth speaks.',
       'release-prayer-4',
     ),
   ];

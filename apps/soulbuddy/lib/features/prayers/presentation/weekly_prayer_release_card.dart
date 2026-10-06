@@ -46,9 +46,7 @@ class _WeeklyPrayerReleaseCardState
     });
 
     try {
-      final repository = await ref.read(
-        prayerReleaseRepositoryProvider.future,
-      );
+      final repository = await ref.read(prayerReleaseRepositoryProvider.future);
       await repository.addRelease(widget.release.slug);
       if (!mounted) return;
       setState(() {

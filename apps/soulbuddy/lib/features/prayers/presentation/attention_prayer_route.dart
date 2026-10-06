@@ -19,7 +19,8 @@ class AttentionPrayerRoute extends ConsumerStatefulWidget {
   final String slug;
 
   @override
-  ConsumerState<AttentionPrayerRoute> createState() => _AttentionPrayerRouteState();
+  ConsumerState<AttentionPrayerRoute> createState() =>
+      _AttentionPrayerRouteState();
 }
 
 class _AttentionPrayerRouteState extends ConsumerState<AttentionPrayerRoute> {
@@ -37,12 +38,10 @@ class _AttentionPrayerRouteState extends ConsumerState<AttentionPrayerRoute> {
     final content = ref.watch(prayerReleaseContentProvider(widget.slug));
 
     return content.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (error, stackTrace) => const Scaffold(
-        body: _AttentionUnavailable(),
-      ),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (error, stackTrace) =>
+          const Scaffold(body: _AttentionUnavailable()),
       data: (items) {
         PrayerReleaseItemContent? eligible;
         for (final item in items) {
@@ -74,6 +73,7 @@ class _AttentionPrayerRouteState extends ConsumerState<AttentionPrayerRoute> {
           key: ValueKey('${widget.slug}:${item.sortOrder}:$_sessionId'),
           profile: profile,
           releaseItemId: itemId,
+          libraryPrayerId: item.libraryPrayerId,
           sessionId: _sessionId,
         );
       },
@@ -113,5 +113,3 @@ class _AttentionUnavailable extends StatelessWidget {
     );
   }
 }
-
-

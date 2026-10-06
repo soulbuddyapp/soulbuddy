@@ -25,14 +25,16 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prayerReleaseRepositoryProvider.overrideWith((ref) async => repository),
+          prayerReleaseRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(body: child),
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(textScale),
-            ),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
         ),
@@ -44,10 +46,7 @@ void main() {
   testWidgets('shows a compact pre-add state with one action', (tester) async {
     await pumpCard(
       tester,
-      child: WeeklyPrayerReleaseCard(
-        release: releaseFixture(),
-        onOpen: () {},
-      ),
+      child: WeeklyPrayerReleaseCard(release: releaseFixture(), onOpen: () {}),
     );
 
     expect(find.text('This week’s prayer'), findsOneWidget);
@@ -93,16 +92,16 @@ void main() {
 
     await pumpCard(
       tester,
-      child: WeeklyPrayerReleaseCard(
-        release: releaseFixture(),
-        onOpen: () {},
-      ),
+      child: WeeklyPrayerReleaseCard(release: releaseFixture(), onOpen: () {}),
     );
 
     await tester.tap(find.byKey(const Key('weekly-prayer-release-add')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('weekly-prayer-release-retry')), findsOneWidget);
+    expect(
+      find.byKey(const Key('weekly-prayer-release-retry')),
+      findsOneWidget,
+    );
     expect(find.text('Try again'), findsOneWidget);
     expect(find.text('Add prayers'), findsOneWidget);
 
@@ -111,20 +110,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Added'), findsOneWidget);
-    expect(
-      find.byKey(const Key('weekly-prayer-release-retry')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('weekly-prayer-release-retry')), findsNothing);
   });
 
-  testWidgets('renders without overflow at two times text scale', (tester) async {
+  testWidgets('renders without overflow at two times text scale', (
+    tester,
+  ) async {
     await pumpCard(
       tester,
       textScale: 2,
-      child: WeeklyPrayerReleaseCard(
-        release: releaseFixture(),
-        onOpen: () {},
-      ),
+      child: WeeklyPrayerReleaseCard(release: releaseFixture(), onOpen: () {}),
     );
 
     expect(tester.takeException(), isNull);

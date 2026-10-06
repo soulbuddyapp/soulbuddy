@@ -2,7 +2,8 @@ import 'prayer_release.dart';
 
 /// The internal practice name. The customer-facing experience is a Prayer of
 /// attention, and no customer-facing word may use these terms.
-const String affirmationRepetitionMode = PrayerReleasePractice.affirmationRepetition;
+const String affirmationRepetitionMode =
+    PrayerReleasePractice.affirmationRepetition;
 
 /// The deliberate ways a counted prayer session can be answered.
 enum AffirmationPrayerOutcome {
@@ -77,7 +78,7 @@ class AffirmationPrayerSession {
     required DateTime startedAt,
     required DateTime endedAt,
   }) {
-    if (!endedAt.isBefore(startedAt) && endedAt != startedAt) {
+    if (endedAt.isBefore(startedAt)) {
       throw const FormatException('A session must end at or after it started.');
     }
     if (stepOneCount < 0 || stepOneCount > stepOneTarget) {
@@ -122,10 +123,9 @@ class AffirmationPrayerProfile {
 
   /// Reads the profile from a release item, refusing anything that does not
   /// rebuild its own source lines.
-  static AffirmationPrayerProfile fromPractice(
-    PrayerReleasePractice practice,
-  ) {
-    if (practice.mode != affirmationRepetitionMode || practice.steps.length != 2) {
+  static AffirmationPrayerProfile fromPractice(PrayerReleasePractice practice) {
+    if (practice.mode != affirmationRepetitionMode ||
+        practice.steps.length != 2) {
       throw const FormatException(
         'This item does not carry the two counted prayer steps.',
       );

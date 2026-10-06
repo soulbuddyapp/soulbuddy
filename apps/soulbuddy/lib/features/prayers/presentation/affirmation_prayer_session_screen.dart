@@ -24,6 +24,7 @@ class AffirmationPrayerSessionScreen extends ConsumerStatefulWidget {
   const AffirmationPrayerSessionScreen({
     required this.profile,
     required this.releaseItemId,
+    required this.libraryPrayerId,
     required this.sessionId,
     this.narration,
     this.soundBed,
@@ -34,7 +35,13 @@ class AffirmationPrayerSessionScreen extends ConsumerStatefulWidget {
   });
 
   final AffirmationPrayerProfile profile;
+
+  /// The release item that carries the practice profile.
   final String releaseItemId;
+
+  /// The canonical prayer this item points at, used to resolve its narration.
+  final String libraryPrayerId;
+
   final String sessionId;
 
   /// Injected for tests; the app supplies the platform seams.
@@ -62,21 +69,46 @@ class _AffirmationPrayerSessionScreenState
       profile: widget.profile,
       releaseItemId: widget.releaseItemId,
       sessionId: widget.sessionId,
-      narration: widget.narration ?? AffirmationPrayerVoice(speakPhrase: _speakPhrase),
+      narration:
+          widget.narration ?? AffirmationPrayerVoice(speakPhrase: _speakPhrase),
       soundBed: widget.soundBed ?? AffirmationPrayerBedPlayer(),
-      awake: widget.awake ?? AffirmationPrayerAwake(ScreenAwakeController.shared, this),
+      awake:
+          widget.awake ??
+          AffirmationPrayerAwake(ScreenAwakeController.shared, this),
       saveSession: _repository,
       now: widget.now,
     );
     unawaited(_restoreSoundPreference());
   }
 
+  /// Speaks the exact phrase the person can see.
+  ///
+  /// Audio is used only when the server validated a recorded transcript against
+  /// this item's content hash. Otherwise nothing is spoken, so no substitute
+  /// script is ever read.
   Future<void> _speakPhrase(String phrase, double speed) async {
-    // No release-item voice asset ships unless the server validated its
-    // transcript against this exact content, so the person reads these same
-    // words rather than hearing a substitute script. `Hear again` is then a
-    // no-op that never advances the count.
-    await Future<void>.value();
+    final voice = _session.narration;
+    if (voice is! AffirmationPrayerVoice) return;
+
+    try {
+      final repository = await ref.read(prayerReleaseRepositoryProvider.future);
+      final item = await repository
+          .watchContentForPrayer(widget.libraryPrayerId)
+          .first;
+      if (item?.itemId == null) return;
+
+      final narration = await ref
+          .read(prayerReleaseNarrationRepositoryProvider)
+          .load(item!.itemId!);
+      if (narration == null) return;
+
+      final bytes = await ref
+          .read(prayerReleaseNarrationRepositoryProvider)
+          .bytes(narration);
+      await voice.playAsset(bytes, speed: speed);
+    } catch (_) {
+      // Spoken guidance is optional; the prayer continues in silence.
+    }
   }
 
   AffirmationPrayerSessionRepository _repository() {
@@ -99,8 +131,9 @@ class _AffirmationPrayerSessionScreenState
   }
 
   bool _allowed(MeditationSoundBed bed) {
-    return AffirmationPrayerSoundFamily.values
-        .any((family) => family.sounds.contains(bed));
+    return AffirmationPrayerSoundFamily.values.any(
+      (family) => family.sounds.contains(bed),
+    );
   }
 
   MeditationSoundPreferencesRepository _soundPreferences() =>
@@ -108,8 +141,9 @@ class _AffirmationPrayerSessionScreenState
 
   Future<void> _saveSound(MeditationSoundBed? bed, double volume) async {
     await _session.setSound(soundKey: bed?.name, volume: volume);
-    await _soundPreferences()
-        .save(MeditationSoundPreferences(sound: bed, volume: volume));
+    await _soundPreferences().save(
+      MeditationSoundPreferences(sound: bed, volume: volume),
+    );
   }
 
   @override
@@ -158,9 +192,10 @@ class _AffirmationPrayerSessionScreenState
   Widget _phase(BuildContext context) {
     return switch (_session.state.phase) {
       AffirmationPrayerPhase.recollection => _RecollectionView(
-        line: AffirmationPrayerWords.recollectionLines[
-            _session.state.recollectionIndex],
-        isLast: _session.state.recollectionIndex ==
+        line: AffirmationPrayerWords
+            .recollectionLines[_session.state.recollectionIndex],
+        isLast:
+            _session.state.recollectionIndex ==
             AffirmationPrayerWords.recollectionLines.length - 1,
         onAdvance: _session.advanceRecollection,
         onSkip: _session.skipRecollection,
@@ -311,10 +346,7 @@ class _SetupView extends StatelessWidget {
                   key: Key('attention-prayer-sound-${bed.name}'),
                   label: Text(bed.label),
                   selected: selected == bed,
-                  onSelected: (_) => onSoundChanged(
-                    bed,
-                    state.soundVolume,
-                  ),
+                  onSelected: (_) => onSoundChanged(bed, state.soundVolume),
                 ),
             ],
           ),
@@ -357,9 +389,7 @@ class _SetupView extends StatelessWidget {
         FilledButton(
           key: const Key('attention-prayer-begin'),
           onPressed: started ? onResume : onBegin,
-          child: Text(
-            started ? AffirmationPrayerWords.resume : 'Begin prayer',
-          ),
+          child: Text(started ? AffirmationPrayerWords.resume : 'Begin prayer'),
         ),
         if (started) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -496,7 +526,9 @@ class _CountRing extends StatelessWidget {
       child: TweenAnimationBuilder<double>(
         key: const Key('attention-prayer-count-ring'),
         tween: Tween(end: progress),
-        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 250),
+        duration: reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
         builder: (context, value, _) => CircularProgressIndicator(
           value: value,
           strokeWidth: 2,

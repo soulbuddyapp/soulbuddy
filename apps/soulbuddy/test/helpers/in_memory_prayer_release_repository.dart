@@ -148,11 +148,8 @@ class InMemoryPrayerReleaseRepository implements PrayerReleaseRepository {
   );
 
   @override
-  Stream<PrayerReleasePreference> watchPreference() => _seeded(
-    _preferenceController.stream,
-    () => preference,
-    (value) => value,
-  );
+  Stream<PrayerReleasePreference> watchPreference() =>
+      _seeded(_preferenceController.stream, () => preference, (value) => value);
 
   @override
   Future<void> refresh() async {

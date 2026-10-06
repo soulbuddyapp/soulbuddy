@@ -149,8 +149,7 @@ class _PrayerReleaseDetailScreenState
       children: [
         for (var index = 0; index < items.length; index++) ...[
           _ReleaseItemCard(item: items[index]),
-          if (index != items.length - 1)
-            const SizedBox(height: AppSpacing.md),
+          if (index != items.length - 1) const SizedBox(height: AppSpacing.md),
         ],
       ],
     );
@@ -229,7 +228,8 @@ class _ReleaseItemCard extends StatelessWidget {
               children: [
                 OutlinedButton(
                   key: Key('prayer-release-open-${item.sortOrder}'),
-                  onPressed: () => context.go('/prayers/${item.libraryPrayerId}'),
+                  onPressed: () =>
+                      context.go('/prayers/${item.libraryPrayerId}'),
                   child: const Text('Open prayer'),
                 ),
                 if (item.practice != null)

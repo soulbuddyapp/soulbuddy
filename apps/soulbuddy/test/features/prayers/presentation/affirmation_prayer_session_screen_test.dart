@@ -47,8 +47,12 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          prayerReleaseRepositoryProvider.overrideWith((ref) async => repository),
-          meditationSoundPreferencesProvider.overrideWithValue(soundPreferences),
+          prayerReleaseRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
+          meditationSoundPreferencesProvider.overrideWithValue(
+            soundPreferences,
+          ),
         ],
         child: MaterialApp(
           home: child,
@@ -74,6 +78,7 @@ void main() {
     return AffirmationPrayerSessionScreen(
       profile: buildProfile(),
       releaseItemId: 'release-item-3',
+      libraryPrayerId: 'release-prayer-3',
       sessionId: 'session-1',
       narration: narration,
       soundBed: bed,
@@ -125,17 +130,23 @@ void main() {
         'Lift your heart to God',
         "Recognize God's presence and sovereignty",
       ]) {
-        await tester.tap(find.byKey(const Key('attention-prayer-advance-recollection')));
+        await tester.tap(
+          find.byKey(const Key('attention-prayer-advance-recollection')),
+        );
         await tester.pumpAndSettle();
         expect(find.text(line), findsOneWidget);
       }
 
-      await tester.tap(find.byKey(const Key('attention-prayer-advance-recollection')));
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-advance-recollection')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Be still, and know that I am God'), findsOneWidget);
 
       // The last line advances into setup, where nothing has sounded.
-      await tester.tap(find.byKey(const Key('attention-prayer-advance-recollection')));
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-advance-recollection')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Speak these words with attention'), findsOneWidget);
       expect(narration.spoken, isEmpty);
@@ -202,8 +213,13 @@ void main() {
     ) async {
       await pumpSession(tester, child: buildScreen());
       await skipToSetup(tester);
-      await reveal(tester, find.byKey(const Key('attention-prayer-sound-oceanWaves')));
-      await tester.tap(find.byKey(const Key('attention-prayer-sound-oceanWaves')));
+      await reveal(
+        tester,
+        find.byKey(const Key('attention-prayer-sound-oceanWaves')),
+      );
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-sound-oceanWaves')),
+      );
       await tester.pumpAndSettle();
 
       expect(bed.playing, isNull);
@@ -254,8 +270,13 @@ void main() {
     ) async {
       await pumpSession(tester, child: buildScreen());
       await skipToSetup(tester);
-      await reveal(tester, find.byKey(const Key('attention-prayer-sound-gentleRain')));
-      await tester.tap(find.byKey(const Key('attention-prayer-sound-gentleRain')));
+      await reveal(
+        tester,
+        find.byKey(const Key('attention-prayer-sound-gentleRain')),
+      );
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-sound-gentleRain')),
+      );
       await tester.pumpAndSettle();
       await beginPrayer(tester);
 
@@ -310,7 +331,9 @@ void main() {
     testWidgets('stops sound when the app is backgrounded', (tester) async {
       await pumpSession(tester, child: buildScreen());
       await skipToSetup(tester);
-      await tester.tap(find.byKey(const Key('attention-prayer-sound-forestMorning')));
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-sound-forestMorning')),
+      );
       await beginPrayer(tester);
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
@@ -344,7 +367,9 @@ void main() {
     testWidgets('a deliberate pause stops the sound', (tester) async {
       await pumpSession(tester, child: buildScreen());
       await skipToSetup(tester);
-      await tester.tap(find.byKey(const Key('attention-prayer-sound-softWind')));
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-sound-softWind')),
+      );
       await beginPrayer(tester);
 
       await tester.tap(find.byKey(const Key('attention-prayer-pause')));
@@ -399,7 +424,10 @@ void main() {
         'success',
         'failure',
       ]) {
-        expect(find.textContaining(forbidden, findRichText: true), findsNothing);
+        expect(
+          find.textContaining(forbidden, findRichText: true),
+          findsNothing,
+        );
       }
     });
 
@@ -442,11 +470,7 @@ void main() {
     testWidgets('respects reduced motion without changing the wording', (
       tester,
     ) async {
-      await pumpSession(
-        tester,
-        child: buildScreen(),
-        disableAnimations: true,
-      );
+      await pumpSession(tester, child: buildScreen(), disableAnimations: true);
 
       expect(find.text('Let your body grow still'), findsOneWidget);
 

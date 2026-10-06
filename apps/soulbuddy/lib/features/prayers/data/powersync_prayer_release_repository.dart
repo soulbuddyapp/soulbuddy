@@ -32,7 +32,9 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
 
   @override
   Stream<List<PrayerRelease>> watchReleases() {
-    return database.watch('''
+    return database
+        .watch(
+          '''
       SELECT cached.*, added.downloaded_at AS local_added_at
       FROM prayer_release_cache AS cached
       LEFT JOIN prayer_release_downloads AS added
@@ -41,21 +43,29 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
        AND added.release_slug = cached.slug
       ORDER BY COALESCE(added.downloaded_at, cached.published_at) DESC,
                cached.slug ASC
-      ''', parameters: [ownerId]).asyncMap((rows) async {
-        final items = await _itemsFor(
-          rows.map((row) => row['slug'] as String).toList(growable: false),
-        );
+      ''',
+          parameters: [ownerId],
+        )
+        .asyncMap((rows) async {
+          final items = await _itemsFor(
+            rows.map((row) => row['slug'] as String).toList(growable: false),
+          );
 
-        return List.unmodifiable([
-          for (final row in rows)
-            _releaseFromRow(row, items: items[row['slug'] as String] ?? const []),
-        ]);
-      });
+          return List.unmodifiable([
+            for (final row in rows)
+              _releaseFromRow(
+                row,
+                items: items[row['slug'] as String] ?? const [],
+              ),
+          ]);
+        });
   }
 
   @override
   Stream<List<PrayerRelease>> watchAddedReleases() {
-    return database.watch('''
+    return database
+        .watch(
+          '''
       SELECT cached.*, added.downloaded_at AS local_added_at
       FROM prayer_release_cache AS cached
       JOIN prayer_release_downloads AS added
@@ -64,24 +74,29 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
        AND added.release_slug = cached.slug
       WHERE cached.added_at IS NOT NULL
       ORDER BY added.downloaded_at DESC
-      ''', parameters: [ownerId]).asyncMap((rows) async {
-        final items = await _itemsFor(
-          rows.map((row) => row['slug'] as String).toList(growable: false),
-        );
+      ''',
+          parameters: [ownerId],
+        )
+        .asyncMap((rows) async {
+          final items = await _itemsFor(
+            rows.map((row) => row['slug'] as String).toList(growable: false),
+          );
 
-        return List.unmodifiable([
-          for (final row in rows)
-            _releaseFromRow(
-              row,
-              items: items[row['slug'] as String] ?? const [],
-            ),
-        ]);
-      });
+          return List.unmodifiable([
+            for (final row in rows)
+              _releaseFromRow(
+                row,
+                items: items[row['slug'] as String] ?? const [],
+              ),
+          ]);
+        });
   }
 
   @override
   Stream<PrayerRelease?> watchRelease(String slug) {
-    return database.watch('''
+    return database
+        .watch(
+          '''
       SELECT cached.*, added.downloaded_at AS local_added_at
       FROM prayer_release_cache AS cached
       LEFT JOIN prayer_release_downloads AS added
@@ -90,53 +105,63 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
        AND added.release_slug = cached.slug
       WHERE cached.slug = ?
       LIMIT 1
-      ''', parameters: [ownerId, slug]).asyncMap((rows) async {
-        if (rows.isEmpty) return null;
-        final items = await _itemsFor([slug]);
+      ''',
+          parameters: [ownerId, slug],
+        )
+        .asyncMap((rows) async {
+          if (rows.isEmpty) return null;
+          final items = await _itemsFor([slug]);
 
-        return _releaseFromRow(
-          rows.single,
-          items: items[slug] ?? const [],
-        );
-      });
+          return _releaseFromRow(rows.single, items: items[slug] ?? const []);
+        });
   }
 
   @override
   Stream<List<PrayerReleaseItemContent>> watchReleaseContent(String slug) {
-    return database.watch('''
+    return database
+        .watch(
+          '''
       SELECT * FROM prayer_release_item_content
       WHERE owner_id = ? AND release_slug = ?
       ORDER BY sort_order ASC
-      ''', parameters: [ownerId, slug]).map((rows) {
-        return List.unmodifiable(
-          rows.map(PrayerReleaseItemContent.fromRow),
-        );
-      });
+      ''',
+          parameters: [ownerId, slug],
+        )
+        .map((rows) {
+          return List.unmodifiable(rows.map(PrayerReleaseItemContent.fromRow));
+        });
   }
 
   @override
   Stream<PrayerReleaseItemContent?> watchContentForPrayer(
     String libraryPrayerId,
   ) {
-    return database.watch('''
+    return database
+        .watch(
+          '''
       SELECT * FROM prayer_release_item_content
       WHERE owner_id = ? AND library_prayer_id = ?
       ORDER BY release_slug ASC, sort_order ASC
       LIMIT 1
-      ''', parameters: [ownerId, libraryPrayerId]).map((rows) {
-        return rows.isEmpty ? null : PrayerReleaseItemContent.fromRow(rows.single);
-      });
+      ''',
+          parameters: [ownerId, libraryPrayerId],
+        )
+        .map((rows) {
+          return rows.isEmpty
+              ? null
+              : PrayerReleaseItemContent.fromRow(rows.single);
+        });
   }
 
   @override
   Stream<PrayerReleasePreference> watchPreference() {
-    return database.watch(
-      'SELECT * FROM prayer_release_preference_cache LIMIT 1',
-    ).map((rows) {
-      return rows.isEmpty
-          ? const PrayerReleasePreference()
-          : PrayerReleasePreference.fromRow(rows.single);
-    });
+    return database
+        .watch('SELECT * FROM prayer_release_preference_cache LIMIT 1')
+        .map((rows) {
+          return rows.isEmpty
+              ? const PrayerReleasePreference()
+              : PrayerReleasePreference.fromRow(rows.single);
+        });
   }
 
   @override
@@ -173,11 +198,13 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
         [downloadId],
       );
       if (existing == null) {
+        // The server owns the add, so this row mirrors its response and is never
+        // uploaded as a mutation of its own.
         await transaction.execute(
           '''
           INSERT INTO prayer_release_downloads(
-            id, owner_id, release_id, release_slug, downloaded_at, synced_at
-          ) VALUES (?, ?, ?, ?, ?, NULL)
+            id, owner_id, release_id, release_slug, downloaded_at
+          ) VALUES (?, ?, ?, ?, ?)
           ''',
           [
             downloadId,
@@ -207,9 +234,7 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
   }
 
   @override
-  Future<void> saveAffirmationSession(
-    AffirmationPrayerSession session,
-  ) async {
+  Future<void> saveAffirmationSession(AffirmationPrayerSession session) async {
     AffirmationPrayerSession.validate(
       outcome: session.outcome,
       stepOneCount: session.stepOneCount,
@@ -227,36 +252,42 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
     if (existing != null) return;
 
     final now = _now().toUtc().toIso8601String();
-    await database.execute('''
+    await database.execute(
+      '''
       INSERT INTO affirmation_prayer_sessions(
         id, owner_id, release_item_id, local_date, started_at, ended_at,
         outcome, step_one_count, step_two_count, sound_key, narration_speed,
         created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ''', [
-      session.id,
-      ownerId,
-      session.releaseItemId,
-      session.localDate,
-      session.startedAt.toUtc().toIso8601String(),
-      session.endedAt.toUtc().toIso8601String(),
-      session.outcome.wireValue,
-      session.stepOneCount,
-      session.stepTwoCount,
-      session.soundKey,
-      session.narrationSpeed?.toString(),
-      now,
-      now,
-    ]);
+      ''',
+      [
+        session.id,
+        ownerId,
+        session.releaseItemId,
+        session.localDate,
+        session.startedAt.toUtc().toIso8601String(),
+        session.endedAt.toUtc().toIso8601String(),
+        session.outcome.wireValue,
+        session.stepOneCount,
+        session.stepTwoCount,
+        session.soundKey,
+        session.narrationSpeed?.toString(),
+        now,
+        now,
+      ],
+    );
   }
 
   /// Whether this account has a local download for the release.
   Future<bool> hasLocalDownload(String slug) async {
-    final row = await database.getOptional('''
+    final row = await database.getOptional(
+      '''
       SELECT id FROM prayer_release_downloads
       WHERE owner_id = ? AND release_slug = ?
       LIMIT 1
-      ''', [ownerId, slug]);
+      ''',
+      [ownerId, slug],
+    );
 
     return row != null;
   }
@@ -290,15 +321,15 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ''', values);
       } else {
-        await transaction.execute('''
+        await transaction.execute(
+          '''
           UPDATE prayer_release_cache
           SET slug = ?, title = ?, discovery_label = ?, discovery_detail = ?,
               published_at = ?, added_at = ?, refreshed_at = ?
           WHERE id = ?
-          ''', [
-          ...values.skip(1),
-          release.id,
-        ]);
+          ''',
+          [...values.skip(1), release.id],
+        );
       }
 
       // Discovery metadata only; no wording is stored here.
@@ -332,12 +363,15 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', itemValues);
         } else {
-          await transaction.execute('''
+          await transaction.execute(
+            '''
             UPDATE prayer_release_item_cache
             SET sort_order = ?, item_id = ?, kind = ?, library_prayer_id = ?,
                 title = ?, has_attention_practice = ?, narration_available = ?
             WHERE id = ?
-            ''', [...itemValues.sublist(3), cacheId]);
+            ''',
+            [...itemValues.sublist(3), cacheId],
+          );
         }
       }
     }
@@ -369,53 +403,59 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
       [cacheId],
     );
     if (existing == null) {
-      await transaction.execute('''
+      await transaction.execute(
+        '''
         INSERT INTO prayer_release_item_content(
           id, owner_id, release_id, release_slug, item_id, sort_order, kind,
           library_prayer_id, title, body, grounding, language_style, purpose,
           action, content_sha256, practice_mode, practice_steps_json, cached_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', [
-        cacheId,
-        ownerId,
-        item.releaseId,
-        slug,
-        _uuid.v5(
-          Namespace.url.value,
-          'prayer-release-content-item:$slug:${item.sortOrder}',
-        ),
-        item.sortOrder,
-        item.kind.wireValue,
-        item.libraryPrayerId,
-        item.title,
-        item.body,
-        item.grounding,
-        item.languageStyle,
-        item.purpose,
-        item.action,
-        item.contentSha256,
-        item.practice?.mode,
-        steps,
-        cachedAt,
-      ]);
+        ''',
+        [
+          cacheId,
+          ownerId,
+          item.releaseId,
+          slug,
+          _uuid.v5(
+            Namespace.url.value,
+            'prayer-release-content-item:$slug:${item.sortOrder}',
+          ),
+          item.sortOrder,
+          item.kind.wireValue,
+          item.libraryPrayerId,
+          item.title,
+          item.body,
+          item.grounding,
+          item.languageStyle,
+          item.purpose,
+          item.action,
+          item.contentSha256,
+          item.practice?.mode,
+          steps,
+          cachedAt,
+        ],
+      );
 
       return;
     }
 
-    await transaction.execute('''
+    await transaction.execute(
+      '''
       UPDATE prayer_release_item_content
       SET title = ?, body = ?, content_sha256 = ?, practice_mode = ?,
           practice_steps_json = ?, cached_at = ?
       WHERE id = ?
-      ''', [
-      item.title,
-      item.body,
-      item.contentSha256,
-      item.practice?.mode,
-      steps,
-      cachedAt,
-      cacheId,
-    ]);
+      ''',
+      [
+        item.title,
+        item.body,
+        item.contentSha256,
+        item.practice?.mode,
+        steps,
+        cachedAt,
+        cacheId,
+      ],
+    );
   }
 
   Future<void> _savePreferenceRow(
@@ -456,17 +496,19 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
 
     final items = <String, List<PrayerReleaseItem>>{};
     for (final row in rows) {
-      items.putIfAbsent(row['release_slug'] as String, () => []).add(
-        PrayerReleaseItem(
-          id: row['item_id'] as String,
-          sortOrder: row['sort_order'] as int? ?? 0,
-          kind: PrayerReleaseItemKindValue.fromWire(row['kind'] as String),
-          libraryPrayerId: row['library_prayer_id'] as String,
-          title: row['title'] as String?,
-          hasAttentionPractice: row['has_attention_practice'] == 1,
-          narrationAvailable: row['narration_available'] == 1,
-        ),
-      );
+      items
+          .putIfAbsent(row['release_slug'] as String, () => [])
+          .add(
+            PrayerReleaseItem(
+              id: row['item_id'] as String,
+              sortOrder: row['sort_order'] as int? ?? 0,
+              kind: PrayerReleaseItemKindValue.fromWire(row['kind'] as String),
+              libraryPrayerId: row['library_prayer_id'] as String,
+              title: row['title'] as String?,
+              hasAttentionPractice: row['has_attention_practice'] == 1,
+              narrationAvailable: row['narration_available'] == 1,
+            ),
+          );
     }
 
     return items;
@@ -476,8 +518,11 @@ class PowerSyncPrayerReleaseRepository implements PrayerReleaseRepository {
     Map<String, dynamic> row, {
     List<PrayerReleaseItem> items = const [],
   }) {
-    final localAddedAt = DateTime.tryParse(row['local_added_at'] as String? ?? '');
-    final addedAt = DateTime.tryParse(row['added_at'] as String? ?? '') ?? localAddedAt;
+    final localAddedAt = DateTime.tryParse(
+      row['local_added_at'] as String? ?? '',
+    );
+    final addedAt =
+        DateTime.tryParse(row['added_at'] as String? ?? '') ?? localAddedAt;
 
     return PrayerRelease(
       id: row['id'] as String,

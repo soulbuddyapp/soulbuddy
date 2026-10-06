@@ -92,7 +92,9 @@ class PrayerReleaseApiClient {
       release: _releaseFromRow(payload, addedPayload: true),
       preparationText: payload['preparation_text'] as String,
       items: (payload['items'] as List)
-          .map((entry) => _contentFromRow(payload, entry as Map<String, dynamic>))
+          .map(
+            (entry) => _contentFromRow(payload, entry as Map<String, dynamic>),
+          )
           .toList(growable: false),
       preference: _preferenceFromRow(payload['preference']),
     );
@@ -128,9 +130,9 @@ class PrayerReleaseApiClient {
   ) {
     final practice = row['practice'];
     final steps = practice is Map<String, dynamic> && practice['steps'] is List
-        ? (practice['steps'] as List)
-              .whereType<Map<String, dynamic>>()
-              .toList(growable: false)
+        ? (practice['steps'] as List).whereType<Map<String, dynamic>>().toList(
+            growable: false,
+          )
         : const <Map<String, dynamic>>[];
 
     return PrayerReleaseItemContent(
@@ -247,11 +249,7 @@ class PrayerReleaseApiClient {
     final response = switch (method) {
       'GET' => httpClient.get(endpoint, headers: headers),
       'POST' => httpClient.post(endpoint, headers: headers),
-      'PUT' => httpClient.put(
-        endpoint,
-        headers: headers,
-        body: body,
-      ),
+      'PUT' => httpClient.put(endpoint, headers: headers, body: body),
       _ => throw ArgumentError.value(method, 'method'),
     };
 

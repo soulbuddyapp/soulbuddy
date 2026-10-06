@@ -34,7 +34,8 @@ class PowerSyncPrayerRepository implements PrayerRepository {
     WHERE item.library_prayer_id IS NOT NULL
   ''';
 
-  static const _mergedPrayers = '''
+  static const _mergedPrayers =
+      '''
     SELECT canonical.id, canonical.title, canonical.body, canonical.grounding,
            canonical.language_style, canonical.purpose, canonical.action,
            canonical.helpful_count
