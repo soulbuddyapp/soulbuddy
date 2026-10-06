@@ -77,21 +77,29 @@ class LaravelBackendConnector extends PowerSyncBackendConnector {
 
     await uploadTransaction(
       transaction,
-      recordIssue: (issue) => database.execute(
-        '''
+      recordIssue: (issue) => recordIssue(issue, database),
+    );
+  }
+
+  /// Notes that the boundary would not take a record.
+  ///
+  /// The queue clears a transaction once the boundary answers, so without this
+  /// note a rejected record is gone with nothing to show for it.
+  Future<void> recordIssue(SyncIssue issue, PowerSyncDatabase database) {
+    return database.execute(
+      '''
         INSERT INTO sync_issues(
           id, record_type, record_id, code, message, created_at, resolved_at
         ) VALUES (?, ?, ?, ?, ?, ?, NULL)
-        ''',
-        [
-          _uuid.v7(),
-          issue.recordType,
-          issue.recordId,
-          issue.code,
-          issue.message,
-          issue.createdAt.toUtc().toIso8601String(),
-        ],
-      ),
+      ''',
+      [
+        _uuid.v7(),
+        issue.recordType,
+        issue.recordId,
+        issue.code,
+        issue.message,
+        issue.createdAt.toUtc().toIso8601String(),
+      ],
     );
   }
 

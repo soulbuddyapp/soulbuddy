@@ -46,6 +46,10 @@ When sync is configured, private records such as Goals, Encounters, personal pra
 
 The Flutter build reads `SOULBUDDY_API_URL` and `SOULBUDDY_POWERSYNC_URL` at compile time. Empty values keep startup in local-only mode. There are no prayer-generation provider, model, prompt, or disclosure dart-defines.
 
+**Every build must pass both defines.** A build without them runs normally and silently disables every server-backed capability: saved records never upload, prayer-release notices are never recorded, and nothing warns you. `AppConfig.missingConfiguration()` names the absent values, and a debug build prints them at startup, but that is a safety net rather than the mechanism — pass the defines.
+
+`SOULBUDDY_API_URL` alone is enough for saved records to reach Laravel, because uploads are ordinary authenticated posts and need nothing from a sync service. `SOULBUDDY_POWERSYNC_URL` additionally serves records *down* to a device. Without a sync service no user activity has ever reached the server, which is why `formation_activity_events` and `sync_operations` are empty in production.
+
 Saved personal prayers can have once, daily, or selected-day reminders at a local wall time. Reminder schedules and quiet prayer-session records sync privately, while notification enablement remains device-specific. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload.
 
 A saved personal prayer may also use opt-in Deepgram Aura narration. Narration is separate from prayer authorship: only the exact immutable saved-prayer revision is sent after explicit disclosure and consent, encrypted narration audio is cached privately, system notifications never play it, and playback itself never records a prayer session.
