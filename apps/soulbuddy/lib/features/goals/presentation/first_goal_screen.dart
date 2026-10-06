@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../guards/application/guard_recommendations.dart';
 import '../../guards/data/bundled_guard_catalogue.dart';
 import '../../onboarding/presentation/first_prayer_choice_page.dart';
@@ -779,7 +780,11 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               widget.supporting!,
             ],
             const SizedBox(height: AppSpacing.lg),
-            TextField(
+            // One field for every question this flow asks in a person's own
+            // words — the Goal title, the door to close, today's action, the
+            // situation, and the prayer — so all of them can be spoken from
+            // this single component rather than being expanded into six.
+            SayableField(
               key: const Key('first-goal-text-field'),
               controller: _controller,
               autofocus: true,
@@ -787,7 +792,13 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               minLines: widget.maxLength > 120 ? 2 : 1,
               maxLines: widget.maxLength > 120 ? 5 : 2,
               textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(hintText: widget.hintText),
+              hintText: widget.hintText,
+              // A cut is said rather than left to look like a whole answer. It
+              // goes to the line this screen already reports on, which is the
+              // only thing here that reports.
+              onTruncated: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text(_limitReachedNotice)),
+              ),
             ),
             if (widget.suggestionRequest case final request?) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -873,3 +884,11 @@ class _GoalMessage extends StatelessWidget {
     ),
   );
 }
+
+/// Shown when the field's limit cut a dictated answer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

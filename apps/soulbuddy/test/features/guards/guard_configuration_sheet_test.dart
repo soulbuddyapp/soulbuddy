@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/guards/domain/guard_definition.dart';
 import 'package:soulbuddy/features/guards/presentation/guard_configuration_sheet.dart';
 import 'package:soulbuddy/features/guards/providers/guard_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets(
@@ -21,6 +24,9 @@ void main() {
             goalGuardSelectionsProvider(
               goal.id,
             ).overrideWith((ref) => Stream.value(const <GoalGuardSelection>[])),
+            // The private note now offers the microphone, which resolves
+            // availability when the editor opens.
+            speechRecognizerProvider.overrideWithValue(NoSpeech()),
           ],
           child: MaterialApp(
             theme: AppTheme.light(),

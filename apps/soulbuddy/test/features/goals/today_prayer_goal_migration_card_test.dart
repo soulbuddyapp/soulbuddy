@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/goals/data/goal_prayer_migration.dart';
 import 'package:soulbuddy/features/goals/presentation/today_prayer_goal_migration_card.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/today_prayer.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('unlinked Today prayer is never migrated without confirmation', (
@@ -127,6 +130,9 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         goalPrayerMigrationProvider.overrideWith((ref) async => migration),
+        // The naming dialog now offers the microphone, which resolves
+        // availability when it opens.
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp(theme: AppTheme.light(), home: child),
     ),

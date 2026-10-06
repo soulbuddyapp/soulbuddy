@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/circles/data/circle_directory_repository.dart';
 import 'package:soulbuddy/features/circles/data/circle_reminder_repository.dart';
 import 'package:soulbuddy/features/circles/data/legacy_circle_migration_repository.dart';
@@ -17,6 +18,8 @@ import 'package:soulbuddy/features/record/data/encounter_repository.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('discovers external Circles and exposes no chat composer', (
@@ -303,6 +306,9 @@ Future<void> _pumpCircles(
           (ref) => launcher ?? ((_) async => true),
         ),
         circleReminderRepositoryProvider.overrideWithValue(reminderRepository),
+        // The Circle's purpose now offers the microphone, which resolves
+        // availability when the sheet opens. The name beside it stays a slot.
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

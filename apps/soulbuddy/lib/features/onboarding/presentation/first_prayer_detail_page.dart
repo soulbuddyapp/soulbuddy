@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 
 class FirstPrayerDetailPage extends StatefulWidget {
   const FirstPrayerDetailPage({
@@ -39,7 +40,10 @@ class _FirstPrayerDetailPageState extends State<FirstPrayerDetailPage> {
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: AppSpacing.lg),
-            TextField(
+            // Said in a person's own words, because that is all this field is
+            // for. There is no message line on this page to report a cut on, so
+            // the limit shows itself through the field's own counter.
+            SayableField(
               key: const Key('first-prayer-detail'),
               controller: _controller,
               autofocus: true,
@@ -47,9 +51,7 @@ class _FirstPrayerDetailPageState extends State<FirstPrayerDetailPage> {
               minLines: 3,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                hintText: 'A name, need, or a few words',
-              ),
+              hintText: 'A name, need, or a few words',
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../data/circle_directory_repository.dart';
 import '../domain/circle.dart';
 import '../providers/circle_providers.dart';
@@ -81,17 +82,23 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
                 decoration: const InputDecoration(labelText: 'Circle name'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              TextField(
+              // The purpose invites a sentence, so it can be spoken. The name
+              // beside it does not: speaking a name aloud is worse than typing
+              // it, so it stays a bare field. Category, Visibility and the
+              // group link are all choices or a slot.
+              SayableField(
                 key: const Key('circle-description-field'),
                 controller: _descriptionController,
                 enabled: !_saving,
                 maxLength: 280,
                 minLines: 2,
                 maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Purpose',
-                  hintText: 'What are people walking together for?',
-                ),
+                labelText: 'Purpose',
+                hintText: 'What are people walking together for?',
+                // A cut is said rather than left to look like a whole purpose.
+                // It goes to the validation line this sheet already has, which
+                // is the only thing here that reports.
+                onTruncated: () => setState(() => _error = _limitReachedNotice),
               ),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<CircleCategory>(
@@ -246,3 +253,11 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
     }
   }
 }
+
+/// Shown when the field's limit cut a dictated purpose short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

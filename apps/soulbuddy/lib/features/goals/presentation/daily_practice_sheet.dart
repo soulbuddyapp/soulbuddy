@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/speech/sayable_field.dart';
 import '../application/daily_faithfulness.dart';
 import '../data/goal_repository.dart';
 import '../domain/goal_action.dart';
@@ -188,16 +189,19 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
                     : () => setState(() => _action.text = suggestion),
               ),
             const SizedBox(height: 12),
-            TextField(
+            // The commitment is named out loud as often as it is written, so it
+            // can be spoken. The Goal beside it stays a choice.
+            SayableField(
               controller: _action,
               enabled: !_saving,
               maxLength: 500,
               minLines: 2,
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'My commitment',
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'My commitment',
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              // A cut is said rather than left to look like a whole
+              // commitment. It goes to the error line this sheet already has.
+              onTruncated: () => setState(() => _error = _limitReachedNotice),
             ),
             DropdownButtonFormField<String>(
               key: ValueKey('practice-goal-$_goalId'),
@@ -300,3 +304,11 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
     }
   }
 }
+
+/// Shown when the field's limit cut a dictated commitment short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

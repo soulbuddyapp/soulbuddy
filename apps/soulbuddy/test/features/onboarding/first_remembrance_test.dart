@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/onboarding/presentation/first_remembrance_page.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('asks the approved remembrance question with four choices', (
@@ -38,15 +42,12 @@ void main() {
   testWidgets('keeps one written memory without extra fields', (tester) async {
     String? saved;
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: Scaffold(
-          body: FirstRemembranceWritePage(
-            onSave: (body) async {
-              saved = body;
-              return true;
-            },
-          ),
+      _pumpable(
+        FirstRemembranceWritePage(
+          onSave: (body) async {
+            saved = body;
+            return true;
+          },
         ),
       ),
     );
@@ -65,12 +66,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light(),
-        home: Scaffold(
-          body: FirstRemembranceWritePage(onSave: (_) async => false),
-        ),
-      ),
+      _pumpable(FirstRemembranceWritePage(onSave: (_) async => false)),
     );
 
     await tester.enterText(
@@ -85,3 +81,12 @@ void main() {
     expect(find.text('Keep this memory'), findsOneWidget);
   });
 }
+
+/// The write page now carries a [SayableField], which resolves speech
+/// availability on mount and reads the controller at save time. Answering
+/// without reaching a plugin leaves the page exactly as it was before: the
+/// field writable, speech unavailable, no microphone asked for.
+Widget _pumpable(Widget child) => ProviderScope(
+  overrides: [speechRecognizerProvider.overrideWithValue(NoSpeech())],
+  child: MaterialApp(theme: AppTheme.light(), home: Scaffold(body: child)),
+);

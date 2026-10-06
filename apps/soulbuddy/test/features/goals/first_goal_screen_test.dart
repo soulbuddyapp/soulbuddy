@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/goals/data/goal_onboarding_progress_repository.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
 import 'package:soulbuddy/features/goals/presentation/first_goal_screen.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('stop-control starts with the reviewed behavior choices', (
@@ -260,11 +264,11 @@ void main() {
       find.text('Set aside ten quiet minutes before opening another app'),
     );
     await tester.pump();
-    final field = tester.widget<TextField>(
+    final field = tester.widget<SayableField>(
       find.byKey(const Key('first-goal-text-field')),
     );
     expect(
-      field.controller?.text,
+      field.controller.text,
       'Set aside ten quiet minutes before opening another app',
     );
   });
@@ -305,6 +309,7 @@ Future<void> _pump(
         goalOnboardingProgressRepositoryProvider.overrideWith(
           (ref) async => repository,
         ),
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp(theme: AppTheme.light(), home: child),
     ),

@@ -10,6 +10,7 @@ import '../../../core/audio/narration_speed.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/screen_awake.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../kingdom/providers/kingdom_course_providers.dart';
 import '../../prayers/application/meditation_sound_bed_player.dart';
 import '../../prayers/application/meditation_sound_preferences.dart';
@@ -719,17 +720,26 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
         ),
       ),
       const SizedBox(height: AppSpacing.md),
-      TextField(
+      // The Notebook is the one thing here someone is expected to say in their
+      // own words. The Day and Minutes steppers above it are choices, not
+      // sentences, and stay as they are.
+      //
+      // No limit is passed because the field has never had one: the notebook
+      // takes what is said here whole rather than cutting it.
+      SayableField(
         key: const Key('goal-meditation-notebook'),
         controller: _notes,
         minLines: 5,
         maxLines: 12,
+        labelText: 'Notebook',
+        hintText: 'Name the trigger, the passage, and one faithful response.',
         decoration: const InputDecoration(
-          labelText: 'Notebook',
-          hintText: 'Name the trigger, the passage, and one faithful response.',
           border: OutlineInputBorder(),
           alignLabelWithHint: true,
         ),
+        // The draft is saved by a listener on the controller rather than by
+        // this field's own callback, so dictated words are saved like typed
+        // ones without anything else here having to hear about them.
       ),
       const SizedBox(height: AppSpacing.lg),
       FilledButton.icon(

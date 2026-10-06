@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../editorial/data/editorial_prayer_repository.dart';
 import '../../onboarding/presentation/first_prayer_speech_page.dart';
 import '../domain/library_prayer.dart';
@@ -195,7 +196,7 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                   ),
                   if (_ownWordsMode == _OwnWordsMode.write) ...[
                     const SizedBox(height: AppSpacing.md),
-                    TextField(
+                    SayableField(
                       key: const Key('prayer-create-own-words'),
                       controller: _wordsController,
                       autofocus: true,
@@ -203,9 +204,14 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                       maxLines: 8,
                       maxLength: 4000,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'Write your prayer in your own words.',
-                      ),
+                      hintText: 'Write your prayer in your own words.',
+                      // A cut is said rather than left to look like a whole
+                      // prayer. It goes to the line this screen already reports
+                      // on, which is the only thing here that reports.
+                      onTruncated: () =>
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text(_limitReachedNotice)),
+                          ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     ValueListenableBuilder<TextEditingValue>(
@@ -329,3 +335,11 @@ class _ReviewedPrayerCard extends StatelessWidget {
 }
 
 enum _OwnWordsMode { write, speak }
+
+/// Shown when the field's limit cut a dictated prayer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

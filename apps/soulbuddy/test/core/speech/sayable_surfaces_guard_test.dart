@@ -38,6 +38,27 @@ const _expected = <String, (int sayable, int bare)>{
   'lib/features/onboarding/presentation/first_prayer_speech_page.dart': (1, 0),
   'lib/features/daily_formation/presentation/daily_formation_card.dart': (2, 0),
   'lib/features/record/presentation/encounter_form.dart': (2, 1),
+  'lib/features/prayers/presentation/prayer_create_screen.dart': (1, 0),
+  'lib/features/onboarding/presentation/first_prayer_detail_page.dart': (1, 0),
+  'lib/features/onboarding/presentation/first_remembrance_page.dart': (1, 0),
+  // Day and Minutes are dropdowns, not sentence fields, so nothing here is left
+  // bare: the Notebook is the screen's only field.
+  'lib/features/goals/presentation/goal_meditation_screen.dart': (1, 0),
+  'lib/features/goals/presentation/daily_practice_sheet.dart': (1, 0),
+  'lib/features/goals/presentation/today_prayer_goal_migration_card.dart': (
+    1,
+    0,
+  ),
+  // One component behind all six of this screen's labels, not six fields.
+  'lib/features/goals/presentation/first_goal_screen.dart': (1, 0),
+  // The Goal field labels a row in the list and stays bare.
+  'lib/features/goals/presentation/goal_detail_screen.dart': (2, 1),
+  'lib/features/remember/presentation/daily_remembrance_screen.dart': (1, 0),
+  'lib/features/remember/presentation/memory_detail_screen.dart': (1, 0),
+  'lib/features/guards/presentation/guard_configuration_sheet.dart': (1, 0),
+  // Circle name and the provider group link stay bare; Category and Visibility
+  // are dropdowns and were never sentence fields.
+  'lib/features/circles/presentation/create_circle_sheet.dart': (1, 2),
 };
 
 void main() {
@@ -68,5 +89,51 @@ void main() {
     expect(_calls('lib/core/speech/sayable_field.dart', 'TextField('), 1);
     expect(_calls('lib/core/speech/sayable_field.dart', 'TextFormField('), 1);
     expect(_bareFields('lib/core/speech/sayable_field.dart'), 2);
+  });
+
+  test('a screen that shares one field across labels still counts one', () {
+    // `first_goal_screen` passes six different `hintText` values to a single
+    // field component. The guard counts constructor calls in source, so the
+    // honest figure is one sayable field, not six — and a second call
+    // accidentally introduced while converting it would show up here rather
+    // than as a row that quietly stops meaning anything.
+    expect(
+      _calls(
+        'lib/features/goals/presentation/first_goal_screen.dart',
+        'SayableField(',
+      ),
+      1,
+    );
+    expect(
+      _calls(
+        'lib/features/goals/presentation/first_goal_screen.dart',
+        'hintText: widget.hintText,',
+      ),
+      1,
+    );
+  });
+
+  test('a field left bare on purpose is still counted as bare', () {
+    // Two screens keep a field bare for a reason rather than by accident:
+    // `goal_detail_screen` keeps Goal, which labels a row in the list, and
+    // `create_circle_sheet` keeps the Circle name, a slot. Both are counted
+    // here as well as in `_expected`, so that a bare field quietly gaining a
+    // microphone — or a sayable one quietly losing one — is a visible change
+    // rather than a row that stops meaning anything.
+    expect(
+      _bareFields('lib/features/goals/presentation/goal_detail_screen.dart'),
+      1,
+    );
+    expect(
+      _bareFields('lib/features/circles/presentation/create_circle_sheet.dart'),
+      2,
+    );
+    expect(
+      _calls(
+        'lib/features/circles/presentation/create_circle_sheet.dart',
+        'SayableField(',
+      ),
+      1,
+    );
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../record/domain/encounter.dart';
 import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
@@ -114,16 +115,19 @@ class _DailyRemembranceScreenState
                   ),
           ),
           const SizedBox(height: AppSpacing.md),
-          TextField(
+          // What is understood now is said in a person's own words, so it can be
+          // spoken. Nothing else on this screen is a sentence of theirs.
+          SayableField(
             key: const Key('daily-memory-reflection'),
             controller: _reflectionController,
             minLines: 2,
             maxLines: 6,
             maxLength: 4000,
-            decoration: const InputDecoration(
-              labelText: 'What do you understand now?',
-              alignLabelWithHint: true,
-            ),
+            labelText: 'What do you understand now?',
+            decoration: const InputDecoration(alignLabelWithHint: true),
+            // Saving reads the controller, so a dictated reflection is kept
+            // whole. There is no message line on this screen to report a cut
+            // on, so none is invented.
           ),
           Wrap(
             spacing: AppSpacing.sm,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import 'first_prayer_choice_page.dart';
 
 class FirstRemembranceTypePage extends StatelessWidget {
@@ -75,7 +76,9 @@ class _FirstRemembranceWritePageState extends State<FirstRemembranceWritePage> {
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: AppSpacing.lg),
-            TextField(
+            // What someone wants to remember is theirs to say, so it can be
+            // spoken. The four choices above it stay choices.
+            SayableField(
               key: const Key('first-remembrance-text'),
               controller: _controller,
               autofocus: true,
@@ -83,9 +86,11 @@ class _FirstRemembranceWritePageState extends State<FirstRemembranceWritePage> {
               maxLines: 7,
               maxLength: 4000,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                hintText: 'Write what you want to remember',
-              ),
+              hintText: 'Write what you want to remember',
+              // A cut is said rather than left to look like a whole memory. It
+              // goes to the line this page already reports on, which is the
+              // only thing here that reports.
+              onTruncated: () => setState(() => _error = _limitReachedNotice),
             ),
             const SizedBox(height: AppSpacing.md),
             if (_error case final error?) ...[
@@ -102,3 +107,11 @@ class _FirstRemembranceWritePageState extends State<FirstRemembranceWritePage> {
     ),
   );
 }
+
+/// Shown when the field's limit cut a dictated memory short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

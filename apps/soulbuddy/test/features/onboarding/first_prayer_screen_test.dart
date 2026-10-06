@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/onboarding/presentation/first_prayer_screen.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('guides one short prayer choice at a time', (tester) async {
@@ -57,6 +60,10 @@ void main() {
   testWidgets('written detail is short and optional', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        // The written detail page now offers the microphone, which resolves
+        // availability on mount. Answering here rather than through the plugin
+        // leaves the page as it was: writable, with speech unavailable.
+        overrides: [speechRecognizerProvider.overrideWithValue(NoSpeech())],
         child: MaterialApp(
           theme: AppTheme.light(),
           home: const FirstPrayerScreen.preview(

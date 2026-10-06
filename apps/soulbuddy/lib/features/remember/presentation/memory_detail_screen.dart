@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/domain/encounter.dart';
@@ -104,15 +105,22 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
+                // What is understood now is said in a person's own words, so it
+                // can be spoken. The memory's own title and body above it are
+                // not being rewritten here.
+                SayableField(
                   key: const Key('memory-reflection-body'),
                   controller: _controller,
                   minLines: 3,
                   maxLines: 7,
                   maxLength: 4000,
-                  decoration: const InputDecoration(
-                    labelText: 'Add what you understand now',
-                    alignLabelWithHint: true,
+                  labelText: 'Add what you understand now',
+                  decoration: const InputDecoration(alignLabelWithHint: true),
+                  // A cut is said rather than left to look like a whole
+                  // reflection. It goes to the line this screen already reports
+                  // on, which is the only thing here that reports.
+                  onTruncated: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text(_limitReachedNotice)),
                   ),
                 ),
                 FilledButton(
@@ -241,3 +249,11 @@ String _label(MemoryType type) => switch (type) {
   MemoryType.leftBehind => 'What I left behind',
   _ => type.name[0].toUpperCase() + type.name.substring(1),
 };
+
+/// Shown when the field's limit cut a dictated reflection short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

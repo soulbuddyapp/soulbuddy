@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../goals/domain/goal.dart';
 import '../domain/guard_definition.dart';
 import '../providers/guard_providers.dart';
@@ -346,17 +347,22 @@ class _GuardEditorState extends State<_GuardEditor> {
                 const SizedBox(height: AppSpacing.sm),
             ],
             const SizedBox(height: AppSpacing.lg),
-            TextField(
+            // What someone actually configured is said in their own words, so
+            // it can be spoken. The steps above it are the reviewed ones.
+            //
+            // There is no message line on this editor to report a cut on, and
+            // the wording below the field is a disclosure rather than an error
+            // area, so none is invented here.
+            SayableField(
               key: const Key('guard-private-note'),
               controller: _noteController,
               maxLength: 1000,
               minLines: 2,
               maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Private note (optional)',
-                hintText: 'What did you configure?',
-              ),
+              labelText: 'Private note (optional)',
+              hintText: 'What did you configure?',
+              // Saving reads the controller, so a dictated note is kept whole.
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(

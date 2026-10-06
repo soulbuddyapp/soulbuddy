@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../guards/presentation/return_sheet.dart';
 import '../../guards/providers/return_providers.dart';
 import '../domain/goal.dart';
@@ -419,20 +420,25 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           decoration: const InputDecoration(labelText: 'Goal'),
         ),
         const SizedBox(height: AppSpacing.sm),
-        TextField(
+        // These two are a person's own account of the Goal, in sentences, so
+        // they can be spoken. The Goal field stays a bare field: there it names
+        // the row in the list rather than answering a question.
+        SayableField(
           controller: _situationController,
           maxLength: 4000,
           maxLines: 4,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'What is happening now'),
+          labelText: 'What is happening now',
+          // There is no message line inside this dialog to report a cut on,
+          // and none is invented here.
         ),
         const SizedBox(height: AppSpacing.sm),
-        TextField(
+        SayableField(
           controller: _whyController,
           maxLength: 4000,
           maxLines: 3,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Why this matters'),
+          labelText: 'Why this matters',
         ),
       ],
     ),

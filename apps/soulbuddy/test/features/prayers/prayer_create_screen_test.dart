@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/editorial/data/editorial_prayer_repository.dart';
 import 'package:soulbuddy/features/editorial/domain/editorial_item.dart';
 import 'package:soulbuddy/features/prayers/data/personal_prayer_repository.dart';
@@ -9,9 +10,12 @@ import 'package:soulbuddy/features/prayers/domain/library_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/personal_prayer.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_generation_request.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_language.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
 import 'package:soulbuddy/features/prayers/presentation/prayer_create_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('purpose choice opens only a reviewed editorial prayer', (
@@ -176,8 +180,10 @@ void main() {
     expect(find.text('Forgiveness · Matthew 6:14–15'), findsOneWidget);
     expect(
       tester
-          .widget<TextField>(find.byKey(const Key('prayer-create-own-words')))
-          .controller!
+          .widget<SayableField>(
+            find.byKey(const Key('prayer-create-own-words')),
+          )
+          .controller
           .text,
       'Lord, help me release what I am holding.',
     );
@@ -226,6 +232,9 @@ Future<void> _pump(
           onGenerationProviderRead();
           throw StateError('Generation must not be read by the new flow.');
         }),
+        // The own-words field now offers the microphone, which resolves
+        // availability when it appears.
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp.router(
         routerConfig: router,

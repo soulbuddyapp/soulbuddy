@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../providers/goal_providers.dart';
 
@@ -142,16 +143,26 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
     final title = _controller.text.trim();
     return AlertDialog(
       title: const Text('Name this Goal'),
-      content: TextField(
-        key: const Key('migration-goal-title'),
-        controller: _controller,
-        autofocus: true,
-        maxLength: 120,
-        textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
-          labelText: 'What are you seeking help with?',
-        ),
-        onChanged: (_) => setState(() {}),
+      // Held in a min-size column so the field takes the dialog's height rather
+      // than filling whatever the dialog is allowed.
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SayableField(
+            key: const Key('migration-goal-title'),
+            controller: _controller,
+            autofocus: true,
+            maxLength: 120,
+            textCapitalization: TextCapitalization.sentences,
+            labelText: 'What are you seeking help with?',
+            // Keep is gated on the title read here in build, and a field's own
+            // callback fires for typing alone. Without this the button would
+            // stay disabled while dictated words sat plainly in the field.
+            onChanged: (_) => setState(() {}),
+            // There is no message line inside this dialog to report a cut on,
+            // so none is invented here.
+          ),
+        ],
       ),
       actions: [
         TextButton(
