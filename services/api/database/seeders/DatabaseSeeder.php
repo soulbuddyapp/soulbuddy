@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(PrayerLibrarySeeder::class);
+        $this->call(PrayerReleaseSeeder::class);
 
         // User::factory(10)->create();
 

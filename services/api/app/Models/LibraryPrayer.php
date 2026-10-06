@@ -32,4 +32,12 @@ class LibraryPrayer extends Model
     {
         return $this->hasMany(TodayPrayer::class, 'prayer_id');
     }
+
+    /**
+     * A canonical prayer may belong to a weekly release collection.
+     */
+    public function releaseItems(): HasMany
+    {
+        return $this->hasMany(PrayerReleaseItem::class, 'library_prayer_id');
+    }
 }
