@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('morning-notifications:send')->everyMinute()->withoutOverlapping();
 Schedule::command('telegram-companion:send')->everyMinute()->withoutOverlapping();
+Schedule::command('prayer-releases:notify')->everyMinute()->withoutOverlapping();

@@ -54,6 +54,27 @@ class TelegramBotSender
         );
     }
 
+    /**
+     * The same notice the app receives, with a deep link into the collection.
+     */
+    public function sendWeeklyPrayerRelease(string $chatId, string $title, string $slug): bool
+    {
+        return $this->send(
+            $chatId,
+            "A new prayer collection is ready\n\n{$title}",
+            [
+                'inline_keyboard' => [
+                    [['text' => 'Open', 'url' => $this->deepLink($slug)]],
+                ],
+            ],
+        );
+    }
+
+    private function deepLink(string $slug): string
+    {
+        return rtrim((string) config('app.url'), '/')."/prayers/releases/{$slug}";
+    }
+
     public function sendWeeklyPersonPrayer(string $chatId, string $name): bool
     {
         return $this->send($chatId, "Lift {$name} in prayer today.");

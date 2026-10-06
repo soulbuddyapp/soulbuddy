@@ -11,25 +11,27 @@ use RuntimeException;
 
 class FirebasePushSender
 {
-    public function sendMorning(string $deviceToken): bool
+    /**
+     * @param  array{title: string, body: string, route: string, kind: string, channel_id: string, tag: string}  $notice
+     */
+    public function sendNotice(string $deviceToken, array $notice): bool
     {
         $project = (string) config('services.firebase.project_id');
         if ($project === '') {
             throw new RuntimeException('Firebase project is not configured.');
         }
 
-        $response = $this->send($project, $deviceToken);
+        $response = $this->sendMessage($project, $deviceToken, $notice);
         if ($response->status() === 401) {
-            // A revoked or stale cached credential must not block the next 50 minutes.
             Cache::forget('firebase_messaging_access_token');
-            $response = $this->send($project, $deviceToken);
+            $response = $this->sendMessage($project, $deviceToken, $notice);
         }
         if ($response->successful()) {
             return true;
         }
 
         $code = $this->errorCode($response);
-        Log::warning('Firebase morning notification rejected.', [
+        Log::warning($this->rejectionMessage($notice['kind']), [
             'http_status' => $response->status(),
             'error_code' => $code,
         ]);
@@ -38,6 +40,55 @@ class FirebasePushSender
         }
 
         return false;
+    }
+
+    public function sendMorning(string $deviceToken): bool
+    {
+        return $this->sendNotice($deviceToken, [
+            'title' => 'Begin with God',
+            'body' => 'A new day to pray, listen, and plant something good.',
+            'route' => '/today',
+            'kind' => 'morning',
+            'channel_id' => 'soulbuddy_morning_v1',
+            'tag' => 'soulbuddy-morning',
+        ]);
+    }
+
+    /**
+     * Each notice kind keeps its own operational log line, so existing morning
+     * diagnostics stay unchanged.
+     */
+    private function rejectionMessage(string $kind): string
+    {
+        return $kind === 'morning'
+            ? 'Firebase morning notification rejected.'
+            : 'Firebase notification rejected.';
+    }
+
+    /**
+     * @param  array{title: string, body: string, route: string, kind: string, channel_id: string, tag: string}  $notice
+     */
+    private function sendMessage(string $project, string $deviceToken, array $notice): Response
+    {
+        return Http::withToken($this->accessToken())
+            ->timeout(15)
+            ->post("https://fcm.googleapis.com/v1/projects/{$project}/messages:send", [
+                'message' => [
+                    'token' => $deviceToken,
+                    'notification' => [
+                        'title' => $notice['title'],
+                        'body' => $notice['body'],
+                    ],
+                    'data' => ['route' => $notice['route'], 'kind' => $notice['kind']],
+                    'android' => [
+                        'priority' => 'high',
+                        'notification' => [
+                            'channel_id' => $notice['channel_id'],
+                            'tag' => $notice['tag'],
+                        ],
+                    ],
+                ],
+            ]);
     }
 
     private function errorCode(Response $response): string
@@ -57,30 +108,6 @@ class FirebasePushSender
 
         return in_array($status, ['INVALID_ARGUMENT', 'UNAUTHENTICATED', 'PERMISSION_DENIED', 'NOT_FOUND', 'RESOURCE_EXHAUSTED', 'UNAVAILABLE', 'INTERNAL'], true)
             ? $status : 'UNKNOWN';
-    }
-
-    private function send(string $project, string $deviceToken): Response
-    {
-        return Http::withToken($this->accessToken())
-            ->timeout(15)
-            ->post("https://fcm.googleapis.com/v1/projects/{$project}/messages:send", [
-                'message' => [
-                    'token' => $deviceToken,
-                    'notification' => [
-                        'title' => 'Begin with God',
-                        'body' => 'A new day to pray, listen, and plant something good.',
-                    ],
-                    'data' => ['route' => '/today', 'kind' => 'morning'],
-                    'android' => [
-                        'priority' => 'high',
-                        'notification' => [
-                            'channel_id' => 'soulbuddy_morning_v1',
-                            'tag' => 'soulbuddy-morning',
-                        ],
-                    ],
-                ],
-            ]);
-
     }
 
     private function accessToken(): string
