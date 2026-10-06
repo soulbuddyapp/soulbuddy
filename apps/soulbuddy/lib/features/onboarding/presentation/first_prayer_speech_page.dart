@@ -80,6 +80,10 @@ class _FirstPrayerSpeechPageState extends State<FirstPrayerSpeechPage> {
               // The first say-something surface someone meets, so the
               // affordance is labelled as well as present.
               emphasis: SayableEmphasis.prominent,
+              // A cut is said rather than left to look like a whole answer. This
+              // page has no message line of its own, so it goes to the SnackBar,
+              // which every screen hosting this page already reports through.
+              onTruncated: _reportTruncation,
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
@@ -95,4 +99,23 @@ class _FirstPrayerSpeechPageState extends State<FirstPrayerSpeechPage> {
       ),
     ),
   );
+
+  /// Reports a limit that cut a dictated answer short.
+  ///
+  /// The messenger rather than this page: the page's own state may be gone by
+  /// the time the notice would show, and a step change takes it with it.
+  void _reportTruncation() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(_limitReachedNotice)));
+  }
 }
+
+/// Shown when the field's limit cut a dictated answer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

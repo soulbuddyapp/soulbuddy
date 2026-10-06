@@ -349,10 +349,6 @@ class _GuardEditorState extends State<_GuardEditor> {
             const SizedBox(height: AppSpacing.lg),
             // What someone actually configured is said in their own words, so
             // it can be spoken. The steps above it are the reviewed ones.
-            //
-            // There is no message line on this editor to report a cut on, and
-            // the wording below the field is a disclosure rather than an error
-            // area, so none is invented here.
             SayableField(
               key: const Key('guard-private-note'),
               controller: _noteController,
@@ -363,6 +359,22 @@ class _GuardEditorState extends State<_GuardEditor> {
               labelText: 'Private note (optional)',
               hintText: 'What did you configure?',
               // Saving reads the controller, so a dictated note is kept whole.
+              //
+              // A cut is said rather than left to look like a whole note. This
+              // editor has no message line of its own and the wording below the
+              // field is a disclosure rather than an error area, so it goes to
+              // the SnackBar this sheet already reports its own failures
+              // through.
+              //
+              // `useRootNavigator` is false on both of this file's sheets, so
+              // the messenger found here is the app's and survives the editor
+              // being dismissed before the notice shows.
+              onTruncated: () {
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text(_limitReachedNotice)),
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
@@ -405,6 +417,14 @@ class _Unavailable extends StatelessWidget {
     ),
   );
 }
+
+/// Shown when the field's limit cut a dictated note short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';
 
 GoalGuardSelection? _selectionFor(
   List<GoalGuardSelection> selections,

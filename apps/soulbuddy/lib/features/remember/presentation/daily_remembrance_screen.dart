@@ -126,8 +126,17 @@ class _DailyRemembranceScreenState
             labelText: 'What do you understand now?',
             decoration: const InputDecoration(alignLabelWithHint: true),
             // Saving reads the controller, so a dictated reflection is kept
-            // whole. There is no message line on this screen to report a cut
-            // on, so none is invented.
+            // whole.
+            //
+            // A cut is said rather than left to look like a whole reflection.
+            // This screen has no message line of its own, so it goes to the
+            // SnackBar, which is what this screen already reports through.
+            onTruncated: () {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text(_limitReachedNotice)),
+              );
+            },
           ),
           Wrap(
             spacing: AppSpacing.sm,
@@ -222,6 +231,14 @@ class _DailyRemembranceScreenState
     }
   }
 }
+
+/// Shown when the field's limit cut a dictated reflection short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';
 
 String _prompt(MemoryType type) => switch (type) {
   MemoryType.promise => 'Remember the promise you made before God.',

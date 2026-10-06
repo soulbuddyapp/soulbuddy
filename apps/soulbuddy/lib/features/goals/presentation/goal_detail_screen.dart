@@ -429,8 +429,12 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           maxLines: 4,
           textCapitalization: TextCapitalization.sentences,
           labelText: 'What is happening now',
-          // There is no message line inside this dialog to report a cut on,
-          // and none is invented here.
+          // A cut is said rather than left to look like a whole account. The
+          // dialog has no message line of its own, so it goes to the SnackBar
+          // this screen already reports through: the messenger is an ancestor
+          // of the dialog's route, so the notice lands on this screen while
+          // the dialog is still up.
+          onTruncated: _reportTruncation,
         ),
         const SizedBox(height: AppSpacing.sm),
         SayableField(
@@ -439,6 +443,8 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           maxLines: 3,
           textCapitalization: TextCapitalization.sentences,
           labelText: 'Why this matters',
+          // Said for the same reason, and to the same place.
+          onTruncated: _reportTruncation,
         ),
       ],
     ),
@@ -457,6 +463,19 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
       ),
     ],
   );
+
+  /// Reports a limit that cut a dictated account short.
+  ///
+  /// The messenger this reaches is the app's own, above the route holding this
+  /// dialog, so the notice does not depend on the dialog outliving it. A dialog
+  /// dismissed between the cut and the notice is a real possibility, and the
+  /// notice still has to reach someone.
+  void _reportTruncation() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(_limitReachedNotice)));
+  }
 
   void _save() {
     final title = _titleController.text.trim();
@@ -483,6 +502,14 @@ class _GoalEdit {
   final String? currentSituation;
   final String? whyItMatters;
 }
+
+/// Shown when a field's limit cut a dictated account short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';
 
 bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
 

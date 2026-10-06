@@ -113,6 +113,21 @@ void main() {
     );
   });
 
+  test('no sayable surface still spells its own speech plumbing', () {
+    // The seam is the whole point of `SayableField`: one recogniser, one
+    // controller, one place that asks for the microphone. A surface that names
+    // either again is a second seam wearing the first one's clothes, and the
+    // counts above would not notice, because it only counts fields.
+    for (final path in _expected.keys) {
+      final source = File(path).readAsStringSync();
+      expect(
+        source.contains('SpeechToText') || source.contains('onDevice'),
+        isFalse,
+        reason: '$path must go through SayableField, not its own recogniser',
+      );
+    }
+  });
+
   test('a field left bare on purpose is still counted as bare', () {
     // Two screens keep a field bare for a reason rather than by accident:
     // `goal_detail_screen` keeps Goal, which labels a row in the list, and

@@ -138,6 +138,18 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
     super.dispose();
   }
 
+  /// Reports a limit that cut a dictated answer short.
+  ///
+  /// The messenger rather than the card that opened this dialog: the dialog may
+  /// be gone by the time the notice shows, and the card's state may have been
+  /// dismissed out from under it.
+  void _reportTruncation() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(_limitReachedNotice)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _controller.text.trim();
@@ -159,8 +171,10 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
             // callback fires for typing alone. Without this the button would
             // stay disabled while dictated words sat plainly in the field.
             onChanged: (_) => setState(() {}),
-            // There is no message line inside this dialog to report a cut on,
-            // so none is invented here.
+            // A cut is said rather than left to look like a whole answer. This
+            // dialog has no message line of its own, so it goes to the SnackBar
+            // the card already reports through.
+            onTruncated: _reportTruncation,
           ),
         ],
       ),
@@ -178,3 +192,11 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
     );
   }
 }
+
+/// Shown when the field's limit cut a dictated answer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';
