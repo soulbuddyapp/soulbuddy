@@ -12,6 +12,8 @@ import 'package:soulbuddy/core/database/app_database_provider.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/core/identity/local_identity.dart';
 import 'package:soulbuddy/core/identity/local_identity_providers.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
+import 'package:soulbuddy/core/speech/speech_recognizer.dart';
 import 'package:soulbuddy/features/commitments/domain/commitment.dart';
 import 'package:soulbuddy/features/commitments/presentation/commitment_journey_screen.dart';
 import 'package:soulbuddy/features/commitments/presentation/commitment_summary_screen.dart';
@@ -111,6 +113,13 @@ void main() {
         prayerDeviceTimezoneProvider.overrideWithValue(
           () async => 'Africa/Lagos',
         ),
+        // The journey's sayable fields resolve speech the moment they mount, and
+        // the real seam answers that by asking `path_provider` and `record` for a
+        // microphone this test never uses. Neither plugin is registered here, so
+        // each miss costs a round trip on every stage of a journey that is
+        // otherwise only about the answers. Answering directly leaves the screen
+        // in the state it was in before: speech unavailable, the field writable.
+        speechRecognizerProvider.overrideWithValue(_NoSpeech()),
       ],
     );
     final router = GoRouter(
@@ -380,4 +389,22 @@ void main() {
     await closing;
     await tester.runAsync(() => directory.delete(recursive: true));
   });
+}
+
+/// Speech that cannot run, answered without reaching a plugin.
+///
+/// `false` is what the unmocked plugins resolved to anyway, so the notice and
+/// the writable field are what this journey has always been tested against.
+class _NoSpeech implements SpeechRecognizer {
+  @override
+  Future<bool> initialize({
+    void Function(bool listening)? onListeningChanged,
+    VoidCallback? onUnavailable,
+  }) async => false;
+
+  @override
+  Future<void> listen({required void Function(String words) onWords}) async {}
+
+  @override
+  Future<void> stop() async {}
 }

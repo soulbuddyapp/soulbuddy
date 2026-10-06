@@ -2,10 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/presentation/sanctuary_backdrop.dart';
 import '../../../core/presentation/screen_awake.dart';
+import '../../../core/speech/sayable_field.dart';
+import '../../../core/speech/speech_capture_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../application/commitment_journey_flow.dart';
 import '../data/commitment_practice_catalog_repository.dart';
@@ -34,7 +35,6 @@ class _CommitmentJourneyScreenState
   final _calling = TextEditingController();
   final _name = TextEditingController();
   final _declaration = TextEditingController();
-  final _speech = SpeechToText();
   final _scroll = ScrollController();
   Timer? _debounce;
   Future<void> _writes = Future.value();
@@ -168,7 +168,7 @@ class _CommitmentJourneyScreenState
       return;
     }
     _leaving = true;
-    await _speech.stop();
+    await _stopDictation();
     _progress = _progress.copyWith(deferred: true);
     if (await _save() && mounted) {
       context.go('/goals');
@@ -192,7 +192,7 @@ class _CommitmentJourneyScreenState
       _busy = true;
       _error = null;
     });
-    await _speech.stop();
+    await _stopDictation();
     if (await _save() && mounted) {
       final index = value.stage.index + (back ? -1 : 1);
       if (index >= 0 && index < CommitmentJourneyStage.summary.index + 1) {
@@ -244,35 +244,18 @@ class _CommitmentJourneyScreenState
     }
   }
 
-  Future<void> _dictate() async {
-    if (_speech.isListening) {
-      await _speech.stop();
-      if (mounted) setState(() {});
-      return;
-    }
-    final before = _calling.text.trim();
-    if (!await _speech.initialize()) {
-      if (mounted) {
-        setState(() => _error = 'Speech unavailable. Continue writing.');
-      }
-      return;
-    }
-    if (!mounted) return;
-    await _speech.listen(
-      listenOptions: SpeechListenOptions(onDevice: true),
-      onResult: (result) {
-        if (!mounted) return;
-        final text = [
-          before,
-          result.recognizedWords,
-        ].where((v) => v.isNotEmpty).join(' ');
-        _calling.text = String.fromCharCodes(
-          text.runes.take(CommitmentTextLimits.calling),
-        );
-        _changed();
-      },
-    );
-    if (mounted) setState(() {});
+  /// Ends the session before this screen stops being the one dictating.
+  ///
+  /// The session belongs to the app-wide controller, which outlives the field
+  /// writing into it, so no other code can close it: left open it would hold
+  /// the microphone and refuse the next field's. Unmounting is deliberately not
+  /// that moment, because a session is not this screen's to end either.
+  Future<void> _stopDictation() async {
+    final speech = ref.read(speechCaptureControllerProvider);
+    // Asked of the session rather than of the plugin: a stage reached without
+    // ever dictating has nothing to stop, and the plugin refuses a stop it was
+    // never asked to start.
+    if (speech.isListening) await speech.stop();
   }
 
   @override
@@ -282,7 +265,7 @@ class _CommitmentJourneyScreenState
         !_busy &&
         !_leaving &&
         !_finalizing) {
-      unawaited(_speech.stop());
+      unawaited(_stopDictation());
       unawaited(_save());
     }
   }
@@ -292,7 +275,6 @@ class _CommitmentJourneyScreenState
     WidgetsBinding.instance.removeObserver(this);
     if (_loaded && !_busy && !_leaving && !_finalizing) unawaited(_save());
     _debounce?.cancel();
-    unawaited(_speech.stop());
     for (final c in [..._needs, _calling, _name, _declaration]) {
       c.dispose();
     }
@@ -308,13 +290,18 @@ class _CommitmentJourneyScreenState
     bool declaration = false,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
-    child: TextField(
+    child: SayableField(
       controller: c,
       minLines: lines,
       maxLines: lines + 3,
       maxLength: max,
       textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(labelText: label, alignLabelWithHint: true),
+      labelText: label,
+      // A cut is reported rather than made to look like a whole answer. The
+      // limit is applied by the merge, on a character boundary, so a dictated
+      // word is never left half-spelled.
+      onTruncated: () =>
+          setState(() => _error = 'Your answer reached the limit.'),
       onChanged: (_) {
         if (declaration || c == _calling || _needs.contains(c)) {
           _progress = _progress.copyWith(declarationReviewed: false);
@@ -439,15 +426,7 @@ class _CommitmentJourneyScreenState
               'What is your calling?',
               'What is one thing you believe God has called you to do or become in this world?',
             ),
-            _field(_calling, 'Calling', 1500, lines: 5),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _dictate,
-                icon: Icon(_speech.isListening ? Icons.stop : Icons.mic_none),
-                label: Text(_speech.isListening ? 'Stop dictation' : 'Speak'),
-              ),
-            ),
+            _field(_calling, 'Calling', CommitmentTextLimits.calling, lines: 5),
           ],
         );
       case CommitmentJourneyStage.practices:
