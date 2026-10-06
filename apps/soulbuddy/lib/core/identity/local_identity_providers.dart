@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
-import 'local_identity.dart';
 import '../config/app_config.dart';
+import 'account_email_link_client.dart';
 import 'installation_session.dart';
-import 'package:http/http.dart' as http;
+import 'local_identity.dart';
+import 'telegram_link_client.dart';
 
 const localOwnerIdStorageKey = 'soulbuddy.local_owner_id';
 const deviceIdStorageKey = 'soulbuddy.device_id';
@@ -40,6 +42,26 @@ final localIdentityProvider = FutureProvider<LocalIdentity>((ref) async {
 final appSessionTokenReaderProvider = Provider<AppSessionTokenReader>((ref) {
   final storage = ref.watch(secureStorageProvider);
   return () => storage.read(key: appSessionTokenStorageKey);
+});
+
+final accountEmailLinkClientProvider = Provider<AccountEmailLinkClient>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return AccountEmailLinkClient(
+    apiBaseUri: Uri.tryParse(AppConfig.apiBaseUrl) ?? Uri(),
+    accessToken: ref.watch(appSessionTokenReaderProvider),
+    httpClient: client,
+  );
+});
+
+final telegramLinkClientProvider = Provider<TelegramLinkClient>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return TelegramLinkClient(
+    apiBaseUri: Uri.tryParse(AppConfig.apiBaseUrl) ?? Uri(),
+    accessToken: ref.watch(appSessionTokenReaderProvider),
+    httpClient: client,
+  );
 });
 
 final installationSessionBootstrapProvider = FutureProvider<void>((ref) async {

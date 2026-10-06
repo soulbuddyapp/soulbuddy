@@ -66,7 +66,7 @@ class DailyFormationCard extends ConsumerWidget {
             runSpacing: 8,
             children: [
               FilledButton.icon(
-                onPressed: () => _launch(context, video),
+                onPressed: () => _launch(context, ref, video),
                 icon: const Icon(Icons.play_arrow_rounded),
                 label: const Text('Watch'),
               ),
@@ -120,11 +120,16 @@ class DailyFormationCard extends ConsumerWidget {
       .firstWhere((pack) => pack.id == id, orElse: () => catalog.packs.first)
       .title;
 
-  Future<void> _launch(BuildContext context, FormationVideo video) async {
+  Future<void> _launch(
+    BuildContext context,
+    WidgetRef ref,
+    FormationVideo video,
+  ) async {
     final opened = await _videoLauncher.open(
       youtubeId: video.youtubeId,
       webUrl: Uri.parse(video.youtubeUrl),
     );
+    if (opened) recordDailyFormationOpened(ref, video.id);
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('The video could not be opened.')),
@@ -252,6 +257,7 @@ class DailyFormationCard extends ConsumerWidget {
         action: result.action,
       ),
     );
+    recordDailyFormationCompleted(ref, video.id);
   }
 
   static String _duration(int seconds) =>

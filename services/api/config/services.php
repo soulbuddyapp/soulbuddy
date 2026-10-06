@@ -44,6 +44,12 @@ return [
         'service_account_path' => env('FIREBASE_SERVICE_ACCOUNT_PATH'),
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'bot_username' => env('TELEGRAM_BOT_USERNAME'),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+    ],
+
     'goal_guidance' => [
         'key' => env('DEEPSEEK_API_KEY'),
         'base_url' => env('GOAL_GUIDANCE_BASE_URL', 'https://api.deepseek.com'),

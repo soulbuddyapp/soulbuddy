@@ -41,6 +41,14 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('installation-sessions', fn (Request $request): array => [
             Limit::perMinute(10)->by('installation-session:'.$request->ip()),
         ]);
+        RateLimiter::for('account-email-challenges', function (Request $request): array {
+            $userKey = (string) ($request->user()?->public_id ?? 'guest');
+
+            return [
+                Limit::perHour(5)->by('account-email-challenge:user-hour:'.$userKey),
+                Limit::perHour(10)->by('account-email-challenge:ip-hour:'.$request->ip()),
+            ];
+        });
         RateLimiter::for('goal-action-suggestions', function (Request $request): array {
             $userKey = (string) ($request->user()?->public_id ?? 'guest');
 

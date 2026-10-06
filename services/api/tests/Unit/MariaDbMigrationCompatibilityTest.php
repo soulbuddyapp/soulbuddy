@@ -46,3 +46,42 @@ it('provides MariaDB integrity implementations for every prayer migration', func
         expect(Str::contains($source, 'require SQLite or PostgreSQL'))->toBeFalse();
     }
 });
+
+it('uses datetime columns for commitment session boundaries', function () {
+    $source = file_get_contents(
+        dirname(__DIR__, 2).'/database/migrations/2026_09_24_000000_create_commitment_tables.php',
+    );
+
+    expect($source)
+        ->toContain("dateTime('started_at')")
+        ->toContain("dateTime('ended_at')")
+        ->not->toContain("timestamp('started_at')")
+        ->not->toContain("timestamp('ended_at')");
+});
+
+it('uses datetime columns for account and companion link lifetimes', function () {
+    foreach ([
+        '2026_10_03_000000_create_account_challenges_table.php',
+        '2026_10_03_000001_create_telegram_companion_tables.php',
+    ] as $filename) {
+        $source = file_get_contents(
+            dirname(__DIR__, 2)."/database/migrations/{$filename}",
+        );
+
+        expect($source)
+            ->toContain("dateTime('expires_at')")
+            ->toContain("dateTime('consumed_at')")
+            ->toContain("dateTime('created_at')")
+            ->not->toContain("timestamp('expires_at')")
+            ->not->toContain("timestamp('consumed_at')")
+            ->not->toContain("timestamp('created_at')");
+    }
+});
+
+it('exempts the Telegram webhook from Laravel request-forgery checks', function () {
+    $source = file_get_contents(dirname(__DIR__, 2).'/bootstrap/app.php');
+
+    expect($source)->toContain(
+        "validateCsrfTokens(except: ['integrations/telegram/webhook'])",
+    );
+});
