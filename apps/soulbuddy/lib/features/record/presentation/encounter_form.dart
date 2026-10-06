@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../domain/encounter_draft.dart';
 import '../domain/encounter.dart';
 import '../audio/domain/memory_audio.dart';
@@ -218,20 +219,27 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                           : (value) => setState(() => _recallEnabled = value),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    TextFormField(
+                    SayableField(
                       key: const Key('encounter-title'),
                       controller: _titleController,
+                      labelText: 'Title',
                       enabled: !_isSaving,
                       maxLength: 120,
                       textCapitalization: TextCapitalization.sentences,
                       textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Title'),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Add a short title.';
-                        }
-                        return null;
-                      },
+                      // The validator is what keeps this a form field, so the
+                      // form above still gates saving and a dictated title is
+                      // held to the same rule as a typed one.
+                      validator: (value) =>
+                          value == null || value.trim().isEmpty
+                          ? 'Add a short title.'
+                          : null,
+                      // A cut is said rather than left to look like a whole
+                      // answer. It goes to the error line this form already
+                      // has, because it is the only thing on the sheet that
+                      // reports rather than shows.
+                      onTruncated: () =>
+                          setState(() => _saveError = _limitReachedNotice),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     if (widget.bodyPrompt case final prompt?) ...[
@@ -252,7 +260,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                     ],
-                    TextFormField(
+                    SayableField(
                       key: const Key('encounter-body'),
                       controller: _bodyController,
                       enabled: !_isSaving,
@@ -260,11 +268,17 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       minLines: 4,
                       maxLines: 10,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        labelText:
-                            widget.bodyLabel ?? 'What happened? (optional)',
+                      labelText:
+                          widget.bodyLabel ?? 'What happened? (optional)',
+                      // Stated rather than left to the field's own derivation
+                      // from `maxLines`, so the label keeps sitting with the
+                      // first line of a tall field as it did before.
+                      decoration: const InputDecoration(
                         alignLabelWithHint: true,
                       ),
+                      // Said for the same reason, and to the same line.
+                      onTruncated: () =>
+                          setState(() => _saveError = _limitReachedNotice),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Align(
@@ -446,6 +460,14 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     }
   }
 }
+
+/// Shown when a field's limit cut a dictated answer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';
 
 String _memoryTypeLabel(MemoryType type) => switch (type) {
   MemoryType.encounter => 'an encounter',

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
@@ -17,6 +19,7 @@ import 'package:soulbuddy/features/persons/providers/person_providers.dart';
 import 'package:soulbuddy/features/remember/presentation/remember_screen.dart';
 
 import '../../helpers/in_memory_encounter_repository.dart';
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('first memory guidance remains expanded until a memory exists', (
@@ -142,7 +145,10 @@ void main() {
     final store = _DiscardTrackingAudioStore();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [audioAssetStoreProvider.overrideWith((ref) async => store)],
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: EncounterForm(
@@ -173,7 +179,10 @@ void main() {
     var cancelled = false;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [audioAssetStoreProvider.overrideWith((ref) async => store)],
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: EncounterForm(
@@ -299,9 +308,9 @@ void main() {
     expect(find.text(prompt), findsOneWidget);
     expect(
       tester
-          .widget<TextFormField>(find.byKey(const Key('encounter-body')))
+          .widget<SayableField>(find.byKey(const Key('encounter-body')))
           .controller
-          ?.text,
+          .text,
       isEmpty,
     );
     expect(

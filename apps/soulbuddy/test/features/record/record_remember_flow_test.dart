@@ -6,6 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/app/app.dart';
 import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
+import 'package:soulbuddy/core/speech/speech_capture_controller.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
+import 'package:soulbuddy/core/speech/speech_recognizer.dart';
 import 'package:soulbuddy/features/record/presentation/record_screen.dart';
 import 'package:soulbuddy/features/record/presentation/encounter_form.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
@@ -92,10 +96,10 @@ void main() {
 
       expect(find.text('What kind of memory is this?'), findsOneWidget);
       expect(find.widgetWithText(ChoiceChip, 'Promise'), findsOneWidget);
-      final titleField = tester.widget<TextFormField>(
+      final titleField = tester.widget<SayableField>(
         find.byKey(const Key('encounter-title')),
       );
-      expect(titleField.controller!.text, startsWith('Voice memory ·'));
+      expect(titleField.controller.text, startsWith('Voice memory ·'));
       await tester.ensureVisible(find.text('Save'));
       await tester.tap(find.text('Save'));
       await _settle(tester);
@@ -117,16 +121,20 @@ void main() {
       waveform: const [0.2, 0.8],
     );
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: EncounterForm(
-            initialTitle: 'Voice memory · 13 Aug',
-            audio: audio,
-            onCancel: () {},
-            onSave: (_) async {
-              attempts++;
-              throw StateError('disk');
-            },
+      // The form's fields now carry dictation, and that controller comes from a
+      // provider, so a bare form is no longer pumpable on its own.
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: EncounterForm(
+              initialTitle: 'Voice memory · 13 Aug',
+              audio: audio,
+              onCancel: () {},
+              onSave: (_) async {
+                attempts++;
+                throw StateError('disk');
+              },
+            ),
           ),
         ),
       ),
@@ -416,8 +424,8 @@ void main() {
     expect(find.text('Encounter'), findsNothing);
     expect(
       tester
-          .widget<TextFormField>(find.byKey(const Key('encounter-body')))
-          .controller!
+          .widget<SayableField>(find.byKey(const Key('encounter-body')))
+          .controller
           .text,
       isEmpty,
     );
@@ -515,6 +523,160 @@ void main() {
     expect(find.text('I understand more about patience now.'), findsOneWidget);
     expect(find.text('The original record.'), findsOneWidget);
   });
+
+  testWidgets('dictation and recording are both reachable from the form', (
+    tester,
+  ) async {
+    // The two capture mechanisms share this sheet and neither may switch the
+    // other off. Dictation lives in the field; recording is the button beside
+    // it. A dictating form still records, and a recording form still dictates,
+    // and the words land in the draft that gets saved.
+    final repository = InMemoryEncounterRepository();
+    final recorder = _RecordFlowRecorder();
+    final controller = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async =>
+          const TemporaryAudio(key: 'take', locator: '/private/take.m4a'),
+    );
+    addTearDown(() async {
+      await controller.close();
+      await repository.close();
+    });
+    final seam = _RecordingSeam();
+    // Built here rather than in the override so the test disposes it: the
+    // provider's own container is gone by the time this runs, and a dictation
+    // controller that is never disposed is a listener that outlives its test.
+    final speech = SpeechCaptureController(recognizer: seam);
+    addTearDown(speech.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+          audioCaptureControllerProvider.overrideWith(
+            (ref) async => controller,
+          ),
+          speechCaptureControllerProvider.overrideWithValue(speech),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: EncounterForm(
+              onSave: (draft) async => repository.create(draft),
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    expect(
+      find.byKey(const Key('encounter-add-audio')),
+      findsOneWidget,
+      reason: 'recording keeps its own button, untouched by dictation',
+    );
+
+    // Speak the title into the field.
+    final titleMic = find.descendant(
+      of: find.byKey(const Key('encounter-title')),
+      matching: find.byKey(const Key('sayable-field-mic')),
+    );
+    expect(titleMic, findsOneWidget);
+    await tester.ensureVisible(titleMic);
+    await tester.tap(titleMic);
+    await tester.pump();
+    seam.emit('A quiet afternoon');
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<SayableField>(find.byKey(const Key('encounter-title')))
+          .controller
+          .text,
+      'A quiet afternoon',
+    );
+    expect(
+      find.byKey(const Key('encounter-add-audio')).hitTestable(),
+      findsOneWidget,
+      reason: 'a live dictation session does not disable recording',
+    );
+
+    // And record beside it, without either switching the other off.
+    await tester.tap(find.byKey(const Key('encounter-add-audio')));
+    await _settle(tester);
+    await tester.tap(find.text('Start recording'));
+    await _settle(tester);
+    await tester.tap(find.text('Stop'));
+    await _settle(tester);
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
+    await _settle(tester);
+
+    expect(find.text('Voice recording added'), findsOneWidget);
+    await tester.ensureVisible(find.text('Save'));
+    await tester.tap(find.text('Save'));
+    await _settle(tester);
+
+    expect(repository.lastDraft!.title, 'A quiet afternoon');
+    expect(repository.lastDraft!.audio, isNotNull);
+    expect(
+      seam.stopCalls,
+      isZero,
+      reason: 'recording did not end the dictation session',
+    );
+  });
+
+  testWidgets('a dictated title cut by the limit says so', (tester) async {
+    // The title's own limit is 120 characters. A sentence that runs past it is
+    // kept as far as it goes, and the person is told, rather than being left to
+    // believe a shortened title is the one they spoke.
+    final repository = InMemoryEncounterRepository();
+    addTearDown(repository.close);
+    final seam = _RecordingSeam();
+    final speech = SpeechCaptureController(recognizer: seam);
+    addTearDown(speech.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith((ref) async => repository),
+          speechCaptureControllerProvider.overrideWithValue(speech),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: EncounterForm(
+              onSave: (draft) async => repository.create(draft),
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+
+    final titleMic = find.descendant(
+      of: find.byKey(const Key('encounter-title')),
+      matching: find.byKey(const Key('sayable-field-mic')),
+    );
+    await tester.ensureVisible(titleMic);
+    await tester.tap(titleMic);
+    await tester.pump();
+    seam.emit(
+      'a title that keeps going well past one hundred and twenty '
+      'characters so that the field has to cut it somewhere short of the end',
+    );
+    await tester.pump();
+
+    expect(find.text('Your answer reached the limit.'), findsOneWidget);
+    expect(
+      tester
+          .widget<SayableField>(find.byKey(const Key('encounter-title')))
+          .controller
+          .text
+          .length,
+      120,
+    );
+  });
 }
 
 class _RecordFlowRecorder implements AudioRecorderGateway {
@@ -552,6 +714,33 @@ class _RecordFlowRecorder implements AudioRecorderGateway {
     locator: '/private/take.m4a',
     mimeType: 'audio/mp4',
   );
+}
+
+/// The dictation seam, driven by hand.
+///
+/// Recognition is faked rather than mocked through the plugin, so the words
+/// arrive when this test says so and the session state is observable afterwards.
+class _RecordingSeam implements SpeechRecognizer {
+  int stopCalls = 0;
+  void Function(String words)? _onWords;
+
+  @override
+  Future<bool> initialize({
+    void Function(bool listening)? onListeningChanged,
+    VoidCallback? onUnavailable,
+  }) async => true;
+
+  @override
+  Future<void> listen({required void Function(String words) onWords}) async {
+    _onWords = onWords;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+  }
+
+  void emit(String words) => _onWords?.call(words);
 }
 
 Future<void> _settle(WidgetTester tester) async {

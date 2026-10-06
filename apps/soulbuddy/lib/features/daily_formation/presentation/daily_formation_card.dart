@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../application/formation_video_launcher.dart';
 import '../domain/formation_catalog.dart';
 import '../domain/formation_profile.dart';
@@ -497,17 +498,19 @@ class _CompletionSheetState extends State<_CompletionSheet> {
         const SizedBox(height: 6),
         Text(widget.day.reflection),
         const SizedBox(height: 12),
-        TextField(
+        // Neither field carries a limit, because neither had one: the sheet
+        // takes whatever a person says here whole rather than cutting it.
+        SayableField(
           controller: _reflection,
           maxLines: 2,
           textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(labelText: 'Reflection'),
+          labelText: 'Reflection',
         ),
         const SizedBox(height: 8),
-        TextField(
+        SayableField(
           controller: _action,
           maxLines: 2,
-          decoration: InputDecoration(labelText: widget.day.action),
+          labelText: widget.day.action,
         ),
         const SizedBox(height: 16),
         FilledButton(
