@@ -83,6 +83,87 @@ Amen.
 - A release download is idempotent. One account’s download neither changes another account’s library nor adds it to Today.
 - Narration default remains 0.85x. An audio asset can be attached only when its transcript hash matches `content_sha256`; otherwise spoken playback must use the exact in-app text or remain unavailable. Never read a substitute script.
 
+## Affirmation-prayer practice
+
+The fourth item, `New Adam repetitions`, remains one `meditation_prayer` release item with two exact repetition steps. It also has a structured `affirmation_repetition` practice profile:
+
+| Step | Exact text | Target |
+| --- | --- | ---: |
+| 1 | `Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus` | 50 |
+| 2 | `In moments that distract me from your perfect will, let Satan be rebuked o Lord` | 10 |
+
+The visible prayer copy must preserve the source’s `(x50)` and `(x10)` forms. The structured profile removes only those suffixes for paced repetition and must prove that each profile phrase plus its suffix reconstructs the original source line exactly.
+
+### Gospel-shaped practice principles
+
+This is a product interpretation, not a claim about what Jesus would build in software. The feature should reflect the patterns the Gospels show:
+
+- **Truth before technique:** the prayer’s exact words lead; sound, counting, and visuals remain quiet support.
+- **Freedom and consent:** each person explicitly starts, pauses, resumes, or ends the practice. There is no auto-start, streak penalty, spiritual rank, or compulsory count.
+- **Mercy without shame:** an unfinished practice is simply paused or ended. The app does not label anyone weak, impure, late, or failed.
+- **Attention over performance:** show only the current line, a calm count, elapsed practice time, and compact controls. No timer races, confetti, score, comparison, or noisy prompts.
+- **Faith that bears fruit:** completion can offer one optional quiet response—prayer, Scripture, a note, or a concrete act of love—without treating it as a transaction for grace.
+- **Care for the whole person:** do not promise a theta state, subconscious reprogramming, healing, deliverance, or a clinical outcome. Music supports focus and prayer; it is optional and must never mask the spoken words.
+
+### Affirmation-prayer session behavior
+
+1. The detail view exposes `Begin affirmation prayer` only for a release item with an `affirmation_repetition` profile.
+2. Setup is deliberately short: selected sound (defaulting to the saved meditation preference), sound level, spoken guide on/off, and pace. Default spoken pace is 0.85x. Offer 0.70x, 0.85x, 1.0x, and 1.15x only.
+3. During a step, show the one exact phrase, `n of target`, a restrained circular progress mark, pause, and end. The primary response is `I have prayed this`; one deliberate tap advances by one. Do not auto-increment merely because audio played.
+4. If spoken guide is enabled, narration reads the exact phrase once at the chosen pace, then leaves a calm pause. `Hear again` repeats the current phrase but does not advance the count. A person may speak it aloud or silently before advancing.
+5. Use the selected music bed only after a deliberate start. Loop it at the saved low volume and duck it while the guide speaks. Stop guide and music immediately on pause, end, navigation away, audio-focus loss, or app backgrounding. Explicit resume is required after foregrounding.
+6. Keep the display awake while the session is active, following the existing meditation and prayer behavior. Restore in-progress state after configuration changes and process recreation; never resume sound without an explicit tap.
+7. After the fiftieth first-step repetition, transition quietly to the second exact phrase at `0 of 10`. After the tenth second-step repetition, record a completed affirmation-prayer session. Ending early records the completed counts and an `ended_early` outcome.
+8. The completion surface offers `Close`, optional `Pray`, optional `Reflect`, and optional `Choose for today`. It must not show badges, streaks, comparative language, or promises of internal transformation.
+
+### Additional implementation task: Add counted affirmation-prayer sessions
+
+**Files:**
+- Modify: `services/api/resources/prayer-releases/renewed-mind-and-guarded-heart-v1.json`
+- Modify: `services/api/app/Domain/PrayerReleases/ReleaseContent.php`
+- Create: `services/api/database/migrations/2026_10_06_000002_create_affirmation_prayer_sessions_table.php`
+- Create: `services/api/app/Models/AffirmationPrayerSession.php`
+- Modify: `services/api/app/Domain/Sync/ApplySyncMutation.php`
+- Create: `services/api/app/Domain/Sync/ApplyAffirmationPrayerSessionMutation.php`
+- Modify: `apps/soulbuddy/lib/core/database/app_schema.dart`
+- Create: `apps/soulbuddy/lib/features/prayers/domain/affirmation_prayer.dart`
+- Create: `apps/soulbuddy/lib/features/prayers/application/affirmation_prayer_session_controller.dart`
+- Create: `apps/soulbuddy/lib/features/prayers/presentation/affirmation_prayer_session_screen.dart`
+- Modify: `apps/soulbuddy/lib/features/prayers/presentation/prayer_detail_screen.dart`
+- Modify: `apps/soulbuddy/lib/core/router/app_router.dart`
+- Create: `services/api/tests/Feature/PrayerReleases/AffirmationPrayerSessionTest.php`
+- Create: `apps/soulbuddy/test/features/prayers/application/affirmation_prayer_session_controller_test.dart`
+- Create: `apps/soulbuddy/test/features/prayers/presentation/affirmation_prayer_session_screen_test.dart`
+
+1. Extend the JSON schema with optional `practice`. For this source item only, require `mode: "affirmation_repetition"` and two ordered steps containing `phrase`, `target_count`, and `source_line`. Validation must reject a profile that cannot reconstruct `source_line` as `phrase + " (x" + target_count + ")"`.
+2. Persist immutable session records with `user_id`, `release_item_id`, `local_date`, `started_at`, `ended_at`, `outcome` (`completed`, `ended_early`), `step_one_count`, `step_two_count`, selected sound key, selected narration speed, and timestamps. Enforce counts `0..50` and `0..10`; completion requires exactly 50 and 10.
+3. Add `affirmation_prayer_sessions` as a supported, account-scoped sync table. The server validates ownership, release-item eligibility, bounds, immutable terminal state, and timestamps. The client may save progress locally, but the server accepts only an immutable terminal record; it must never accept a forged completed record with incomplete counts.
+4. Write the controller against an injectable clock, narration player, sound-bed player, and session repository. It owns step transition, count advance, pause/resume, audio ducking, lifecycle stop, screen-awake state, and durable terminal save. It must be unit-tested before UI implementation.
+5. Reuse `MeditationSoundBed`, `MeditationSoundPreferencesRepository`, `ScreenAwake`, `PracticeAudioScope`, and the existing audio-focus conventions. Add no frequency-producing or binaural-beat feature and make no neurological claim.
+6. Add tests for exact profile parsing, one-tap progression, no progression from audio completion, fifty-to-ten transition, early end, valid completion, double-tap serialization, pause/background audio stop, explicit-only resume, selected sound persistence, 0.85x default, and 2.0 text scale without overflow.
+
+```dart
+test('audio replay never advances an affirmation count', () async {
+  final controller = buildController(stepOneTarget: 50, stepTwoTarget: 10);
+
+  await controller.begin();
+  await controller.hearAgain();
+
+  expect(controller.state.stepOneCount, 0);
+  await controller.confirmSpoken();
+  expect(controller.state.stepOneCount, 1);
+});
+```
+
+**Verify:**
+```powershell
+cd services/api
+php artisan test tests/Feature/PrayerReleases/AffirmationPrayerSessionTest.php
+
+cd ../../apps/soulbuddy
+flutter test test/features/prayers/application/affirmation_prayer_session_controller_test.dart test/features/prayers/presentation/affirmation_prayer_session_screen_test.dart
+flutter analyze
+```
 ## Customer-facing copy rules
 
 Add only concise purpose/action copy, and validate it against the repository’s global product-copy rules. Recommended strings:
@@ -295,10 +376,10 @@ flutter analyze
 ## Acceptance criteria
 
 - The release has exactly five entries: three `prayer` and two `meditation_prayer` entries, in the listed order.
+- `New Adam repetitions` has exactly two counted affirmation steps: 50, then 10; replaying narration never advances either count.
 - Every source character, including `It’s`, `God’s`, `sin -  seeds`, `mission/assignment`, `o Lord`, and `(x50)`/`(x10)`, is verified by tests and presented unchanged.
 - `Memorare` is absent until complete source wording exists.
 - No person receives a weekly release notice unless they opted in.
 - Adding the release is explicit, idempotent, and available offline afterward.
 - All added prayer entries work through existing Today, Sacred Hour, reminder, and exact-narration paths.
 - Existing library prayers, selections, reminders, voice recordings, and account sync retain their behavior.
-
