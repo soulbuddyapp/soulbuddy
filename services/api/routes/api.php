@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PowerSyncTokenController;
 use App\Http\Controllers\Api\PrayerNarrationController;
 use App\Http\Controllers\Api\PrayerNarrationPlaybackController;
 use App\Http\Controllers\Api\PrayerReleaseController;
+use App\Http\Controllers\Api\PrayerReleaseNarrationController;
 use App\Http\Controllers\Api\PrayerReleasePreferenceController;
 use App\Http\Controllers\Api\SyncMutationController;
 use App\Http\Controllers\Api\TelegramLinkCodeController;
@@ -61,6 +62,9 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('throttle:prayer-release-adds');
     Route::put('/prayer-release-preference', PrayerReleasePreferenceController::class)
         ->middleware('throttle:prayer-release-preferences');
+
+    Route::get('/prayer-release-items/{releaseItem}/narration', PrayerReleaseNarrationController::class)
+        ->middleware('throttle:prayer-narrations');
 
     Route::post('/prayer-narrations', PrayerNarrationController::class)
         ->middleware('throttle:prayer-narrations');
