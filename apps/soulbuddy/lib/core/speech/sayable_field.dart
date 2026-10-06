@@ -39,15 +39,26 @@ enum SayableEmphasis {
 /// constructs one nor takes a recogniser: two controllers would mean an
 /// initialisation each, with whichever registered last taking the seam's
 /// callbacks, and one field's teardown ending another's session.
+///
+/// The field underneath is a [TextFormField] when a [validator] is given and a
+/// [TextField] otherwise, so a caller inside a [Form] keeps its validation and
+/// a caller outside one is not made a form field for nothing.
 class SayableField extends ConsumerStatefulWidget {
   const SayableField({
     required this.controller,
     this.labelText,
     this.hintText,
+    this.minLines = 1,
     this.maxLines = 2,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
+    this.autofocus = false,
+    this.enabled = true,
+    this.decoration,
+    this.validator,
     this.emphasis = SayableEmphasis.compact,
     this.maxLength,
+    this.onChanged,
     this.onTruncated,
     super.key,
   });
@@ -59,10 +70,28 @@ class SayableField extends ConsumerStatefulWidget {
   final String? labelText;
   final String? hintText;
 
-  /// How tall the field may grow. It starts at one line.
+  /// How tall the field starts, and how tall it may grow.
+  final int minLines;
   final int maxLines;
 
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final bool autofocus;
+
+  /// Whether the field can be edited. A field that cannot also loses the mic,
+  /// since words appearing in a field its owner is locked out of would be
+  /// worse than no words at all.
+  final bool enabled;
+
+  /// A decoration to start from, for a caller whose field has a border or shape
+  /// of its own. The label, the hint and the mic are this widget's and win over
+  /// it; everything else is the caller's.
+  final InputDecoration? decoration;
+
+  /// Renders a [TextFormField], so a field inside a [Form] still validates.
+  /// The text the words were merged into is what is validated, which means a
+  /// dictated sentence is held to the same rule as a typed one.
+  final String? Function(String?)? validator;
 
   /// Whether the mic is a suffix on the field or also a labelled action below
   /// it.
@@ -71,6 +100,13 @@ class SayableField extends ConsumerStatefulWidget {
   /// The field's limit. Applied to the whole field, so what is typed counts
   /// towards it too.
   final int? maxLength;
+
+  /// Called for typing and for dictation alike, with the field's whole text.
+  ///
+  /// A field's own `onChanged` fires for typing only, so a caller gating on it
+  /// would never learn that words had arrived: its button would stay disabled
+  /// while they were plainly on screen.
+  final ValueChanged<String>? onChanged;
 
   /// Called on every callback whose words the limit cut short, so a caller can
   /// say so rather than let a shortened sentence look saved in full.
@@ -87,15 +123,23 @@ class _SayableFieldState extends ConsumerState<SayableField> {
   ///
   /// Deliberately kept past a stop: the controller lets a stopped session's
   /// final result through, so a word caught mid-sentence still belongs in the
-  /// field. It is dropped only when a session would not open, where no callback
-  /// can arrive to be applied.
+  /// field. It is dropped when a session this call opened would not start,
+  /// where no callback can arrive to be applied.
   DictationEdit? _edit;
+
+  /// A field may not have fewer lines than it starts with, and a caller that
+  /// says `minLines: 5` without saying how tall it may grow would otherwise
+  /// assert rather than render.
+  int get _maxLines =>
+      widget.maxLines > widget.minLines ? widget.maxLines : widget.minLines;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // `ref` is not available in initState. The provider does not change, so
-    // the controller and this field's subscription are taken once.
+    // `ref` is not available in initState. This is deliberately a one-shot
+    // rather than a re-subscription: the provider holds a plain controller that
+    // cannot change, and a field that swapped controllers on the fly would
+    // leave a session writing into whichever field opened it.
     if (_speech != null) return;
     final speech = ref.watch(speechCaptureControllerProvider)
       ..addListener(_speechChanged);
@@ -105,9 +149,23 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     unawaited(speech.ensureAvailable());
   }
 
+  @override
+  void didUpdateWidget(SayableField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A merge belongs to the field and the limit it was captured from. Swapping
+    // either under a live session would write the old field's words into the
+    // new one, so the merge goes. The session itself keeps running, because it
+    // is not this field's to close.
+    if (oldWidget.controller != widget.controller ||
+        oldWidget.maxLength != widget.maxLength) {
+      _edit = null;
+    }
+  }
+
   void _speechChanged() {
-    // Only the mic and the notice move with the controller. The field's text
-    // is not state here: it belongs to the controller the caller owns.
+    // Only the mic, the tint and the notice move with the controller. The
+    // field's text is not state here: it belongs to the controller the caller
+    // owns.
     if (mounted) setState(() {});
   }
 
@@ -123,7 +181,7 @@ class _SayableFieldState extends ConsumerState<SayableField> {
 
   Future<void> _toggle() async {
     final speech = _speech;
-    if (speech == null) return;
+    if (speech == null || !widget.enabled) return;
     if (speech.isListening) {
       // Leaves the merge alone: the words are already in the field and a final
       // result can still arrive for them.
@@ -146,16 +204,23 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // A session that would not open leaves the field exactly as it was, still
     // editable, and says nothing about the device: only the notice does, and it
     // is the controller's.
-    if (!started) _edit = null;
+    //
+    // A session that *is* running is not this call's to refuse, though. The mic
+    // is up from the first frame while availability resolves, so a second tap
+    // lands here after the first has already opened the session and been told
+    // yes. Discarding the merge then would leave that live session writing
+    // into nothing: the stop button on screen, and no words ever arriving.
+    if (!started && !speech.isListening) _edit = null;
   }
 
   void _onWords(String words) {
     final edit = _edit;
     if (!mounted || edit == null) return;
+    final text = edit.apply(words);
     // The whole value, not just its text: assigning the text alone drops the
     // selection and leaves the caret nowhere.
     widget.controller.value = TextEditingValue(
-      text: edit.apply(words),
+      text: text,
       // The merge's own offset, because a caret is counted in code units and a
       // character outside the basic plane is two of them.
       selection: TextSelection.collapsed(offset: edit.caretOffset),
@@ -163,6 +228,9 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // Read on every callback rather than settled once: a cut can end when later
     // words fit, and one on a callback nobody read would go unsaid.
     if (edit.truncated) widget.onTruncated?.call();
+    // Dictation is a change to the field like any other, and reported after the
+    // value is set so a caller reading the controller sees the words.
+    widget.onChanged?.call(text);
   }
 
   @override
@@ -174,33 +242,49 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // the safe way for that to fail.
     final canSpeak = notice == null;
     final listening = speech?.isListening ?? false;
+    final theme = Theme.of(context);
+    // A caller's decoration is the base — that is what the escape hatch is for
+    // — but the label, the hint and the mic are this widget's, and they win,
+    // because the mic is why the field exists here.
+    final base = widget.decoration ?? const InputDecoration();
+    final decoration = base.copyWith(
+      labelText: widget.labelText ?? base.labelText,
+      hintText: widget.hintText ?? base.hintText,
+      alignLabelWithHint: base.alignLabelWithHint ?? _maxLines > 1,
+      suffixIcon: canSpeak
+          ? IconButton(
+              key: const Key('sayable-field-mic'),
+              tooltip: listening ? 'Stop dictation' : 'Speak',
+              icon: Icon(listening ? Icons.stop : Icons.mic_none),
+              onPressed: widget.enabled ? _toggle : null,
+            )
+          : null,
+      // The listening state belongs on the field being dictated into, not in a
+      // banner somewhere else. This is the app's own wash for "this is active",
+      // the one its focus state uses.
+      fillColor: listening
+          ? theme.colorScheme.primary.withValues(alpha: 0.14)
+          : base.fillColor,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
+        _SayableInput(
           controller: widget.controller,
-          // Left editable while listening: speech only adds, and what is typed
-          // during a session is the person's own to lose sight of.
-          minLines: 1,
-          maxLines: widget.maxLines,
+          validator: widget.validator,
+          minLines: widget.minLines,
+          maxLines: _maxLines,
           maxLength: widget.maxLength,
           textInputAction: widget.textInputAction,
-          decoration: InputDecoration(
-            labelText: widget.labelText,
-            hintText: widget.hintText,
-            alignLabelWithHint: widget.maxLines > 1,
-            suffixIcon: canSpeak
-                ? IconButton(
-                    key: const Key('sayable-field-mic'),
-                    tooltip: listening ? 'Stop dictation' : 'Speak',
-                    icon: Icon(listening ? Icons.stop : Icons.mic_none),
-                    onPressed: _toggle,
-                  )
-                : null,
-          ),
+          textCapitalization: widget.textCapitalization,
+          autofocus: widget.autofocus,
+          enabled: widget.enabled,
+          decoration: decoration,
+          onChanged: widget.onChanged,
         ),
-        if (widget.emphasis == SayableEmphasis.prominent && canSpeak)
+        if (widget.emphasis == SayableEmphasis.prominent && canSpeak) ...[
+          const SizedBox(height: AppSpacing.sm),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
@@ -210,15 +294,81 @@ class _SayableFieldState extends ConsumerState<SayableField> {
               label: Text(listening ? 'Stop dictation' : 'Speak'),
             ),
           ),
+        ],
         if (notice case final notice?) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
             notice,
             key: const Key('sayable-field-notice'),
-            style: Theme.of(context).textTheme.bodySmall,
+            style: theme.textTheme.bodySmall,
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The field, as a form field when there is a validator to run and a plain one
+/// when there is not.
+///
+/// The two lists below are the same on purpose and differ by exactly the
+/// validator: a caller that finds one property on a [TextField] and not on the
+/// other has found a field that would silently drop it on conversion.
+class _SayableInput extends StatelessWidget {
+  const _SayableInput({
+    required this.controller,
+    required this.validator,
+    required this.minLines,
+    required this.maxLines,
+    required this.maxLength,
+    required this.textInputAction,
+    required this.textCapitalization,
+    required this.autofocus,
+    required this.enabled,
+    required this.decoration,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String? Function(String?)? validator;
+  final int minLines;
+  final int maxLines;
+  final int? maxLength;
+  final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final bool autofocus;
+  final bool enabled;
+  final InputDecoration decoration;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (validator != null) {
+      return TextFormField(
+        controller: controller,
+        minLines: minLines,
+        maxLines: maxLines,
+        maxLength: maxLength,
+        textInputAction: textInputAction,
+        textCapitalization: textCapitalization,
+        autofocus: autofocus,
+        enabled: enabled,
+        decoration: decoration,
+        onChanged: onChanged,
+        validator: validator,
+      );
+    }
+    return TextField(
+      controller: controller,
+      minLines: minLines,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      textInputAction: textInputAction,
+      textCapitalization: textCapitalization,
+      autofocus: autofocus,
+      enabled: enabled,
+      decoration: decoration,
+      onChanged: onChanged,
     );
   }
 }
