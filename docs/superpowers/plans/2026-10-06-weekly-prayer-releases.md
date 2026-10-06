@@ -105,36 +105,39 @@ This is a product interpretation, not a claim about what Jesus would build in so
 - **Faith that bears fruit:** completion can offer one optional quiet response—prayer, Scripture, a note, or a concrete act of love—without treating it as a transaction for grace.
 - **Care for the whole person:** do not promise a theta state, subconscious reprogramming, healing, deliverance, or a clinical outcome. Music supports focus and prayer; it is optional and must never mask the spoken words.
 
-### Godward attention and presence language
+### Godward attention and recollection language
 
-Treat `affirmation_repetition` as an internal implementation name only. Present it as a **Prayer of attention**: a way to speak the supplied words slowly, receive them before God, and remain attentive to His presence. The count serves the prayer; it must never become its meaning.
+Treat `affirmation_repetition` as an internal implementation name only. Present it as a **Prayer of attention**: a guided movement from scattered thoughts toward prayerful attention to God. The count serves the prayer; it must never become its meaning.
+
+The app must not claim to carry a soul into heaven, create a higher spiritual state, or produce a neurological state. It can faithfully invite the person to grow quiet, lift the heart toward God, and listen attentively in prayer.
 
 Use a short, consistent vocabulary across preparation, active prayer, pauses, and completion:
 
 | Moment | Customer-facing language |
 | --- | --- |
 | Entry | `Be still before God` |
-| Setup purpose | `Speak these words with attention` |
+| First guidance | `Let your body grow still` |
+| Second guidance | `Let the noise fall away` |
+| Third guidance | `Lift your heart to God` |
 | Before a spoken repetition | `Receive these words before God` |
-| Between groups | `Rest in God's presence` |
+| Between groups | `Gather your thoughts before God` |
 | Current count | `12 of 50` |
 | Manual advance | `Continue` |
 | Replay | `Hear again` |
 | Pause | `Pause` |
-| Completion | `Remain with God` |
-| Gentle next response | `Carry this prayer into love` |
+| Completion | `Carry this prayer into love` |
 
 Do not use customer-facing words such as `affirmation`, `subconscious`, `theta`, `program`, `rewire`, `habit score`, `streak`, `level`, `achievement`, `success`, or `failure` in this practice. Source wording remains untouched, including the source line that contains `new Adam`.
 
 The visual and interaction hierarchy must keep attention on God:
 
-1. Begin with two to five seconds of stillness, with no automatic narration or music. Then show one prayer line.
-2. Keep a single line at a time in the visual center. Use generous space, warm low-contrast gold light, and a restrained breathing glow; the effect must respect reduced-motion settings and never compete with the words.
+1. Begin with a 12-second guided recollection: `Let your body grow still`, then `Let the noise fall away`, then `Lift your heart to God`. Each line fades in and out; the person may skip it immediately. No narration or music starts until the person deliberately begins prayer.
+2. Keep a single exact prayer line at the visual center. Use generous space, warm low-contrast gold light from above, and a restrained breathing glow; the effect must respect reduced-motion settings and never compete with the words.
 3. Place the count below the line in subdued text. A small ring may fill with each deliberate confirmation, but never pulse, celebrate, or present a score.
-4. After each group of ten in the first step, pause the guide and music for a short silence. Show only `Rest in God's presence`; the person resumes when ready. Do not force a timed break.
-5. At the fifth group, transition to the second source line after a moment of silence. Avoid a completion animation.
-6. Completion leaves a short silent interval before the options appear. The first action is `Remain with God`; the other choices stay secondary.
-7. Background music remains optional, low, and beneath the voice. It supports quiet attention; it must not be named or described as spiritually effective in itself.
+4. Offer two optional sound families: **Creation sounds** (ocean, flowing water, rain, wind, forest) and **quiet instrumental music**. Both begin only after a deliberate start, persist as the person’s preference, and remain low enough for spoken prayer. Creation sounds are presented as an aid to quiet listening, not as a source of spiritual power.
+5. After each group of ten in the first step, pause the guide and gently lower the chosen sound bed. Show only `Gather your thoughts before God`; the person resumes when ready. Do not force a timed break or silence a chosen sound completely.
+6. At the fifth group, transition to the second source line after a brief recollection. Avoid a completion animation.
+7. Completion leaves a short quiet interval before the options appear. Lead with `Carry this prayer into love`; reflection, Scripture, and daily prayer selection remain secondary.
 ### Affirmation-prayer session behavior
 
 1. The detail view exposes `Be still before God` only for a release item with an `affirmation_repetition` profile.
@@ -143,8 +146,8 @@ The visual and interaction hierarchy must keep attention on God:
 4. If spoken guide is enabled, narration reads the exact phrase once at the chosen pace, then leaves a calm pause. `Hear again` repeats the current phrase but does not advance the count. A person may speak it aloud or silently before advancing.
 5. Use the selected music bed only after a deliberate start. Loop it at the saved low volume and duck it while the guide speaks. Stop guide and music immediately on pause, end, navigation away, audio-focus loss, or app backgrounding. Explicit resume is required after foregrounding.
 6. Keep the display awake while the session is active, following the existing meditation and prayer behavior. Restore in-progress state after configuration changes and process recreation; never resume sound without an explicit tap.
-7. After each first-step group of ten, offer an untimed silent pause. After the fiftieth first-step repetition, transition quietly to the second exact phrase at `0 of 10`. After the tenth second-step repetition, record a completed affirmation-prayer session. Ending early records the completed counts and an `ended_early` outcome.
-8. The completion surface offers `Remain with God`, optional `Pray`, optional `Reflect`, and optional `Choose for today`. It must not show badges, streaks, comparative language, or promises of internal transformation.
+7. After each first-step group of ten, offer an untimed focused pause with the chosen sound bed lowered. After the fiftieth first-step repetition, transition quietly to the second exact phrase at `0 of 10`. After the tenth second-step repetition, record a completed affirmation-prayer session. Ending early records the completed counts and an `ended_early` outcome.
+8. The completion surface offers `Carry this prayer into love`, optional `Pray`, optional `Reflect`, and optional `Choose for today`. It must not show badges, streaks, comparative language, or promises of internal transformation.
 
 ### Additional implementation task: Add counted affirmation-prayer sessions
 
@@ -168,9 +171,9 @@ The visual and interaction hierarchy must keep attention on God:
 1. Extend the JSON schema with optional `practice`. For this source item only, require `mode: "affirmation_repetition"` and two ordered steps containing `phrase`, `target_count`, and `source_line`. Validation must reject a profile that cannot reconstruct `source_line` as `phrase + " (x" + target_count + ")"`.
 2. Persist immutable session records with `user_id`, `release_item_id`, `local_date`, `started_at`, `ended_at`, `outcome` (`completed`, `ended_early`), `step_one_count`, `step_two_count`, selected sound key, selected narration speed, and timestamps. Enforce counts `0..50` and `0..10`; completion requires exactly 50 and 10.
 3. Add `affirmation_prayer_sessions` as a supported, account-scoped sync table. The server validates ownership, release-item eligibility, bounds, immutable terminal state, and timestamps. The client may save progress locally, but the server accepts only an immutable terminal record; it must never accept a forged completed record with incomplete counts.
-4. Write the controller against an injectable clock, narration player, sound-bed player, and session repository. It owns the opening stillness, group-of-ten silent pauses, step transition, count advance, pause/resume, audio ducking, lifecycle stop, screen-awake state, and durable terminal save. It must be unit-tested before UI implementation.
+4. Write the controller against an injectable clock, narration player, sound-bed player, and session repository. It owns the skippable recollection sequence, group-of-ten sound ducking and pauses, step transition, count advance, pause/resume, lifecycle stop, screen-awake state, and durable terminal save. It must be unit-tested before UI implementation.
 5. Reuse `MeditationSoundBed`, `MeditationSoundPreferencesRepository`, `ScreenAwake`, `PracticeAudioScope`, and the existing audio-focus conventions. Add no frequency-producing or binaural-beat feature and make no neurological claim.
-6. Add tests for exact profile parsing, opening stillness, one-tap progression, no progression from audio completion, group-of-ten silent pauses, fifty-to-ten transition, early end, valid completion, double-tap serialization, pause/background audio stop, explicit-only resume, selected sound persistence, 0.85x default, reduced motion, and 2.0 text scale without overflow.
+6. Add tests for exact profile parsing, skippable three-line recollection, one-tap progression, no progression from audio completion, group-of-ten sound ducking, fifty-to-ten transition, early end, valid completion, double-tap serialization, pause/background audio stop, explicit-only resume, selected sound persistence, 0.85x default, reduced motion, and 2.0 text scale without overflow.
 
 ```dart
 test('audio replay never advances an affirmation count', () async {
@@ -407,7 +410,7 @@ flutter analyze
 
 - The release has exactly five entries: three `prayer` and two `meditation_prayer` entries, in the listed order.
 - `New Adam repetitions` has exactly two counted affirmation steps: 50, then 10; replaying narration never advances either count.
-- The prayer flow begins in stillness, places the exact words above the count, offers untimed pauses after each first-step group of ten, and uses only Godward attention language.
+- The prayer flow begins with a skippable recollection, places the exact words above the count, offers untimed pauses after each first-step group of ten, keeps selected music or creation sound low, and uses only Godward attention language.
 - Every source character, including `It’s`, `God’s`, `sin -  seeds`, `mission/assignment`, `o Lord`, and `(x50)`/`(x10)`, is verified by tests and presented unchanged.
 - `Memorare` is absent until complete source wording exists.
 - No person receives a weekly release notice unless they opted in.
