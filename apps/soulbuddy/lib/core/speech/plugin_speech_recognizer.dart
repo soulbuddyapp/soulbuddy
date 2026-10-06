@@ -5,18 +5,19 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import 'speech_recognizer.dart';
 
-const String _unavailableNotice =
-    'Speak is unavailable. You can write instead.';
-
 /// Adapts the `speech_to_text` plugin to [SpeechRecognizer].
 ///
 /// The single place that asks for on-device recognition. `onDevice: true` is
 /// not configurable, so no caller can widen it.
 class PluginSpeechRecognizer implements SpeechRecognizer {
-  PluginSpeechRecognizer({SpeechToText? speech})
-    : _speech = speech ?? SpeechToText();
+  PluginSpeechRecognizer({SpeechToText? speech, bool? isWeb})
+    : _speech = speech ?? SpeechToText(),
+      // Only tests pass [isWeb]. The app reads the compile-time constant,
+      // which no caller can turn off.
+      _isWeb = isWeb ?? kIsWeb;
 
   final SpeechToText _speech;
+  final bool _isWeb;
 
   @override
   bool get isListening => _speech.isListening;
@@ -24,12 +25,11 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
   @override
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
-    void Function(String message)? onUnavailable,
+    VoidCallback? onUnavailable,
   }) async {
     // Browser speech recognition sends audio off the device and is not used.
-    if (kIsWeb) {
-      onUnavailable?.call(_unavailableNotice);
-      return false;
+    if (_isWeb) {
+      return _unavailable(onUnavailable);
     }
     try {
       final available = await _speech.initialize(
@@ -42,47 +42,60 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
               onListeningChanged?.call(false);
           }
         },
-        // The plugin reports every error here. A transient one fails this
-        // session while later attempts may still succeed, so only the
-        // session ends. A permanent one blocks recognition itself, which is
-        // the only case where speech is genuinely unavailable on this device.
+        // The plugin reports every error here, and because `cancelOnError` is
+        // set it tears the session down itself without a status notification.
+        // So the listening transition is reported here, or a consumer would
+        // believe it were still listening. A transient error only fails this
+        // session, and later attempts may still succeed; a permanent one
+        // blocks recognition itself, which is the only case where speech is
+        // genuinely unavailable on this device.
         onError: (SpeechRecognitionError error) {
+          onListeningChanged?.call(false);
           if (error.permanent) {
-            onUnavailable?.call(_unavailableNotice);
-          } else {
-            onListeningChanged?.call(false);
+            onUnavailable?.call();
           }
         },
       );
       if (!available) {
-        onUnavailable?.call(_unavailableNotice);
+        return _unavailable(onUnavailable);
       }
-      return available;
+      return true;
     } on Object {
-      onUnavailable?.call(_unavailableNotice);
-      return false;
+      return _unavailable(onUnavailable);
     }
   }
 
   @override
   Future<void> listen({required void Function(String words) onWords}) async {
-    await _speech.listen(
-      onResult: (SpeechRecognitionResult result) {
-        if (result.recognizedWords.isNotEmpty) onWords(result.recognizedWords);
-      },
-      listenOptions: SpeechListenOptions(
-        listenFor: const Duration(seconds: 45),
-        pauseFor: const Duration(seconds: 5),
-        onDevice: true,
-        cancelOnError: true,
-        partialResults: true,
-      ),
-    );
+    try {
+      await _speech.listen(
+        onResult: (SpeechRecognitionResult result) {
+          if (result.recognizedWords.isNotEmpty) {
+            onWords(result.recognizedWords);
+          }
+        },
+        listenOptions: SpeechListenOptions(
+          listenFor: const Duration(seconds: 45),
+          pauseFor: const Duration(seconds: 5),
+          onDevice: true,
+          cancelOnError: true,
+          partialResults: true,
+        ),
+      );
+    } on Object {
+      // The plugin throws when [initialize] did not succeed, and remembers
+      // that, so every later attempt throws too. A caller has already been
+      // told speech is unavailable; it gets no second, unanswerable signal.
+    }
   }
 
   @override
   Future<void> stop() => _speech.stop();
 
-  @override
-  Future<void> cancel() => _speech.cancel();
+  /// Every route to speech being unavailable on this device ends here, so the
+  /// consumer hears about it once and gets `false` instead of an exception.
+  static bool _unavailable(VoidCallback? onUnavailable) {
+    onUnavailable?.call();
+    return false;
+  }
 }

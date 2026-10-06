@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,16 +27,18 @@ void main() {
         });
   });
 
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null);
+  });
+
   // `SpeechToText()` is a singleton that caches its own initialisation, so
   // each test is given a fresh instance instead of inheriting the last one's.
-  PluginSpeechRecognizer buildRecognizer() =>
-      PluginSpeechRecognizer(speech: SpeechToText.withMethodChannel());
-
-  // The plugin flattens [SpeechListenOptions] onto the channel in
-  // `MethodChannelSpeechToText.listen`, so this is what the native side reads.
-  Map<Object?, Object?> listenArguments() =>
-      calls.firstWhere((call) => call.method == 'listen').arguments!
-          as Map<Object?, Object?>;
+  PluginSpeechRecognizer buildRecognizer({bool? isWeb}) =>
+      PluginSpeechRecognizer(
+        speech: SpeechToText.withMethodChannel(),
+        isWeb: isWeb,
+      );
 
   Future<void> deliver(String method, Object? arguments) =>
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -78,23 +79,31 @@ void main() {
     expect(await recognizer.initialize(), isTrue);
     await recognizer.listen(onWords: (_) {});
 
-    final arguments = listenArguments();
-    expect(arguments['onDevice'], isTrue);
-    expect(arguments['listenFor'], 45000);
-    expect(arguments['pauseFor'], 5000);
-    expect(arguments['partialResults'], isTrue);
+    // The only observable proof the privacy flag reaches the native side. The
+    // plugin flattens it onto the channel in `MethodChannelSpeechToText.listen`;
+    // the timings beside it are its encoding, not this app's policy.
+    final listen = calls.firstWhere((call) => call.method == 'listen');
+    expect((listen.arguments as Map)['onDevice'], isTrue);
   });
 
   test('reports unavailable when initialisation fails', () async {
     initializeResult = false;
     final recognizer = buildRecognizer();
-    String? notice;
+    var unavailable = false;
 
     expect(
-      await recognizer.initialize(onUnavailable: (m) => notice = m),
+      await recognizer.initialize(onUnavailable: () => unavailable = true),
       isFalse,
     );
-    expect(notice, 'Speak is unavailable. You can write instead.');
+    expect(unavailable, isTrue);
+  });
+
+  test('a listen that cannot start does not throw', () async {
+    initializeResult = false;
+    final recognizer = buildRecognizer();
+    await recognizer.initialize();
+
+    await expectLater(recognizer.listen(onWords: (_) {}), completes);
   });
 
   test('delivers recognised words and ignores empty results', () async {
@@ -126,11 +135,11 @@ void main() {
 
   test('a transient error ends the session but keeps the mic', () async {
     final recognizer = buildRecognizer();
-    String? notice;
+    var unavailable = false;
     final changes = <bool>[];
     await recognizer.initialize(
       onListeningChanged: changes.add,
-      onUnavailable: (m) => notice = m,
+      onUnavailable: () => unavailable = true,
     );
     await recognizer.listen(onWords: (_) {});
     await deliver('notifyStatus', 'listening');
@@ -139,32 +148,56 @@ void main() {
 
     expect(changes, [true, false], reason: 'the session ends');
     expect(
-      notice,
-      isNull,
+      unavailable,
+      isFalse,
       reason: 'a later attempt may still succeed, so the mic stays',
     );
   });
 
-  test('a permanent error means speech is unavailable', () async {
+  test('a permanent error ends the session and reports unavailable', () async {
     final recognizer = buildRecognizer();
-    String? notice;
-    await recognizer.initialize(onUnavailable: (m) => notice = m);
+    var unavailable = false;
+    final changes = <bool>[];
+    await recognizer.initialize(
+      onListeningChanged: changes.add,
+      onUnavailable: () => unavailable = true,
+    );
     await recognizer.listen(onWords: (_) {});
+    await deliver('notifyStatus', 'listening');
 
     await deliverError('error_client', permanent: true);
 
-    expect(notice, 'Speak is unavailable. You can write instead.');
+    expect(changes, [true, false]);
+    expect(
+      recognizer.isListening,
+      isFalse,
+      reason: 'the plugin tears the session down without saying so',
+    );
+    expect(unavailable, isTrue);
   });
 
-  test('never starts browser speech recognition', () {
-    final source = File(
-      'lib/core/speech/plugin_speech_recognizer.dart',
-    ).readAsStringSync();
+  test('stop ends the session on the platform', () async {
+    final recognizer = buildRecognizer();
+    await recognizer.initialize();
+    await recognizer.listen(onWords: (_) {});
 
-    expect(source, contains('if (kIsWeb)'));
+    await recognizer.stop();
+
     expect(
-      source.indexOf('if (kIsWeb)'),
-      lessThan(source.indexOf('_speech.initialize')),
+      calls.map((call) => call.method),
+      containsAllInOrder(['initialize', 'listen', 'stop']),
     );
+  });
+
+  test('never starts browser speech recognition', () async {
+    final recognizer = buildRecognizer(isWeb: true);
+    var unavailable = false;
+
+    expect(
+      await recognizer.initialize(onUnavailable: () => unavailable = true),
+      isFalse,
+    );
+    expect(unavailable, isTrue);
+    expect(calls, isEmpty, reason: 'the plugin is never reached');
   });
 }
