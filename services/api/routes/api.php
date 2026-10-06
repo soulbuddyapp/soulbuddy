@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\InstallationSessionController;
 use App\Http\Controllers\Api\PowerSyncTokenController;
 use App\Http\Controllers\Api\PrayerNarrationController;
 use App\Http\Controllers\Api\PrayerNarrationPlaybackController;
+use App\Http\Controllers\Api\PrayerReleaseController;
+use App\Http\Controllers\Api\PrayerReleasePreferenceController;
 use App\Http\Controllers\Api\SyncMutationController;
 use App\Http\Controllers\Api\TelegramLinkCodeController;
 use App\Http\Controllers\Api\TelegramLinkStatusController;
@@ -52,6 +54,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/circles/{circle:public_id}', [CircleController::class, 'show']);
     Route::patch('/circles/{circle:public_id}', [CircleController::class, 'update']);
     Route::post('/circles/{circle:public_id}/reports', CircleReportController::class);
+
+    Route::get('/prayer-releases', [PrayerReleaseController::class, 'index'])
+        ->middleware('throttle:120,1');
+    Route::post('/prayer-releases/{prayerRelease:slug}/add', [PrayerReleaseController::class, 'store'])
+        ->middleware('throttle:prayer-release-adds');
+    Route::put('/prayer-release-preference', PrayerReleasePreferenceController::class)
+        ->middleware('throttle:prayer-release-preferences');
 
     Route::post('/prayer-narrations', PrayerNarrationController::class)
         ->middleware('throttle:prayer-narrations');
