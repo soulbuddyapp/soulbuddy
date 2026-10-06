@@ -65,6 +65,13 @@ void main() {
     }),
   );
 
+  // The plugin delivers errors as a JSON string and decodes them itself.
+  Future<void> deliverError(String message, {bool permanent = false}) =>
+      deliver(
+        'notifyError',
+        jsonEncode({'errorMsg': message, 'permanent': permanent}),
+      );
+
   test('recognises only on this device', () async {
     final recognizer = buildRecognizer();
 
@@ -115,6 +122,38 @@ void main() {
 
     expect(changes, [true, false]);
     expect(recognizer.isListening, isFalse);
+  });
+
+  test('a transient error ends the session but keeps the mic', () async {
+    final recognizer = buildRecognizer();
+    String? notice;
+    final changes = <bool>[];
+    await recognizer.initialize(
+      onListeningChanged: changes.add,
+      onUnavailable: (m) => notice = m,
+    );
+    await recognizer.listen(onWords: (_) {});
+    await deliver('notifyStatus', 'listening');
+
+    await deliverError('error_no_match');
+
+    expect(changes, [true, false], reason: 'the session ends');
+    expect(
+      notice,
+      isNull,
+      reason: 'a later attempt may still succeed, so the mic stays',
+    );
+  });
+
+  test('a permanent error means speech is unavailable', () async {
+    final recognizer = buildRecognizer();
+    String? notice;
+    await recognizer.initialize(onUnavailable: (m) => notice = m);
+    await recognizer.listen(onWords: (_) {});
+
+    await deliverError('error_client', permanent: true);
+
+    expect(notice, 'Speak is unavailable. You can write instead.');
   });
 
   test('never starts browser speech recognition', () {

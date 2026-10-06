@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -41,7 +42,17 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
               onListeningChanged?.call(false);
           }
         },
-        onError: (_) => onUnavailable?.call(_unavailableNotice),
+        // The plugin reports every error here. A transient one fails this
+        // session while later attempts may still succeed, so only the
+        // session ends. A permanent one blocks recognition itself, which is
+        // the only case where speech is genuinely unavailable on this device.
+        onError: (SpeechRecognitionError error) {
+          if (error.permanent) {
+            onUnavailable?.call(_unavailableNotice);
+          } else {
+            onListeningChanged?.call(false);
+          }
+        },
       );
       if (!available) {
         onUnavailable?.call(_unavailableNotice);
