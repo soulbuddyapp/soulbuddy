@@ -20,6 +20,7 @@ import 'package:soulbuddy/features/commitments/presentation/commitment_summary_s
 import 'package:soulbuddy/features/commitments/providers/commitment_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import '../../helpers/powersync_test_database.dart';
+import '../../helpers/settle_until.dart' as settle;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -182,18 +183,7 @@ void main() {
       ),
     );
     Future<void> settleUntil(bool Function() done) async {
-      for (var i = 0; i < 100 && !done(); i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-        await tester.pump(const Duration(milliseconds: 30));
-      }
-      expect(
-        done(),
-        isTrue,
-        reason:
-            'Journey did not reach the expected stage. Visible: ${tester.widgetList<Text>(find.byType(Text)).map((w) => w.data).join(' | ')}',
-      );
+      await settle.settleUntil(tester, done);
       expect(tester.takeException(), isNull);
     }
 
