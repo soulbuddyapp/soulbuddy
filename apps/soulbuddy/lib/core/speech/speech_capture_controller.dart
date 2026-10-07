@@ -13,6 +13,18 @@ import 'speech_recognizer.dart';
 const String speechUnavailableNotice =
     'Speak is unavailable. You can write instead.';
 
+/// Shown when an attempt to speak did not take.
+///
+/// Not a claim about this device, and deliberately unlike
+/// [speechUnavailableNotice]: that one is said where the microphone is gone,
+/// and this is said where the microphone is still there. It reports what
+/// happened rather than what is possible — nothing came through — and it does
+/// not promise that a second attempt will do better, because nothing here
+/// knows that. The second sentence is the established one rather than a new
+/// promise, because writing is available either way.
+const String speechDidNotStartNotice =
+    'Nothing came through. You can write instead.';
+
 /// Availability and listening state for dictation.
 ///
 /// Availability is resolved once: repeated taps on an unavailable field must
@@ -42,6 +54,15 @@ const String speechUnavailableNotice =
 /// and only in the case where the recogniser reports once and then stops. The
 /// dropped callback is bounded to the first one: recognised words grow, so any
 /// second callback carries everything the first held.
+///
+/// This also separates two things one value used to conflate. Speech being
+/// unavailable and a session failing to start are different answers, and only
+/// the first is permanent: a missing offline language pack leaves a device that
+/// reports a recognition service and then cannot use it, which is a failed
+/// start rather than an absent capability, and the microphone stays because a
+/// retry is not known to be hopeless. So [notice] answers only the permanent
+/// question, and a start that did not take is reported to the field that asked
+/// for it — one field, one microphone, and only that field's attempt failed.
 class SpeechCaptureController extends ChangeNotifier {
   SpeechCaptureController({SpeechRecognizer? recognizer})
     : _recognizer = recognizer ?? PluginSpeechRecognizer();
@@ -67,6 +88,24 @@ class SpeechCaptureController extends ChangeNotifier {
   /// Whether the running session's first callback is still to arrive.
   bool _awaitingFirstWords = false;
 
+  /// Whether the running session has heard anything at all.
+  ///
+  /// The only evidence here of whether a session ever began. The platform
+  /// announces a session as listening before it knows the recogniser accepted
+  /// it, so `isListening` cannot answer that, and on a locale with no offline
+  /// pack the session is announced, accepted, and then failed before a single
+  /// sound. Recorded whatever else happens to the words, because the question
+  /// is whether the platform said anything and not whether it was passed on.
+  bool _heardAnything = false;
+
+  /// The caller waiting to hear that its attempt did not take.
+  ///
+  /// Only ever set while a session this class opened is still open: every path
+  /// out of a session clears it, so a failure arriving after the microphone is
+  /// closed belongs to nobody and is answered with silence rather than blamed
+  /// on whoever holds it now.
+  VoidCallback? _pendingStart;
+
   /// Whether speech is available. False until [ensureAvailable] resolves.
   bool get isAvailable => _available ?? false;
 
@@ -88,6 +127,7 @@ class SpeechCaptureController extends ChangeNotifier {
       final available = await _recognizer.initialize(
         onListeningChanged: _setListening,
         onUnavailable: _showUnavailableNotice,
+        onError: _sessionErrored,
       );
       _available = available;
       if (available) {
@@ -108,11 +148,20 @@ class SpeechCaptureController extends ChangeNotifier {
   /// already running, or the start failed, leaving the caller's field
   /// untouched and editable.
   ///
+  /// [onDidNotStart] is called when this attempt produced nothing at all, so
+  /// the caller can say so without the microphone being taken away. It is not
+  /// called when a session was already running: nothing was attempted, so
+  /// nothing failed, and a caller that treated that as a failure would report
+  /// its own second tap as though the first had gone wrong.
+  ///
   /// The first callback may be dropped when this session follows a stop; see
   /// the note on this class. A consumer that needs the opening words kept
   /// whatever it is told should not also be updating a field from them, which
   /// is the one shape that would notice.
-  Future<bool> listen({required void Function(String words) onWords}) async {
+  Future<bool> listen({
+    required void Function(String words) onWords,
+    VoidCallback? onDidNotStart,
+  }) async {
     if (_disposed || _listening) return false;
     if (!await ensureAvailable()) return false;
     // The answer arrives across an await, so this caller may be gone by now,
@@ -124,6 +173,8 @@ class SpeechCaptureController extends ChangeNotifier {
     // all before the first words, so the session is declared open here.
     _setListening(true);
     _sessionWords = null;
+    _heardAnything = false;
+    _pendingStart = onDidNotStart;
     // The platform hands results to whichever session is listening now, so a
     // stopped session's final result arrives stamped with this one, already
     // past the token that fenced it out. Nothing can tell such a leftover from
@@ -140,6 +191,10 @@ class SpeechCaptureController extends ChangeNotifier {
         // session's words cannot reach this one, nor the reverse.
         onWords: (words) {
           if (_disposed || mine != _session) return;
+          // Before the checks below, because what is being asked here is
+          // whether the platform heard anything at all, and a dropped first
+          // callback is still something it said.
+          _heardAnything = true;
           if (_awaitingFirstWords) {
             _awaitingFirstWords = false;
             // Dropped, and not passed on: the words are already in the field,
@@ -156,7 +211,12 @@ class SpeechCaptureController extends ChangeNotifier {
         },
       );
     } on Exception {
+      // The seam broke its contract, and the session is over before it began.
+      // Taken before the session is closed, because closing it is what
+      // disowns the callback.
+      final didNotStart = _pendingStart;
       _setListening(false);
+      didNotStart?.call();
       return false;
     }
     if (_disposed) {
@@ -206,6 +266,33 @@ class SpeechCaptureController extends ChangeNotifier {
   /// the notice would hide it for the rest of that session.
   void _showUnavailableNotice() => _setNotice(speechUnavailableNotice);
 
+  /// A session the platform ended in an error.
+  ///
+  /// Ends the session and says nothing more unless the session heard nothing
+  /// at all, which is the case where a person tapped a microphone, saw the
+  /// platform's own indicator, and got no words and no explanation. That is
+  /// what a locale with no offline language pack looks like, and `onDevice`
+  /// refuses the network recogniser that would otherwise cover for it.
+  ///
+  /// Silence is kept for a session that heard anything, including one the pause
+  /// timer ended: words are already in the field there, and a session that ran
+  /// for its forty-five seconds is not a start that failed. An error therefore
+  /// never reaches [notice] and never reaches `_available`, so no error can
+  /// retire the microphone — which is the whole reason this is a separate
+  /// signal rather than a call to [_showUnavailableNotice].
+  void _sessionErrored() {
+    if (_disposed) return;
+    // Nothing is open, so this failure belongs to a session that has already
+    // finished: a stop the person asked for, or a second error for a failure
+    // already answered. Reported anyway it would accuse whichever field happens
+    // to be open, which is not what went wrong.
+    final pending = _pendingStart;
+    if (pending == null) return;
+    final didNotStart = _heardAnything ? null : pending;
+    _setListening(false);
+    didNotStart?.call();
+  }
+
   Future<void> _stopQuietly() async {
     try {
       await _recognizer.stop();
@@ -218,6 +305,12 @@ class SpeechCaptureController extends ChangeNotifier {
   void _setListening(bool listening) {
     if (_listening == listening) return;
     _listening = listening;
+    if (!listening) {
+      // The session this callback belonged to is over, so a failure arriving
+      // afterwards belongs to no one: a second error, or a stop the person
+      // asked for, must not be reported as an attempt that did not take.
+      _pendingStart = null;
+    }
     _notify();
   }
 

@@ -25,7 +25,15 @@ enum SayableEmphasis {
 /// including while the microphone is open, and speech only ever adds to what is
 /// already there. Where speech cannot run, the field is unchanged and the
 /// notice says so, which is the same answer everywhere in the app because the
-/// notice lives with the controller.
+/// notice lives with the controller. Said once per screen rather than once per
+/// field; see [showUnavailableNotice].
+///
+/// Two failures are told apart here, because they leave the person with
+/// different things in front of them. Speech that cannot run at all retires the
+/// microphone, since no retry will help. An attempt that did not take leaves it
+/// where it is and says so underneath the field that was tried, because a
+/// retry is not known to be hopeless and this is the one thing a person can try
+/// with a microphone that opened and closed again.
 ///
 /// Words are merged through [DictationEdit] rather than appended, so text typed
 /// before dictation and text after the caret both survive. What cannot survive
@@ -60,6 +68,7 @@ class SayableField extends ConsumerStatefulWidget {
     this.maxLength,
     this.onChanged,
     this.onTruncated,
+    this.showUnavailableNotice = true,
     super.key,
   });
 
@@ -112,6 +121,23 @@ class SayableField extends ConsumerStatefulWidget {
   /// say so rather than let a shortened sentence look saved in full.
   final VoidCallback? onTruncated;
 
+  /// Whether this field says that speech cannot run on this device.
+  ///
+  /// False on the second and later fields of a screen, because the notice
+  /// belongs to the screen rather than to any one field: said by both it is
+  /// the same sentence twice, stacked, which is noise on a form that already
+  /// said it once. Sixteen surfaces use this widget and only three hold more
+  /// than one field, so the default stays on and the opt-out is the unusual
+  /// case. `sayable_surfaces_guard_test.dart` checks the arithmetic, so a
+  /// surface that gains a second field has to say here whether it wants two
+  /// identical sentences.
+  ///
+  /// Says nothing about the microphone, which is offered or taken away on
+  /// whether speech can run at all — an opted-out field still loses the mic on
+  /// a device that cannot recognise, and keeps it on one that merely failed to
+  /// start.
+  final bool showUnavailableNotice;
+
   @override
   ConsumerState<SayableField> createState() => _SayableFieldState();
 }
@@ -126,6 +152,15 @@ class _SayableFieldState extends ConsumerState<SayableField> {
   /// field. It is dropped when a session this call opened would not start,
   /// where no callback can arrive to be applied.
   DictationEdit? _edit;
+
+  /// Whether this field's own attempt to start produced nothing.
+  ///
+  /// Kept here rather than read off the controller, which cannot say whose
+  /// attempt failed: on a screen with two fields, the notice belongs under the
+  /// one that was tried and not under both, and only this field can know it
+  /// asked. Reset by every attempt, so a later one that works leaves nothing
+  /// behind.
+  bool _didNotStart = false;
 
   /// A field may not have fewer lines than it starts with, and a caller that
   /// says `minLines: 5` without saying how tall it may grow would otherwise
@@ -200,7 +235,16 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     _edit = edit;
     // Nothing is cleared to make room. The captured prefix surviving is the
     // whole design, and the field is never reset by dictation starting.
-    final started = await speech.listen(onWords: _onWords);
+    //
+    // The last attempt's answer goes first, and said out loud, so a field that
+    // failed and then worked does not go on saying it failed. Nothing rebuilds
+    // this on its own: an attempt that succeeds reports no failure, so the
+    // field is the only thing that knows the notice is now untrue.
+    if (_didNotStart) setState(() => _didNotStart = false);
+    final started = await speech.listen(
+      onWords: _onWords,
+      onDidNotStart: _startDidNotTake,
+    );
     // A session that would not open leaves the field exactly as it was, still
     // editable, and says nothing about the device: only the notice does, and it
     // is the controller's.
@@ -211,6 +255,17 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // yes. Discarding the merge then would leave that live session writing
     // into nothing: the stop button on screen, and no words ever arriving.
     if (!started && !speech.isListening) _edit = null;
+  }
+
+  /// This field's attempt was opened and gave nothing back.
+  ///
+  /// The microphone stays. Nothing here knows whether a second attempt would do
+  /// better — the reason a start fails is not always one that outlives it — so
+  /// the field says what happened and leaves the choice of trying again, or
+  /// typing, to the person.
+  void _startDidNotTake() {
+    if (!mounted) return;
+    setState(() => _didNotStart = true);
   }
 
   void _onWords(String words) {
@@ -236,11 +291,17 @@ class _SayableFieldState extends ConsumerState<SayableField> {
   @override
   Widget build(BuildContext context) {
     final speech = _speech;
-    final notice = speech?.notice;
     // Keyed off the notice rather than off availability. The two disagree only
     // if the seam breaks its contract, and retiring the mic for the session is
-    // the safe way for that to fail.
-    final canSpeak = notice == null;
+    // the safe way for that to fail. Read from the controller rather than from
+    // what this field goes on to render, so an opted-out second field still
+    // loses its microphone on a device that cannot recognise.
+    final canSpeak = speech?.notice == null;
+    // One notice, and the controller's answer to its only permanent question
+    // outranks anything one attempt on this field has to say.
+    final notice = canSpeak
+        ? (_didNotStart ? speechDidNotStartNotice : null)
+        : (widget.showUnavailableNotice ? speech?.notice : null);
     final listening = speech?.isListening ?? false;
     final theme = Theme.of(context);
     // A caller's decoration is the base — that is what the escape hatch is for

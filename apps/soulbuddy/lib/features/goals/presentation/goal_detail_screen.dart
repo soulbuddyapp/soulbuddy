@@ -445,6 +445,9 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           labelText: 'Why this matters',
           // Said for the same reason, and to the same place.
           onTruncated: _reportTruncation,
+          // The field above already said it. Both are one dialog, so the notice
+          // is said once rather than once per field.
+          showUnavailableNotice: false,
         ),
       ],
     ),

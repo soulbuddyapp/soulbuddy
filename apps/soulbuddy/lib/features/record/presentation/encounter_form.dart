@@ -279,6 +279,9 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       // Said for the same reason, and to the same line.
                       onTruncated: () =>
                           setState(() => _saveError = _limitReachedNotice),
+                      // Title above already said it. This form is one screen, so
+                      // the notice is said once rather than once per field.
+                      showUnavailableNotice: false,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Align(

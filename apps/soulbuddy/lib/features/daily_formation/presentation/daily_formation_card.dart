@@ -511,6 +511,10 @@ class _CompletionSheetState extends State<_CompletionSheet> {
           controller: _action,
           maxLines: 2,
           labelText: widget.day.action,
+          // The sheet's two fields are one screen, so the notice is said once
+          // — by the field above, which comes first. A second copy of the same
+          // sentence under the second field would be noise.
+          showUnavailableNotice: false,
         ),
         const SizedBox(height: 16),
         FilledButton(

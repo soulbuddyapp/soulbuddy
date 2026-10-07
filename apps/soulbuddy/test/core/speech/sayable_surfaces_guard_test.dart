@@ -151,4 +151,36 @@ void main() {
       1,
     );
   });
+
+  test('a screen with several fields says the notice once', () {
+    // Sixteen surfaces use `SayableField` and only three hold more than one
+    // field. On those three the unavailable notice used to be said by every
+    // field, which put two identical sentences on one screen and worked
+    // against the app's restraint.
+    //
+    // Derived from the counts above rather than listed per file, so it cannot
+    // go stale: a surface that gains a second field must silence one of them,
+    // and a screen with one field must not silence it at all. Nothing has to
+    // remember to update this when the fields change, which is what makes the
+    // opt-out safe to hand to a caller who has never heard of it.
+    final several = _expected.entries.where((entry) => entry.value.$1 > 1);
+    expect(
+      several.map((entry) => entry.key),
+      [
+        'lib/features/daily_formation/presentation/daily_formation_card.dart',
+        'lib/features/record/presentation/encounter_form.dart',
+        'lib/features/goals/presentation/goal_detail_screen.dart',
+      ],
+      reason: 'a surface holding several fields is the only case this is for',
+    );
+    for (final entry in _expected.entries) {
+      expect(
+        _calls(entry.key, 'showUnavailableNotice: false'),
+        entry.value.$1 > 1 ? entry.value.$1 - 1 : 0,
+        reason:
+            '${entry.key} holds ${entry.value.$1} sayable field(s), so it '
+            'silences exactly one notice or none',
+      );
+    }
+  });
 }

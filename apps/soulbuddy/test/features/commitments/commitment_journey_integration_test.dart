@@ -400,6 +400,7 @@ class _NoSpeech implements SpeechRecognizer {
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
+    VoidCallback? onError,
   }) async => false;
 
   @override

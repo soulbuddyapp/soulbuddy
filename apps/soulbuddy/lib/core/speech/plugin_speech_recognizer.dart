@@ -35,6 +35,7 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
+    VoidCallback? onError,
   }) async {
     // Browser speech recognition sends audio off the device and is not used.
     if (_isWeb) {
@@ -68,7 +69,15 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
         // about whether speech can run here: a five second pause alone is
         // enough to end dictation for good if it is believed. Whether this
         // device can recognise at all is answered by initialisation alone.
+        //
+        // Reported beside the transition rather than folded into it, because
+        // the two answer different questions and a consumer cannot recover the
+        // first from the second. This is where a locale with no offline pack
+        // arrives: `onDevice` is not negotiable, so the session the platform
+        // accepted fails the moment it looks for words, and without this the
+        // consumer sees a microphone that opened and closed and nothing else.
         onError: (SpeechRecognitionError _) {
+          onError?.call();
           onListeningChanged?.call(false);
         },
       );
@@ -102,6 +111,8 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
       // The plugin throws when [initialize] did not succeed, and remembers
       // that, so every later attempt throws too. A caller has already been
       // told speech is unavailable; it gets no second, unanswerable signal.
+      // A refusal to start while speech is otherwise available is reported by
+      // the caller, which can see the throw and this layer cannot.
     }
   }
 

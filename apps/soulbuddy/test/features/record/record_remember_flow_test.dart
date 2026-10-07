@@ -732,6 +732,7 @@ class _RecordingSeam implements SpeechRecognizer {
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
+    VoidCallback? onError,
   }) async => true;
 
   @override

@@ -145,6 +145,229 @@ void main() {
     expect(controller.isListening, isFalse);
   });
 
+  // Everything below is one device, found on a phone: it reports a recognition
+  // service, so initialisation answers available and the microphone is offered,
+  // and then the session it opens fails the moment it looks for words because
+  // the locale has no offline pack. `onDevice` is not negotiable, so there is
+  // no fallback to a network recogniser and nothing is sent anywhere. That is
+  // the trade, made explicitly; the defect was that the person was told none of
+  // it and got a microphone that did nothing.
+  group('an attempt that produced nothing', () {
+    test('tells the field that asked, with the microphone kept', () async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      var didNotStart = 0;
+
+      expect(
+        await controller.listen(
+          onWords: (_) {},
+          onDidNotStart: () => didNotStart++,
+        ),
+        isTrue,
+        reason: 'the platform accepted the request before it failed it',
+      );
+
+      recognizer.reportError();
+
+      expect(didNotStart, 1, reason: 'the person is told what happened');
+      expect(
+        controller.isListening,
+        isFalse,
+        reason: 'the session is over, which is not the same as the device',
+      );
+      expect(
+        controller.isAvailable,
+        isTrue,
+        reason: 'a retry may work, so the microphone stays',
+      );
+      expect(
+        controller.notice,
+        isNull,
+        reason: 'the notice retires the mic, and this must not retire it',
+      );
+    });
+
+    test('is reported once, to the field whose attempt failed', () async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      final failures = <int>[];
+      var attempts = 0;
+      void onDidNotStart() => failures.add(attempts);
+
+      attempts++;
+      await controller.listen(onWords: (_) {}, onDidNotStart: onDidNotStart);
+      attempts++;
+      await controller.listen(onWords: (_) {}, onDidNotStart: onDidNotStart);
+
+      recognizer.reportError();
+
+      expect(failures, [
+        2,
+      ], reason: 'the second attempt is the one that failed');
+      expect(
+        controller.isListening,
+        isFalse,
+        reason: 'the session ends, so a retry is possible',
+      );
+
+      attempts++;
+      await controller.listen(onWords: (_) {}, onDidNotStart: onDidNotStart);
+
+      expect(failures, [
+        2,
+      ], reason: 'an attempt that is still open has not failed yet');
+    });
+
+    test('is reported when the platform refuses the start outright', () async {
+      final recognizer = _FakeRecognizer(available: true)..complains = true;
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      var didNotStart = 0;
+
+      await controller.listen(
+        onWords: (_) {},
+        onDidNotStart: () => didNotStart++,
+      );
+
+      expect(didNotStart, 1);
+      expect(
+        controller.notice,
+        isNull,
+        reason: 'only initialisation says that',
+      );
+    });
+
+    test('is silent for a listen refused because one is already running', () async {
+      // Nothing was attempted the second time, so nothing failed. Reported as a
+      // failure it would tell a person their microphone is broken for doing the
+      // only thing that could have helped.
+      final recognizer = _FakeRecognizer(available: true)
+        ..listenGate = Completer<void>();
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      var didNotStart = 0;
+
+      final first = controller.listen(onWords: (_) {});
+      final second = controller.listen(
+        onWords: (_) {},
+        onDidNotStart: () => didNotStart++,
+      );
+      recognizer.listenGate!.complete();
+      await first;
+      await second;
+
+      expect(await second, isFalse);
+      expect(didNotStart, 0);
+    });
+
+    test('is silent when a session ended with words in the field', () async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      final heard = <String>[];
+      var didNotStart = 0;
+      await controller.listen(
+        onWords: heard.add,
+        onDidNotStart: () => didNotStart++,
+      );
+      recognizer.emit('the morning');
+
+      recognizer.reportError();
+
+      expect(heard, ['the morning']);
+      expect(
+        didNotStart,
+        0,
+        reason: 'a pause after a word is an ordinary ending, not a dead mic',
+      );
+    });
+
+    test('is silent for a session the pause timer ended by itself', () async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      await controller.listen(
+        onWords: (_) {},
+        onDidNotStart: () => fail('nothing came through, so nothing to say'),
+      );
+
+      recognizer.reportListening(false);
+
+      expect(controller.isListening, isFalse);
+      expect(controller.isAvailable, isTrue);
+      expect(controller.notice, isNull);
+    });
+
+    test('is silent for a failure that outlives its session', () async {
+      // The platform tears a finished session down in its own time, so an error
+      // can land after the microphone has closed and nobody is listening any
+      // more. Reported then it would accuse whichever field is open at the
+      // moment, or arrive with no session at all and mean nothing.
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      var didNotStart = 0;
+      await controller.listen(
+        onWords: (_) {},
+        onDidNotStart: () => didNotStart++,
+      );
+
+      recognizer.reportListening(false);
+      recognizer.reportError();
+
+      expect(didNotStart, 0);
+      expect(controller.notice, isNull);
+    });
+
+    test('is silent for a second error about the same failure', () async {
+      // `cancelOnError` means the platform tears a session down itself, and a
+      // teardown can report the error that caused it. Said once, not twice.
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+      var didNotStart = 0;
+      await controller.listen(
+        onWords: (_) {},
+        onDidNotStart: () => didNotStart++,
+      );
+
+      recognizer.reportError();
+      recognizer.reportError();
+
+      expect(didNotStart, 1);
+    });
+
+    test('does not retire the microphone for the rest of the app', () async {
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(controller.dispose);
+      await controller.ensureAvailable();
+
+      for (var attempt = 0; attempt < 3; attempt++) {
+        await controller.listen(onWords: (_) {}, onDidNotStart: () {});
+        recognizer.reportError();
+      }
+
+      expect(controller.isAvailable, isTrue);
+      expect(controller.notice, isNull);
+      expect(
+        await controller.listen(onWords: (_) {}),
+        isTrue,
+        reason: 'the microphone is still there to try with',
+      );
+    });
+  });
+
   test('an unavailable recogniser never starts a session', () async {
     final recognizer = _FakeRecognizer(available: false);
     final controller = SpeechCaptureController(recognizer: recognizer);
@@ -494,6 +717,7 @@ class _FakeRecognizer implements SpeechRecognizer {
   void Function(bool)? _onListeningChanged;
   final _wordCallbacks = <void Function(String)>[];
   VoidCallback? _onUnavailable;
+  VoidCallback? _onError;
 
   /// What the platform last reported, which is never assumed to match what the
   /// controller believes.
@@ -513,14 +737,24 @@ class _FakeRecognizer implements SpeechRecognizer {
 
   void reportUnavailable() => _onUnavailable?.call();
 
+  /// The platform failing a session, which it also ends. What a missing offline
+  /// language pack looks like from here: a session that was announced, accepted
+  /// and then failed before a single sound.
+  void reportError() {
+    _onError?.call();
+    reportListening(false);
+  }
+
   @override
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
+    VoidCallback? onError,
   }) async {
     initializeCalls++;
     _onListeningChanged = onListeningChanged;
     _onUnavailable = onUnavailable;
+    _onError = onError;
     if (!available) onUnavailable?.call();
     return available;
   }

@@ -165,6 +165,51 @@ void main() {
     }
   });
 
+  test('an error is reported, not only the listening change', () async {
+    // On a locale with no offline language pack this is the whole sequence: the
+    // session is announced, accepted, and then failed before it heard anything.
+    // A seam that answered only with the listening change left the consumer no
+    // way to tell that from a pause, so the person saw a microphone open and
+    // close and was told nothing.
+    final recognizer = buildRecognizer();
+    final changes = <bool>[];
+    var errors = 0;
+    var unavailable = false;
+    await recognizer.initialize(
+      onListeningChanged: changes.add,
+      onUnavailable: () => unavailable = true,
+      onError: () => errors++,
+    );
+    await recognizer.listen(onWords: (_) {});
+    await deliver('notifyStatus', 'listening');
+
+    // The platform announces a session before the recogniser has accepted it,
+    // which is why the status alone cannot be read as "it started".
+    await deliverError('error_language_not_supported', permanent: true);
+
+    expect(errors, 1);
+    expect(changes, [true, false]);
+    expect(
+      unavailable,
+      isFalse,
+      reason: 'the error is a session failing, not the device failing',
+    );
+  });
+
+  test('no error is reported while the plugin was never reached', () async {
+    // The browser recogniser and a refused microphone are answered before the
+    // plugin exists, so nothing there can have failed a session.
+    for (final recognizer in [
+      buildRecognizer(isWeb: true),
+      buildRecognizer(requestMicrophone: () async => false),
+    ]) {
+      var errors = 0;
+      await recognizer.initialize(onError: () => errors++);
+
+      expect(errors, 0);
+    }
+  });
+
   test('stop ends the session on the platform', () async {
     final recognizer = buildRecognizer();
     await recognizer.initialize();

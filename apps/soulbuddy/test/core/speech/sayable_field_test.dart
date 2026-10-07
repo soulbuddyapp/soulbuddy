@@ -94,6 +94,7 @@ void main() {
     int? maxLength,
     ValueChanged<String>? onChanged,
     VoidCallback? onTruncated,
+    bool showUnavailableNotice = true,
   }) async {
     final speech = SpeechCaptureController(recognizer: recognizer);
     addTearDown(speech.dispose);
@@ -120,6 +121,7 @@ void main() {
           maxLength: maxLength,
           onChanged: onChanged,
           onTruncated: onTruncated,
+          showUnavailableNotice: showUnavailableNotice,
         ),
       ),
     );
@@ -629,6 +631,183 @@ void main() {
     expect(subject.field.text, 'Amen, in patience');
   });
 
+  // Found on a phone whose locale has no offline language pack. The device
+  // reports a recognition service, so the microphone is offered and initialising
+  // succeeds; the session is then accepted and fails before it hears anything.
+  // `onDevice` refuses the network recogniser that would cover for it, which is
+  // the trade this app made on purpose. What was missing was saying so.
+  testWidgets('a session that never begins says so and keeps the microphone', (
+    tester,
+  ) async {
+    final seam = _FakeRecognizer();
+    final subject = await pumpField(tester, recognizer: seam, text: 'Amen');
+
+    await tapMic(tester);
+    expect(subject.speech.isListening, isTrue, reason: 'it was accepted');
+
+    seam.failSession();
+    await tester.pump();
+
+    expect(find.text(speechDidNotStartNotice), findsOneWidget);
+    expect(
+      find.text(speechUnavailableNotice),
+      findsNothing,
+      reason: 'the device can still recognise, so the mic must not be retired',
+    );
+    expect(find.byKey(mic), findsOneWidget, reason: 'a retry may work');
+    expect(find.byIcon(Icons.stop), findsNothing);
+    expect(
+      subject.field.text,
+      'Amen',
+      reason: 'a start that failed is not a change to the field',
+    );
+
+    // A genuine second tap, rather than a word from the session that failed: what
+    // is being checked is that a working microphone is left working and is no
+    // longer described as having failed.
+    await tapMic(tester);
+    expect(subject.speech.isListening, isTrue);
+    seam.emit('God is good');
+    await tester.pump();
+
+    expect(
+      subject.field.text,
+      'AmenGod is good',
+      reason: 'the microphone still works, so a retry must reach the field',
+    );
+    expect(
+      find.text(speechDidNotStartNotice),
+      findsNothing,
+      reason: 'the attempt worked, so it must stop being called a failed one',
+    );
+  });
+
+  testWidgets('a start the platform refuses outright says so too', (
+    tester,
+  ) async {
+    await pumpField(tester, recognizer: _FakeRecognizer(failsToListen: true));
+
+    await tapMic(tester);
+
+    expect(find.text(speechDidNotStartNotice), findsOneWidget);
+    expect(find.text(speechUnavailableNotice), findsNothing);
+    expect(find.byKey(mic), findsOneWidget);
+  });
+
+  testWidgets('a session that ended with words in the field says nothing', (
+    tester,
+  ) async {
+    final seam = _FakeRecognizer();
+    final subject = await pumpField(tester, recognizer: seam);
+
+    await tapMic(tester);
+    seam.emit('the morning');
+    seam.failSession();
+    await tester.pump();
+
+    expect(subject.field.text, 'the morning');
+    expect(
+      find.text(speechDidNotStartNotice),
+      findsNothing,
+      reason: 'a pause after a word is an ordinary ending',
+    );
+    expect(find.byKey(mic), findsOneWidget);
+  });
+
+  testWidgets('a second tap refused while a session is opening says nothing', (
+    tester,
+  ) async {
+    // Nothing was attempted the second time, so nothing failed. Called a
+    // failure it would tell a person the microphone is broken for doing the one
+    // thing that might have helped.
+    final gate = Completer<void>();
+    final seam = _FakeRecognizer(gate: gate);
+    await pumpField(tester, recognizer: seam);
+
+    await tester.tap(find.byKey(mic));
+    await tester.pump();
+    await tester.tap(find.byKey(mic));
+    await tester.pump();
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text(speechDidNotStartNotice), findsNothing);
+    expect(find.byIcon(Icons.stop), findsOneWidget, reason: 'it did begin');
+  });
+
+  group('a screen with two fields', () {
+    // Sixteen surfaces use this widget and three hold more than one field. Said
+    // by both it is the same sentence twice on one screen, which is noise on a
+    // form that has already said it.
+    Future<(SpeechCaptureController, List<TextEditingController>)> pumpPair(
+      WidgetTester tester, {
+      required SpeechRecognizer recognizer,
+    }) async {
+      final speech = SpeechCaptureController(recognizer: recognizer);
+      addTearDown(speech.dispose);
+      final fields = [TextEditingController(), TextEditingController()];
+      addTearDown(fields.first.dispose);
+      addTearDown(fields.last.dispose);
+      await tester.pumpWidget(
+        host(
+          speech,
+          Column(
+            children: [
+              SayableField(controller: fields.first, labelText: 'Reflection'),
+              SayableField(
+                controller: fields.last,
+                labelText: 'One thing to do',
+                showUnavailableNotice: false,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      return (speech, fields);
+    }
+
+    testWidgets('says the unavailable notice once', (tester) async {
+      await pumpPair(tester, recognizer: _FakeRecognizer(available: false));
+
+      expect(find.text(speechUnavailableNotice), findsOneWidget);
+      expect(
+        find.byKey(mic),
+        findsNothing,
+        reason: 'an opted-out field still loses the microphone',
+      );
+    });
+
+    testWidgets('still offers a microphone on every field', (tester) async {
+      await pumpPair(tester, recognizer: _FakeRecognizer());
+
+      expect(find.byKey(mic), findsNWidgets(2));
+      expect(find.text(speechUnavailableNotice), findsNothing);
+    });
+
+    testWidgets('tells only the field that was tried', (tester) async {
+      // The notice belongs where the failure happened. Said by both fields it
+      // would be the duplicate this whole opt-out exists to prevent, arriving
+      // by the other route.
+      final seam = _FakeRecognizer();
+      await pumpPair(tester, recognizer: seam);
+
+      await tester.tap(find.byKey(mic).last);
+      await tester.pump();
+      seam.failSession();
+      await tester.pump();
+
+      expect(find.text(speechDidNotStartNotice), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text(speechDidNotStartNotice)).dy,
+        greaterThan(tester.getTopLeft(find.byKey(mic).first).dy),
+        reason: 'and it is under the field that was tried, not the first',
+      );
+    });
+  });
+
   testWidgets('a validator runs and blocks saving', (tester) async {
     final seam = _FakeRecognizer();
     final speech = SpeechCaptureController(recognizer: seam);
@@ -800,13 +979,16 @@ class _FakeRecognizer implements SpeechRecognizer {
   int stopCalls = 0;
   void Function(String words)? _onWords;
   VoidCallback? _onUnavailable;
+  VoidCallback? _onError;
 
   @override
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
+    VoidCallback? onError,
   }) async {
     _onUnavailable = onUnavailable;
+    _onError = onError;
     await gate?.future;
     if (!available) {
       onUnavailable?.call();
@@ -830,4 +1012,8 @@ class _FakeRecognizer implements SpeechRecognizer {
 
   /// The seam reporting, part-way through a session, that it cannot continue.
   void reportUnavailable() => _onUnavailable?.call();
+
+  /// The platform failing a session that never heard anything, which is what a
+  /// locale with no offline language pack looks like from here.
+  void failSession() => _onError?.call();
 }

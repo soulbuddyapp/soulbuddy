@@ -207,6 +207,7 @@ class _CountingRecognizer implements SpeechRecognizer {
   Future<bool> initialize({
     void Function(bool listening)? onListeningChanged,
     VoidCallback? onUnavailable,
+    VoidCallback? onError,
   }) async {
     onInitialize();
     return true;
