@@ -339,7 +339,233 @@ void main() {
     await tester.pumpAndSettle();
     expect(retractions, ['session-1']);
   });
+
+  testWidgets('keeps the prayer collapsed until it is asked for', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _card(_occurrenceWith(title: _longTitle, body: _longPrayerBody(3))),
+    );
+    await tester.pumpAndSettle();
+
+    // Nothing of the body is rendered until the person asks for it.
+    expect(find.byKey(const Key('prayer-reminder-body')), findsNothing);
+    expect(find.textContaining('Father, hold this life'), findsNothing);
+    expect(find.text('Read in full'), findsOneWidget);
+
+    final title = tester.widget<Text>(
+      find.byKey(const Key('prayer-reminder-title')),
+    );
+    expect(title.maxLines, 2);
+    expect(title.overflow, TextOverflow.ellipsis);
+  });
+
+  testWidgets('expands in place to the whole title and the whole body', (
+    tester,
+  ) async {
+    final body = _longPrayerBody(3);
+    await tester.pumpWidget(
+      _card(_occurrenceWith(title: _longTitle, body: body)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('prayer-reminder-read')));
+    await tester.pumpAndSettle();
+
+    final title = tester.widget<Text>(
+      find.byKey(const Key('prayer-reminder-title')),
+    );
+    expect(title.maxLines, isNull);
+    expect(title.data, _longTitle);
+    // Every paragraph is present, not a truncated prefix.
+    expect(find.byKey(const Key('prayer-reminder-body-text')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('prayer-reminder-body-text')))
+          .data,
+      body,
+    );
+    expect(find.text('Show less'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('prayer-reminder-read')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('prayer-reminder-body')), findsNothing);
+  });
+
+  testWidgets('opens the body without motion when reduceMotion is set', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _card(_occurrenceWith(body: _longPrayerBody(3)), reduceMotion: true),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('prayer-reminder-body')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('prayer-reminder-read')));
+    // No animation frames are needed: the body is there on the very next pump.
+    await tester.pump();
+    expect(find.byKey(const Key('prayer-reminder-body')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('expanded prayer scrolls rather than overflowing at 2.0 scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(
+          textScaler: TextScaler.linear(2),
+          disableAnimations: true,
+        ),
+        child: _compactApp(
+          _occurrenceWith(body: _longPrayerBody(12)),
+          due: const Stream.empty(),
+          perform: (value, action) async => null,
+          retract: (id) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('prayer-reminder-read')));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    final viewport = find.byKey(const Key('prayer-reminder-body'));
+    expect(viewport, findsOneWidget);
+    // The body is bounded, so it scrolls inside the card instead of growing it.
+    expect(
+      tester.getSize(viewport).height,
+      lessThan(tester.getSize(find.byType(PrayerReminderCard)).height),
+    );
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(of: viewport, matching: find.byType(Scrollable)),
+    );
+    expect(scrollable.position.maxScrollExtent, greaterThan(0));
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Play prayer').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('offers listening before any narration has been cached', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(_occurrence()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('prayer-reminder-focus-edge')), findsOneWidget);
+    expect(find.text('Play prayer'), findsOneWidget);
+  });
+
+  testWidgets('offers no listening when narration cannot be obtained', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_app(_occurrenceWith(body: _longPrayerBody(40))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Read in full'), findsOneWidget);
+    expect(find.text('Play prayer'), findsNothing);
+  });
+
+  testWidgets('hears the prayer on demand and records no session', (
+    tester,
+  ) async {
+    final requests = <({String revisionId, bool consent})>[];
+    var actionCalls = 0;
+    await tester.pumpWidget(
+      _app(
+        _occurrence(),
+        prepareNarration: (occurrence, {required consentAccepted}) async {
+          requests.add((
+            revisionId: occurrence.prayerRevisionId,
+            consent: consentAccepted,
+          ));
+        },
+        perform: (value, action) async {
+          actionCalls++;
+          return null;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Nothing has been cached, so the first tap asks for consent first.
+    await tester.tap(find.text('Play prayer'));
+    await tester.pumpAndSettle();
+    expect(requests, isEmpty);
+    expect(
+      find.text(
+        'Prayer narration uses Deepgram to create a private cached reading of this saved prayer.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Accept and prepare'));
+    await tester.pumpAndSettle();
+
+    expect(requests, [(revisionId: 'revision-1', consent: true)]);
+    // Playback alone never writes a prayer session.
+    expect(actionCalls, 0);
+  });
+
+  testWidgets('declining the disclosure requests nothing', (tester) async {
+    var requests = 0;
+    await tester.pumpWidget(
+      _app(
+        _occurrence(),
+        prepareNarration: (occurrence, {required consentAccepted}) async {
+          requests++;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Play prayer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Not now'));
+    await tester.pumpAndSettle();
+
+    expect(requests, 0);
+    expect(find.text('Play prayer'), findsOneWidget);
+  });
+
+  testWidgets('shows progress and asks once while narration is requested', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    var requests = 0;
+    await tester.pumpWidget(
+      _app(
+        _occurrence(1, true),
+        prepareNarration: (occurrence, {required consentAccepted}) {
+          requests++;
+          return pending.future;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Play prayer'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+
+    expect(find.text('Preparing prayer'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(requests, 1);
+  });
 }
+
+const _longTitle =
+    'A prayer for the long evening when the house has finally gone quiet';
 
 Widget _app(
   DuePrayerOccurrence occurrence, {
@@ -348,6 +574,8 @@ Widget _app(
   Future<PrayerSession?> Function(DuePrayerOccurrence, PrayerReminderAction)?
   perform,
   Future<void> Function(String)? retract,
+  Future<void> Function(DuePrayerOccurrence, {required bool consentAccepted})?
+  prepareNarration,
   List<DuePrayerOccurrence>? initialOccurrences,
   PlatformFeedbackDriver? driver,
 }) => ProviderScope(
@@ -366,6 +594,10 @@ Widget _app(
       perform ?? (value, action) async => null,
     ),
     prayerSessionRetractorProvider.overrideWithValue(retract ?? (id) async {}),
+    if (prepareNarration != null)
+      prepareAndPlayReminderNarrationProvider.overrideWithValue(
+        prepareNarration,
+      ),
   ],
   child: MaterialApp(
     home: Scaffold(
@@ -383,6 +615,29 @@ Widget _app(
     ),
   ),
 );
+
+/// The card on its own, for the parts that are only about how it renders.
+Widget _card(DuePrayerOccurrence occurrence, {bool reduceMotion = false}) =>
+    ProviderScope(
+      overrides: [
+        prayerReminderActionProvider.overrideWithValue(
+          (value, action) async => null,
+        ),
+        prayerSessionRetractorProvider.overrideWithValue((id) async {}),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SingleChildScrollView(
+              child: PrayerReminderCard(
+                occurrence: occurrence,
+                reduceMotion: reduceMotion,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
 
 Widget _compactApp(
   DuePrayerOccurrence occurrence, {
@@ -436,7 +691,16 @@ Widget _compactApp(
 DuePrayerOccurrence _occurrence([
   int sequence = 1,
   bool withNarration = false,
-]) {
+]) => _occurrenceWith(sequence: sequence, withNarration: withNarration);
+
+DuePrayerOccurrence _occurrenceWith({
+  int sequence = 1,
+  bool withNarration = false,
+  String? body,
+  String? revisionId,
+  String? title,
+  bool? consentAccepted,
+}) {
   final at = DateTime.utc(2026, 8, 11, 18);
   return DuePrayerOccurrence(
     reminder: PrayerReminder(
@@ -460,18 +724,24 @@ DuePrayerOccurrence _occurrence([
       platformNotificationId: 77,
       scheduledTimezone: 'Africa/Lagos',
       updatedAt: at,
-      narrationConsentAccepted: withNarration,
+      narrationConsentAccepted: consentAccepted ?? withNarration,
       autoplayWhenOpened: withNarration,
       narrationRevisionId: withNarration ? 'revision-1' : null,
       narrationBytes: withNarration ? const [1, 2, 3] : null,
       narrationContentType: withNarration ? 'audio/mpeg' : null,
     ),
-    prayerTitle: 'Evening prayer',
-    prayerBody: 'Father, keep this private body hidden.',
-    prayerRevisionId: 'revision-1',
+    prayerTitle: title ?? 'Evening prayer',
+    prayerBody: body ?? 'Father, keep this private body hidden.',
+    prayerRevisionId: revisionId ?? 'revision-1',
     occurrenceAt: at,
   );
 }
+
+/// A prayer long enough to need scrolling once the card is expanded.
+String _longPrayerBody(int repeats) => List.filled(
+  repeats,
+  'Father, hold this life close and teach me to wait.',
+).join('\n\n');
 
 class _RecordingDriver implements PlatformFeedbackDriver {
   final haptics = <AppHaptic>[];
