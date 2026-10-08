@@ -103,6 +103,7 @@ flutter:
     - assets/audio/feedback/
     - assets/audio/meditation/
     - assets/audio/sacred_hours/
+    - assets/audio/worship/
     - assets/audio/commitments/
     - assets/content/commitment_practices.json
 

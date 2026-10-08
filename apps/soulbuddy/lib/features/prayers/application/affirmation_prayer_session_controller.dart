@@ -223,6 +223,15 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
   var _epoch = 0;
   var _disposed = false;
 
+  /// Changes whenever anything other than the guide takes ownership of the
+  /// ducked level — a focused pause, a stop, a different bed.
+  ///
+  /// A guide that is still reading when its own duck is superseded must not
+  /// raise the level on its way out. It captures this counter when it ducks and
+  /// only restores if the counter is still its own when the reading ends, so
+  /// ownership of the level has exactly one holder at a time.
+  var _duckOwner = 0;
+
   /// Whether this route is currently on screen and in the foreground.
   bool get visible => _visible;
   var _visible = true;
@@ -257,7 +266,10 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
       notifyListeners();
 
       if (isGroupBoundary) {
-        // The guide stops, and the chosen bed is lowered rather than cut.
+        // The guide stops, and the chosen bed is lowered rather than cut. This
+        // takes ownership of the ducked level, so a guide still reading at this
+        // moment does not raise it back on its way out.
+        _duckOwner++;
         await _stopNarration();
         await soundBed.duck();
       }
@@ -278,7 +290,17 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
   Future<void> hearAgain() async {
     if (_state.phase != AffirmationPrayerPhase.praying) return;
 
-    await narration.repeat(currentPhrase, speed: _state.speed);
+    // The bed is lowered under the repeat too, by the same mechanism.
+    final ducking = _state.soundKey != null;
+    final owner = ++_duckOwner;
+    if (ducking) await soundBed.duck();
+    try {
+      await narration.repeat(currentPhrase, speed: _state.speed);
+    } finally {
+      if (ducking && _isCurrent(_epoch) && _duckOwner == owner) {
+        await soundBed.restore();
+      }
+    }
   }
 
   /// Moves the recollection on. No sound starts here.
@@ -360,9 +382,7 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
       if (!_isCurrent(epoch)) return;
     }
 
-    if (_state.guideEnabled) {
-      await narration.speak(currentPhrase, speed: _state.speed);
-    }
+    await _speakGuided(epoch);
   }
 
   /// Leaves a focused pause. It is untimed.
@@ -383,9 +403,9 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
     );
     notifyListeners();
 
+    _duckOwner++;
     await soundBed.restore();
-    if (!_state.guideEnabled) return;
-    await narration.speak(currentPhrase, speed: _state.speed);
+    await _speakGuided(_epoch);
   }
 
   /// Pauses deliberately. Sound stops at once.
@@ -418,9 +438,7 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
       );
       if (!_isCurrent(epoch)) return;
     }
-    if (_state.guideEnabled) {
-      await narration.speak(currentPhrase, speed: _state.speed);
-    }
+    await _speakGuided(epoch);
   }
 
   /// Stops sound for an interruption, navigation away, or backgrounding.
@@ -497,11 +515,37 @@ class AffirmationPrayerSessionController extends ChangeNotifier {
     await _save(session);
   }
 
+  /// Reads the phrase with the chosen bed lowered beneath it.
+  ///
+  /// The bed is ducked, not silenced: the guide and the music are heard at the
+  /// same time, with the music underneath. The one `duck`/`restore` pair the
+  /// practice already had for a focused pause is the pair used here, so there is
+  /// one mechanism with two reasons rather than two mechanisms.
+  ///
+  /// [epoch] is captured so a restore cannot raise the level after the session
+  /// has moved on — a pause, an interruption, or a different bed.
+  Future<void> _speakGuided(int epoch) async {
+    if (!_state.guideEnabled) return;
+
+    final ducking = _state.soundKey != null;
+    final owner = ++_duckOwner;
+    if (ducking) await soundBed.duck();
+    try {
+      await narration.speak(currentPhrase, speed: _state.speed);
+    } finally {
+      if (ducking && _isCurrent(epoch) && _duckOwner == owner) {
+        await soundBed.restore();
+      }
+    }
+  }
+
   Future<void> _stopNarration() async {
     await narration.stop();
   }
 
   Future<void> _stopAudio() async {
+    // Nothing is playing, so nothing owns a ducked level any more.
+    _duckOwner++;
     await narration.stop();
     await soundBed.stop();
     await awake.setEnabled(false);

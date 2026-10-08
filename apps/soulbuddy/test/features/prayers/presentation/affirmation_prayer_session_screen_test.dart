@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/application/meditation_sound_preferences.dart';
 import 'package:soulbuddy/features/prayers/domain/affirmation_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/meditation_session.dart';
+import 'package:soulbuddy/features/prayers/domain/worship_sound_bed.dart';
 import 'package:soulbuddy/features/prayers/presentation/affirmation_prayer_session_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_release_providers.dart';
 
@@ -164,7 +166,7 @@ void main() {
   });
 
   group('setup', () {
-    testWidgets('presents both sound families as a quiet choice', (
+    testWidgets('presents all three sound families as a quiet choice', (
       tester,
     ) async {
       await pumpSession(tester, child: buildScreen());
@@ -172,9 +174,17 @@ void main() {
 
       expect(find.text('Creation sounds'), findsOneWidget);
       expect(find.text('Quiet instrumental music'), findsOneWidget);
+      expect(find.text('Quiet worship music'), findsOneWidget);
       expect(
         find.textContaining('help you settle into quiet attention'),
         findsOneWidget,
+      );
+      // The weekly release's grouping is still described the same way, with
+      // worship added to it rather than replacing it.
+      expect(
+        find.textContaining('Quiet instrumental music'),
+        findsNWidgets(2),
+        reason: 'the sentence names it and the family heading labels it',
       );
 
       for (final label in [
@@ -186,6 +196,136 @@ void main() {
       ]) {
         expect(find.text(label), findsOneWidget);
       }
+    });
+
+    testWidgets('offers two worship arrangements under plain names', (
+      tester,
+    ) async {
+      await pumpSession(tester, child: buildScreen());
+      await skipToSetup(tester);
+      await reveal(tester, find.text('Quiet worship music'));
+
+      expect(
+        find.byKey(const Key('attention-prayer-sound-tenThousandReasons')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('attention-prayer-sound-animaChristi')),
+        findsOneWidget,
+      );
+      expect(find.text('10,000 Reasons'), findsOneWidget);
+      expect(find.text('Anima Christi'), findsOneWidget);
+    });
+
+    testWidgets('the worship grouping avoids gamified and clinical words', (
+      tester,
+    ) async {
+      // Checked where the worship labels are actually on screen, since that is
+      // the copy this change added.
+      await pumpSession(tester, child: buildScreen());
+      await skipToSetup(tester);
+      await reveal(tester, find.text('Quiet worship music'));
+
+      for (final forbidden in [
+        'affirmation',
+        'subconscious',
+        'theta',
+        'rewire',
+        'streak',
+        'achievement',
+        'habit score',
+      ]) {
+        expect(
+          find.textContaining(forbidden, findRichText: true),
+          findsNothing,
+          reason: 'worship copy must not offer $forbidden',
+        );
+      }
+    });
+
+    testWidgets('starts no worship until it is chosen and prayer is begun', (
+      tester,
+    ) async {
+      await pumpSession(tester, child: buildScreen());
+      await skipToSetup(tester);
+      await reveal(
+        tester,
+        find.byKey(const Key('attention-prayer-sound-tenThousandReasons')),
+      );
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-sound-tenThousandReasons')),
+      );
+      await tester.pumpAndSettle();
+
+      // Opt in only: choosing worship still starts nothing.
+      expect(bed.playing, isNull);
+
+      await beginPrayer(tester);
+
+      expect(bed.playing, 'tenThousandReasons');
+      // Each arrangement carries the level it was chosen at, chosen against
+      // the file's own loudness.
+      expect(
+        bed.volume,
+        closeTo(WorshipSoundBed.tenThousandReasons.preferredVolume, 1e-9),
+      );
+    });
+
+    // One test per arrangement, so each is chosen from a fresh session in which
+    // prayer has not started and nothing is playing.
+    for (final worship in WorshipSoundBed.values) {
+      testWidgets('${worship.label} plays at its own level', (tester) async {
+        await pumpSession(tester, child: buildScreen());
+        await skipToSetup(tester);
+        await reveal(
+          tester,
+          find.byKey(Key('attention-prayer-sound-${worship.key}')),
+        );
+        await tester.tap(
+          find.byKey(Key('attention-prayer-sound-${worship.key}')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(bed.playing, isNull, reason: 'nothing sounds until begun');
+        await beginPrayer(tester);
+
+        expect(bed.playing, worship.key);
+        expect(bed.volume, closeTo(worship.preferredVolume, 1e-9));
+      });
+    }
+
+    testWidgets('choosing worship leaves the shared ambient choice alone', (
+      tester,
+    ) async {
+      // Someone who set a bed for formation reading keeps it. Worship is
+      // stored in its own slot precisely so the two never overwrite each other.
+      String? stored;
+      soundPreferences = MeditationSoundPreferencesRepository(
+        read: (_) async => stored,
+        write: (_, value) async => stored = value,
+      );
+      await soundPreferences.save(
+        const MeditationSoundPreferences(
+          sound: MeditationSoundBed.flowingWater,
+          volume: .18,
+        ),
+      );
+
+      await pumpSession(tester, child: buildScreen());
+      await skipToSetup(tester);
+      await reveal(
+        tester,
+        find.byKey(const Key('attention-prayer-sound-tenThousandReasons')),
+      );
+      await tester.tap(
+        find.byKey(const Key('attention-prayer-sound-tenThousandReasons')),
+      );
+      await tester.pumpAndSettle();
+
+      final saved = await soundPreferences.load();
+      expect(saved.sound, MeditationSoundBed.flowingWater);
+      expect(saved.volume, .18);
+      expect(saved.worship?.sound, WorshipSoundBed.tenThousandReasons);
     });
 
     testWidgets('offers only the four approved paces, defaulting to 0.85x', (
@@ -287,14 +427,17 @@ void main() {
 
       expect(find.text('Gather your thoughts before God'), findsOneWidget);
       expect(find.text('10 of 50'), findsOneWidget);
-      expect(bed.duckCount, 1);
+      // Once for the guide reading the phrase on begin, once for the pause.
+      expect(bed.duckCount, 2);
       // The chosen bed is lowered, never gone.
       expect(bed.playing, 'gentleRain');
 
       await tester.tap(find.byKey(const Key('attention-prayer-group-resume')));
       await tester.pumpAndSettle();
       expect(find.text(stepOnePhrase), findsOneWidget);
-      expect(bed.restoreCount, 1);
+      // Restored for the pause, then ducked again for the phrase the guide
+      // reads on leaving it, then restored when that reading ends.
+      expect(bed.restoreCount, 3);
     });
 
     testWidgets('moves to the second phrase after fifty repetitions', (

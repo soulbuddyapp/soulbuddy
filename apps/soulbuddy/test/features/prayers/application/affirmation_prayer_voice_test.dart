@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import 'package:soulbuddy/features/prayers/application/affirmation_prayer_audio.
 import 'package:soulbuddy/features/prayers/application/affirmation_prayer_session_controller.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_release_narration_repository.dart';
 import 'package:soulbuddy/features/prayers/domain/affirmation_prayer.dart';
+import 'package:soulbuddy/features/prayers/domain/worship_sound_bed.dart';
 
 import '../../../helpers/prayer_release_fixtures.dart';
 import '../application/affirmation_prayer_session_controller_test.dart'
@@ -25,11 +27,15 @@ class _FakeAudioPlayer implements AudioPlayer {
   final played = <Object?>[];
   final volumes = <double>[];
   final rates = <double>[];
+  final completions = StreamController<void>.broadcast();
   var stops = 0;
   var requestedReleaseMode = ReleaseMode.stop;
 
   @override
   ReleaseMode get releaseMode => requestedReleaseMode;
+
+  @override
+  Stream<void> get onPlayerComplete => completions.stream;
 
   @override
   Future<void> play(
@@ -41,6 +47,9 @@ class _FakeAudioPlayer implements AudioPlayer {
     PlayerMode? mode,
   }) async {
     played.add(source);
+    // A real player reports finishing once its audio has run out; the guide's
+    // read ends on that event, so the fake has to raise it too.
+    completions.add(null);
   }
 
   @override
@@ -64,7 +73,7 @@ class _FakeAudioPlayer implements AudioPlayer {
   }
 
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async => completions.close();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -319,6 +328,145 @@ void main() {
       await bed.start(soundKey: 'not_a_real_bed', volume: .2);
 
       expect(audio.played, isEmpty);
+    });
+
+    test('plays a worship arrangement instead of looping it', () async {
+      final audio = _FakeAudioPlayer();
+      addTearDown(audio.dispose);
+      final bed = AffirmationPrayerBedPlayer(player: audio);
+      addTearDown(bed.dispose);
+
+      await bed.start(soundKey: 'tenThousandReasons', volume: .2);
+
+      expect(audio.played, hasLength(1));
+      // A whole song ends. Looping it would replay a chorus nobody asked for.
+      expect(audio.requestedReleaseMode, ReleaseMode.release);
+    });
+
+    test(
+      'fades a worship arrangement out at its end rather than cutting',
+      () async {
+        final audio = _FakeAudioPlayer();
+        addTearDown(audio.dispose);
+        final waits = <Duration>[];
+        final bed = AffirmationPrayerBedPlayer(
+          player: audio,
+          fadeSteps: 4,
+          fadeStep: const Duration(milliseconds: 100),
+          // The wait is recorded instead of elapsed, so the fade's shape is
+          // checked without waiting out a real song.
+          delay: (duration) async => waits.add(duration),
+        );
+        addTearDown(bed.dispose);
+
+        await bed.start(soundKey: 'tenThousandReasons', volume: .2);
+        final afterStart = audio.volumes.length;
+        // The fade is scheduled behind the start, so let its steps run. Every
+        // wait is recorded rather than elapsed, so nothing real is waited out.
+        await Future<void>.delayed(Duration.zero);
+
+        // Four hundred milliseconds of fade, scheduled so it begins at the very
+        // end of the arrangement and not a moment after it.
+        expect(
+          waits.first,
+          WorshipSoundBed.tenThousandReasons.duration -
+              const Duration(milliseconds: 400),
+        );
+        // Three further waits separate the four steps.
+        expect(waits.skip(1), everyElement(const Duration(milliseconds: 100)));
+        expect(waits, hasLength(4));
+
+        final fade = audio.volumes.sublist(afterStart);
+        expect(fade, hasLength(4));
+        expect(fade, [
+          closeTo(0.15, 1e-9),
+          closeTo(0.10, 1e-9),
+          closeTo(0.05, 1e-9),
+          closeTo(0.0, 1e-9),
+        ]);
+        // Monotonic and never negative: the song gets quieter, it is not muted
+        // partway and then brought back.
+        expect(
+          fade,
+          orderedEquals(List.of(fade)..sort((a, b) => b.compareTo(a))),
+        );
+        expect(fade.every((level) => level >= 0), isTrue);
+      },
+    );
+
+    test('stopping during a worship arrangement cancels its fade', () async {
+      final audio = _FakeAudioPlayer();
+      addTearDown(audio.dispose);
+      final gate = Completer<void>();
+      var waits = 0;
+      final bed = AffirmationPrayerBedPlayer(
+        player: audio,
+        fadeSteps: 6,
+        fadeStep: const Duration(milliseconds: 100),
+        delay: (_) async {
+          waits++;
+          if (waits == 1) await gate.future;
+        },
+      );
+      addTearDown(bed.dispose);
+
+      await bed.start(soundKey: 'animaChristi', volume: .1);
+      final beforeStop = audio.volumes.length;
+
+      final stopping = bed.stop();
+      gate.complete();
+      await stopping;
+
+      // No fade steps were applied to a bed that is no longer playing.
+      expect(audio.volumes.length, beforeStop);
+    });
+
+    test('an ambient bed still loops, so its fade never runs', () async {
+      final audio = _FakeAudioPlayer();
+      addTearDown(audio.dispose);
+      final waits = <Duration>[];
+      final bed = AffirmationPrayerBedPlayer(
+        player: audio,
+        delay: (duration) async => waits.add(duration),
+      );
+      addTearDown(bed.dispose);
+
+      await bed.start(soundKey: 'oceanWaves', volume: .15);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(audio.requestedReleaseMode, ReleaseMode.loop);
+      expect(waits, isEmpty);
+    });
+
+    test('a guide read ends when it is stopped, not left hanging', () async {
+      final audio = _FakeAudioPlayer();
+      addTearDown(audio.dispose);
+      late final AffirmationPrayerVoice voice;
+      voice = AffirmationPrayerVoice(
+        speakPhrase: (phrase, speed) async =>
+            voice.playAsset(Uint8List.fromList([1, 2, 3]), speed: speed),
+        player: audio,
+      );
+      addTearDown(voice.dispose);
+
+      // A platform that never reports completion must not leave the bed ducked
+      // for the rest of the prayer, so a stop ends the read too.
+      final speaking = voice.speak('a phrase', speed: .85);
+      await voice.stop();
+      await speaking.timeout(const Duration(seconds: 1));
+    });
+
+    test('ducking with nothing playing leaves the level alone', () async {
+      final audio = _FakeAudioPlayer();
+      addTearDown(audio.dispose);
+      final bed = AffirmationPrayerBedPlayer(player: audio);
+      addTearDown(bed.dispose);
+
+      // Duck used to fall back to the narration default, which is a speed.
+      // With no bed playing there is no level to lower.
+      await bed.duck();
+
+      expect(audio.volumes, isEmpty);
     });
   });
 

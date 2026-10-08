@@ -13,6 +13,7 @@ import '../application/meditation_sound_preferences.dart';
 import '../data/prayer_release_repository.dart';
 import '../domain/affirmation_prayer.dart';
 import '../domain/meditation_session.dart';
+import '../domain/worship_sound_bed.dart';
 import '../providers/prayer_release_providers.dart';
 
 /// A counted Prayer of attention for the release item that carries the
@@ -117,14 +118,26 @@ class _AffirmationPrayerSessionScreenState
     );
   }
 
-  /// Applies the saved meditation sound preference, if it is one this flow
-  /// offers. Nothing here starts sound.
+  /// Applies the saved prayer sound preference, if it is one this flow offers.
+  /// Nothing here starts sound.
+  ///
+  /// Worship is restored only from its own slot. It is never read back out of
+  /// the shared ambient slot, so a worship choice made here cannot reach any
+  /// surface that offers `MeditationSoundPicker`.
   Future<void> _restoreSoundPreference() async {
     try {
       final preferences = await _soundPreferences().load();
+      final worship = preferences.worship;
+      if (worship != null) {
+        await _session.setSound(
+          soundKey: worship.sound.key,
+          volume: worship.volume,
+        );
+        return;
+      }
       final bed = preferences.sound;
       if (bed == null || !_allowed(bed)) return;
-      await _session.setSound(soundKey: bed.name, volume: preferences.volume);
+      await _session.setSound(soundKey: bed.key, volume: preferences.volume);
     } catch (_) {
       // A preference that cannot be read simply leaves the silence default.
     }
@@ -139,10 +152,31 @@ class _AffirmationPrayerSessionScreenState
   MeditationSoundPreferencesRepository _soundPreferences() =>
       widget.soundPreferences ?? ref.read(meditationSoundPreferencesProvider);
 
-  Future<void> _saveSound(MeditationSoundBed? bed, double volume) async {
-    await _session.setSound(soundKey: bed?.name, volume: volume);
+  /// Saves the chosen bed to the slot that owns it, so the shared ambient slot
+  /// is left exactly as the seven other surfaces expect to find it.
+  Future<void> _saveSound(PrayerSoundBed? bed, double volume) async {
+    await _session.setSound(soundKey: bed?.key, volume: volume);
+    final preferences = await _soundPreferences().load();
+    final next = preferences;
+    if (bed is WorshipSoundBed) {
+      await _soundPreferences().save(
+        MeditationSoundPreferences(
+          // The shared ambient choice is left exactly as it was: worship is
+          // this practice's own, and writing it into the ambient slot would
+          // hand a worship asset to the seven surfaces that read that slot.
+          sound: next.sound,
+          volume: next.volume,
+          worship: WorshipSoundPreference(sound: bed, volume: volume),
+        ),
+      );
+      return;
+    }
     await _soundPreferences().save(
-      MeditationSoundPreferences(sound: bed, volume: volume),
+      MeditationSoundPreferences(
+        sound: bed is MeditationSoundBed ? bed : null,
+        volume: volume,
+        worship: next.worship,
+      ),
     );
   }
 
@@ -308,7 +342,7 @@ class _SetupView extends StatelessWidget {
   final bool started;
   final Future<void> Function() onBegin;
   final Future<void> Function() onResume;
-  final Future<void> Function(MeditationSoundBed? bed, double volume)
+  final Future<void> Function(PrayerSoundBed? bed, double volume)
   onSoundChanged;
 
   @override
@@ -317,8 +351,9 @@ class _SetupView extends StatelessWidget {
     final theme = Theme.of(context);
     var selected = state.soundKey == null
         ? null
-        : MeditationSoundBed.values
-              .where((bed) => bed.name == state.soundKey)
+        : AffirmationPrayerSoundFamily.values
+              .expand((family) => family.sounds)
+              .where((bed) => bed.key == state.soundKey)
               .firstOrNull;
 
     return ListView(
@@ -328,7 +363,8 @@ class _SetupView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         Text(
           'Creation sounds can help you settle into quiet attention. '
-          'Quiet instrumental music is offered the same way.',
+          'Quiet instrumental music and quiet worship music are offered the '
+          'same way.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -343,10 +379,13 @@ class _SetupView extends StatelessWidget {
             children: [
               for (final bed in family.sounds)
                 ChoiceChip(
-                  key: Key('attention-prayer-sound-${bed.name}'),
+                  key: Key('attention-prayer-sound-${bed.key}'),
                   label: Text(bed.label),
                   selected: selected == bed,
-                  onSelected: (_) => onSoundChanged(bed, state.soundVolume),
+                  onSelected: (_) => onSoundChanged(
+                    bed,
+                    family.levelFor(bed, state.soundVolume),
+                  ),
                 ),
             ],
           ),

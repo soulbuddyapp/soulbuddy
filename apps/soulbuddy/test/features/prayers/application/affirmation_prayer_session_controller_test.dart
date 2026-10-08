@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/application/affirmation_prayer_session_controller.dart';
 import 'package:soulbuddy/features/prayers/domain/affirmation_prayer.dart';
@@ -42,29 +44,107 @@ class FakeSoundBed implements AffirmationPrayerSoundBed {
   var duckCount = 0;
   var restoreCount = 0;
   var stopCount = 0;
+  double? _chosen;
 
   @override
   Future<void> start({required String soundKey, required double volume}) async {
     playing = soundKey;
+    _chosen = volume;
     this.volume = volume;
   }
 
   @override
   Future<void> duck() async {
     duckCount++;
-    volume = (volume ?? .15) * .4;
+    volume = (_chosen ?? .15) * .4;
   }
 
   @override
   Future<void> restore() async {
     restoreCount++;
-    volume = .15;
+    volume = _chosen ?? .15;
   }
 
   @override
   Future<void> stop() async {
     stopCount++;
     playing = null;
+  }
+
+  @override
+  void dispose() {}
+}
+
+/// Records the actual level asked for, so a duck can be shown to be a
+/// reduction rather than a mute.
+class _RecordingSoundBed implements AffirmationPrayerSoundBed {
+  String? playing;
+  double? volume;
+  final levels = <double>[];
+  var stopCount = 0;
+  double? _chosen;
+
+  @override
+  Future<void> start({required String soundKey, required double volume}) async {
+    playing = soundKey;
+    _chosen = volume;
+    volume = volume;
+    levels.add(volume);
+  }
+
+  @override
+  Future<void> duck() async {
+    // The same arithmetic the real bed player uses: a fixed fraction of the
+    // chosen level, so a duck is always a reduction and never a mute.
+    final ducked = (_chosen ?? .15) * .4;
+    volume = ducked;
+    levels.add(ducked);
+  }
+
+  @override
+  Future<void> restore() async {
+    final chosen = _chosen;
+    if (chosen == null) return;
+    volume = chosen;
+    levels.add(chosen);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCount++;
+    playing = null;
+    _chosen = null;
+  }
+
+  @override
+  void dispose() {}
+}
+
+/// A guide that keeps reading until the test releases it.
+class _BlockingNarration implements AffirmationPrayerNarrationPlayer {
+  final reading = Completer<void>();
+  final _released = Completer<void>();
+  var stopCount = 0;
+
+  @override
+  Future<void> speak(String phrase, {required double speed}) async {
+    reading.complete();
+    await _released.future;
+  }
+
+  @override
+  Future<void> repeat(String phrase, {required double speed}) =>
+      speak(phrase, speed: speed);
+
+  @override
+  Future<void> stop() async {
+    stopCount++;
+    release();
+  }
+
+  /// Lets a blocked read finish.
+  void release() {
+    if (!_released.isCompleted) _released.complete();
   }
 
   @override
@@ -307,6 +387,9 @@ void main() {
 
     test('ducks the chosen bed for every group of ten', () async {
       final controller = buildController();
+      // The guide's own readings are ducked on the same mechanism, so it is
+      // switched off here to count only the group boundaries.
+      await controller.setGuideEnabled(false);
       await controller.setSound(soundKey: 'ocean_waves', volume: .15);
       await controller.begin();
 
@@ -320,6 +403,95 @@ void main() {
       expect(controller.state.stepOneCount, 20);
       expect(bed.duckCount, 2);
     });
+
+    test('ducks under the spoken prayer without silencing the bed', () async {
+      final controller = buildController();
+      await controller.setSound(soundKey: 'tenThousandReasons', volume: .20);
+
+      await controller.begin();
+
+      // The guide read the phrase, so the bed was lowered for it and then put
+      // back — one pair, on the existing duck/restore mechanism.
+      expect(bed.duckCount, 1);
+      expect(bed.restoreCount, 1);
+      expect(
+        bed.playing,
+        'tenThousandReasons',
+        reason: 'the bed keeps playing',
+      );
+      expect(bed.volume, closeTo(.20, .001));
+
+      await controller.hearAgain();
+
+      expect(bed.duckCount, 2, reason: 'a repeat is ducked the same way');
+      expect(bed.restoreCount, 2);
+      expect(bed.volume, closeTo(.20, .001));
+    });
+
+    test('leaves the bed ducked, not silenced, under the guide', () async {
+      final bed = _RecordingSoundBed();
+      final controller = AffirmationPrayerSessionController(
+        profile: buildProfile(),
+        releaseItemId: 'release-item-3',
+        sessionId: 'session-1',
+        narration: narration,
+        soundBed: bed,
+        awake: awake,
+        saveSession: () => sessions,
+        now: () => DateTime.utc(2026, 10, 6, 9),
+      );
+      addTearDown(controller.dispose);
+
+      await controller.setSound(soundKey: 'tenThousandReasons', volume: .20);
+      await controller.begin();
+
+      // While the guide reads, the bed is audible and simply lower. Silence
+      // would be `0`; a duck is a reduction.
+      expect(bed.levels, [0.20, closeTo(0.08, 1e-9), closeTo(0.20, 1e-9)]);
+      expect(bed.levels.every((level) => level > 0), isTrue);
+    });
+
+    test(
+      'a pause keeps the bed ducked after the guide stops mid-phrase',
+      () async {
+        final bed = _RecordingSoundBed();
+        final narration = _BlockingNarration();
+        final controller = AffirmationPrayerSessionController(
+          profile: buildProfile(),
+          releaseItemId: 'release-item-3',
+          sessionId: 'session-1',
+          narration: narration,
+          soundBed: bed,
+          awake: awake,
+          saveSession: () => sessions,
+          now: () => DateTime.utc(2026, 10, 6, 9),
+        );
+        addTearDown(controller.dispose);
+
+        await controller.setSound(soundKey: 'tenThousandReasons', volume: .20);
+        final begun = controller.begin();
+        await narration.reading.future;
+
+        // The guide is still reading when the tenth repetition arrives, so the
+        // group boundary and the guide's own duck land at the same moment.
+        for (var index = 0; index < 10; index++) {
+          await controller.confirmSpoken();
+        }
+        expect(controller.state.phase, AffirmationPrayerPhase.groupPause);
+
+        await controller.pause();
+        await begun;
+
+        // The bed was lowered for the guide, lowered again by the pause, and
+        // never raised: the pause owns the ducked level, so the guide's own
+        // restore does not lift it on the way out. Every level asked for is
+        // above zero, because a duck is a reduction and never a mute.
+        expect(bed.levels.first, closeTo(0.20, 1e-9));
+        expect(bed.levels.skip(1), everyElement(closeTo(0.08, 1e-9)));
+        expect(bed.levels.every((level) => level > 0), isTrue);
+        expect(bed.playing, isNull);
+      },
+    );
   });
 
   group('step transition', () {
