@@ -143,8 +143,14 @@ class PrayerReleaseDeliveryService
         $firstDelivery = $weeklyDelivery->greaterThan($published)
             ? $weeklyDelivery
             : $published;
+        $localNow = $now->copy()->setTimezone($timeZone);
 
-        return $now->copy()->utc()->greaterThanOrEqualTo($firstDelivery);
+        // A late scheduler can still reach the person during the release week,
+        // but a later opt-in must not revive a past weekly collection.
+        return $now->copy()->utc()->greaterThanOrEqualTo($firstDelivery)
+            && $localNow->startOfWeek(Carbon::MONDAY)->isSameDay(
+                $weeklyDelivery->copy()->startOfWeek(Carbon::MONDAY),
+            );
     }
 
     /**

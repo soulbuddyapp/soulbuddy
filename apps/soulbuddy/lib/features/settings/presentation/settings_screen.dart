@@ -412,7 +412,7 @@ class _SoundTouchSettings extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Choose how SoulBuddy confirms actions on this device.',
+          'Gentle feedback for this device.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
@@ -464,9 +464,7 @@ class _SoundTouchSettings extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Prayer narration is separate from feedback sounds. It can play only '
-          'after you opt in for a saved prayer and open its reminder; system '
-          'notifications remain silent.',
+          'Prayer narration plays only with consent. System notifications stay silent.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),

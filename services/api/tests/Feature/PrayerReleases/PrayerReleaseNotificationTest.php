@@ -316,13 +316,13 @@ it('does not backfill a release whose week has already passed', function () {
     // Two weeks after publication, and again on the next Monday.
     $this->travelTo(now()->setDate(2026, 10, 19)->setTime(8, 0)->utc());
     expect(Artisan::call('prayer-releases:notify'))->toBe(0);
-    expect(PrayerReleaseDelivery::query()->count())->toBe(1)
-        ->and($sent->count())->toBe(1);
+    expect(PrayerReleaseDelivery::query()->count())->toBe(0)
+        ->and($sent->count())->toBe(0);
 
     $this->travelTo(now()->setDate(2026, 10, 26)->setTime(8, 0)->utc());
     expect(Artisan::call('prayer-releases:notify'))->toBe(0);
-    expect(PrayerReleaseDelivery::query()->count())->toBe(1)
-        ->and($sent->count())->toBe(1);
+    expect(PrayerReleaseDelivery::query()->count())->toBe(0)
+        ->and($sent->count())->toBe(0);
 });
 
 it('waits for the release own publication before any notice', function () {

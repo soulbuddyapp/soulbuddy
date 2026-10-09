@@ -41,9 +41,10 @@ void main() {
 
     await tester.dragUntilVisible(
       find.text('Privacy policy'),
-      find.byType(Scrollable),
+      find.byType(Scrollable).first,
       const Offset(0, -160),
     );
+    await _show(tester, find.text('Privacy policy'));
     await tester.tap(find.text('Privacy policy'));
     await tester.pumpAndSettle();
 
@@ -75,15 +76,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await _show(tester, find.text('Sound & touch'));
     expect(find.text('Sound & touch'), findsOneWidget);
     expect(_switch(tester, 'Haptics').value, isTrue);
     expect(_switch(tester, 'In-app sounds').value, isTrue);
     expect(_switch(tester, 'Reduce motion').value, isFalse);
 
+    await _show(tester, find.text('Haptics'));
     await tester.tap(find.text('Haptics'));
     await tester.pumpAndSettle();
+    await _show(tester, find.text('In-app sounds'));
     await tester.tap(find.text('In-app sounds'));
     await tester.pumpAndSettle();
+    await _show(tester, find.text('Reduce motion'));
     await tester.tap(find.text('Reduce motion'));
     await tester.pumpAndSettle();
 
@@ -114,7 +119,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Test feedback'));
+    await _show(tester, find.text('Test feedback'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Test feedback'));
     await tester.pumpAndSettle();
@@ -163,10 +168,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Test feedback'));
+    await _show(tester, find.text('Test feedback'));
     await tester.pumpAndSettle();
     expect(find.text('Test feedback').hitTestable(), findsOneWidget);
   });
+}
+
+Future<void> _show(WidgetTester tester, Finder target) async {
+  for (var attempt = 0; attempt < 12; attempt++) {
+    if (target.hitTestable().evaluate().isNotEmpty) return;
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -220));
+    await tester.pumpAndSettle();
+  }
+  expect(target.hitTestable(), findsOneWidget);
 }
 
 Switch _switch(WidgetTester tester, String title) {

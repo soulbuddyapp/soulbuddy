@@ -176,16 +176,14 @@ void main() {
       expect(find.text('Quiet instrumental music'), findsOneWidget);
       expect(find.text('Quiet worship music'), findsOneWidget);
       expect(
-        find.textContaining('help you settle into quiet attention'),
+        find.text(
+          'Creation sounds for quiet attention. Quiet instrumental and worship music.',
+        ),
         findsOneWidget,
       );
       // The weekly release's grouping is still described the same way, with
       // worship added to it rather than replacing it.
-      expect(
-        find.textContaining('Quiet instrumental music'),
-        findsNWidgets(2),
-        reason: 'the sentence names it and the family heading labels it',
-      );
+      expect(find.text('Quiet instrumental music'), findsOneWidget);
 
       for (final label in [
         'Ocean waves',

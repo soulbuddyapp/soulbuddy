@@ -362,9 +362,8 @@ class _SetupView extends StatelessWidget {
         Text(AffirmationPrayerWords.setup, style: theme.textTheme.titleMedium),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'Creation sounds can help you settle into quiet attention. '
-          'Quiet instrumental music and quiet worship music are offered the '
-          'same way.',
+          'Creation sounds for quiet attention. '
+          'Quiet instrumental and worship music.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -406,7 +405,7 @@ class _SetupView extends StatelessWidget {
           value: state.guideEnabled,
           onChanged: (value) => unawaited(session.setGuideEnabled(value)),
           title: const Text('Speak the words'),
-          subtitle: const Text('Reads each phrase once, then waits for you.'),
+          subtitle: const Text('Exact words at the chosen pace.'),
         ),
         const SizedBox(height: AppSpacing.md),
         Text('Voice speed', style: theme.textTheme.labelLarge),
@@ -659,8 +658,8 @@ class _CompletionView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         Text(
           state.saved
-              ? 'Your repetitions are recorded.'
-              : 'Your repetitions are recorded on this device.',
+              ? 'Prayer session saved.'
+              : 'Prayer session complete.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
