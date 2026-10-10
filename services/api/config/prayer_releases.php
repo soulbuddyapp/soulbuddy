@@ -16,4 +16,9 @@ return [
 
     'published_at' => env('PRAYER_RELEASE_PUBLISHED_AT', '2026-10-05 07:00:00'),
 
+    'holy_spirit_published_at' => env(
+        'HOLY_SPIRIT_PRAYER_RELEASE_PUBLISHED_AT',
+        '2026-10-10 07:00:00',
+    ),
+
 ];

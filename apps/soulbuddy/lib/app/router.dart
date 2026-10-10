@@ -344,6 +344,12 @@ final GoRouter appRouter = GoRouter(
                     child: ScripturePassageScreen(
                       book: state.pathParameters['book']!,
                       chapter: int.parse(state.pathParameters['chapter']!),
+                      firstVerse: int.tryParse(
+                        state.uri.queryParameters['firstVerse'] ?? '',
+                      ),
+                      lastVerse: int.tryParse(
+                        state.uri.queryParameters['lastVerse'] ?? '',
+                      ),
                     ),
                   ),
                 ),

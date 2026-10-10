@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
+import 'package:soulbuddy/features/prayers/application/prayer_narration_player.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
@@ -105,6 +106,24 @@ void main() {
     expect(playbackCalls, 1);
     expect(actionCalls, 0);
   });
+
+  testWidgets(
+    'reads an uncached prayer on this device when natural narration is unavailable',
+    (tester) async {
+      final player = _TextRecordingPlayer();
+      await tester.pumpWidget(_app(_occurrence(), player: player));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Play prayer'));
+      await tester.pumpAndSettle();
+
+      expect(player.spoken, ['Father, keep this private body hidden.']);
+      expect(
+        find.text('Prayer narration is unavailable just now.'),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('dismiss is kept in the overflow menu', (tester) async {
     final actions = <PrayerReminderAction>[];
@@ -463,30 +482,26 @@ void main() {
     expect(find.text('Play prayer'), findsOneWidget);
   });
 
-  testWidgets('offers no listening when narration cannot be obtained', (
+  testWidgets(
+    'offers device reading when a prayer is too long for the natural-voice cache',
+    (tester) async {
+      await tester.pumpWidget(_app(_occurrenceWith(body: _longPrayerBody(40))));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Read in full'), findsOneWidget);
+      expect(find.text('Play prayer'), findsOneWidget);
+    },
+  );
+
+  testWidgets('reads the prayer immediately and records no session', (
     tester,
   ) async {
-    await tester.pumpWidget(_app(_occurrenceWith(body: _longPrayerBody(40))));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Read in full'), findsOneWidget);
-    expect(find.text('Play prayer'), findsNothing);
-  });
-
-  testWidgets('hears the prayer on demand and records no session', (
-    tester,
-  ) async {
-    final requests = <({String revisionId, bool consent})>[];
+    final player = _TextRecordingPlayer();
     var actionCalls = 0;
     await tester.pumpWidget(
       _app(
         _occurrence(),
-        prepareNarration: (occurrence, {required consentAccepted}) async {
-          requests.add((
-            revisionId: occurrence.prayerRevisionId,
-            consent: consentAccepted,
-          ));
-        },
+        player: player,
         perform: (value, action) async {
           actionCalls++;
           return null;
@@ -495,45 +510,37 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Nothing has been cached, so the first tap asks for consent first.
     await tester.tap(find.text('Play prayer'));
     await tester.pumpAndSettle();
-    expect(requests, isEmpty);
-    expect(
-      find.text(
-        'Prayer narration uses Deepgram to create a private cached reading of this saved prayer.',
-      ),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('Accept and prepare'));
-    await tester.pumpAndSettle();
-
-    expect(requests, [(revisionId: 'revision-1', consent: true)]);
+    expect(player.spoken, ['Father, keep this private body hidden.']);
     // Playback alone never writes a prayer session.
     expect(actionCalls, 0);
   });
 
-  testWidgets('declining the disclosure requests nothing', (tester) async {
-    var requests = 0;
-    await tester.pumpWidget(
-      _app(
-        _occurrence(),
-        prepareNarration: (occurrence, {required consentAccepted}) async {
-          requests++;
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'does not request the natural-voice cache without existing consent',
+    (tester) async {
+      var requests = 0;
+      final player = _TextRecordingPlayer();
+      await tester.pumpWidget(
+        _app(
+          _occurrence(),
+          prepareNarration: (occurrence, {required consentAccepted}) async {
+            requests++;
+          },
+          player: player,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Play prayer'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Not now'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Play prayer'));
+      await tester.pumpAndSettle();
 
-    expect(requests, 0);
-    expect(find.text('Play prayer'), findsOneWidget);
-  });
+      expect(requests, 0);
+      expect(player.spoken, isNotEmpty);
+      expect(find.text('Play prayer'), findsOneWidget);
+    },
+  );
 
   testWidgets('shows progress and asks once while narration is requested', (
     tester,
@@ -576,6 +583,7 @@ Widget _app(
   Future<void> Function(String)? retract,
   Future<void> Function(DuePrayerOccurrence, {required bool consentAccepted})?
   prepareNarration,
+  PrayerNarrationPlayer? player,
   List<DuePrayerOccurrence>? initialOccurrences,
   PlatformFeedbackDriver? driver,
 }) => ProviderScope(
@@ -598,6 +606,7 @@ Widget _app(
       prepareAndPlayReminderNarrationProvider.overrideWithValue(
         prepareNarration,
       ),
+    if (player != null) prayerNarrationPlayerProvider.overrideWithValue(player),
   ],
   child: MaterialApp(
     home: Scaffold(
@@ -615,6 +624,28 @@ Widget _app(
     ),
   ),
 );
+
+class _TextRecordingPlayer implements PrayerNarrationPlayer {
+  final spoken = <String>[];
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> play(List<int> bytes) async {}
+
+  @override
+  Future<void> playText(String text) async => spoken.add(text);
+
+  @override
+  Future<void> resume() async {}
+
+  @override
+  Future<void> stop() async {}
+}
 
 /// The card on its own, for the parts that are only about how it renders.
 Widget _card(DuePrayerOccurrence occurrence, {bool reduceMotion = false}) =>

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../application/person_prayer_guide.dart';
 import '../domain/prayer_person.dart';
 import '../providers/person_providers.dart';
 
@@ -89,9 +90,9 @@ class _PersonDetail extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xl),
                 FilledButton.icon(
                   key: const Key('prayed-for-person'),
-                  onPressed: () => _recordPrayer(context, ref),
-                  icon: const Icon(Icons.check),
-                  label: Text('I prayed for ${person.name}'),
+                  onPressed: () => _openPrayerGuide(context, ref),
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                  label: Text('Pray for ${person.name}'),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 OutlinedButton.icon(
@@ -181,6 +182,18 @@ class _PersonDetail extends ConsumerWidget {
     }
   }
 
+  Future<void> _openPrayerGuide(BuildContext context, WidgetRef ref) async {
+    final prayed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _PersonPrayerGuide(person: person),
+    );
+    if (prayed == true && context.mounted) {
+      await _recordPrayer(context, ref);
+    }
+  }
+
   Future<void> _archive(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -204,6 +217,72 @@ class _PersonDetail extends ConsumerWidget {
     await repository.archive(person.id);
     ref.invalidate(prayerPeopleProvider);
     if (context.mounted) context.go('/persons');
+  }
+}
+
+class _PersonPrayerGuide extends StatefulWidget {
+  const _PersonPrayerGuide({required this.person});
+
+  final PrayerPerson person;
+
+  @override
+  State<_PersonPrayerGuide> createState() => _PersonPrayerGuideState();
+}
+
+class _PersonPrayerGuideState extends State<_PersonPrayerGuide> {
+  late final TextEditingController _words = TextEditingController(
+    text: personPrayerGuide(widget.person.name),
+  );
+
+  @override
+  void dispose() {
+    _words.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.lg + inset,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Pray for ${widget.person.name}',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              key: const Key('person-prayer-guide-words'),
+              controller: _words,
+              minLines: 7,
+              maxLines: 12,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Prayer guide',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton.icon(
+              key: const Key('person-prayer-guide-complete'),
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.check),
+              label: Text('I prayed for ${widget.person.name}'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -330,6 +330,8 @@ class _RecordingPlayer implements PrayerNarrationPlayer {
   @override
   Future<void> play(Uint8List bytes) async => played.add(bytes);
   @override
+  Future<void> playText(String text) async {}
+  @override
   Future<void> pause() async {}
   @override
   Future<void> resume() async {}

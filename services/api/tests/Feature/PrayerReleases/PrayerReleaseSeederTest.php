@@ -123,16 +123,29 @@ it('never moves an existing publish date forward', function () {
         ->published_at?->toDateTimeString())->toBe('2026-09-28 07:00:00');
 });
 
-it('produces five links and no duplicates when the seeder runs twice', function () {
+it('publishes both collections without duplicates when the seeder runs twice', function () {
     seedRelease();
     $this->seed(PrayerReleaseSeeder::class);
     $this->seed(PrayerReleaseSeeder::class);
 
-    expect(PrayerRelease::query()->count())->toBe(1)
-        ->and(PrayerReleaseItem::query()->count())->toBe(5)
-        ->and(PrayerReleaseItem::query()->distinct()->count('release_id'))->toBe(1)
-        ->and(PrayerReleaseItem::query()->distinct()->count('library_prayer_id'))->toBe(5)
-        ->and(LibraryPrayer::query()->count())->toBe(5);
+    expect(PrayerRelease::query()->count())->toBe(2)
+        ->and(PrayerReleaseItem::query()->count())->toBe(9)
+        ->and(PrayerReleaseItem::query()->distinct()->count('release_id'))->toBe(2)
+        ->and(PrayerReleaseItem::query()->distinct()->count('library_prayer_id'))->toBe(9)
+        ->and(LibraryPrayer::query()->count())->toBe(9);
+});
+
+it('publishes an affirmative Holy Spirit collection with a structured prayer of attention', function () {
+    $this->seed(PrayerReleaseSeeder::class);
+
+    $release = PrayerRelease::query()
+        ->where('slug', PrayerReleaseSeeder::HOLY_SPIRIT_SLUG)
+        ->firstOrFail();
+
+    expect($release->title)->toBe('Holy Spirit & gifts for service')
+        ->and($release->items)->toHaveCount(4)
+        ->and($release->items->last()->kind)->toBe('meditation_prayer')
+        ->and($release->items->last()->hasRepetitionPractice())->toBeTrue();
 });
 
 it('leaves an existing helpful count untouched', function () {

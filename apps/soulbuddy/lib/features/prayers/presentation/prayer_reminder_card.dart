@@ -11,10 +11,11 @@ import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/feedback/app_feedback_service.dart';
 import '../application/prayer_narration_eligibility.dart';
+import '../application/prayer_narration_fallback_policy.dart';
+import '../application/prayer_narration_player.dart';
 import '../application/prayer_reminder_scheduler.dart';
 import '../domain/prayer_reminder.dart';
 import '../providers/prayer_practice_providers.dart';
-import 'prayer_narration_disclosure.dart';
 
 class PrayerReminderCardHost extends ConsumerStatefulWidget {
   const PrayerReminderCardHost({super.key});
@@ -265,13 +266,9 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
         (device.narrationBytes?.isNotEmpty ?? false);
   }
 
-  /// Narration can be requested for this occurrence's exact revision whether or
-  /// not a recording happens to be cached, so the control stays available.
-  bool get _narrationObtainable => canObtainPrayerNarration(
-    personalPrayerId: widget.occurrence.reminder.personalPrayerId,
-    prayerRevisionId: widget.occurrence.prayerRevisionId,
-    prayerBody: widget.occurrence.prayerBody,
-  );
+  /// Device speech keeps the prayer available even when a private natural-voice
+  /// cache cannot be made for this revision.
+  bool get _narrationObtainable => _hasPrayerText;
 
   bool get _hasPrayerText => widget.occurrence.prayerBody.trim().isNotEmpty;
 
@@ -381,41 +378,35 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
 
   Future<void> _playNarration() async {
     if (_busy || _preparingNarration || !_narrationObtainable) return;
-    if (!_narrationReady &&
-        !widget.occurrence.device.narrationConsentAccepted) {
-      // Prayer text leaves this device only after the same disclosure and
-      // consent the reminder sheet already asks for.
-      final accepted = await showPrayerNarrationDisclosure(context);
-      if (accepted != true || !mounted) return;
-    }
     setState(() => _preparingNarration = true);
     try {
-      await ref.read(prepareAndPlayReminderNarrationProvider)(
-        widget.occurrence,
-        consentAccepted: true,
+      const fallbackPolicy = PrayerNarrationFallbackPolicy();
+      final decision = fallbackPolicy.decide(
+        hasCachedNarration: _narrationReady,
       );
-      final occurrence = widget.occurrence;
       final player = ref.read(prayerNarrationPlayerProvider);
-      final perform = ref.read(prayerReminderActionProvider);
-      await ref
-          .read(spiritualSessionControllerProvider)
-          .begin(
-            SpiritualSession(
-              id: 'prayer-reminder:${occurrence.occurrenceKey}',
-              kind: SpiritualSessionKind.prayer,
-              title: occurrence.prayerTitle,
-              route: '/prayers/saved/${occurrence.reminder.personalPrayerId}',
-              canPause: true,
-              completionLabel: 'I prayed',
-              onPause: player.pause,
-              onResume: player.resume,
-              onComplete: () async {
-                await player.stop();
-                await perform(occurrence, PrayerReminderAction.prayed);
-              },
-              onClose: player.stop,
-            ),
-          );
+      if (decision == PrayerNarrationFallbackDecision.deviceVoice) {
+        // Speak without leaving the device. A failed or slow cloud cache can
+        // never stop a person from praying.
+        await player.playText(widget.occurrence.prayerBody);
+        if (widget.occurrence.device.narrationConsentAccepted &&
+            canObtainPrayerNarration(
+              personalPrayerId: widget.occurrence.reminder.personalPrayerId,
+              prayerRevisionId: widget.occurrence.prayerRevisionId,
+              prayerBody: widget.occurrence.prayerBody,
+            )) {
+          unawaited(_refreshNaturalVoiceCache());
+        }
+      } else {
+        await ref.read(prepareAndPlayReminderNarrationProvider)(
+          widget.occurrence,
+          consentAccepted: true,
+        );
+      }
+      await _beginPrayerSession(
+        player,
+        canPause: decision == PrayerNarrationFallbackDecision.cachedNarration,
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -427,6 +418,46 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
     } finally {
       if (mounted) setState(() => _preparingNarration = false);
     }
+  }
+
+  Future<void> _refreshNaturalVoiceCache() async {
+    try {
+      await ref.read(prepareReminderNarrationProvider)(
+        reminderId: widget.occurrence.reminder.id,
+        personalPrayerId: widget.occurrence.reminder.personalPrayerId,
+        revisionId: widget.occurrence.prayerRevisionId,
+        autoplay: widget.occurrence.device.autoplayWhenOpened,
+      );
+    } catch (_) {
+      // The on-device reading is already underway. A later play can retry.
+    }
+  }
+
+  Future<void> _beginPrayerSession(
+    PrayerNarrationPlayer player, {
+    required bool canPause,
+  }) async {
+    final occurrence = widget.occurrence;
+    final perform = ref.read(prayerReminderActionProvider);
+    await ref
+        .read(spiritualSessionControllerProvider)
+        .begin(
+          SpiritualSession(
+            id: 'prayer-reminder:${occurrence.occurrenceKey}',
+            kind: SpiritualSessionKind.prayer,
+            title: occurrence.prayerTitle,
+            route: '/prayers/saved/${occurrence.reminder.personalPrayerId}',
+            canPause: canPause,
+            completionLabel: 'I prayed',
+            onPause: player.pause,
+            onResume: player.resume,
+            onComplete: () async {
+              await player.stop();
+              await perform(occurrence, PrayerReminderAction.prayed);
+            },
+            onClose: player.stop,
+          ),
+        );
   }
 
   Future<void> _emitActionFeedback(

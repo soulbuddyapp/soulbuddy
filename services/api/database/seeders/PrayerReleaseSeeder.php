@@ -10,15 +10,21 @@ class PrayerReleaseSeeder extends Seeder
 {
     public const SLUG = 'renewed-mind-and-guarded-heart-v1';
 
+    public const HOLY_SPIRIT_SLUG = 'holy-spirit-and-gifts-v1';
+
     public function __construct(private readonly PrayerReleasePublisher $publisher) {}
 
     public function run(): void
     {
         // Only validated content may reach the database.
-        $release = ReleaseContent::fromJsonFile(
-            resource_path('prayer-releases/'.self::SLUG.'.json'),
-        );
-
-        $this->publisher->publish($release, config('prayer_releases.published_at'));
+        foreach ([
+            [self::SLUG, config('prayer_releases.published_at')],
+            [self::HOLY_SPIRIT_SLUG, config('prayer_releases.holy_spirit_published_at')],
+        ] as [$slug, $publishedAt]) {
+            $release = ReleaseContent::fromJsonFile(
+                resource_path('prayer-releases/'.$slug.'.json'),
+            );
+            $this->publisher->publish($release, $publishedAt);
+        }
     }
 }
