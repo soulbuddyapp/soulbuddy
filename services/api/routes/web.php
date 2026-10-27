@@ -1,9 +1,9 @@
 <?php
 
+use App\Http\Controllers\Chatgpt\McpController;
 use App\Http\Controllers\Web\AccountEmailConfirmationController;
 use App\Http\Controllers\Web\TelegramWebhookController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Chatgpt\McpController;
 
 Route::get('/app/verify', fn () => view('account-email-verify'));
 Route::post('/auth/email/confirm', AccountEmailConfirmationController::class)
@@ -16,6 +16,6 @@ Route::get('/', function () {
 });
 
 // Public ChatGPT MCP endpoint. Private tool calls require a validated OAuth bearer token.
-Route::post('/mcp', [McpController::class, 'handle'])->middleware('throttle:60,1');
+Route::post('/mcp', [McpController::class, 'handle'])->middleware('throttle:chatgpt-mcp');
 Route::get('/mcp', fn () => response()->json(['message' => 'Use MCP Streamable HTTP POST.'], 405));
 Route::get('/.well-known/oauth-protected-resource', [McpController::class, 'protectedResource']);

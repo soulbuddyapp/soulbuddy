@@ -12,6 +12,9 @@ on:
       - 'services/api/bootstrap/app.php'
       - 'services/api/config/services.php'
       - 'services/api/tests/Feature/Chatgpt/**'
+      - 'services/api/app/Providers/AppServiceProvider.php'
+      - 'services/api/docker/production/sbuddy.nginx.conf'
+      - 'integrations/chatgpt-plugin/**'
   push:
     branches: [main]
     paths:
@@ -45,6 +48,26 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Check portable plugin package
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('../../integrations/chatgpt-plugin')
+          plugin = json.loads((root / 'plugin.json').read_text())
+          mcp = json.loads((root / 'mcp.json').read_text())
+          assert plugin['name'] == 'soulbuddy-life'
+          assert mcp['mcpServers']['soulbuddy']['url'] == 'https://sbuddy.elbiblio.com/mcp'
+          assert mcp['mcpServers']['soulbuddy']['extensions']['com.openai']['auth']['type'] == 'mixed'
+          extension = plugin['extensions']['com.openai']
+          interface = extension['interface']
+          for path in (extension['onboardingSkill'], interface['logo'], interface['composerIcon']):
+              assert path.startswith('./') and (root / path).is_file(), path
+          assert 'privacyPolicyURL' not in interface, 'Do not invent unreviewed policy URLs'
+          assert 'termsOfServiceURL' not in interface, 'Do not invent unreviewed legal URLs'
+          assert 'HTTP_AUTHORIZATION' in Path('docker/production/sbuddy.nginx.conf').read_text()
+          print('Portable plugin package OK')
+          PY
       - name: Prepare test environment
         run: |
           cp .env.example .env
