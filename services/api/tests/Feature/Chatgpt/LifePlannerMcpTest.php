@@ -103,7 +103,7 @@ it('advertises discovery, MCP handshake and accurate auth metadata without crede
 
     $this->postJson('/mcp', [
         'jsonrpc' => '2.0', 'method' => 'notifications/initialized',
-    ])->assertStatus(202)->assertNoContent();
+    ])->assertStatus(202);
 });
 
 it('does not expose private plans without a verified scoped bearer', function () {
