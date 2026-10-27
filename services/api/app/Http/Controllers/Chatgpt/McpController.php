@@ -7,6 +7,7 @@ use App\Domain\LifePlanning\LifePlannerService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -29,7 +30,7 @@ class McpController extends Controller
         ]);
     }
 
-    public function handle(Request $request, ChatgptIdentity $identity, LifePlannerService $planner): JsonResponse
+    public function handle(Request $request, ChatgptIdentity $identity, LifePlannerService $planner): JsonResponse|Response
     {
         $version = $request->header('MCP-Protocol-Version');
         if ($version && ! in_array($version, self::PROTOCOLS, true)) {
@@ -51,7 +52,7 @@ class McpController extends Controller
 
         if (! array_key_exists('id', $body)) {
             // JSON-RPC notifications (including notifications/initialized) have no response payload.
-            return response()->json(null, 202);
+            return response()->noContent(202);
         }
 
         if ($body['method'] === 'initialize') {
@@ -138,7 +139,7 @@ class McpController extends Controller
         }
     }
 
-    private function rpc(mixed $id, ?array $result, ?int $error = null, ?string $message = null, int $status = 200): JsonResponse
+    private function rpc(mixed $id, mixed $result, ?int $error = null, ?string $message = null, int $status = 200): JsonResponse
     {
         return response()->json($error === null
             ? ['jsonrpc' => '2.0', 'id' => $id, 'result' => $result]
@@ -169,7 +170,7 @@ class McpController extends Controller
         $write = [['type' => 'oauth2', 'scopes' => ['life.write']]];
         $object = fn (array $properties, array $required = []): array => [
             'type' => 'object',
-            'properties' => $properties,
+            'properties' => $properties ?: (object) [],
             'required' => $required,
             'additionalProperties' => false,
         ];
