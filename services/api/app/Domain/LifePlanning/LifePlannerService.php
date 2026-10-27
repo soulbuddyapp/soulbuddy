@@ -139,18 +139,25 @@ class LifePlannerService
         }
 
         DB::transaction(function () use ($user, $item, $data): void {
-            DB::table('life_plan_checkins')->updateOrInsert(
-                ['item_id' => $item->id],
-                [
-                    'id' => DB::raw("COALESCE((SELECT id FROM (SELECT id FROM life_plan_checkins WHERE item_id = '".str_replace("'", '', $item->id)."') AS previous), '".(string) Str::uuid()."')"),
+            // Lock the parent row so duplicate calls cannot race to insert a second check-in.
+            DB::table('life_plan_items')->where('id', $item->id)->lockForUpdate()->first();
+            $previous = DB::table('life_plan_checkins')->where('item_id', $item->id)->first();
+            $payload = [
+                'outcome' => $data['outcome'],
+                'note' => $data['note'] ?? null,
+                'updated_at' => now(),
+            ];
+            if ($previous) {
+                DB::table('life_plan_checkins')->where('item_id', $item->id)->update($payload);
+            } else {
+                DB::table('life_plan_checkins')->insert($payload + [
+                    'id' => (string) Str::uuid(),
+                    'item_id' => $item->id,
                     'plan_id' => $item->plan_id,
                     'user_id' => $user->id,
-                    'outcome' => $data['outcome'],
-                    'note' => $data['note'] ?? null,
-                    'updated_at' => now(),
                     'created_at' => now(),
-                ]
-            );
+                ]);
+            }
         });
 
         return $this->current($user);
