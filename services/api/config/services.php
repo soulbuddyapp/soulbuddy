@@ -56,6 +56,14 @@ return [
         'model' => env('GOAL_GUIDANCE_MODEL', 'deepseek-chat'),
     ],
 
+    'chatgpt' => [
+        'issuer' => env('CHATGPT_OAUTH_ISSUER'),
+        'audience' => env('CHATGPT_OAUTH_AUDIENCE'),
+        'jwks_url' => env('CHATGPT_OAUTH_JWKS_URL'),
+        'email_claim' => env('CHATGPT_OAUTH_EMAIL_CLAIM', 'https://soulbuddy.app/email'),
+        'email_verified_claim' => env('CHATGPT_OAUTH_VERIFIED_CLAIM', 'https://soulbuddy.app/email_verified'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

@@ -13,7 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->validateCsrfTokens(except: ['integrations/telegram/webhook']);
+        $middleware->validateCsrfTokens(except: ['integrations/telegram/webhook', 'mcp']);
         // Reviewed Commitment text and operation fingerprints retain exact bytes.
         $middleware->trimStrings(except: [fn ($request) => $request->is('api/sync/mutations')
             && collect($request->input('operations', []))->contains(fn ($operation) => is_array($operation) && is_string($operation['table'] ?? null)
