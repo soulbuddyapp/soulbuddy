@@ -1,0 +1,39 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "soulbuddy-life",
+  "version": "0.1.0",
+  "description": "Plan and review a practical seven-day Christian rule of life with SoulBuddy.",
+  "homepage": "https://sbuddy.elbiblio.com",
+  "keywords": [
+    "Christian life",
+    "daily planner",
+    "accountability",
+    "habits",
+    "reflection"
+  ],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md",
+      "interface": {
+        "displayName": "SoulBuddy Life Planner",
+        "shortDescription": "Turn what matters into a thoughtful seven-day plan.",
+        "longDescription": "Shape realistic commitments around prayer, learning, work, relationships, service, and rest. Check in privately, reflect on the week, and adjust your plan without judgment or spiritual scores.",
+        "developerName": "SoulBuddy",
+        "category": "Productivity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://sbuddy.elbiblio.com",
+        "brandColor": "#214B43",
+        "composerIcon": "./assets/icon.svg",
+        "logo": "./assets/icon.svg",
+        "defaultPrompt": [
+          "Help me design a realistic seven-day rule of life around faith, work, and family.",
+          "Show my current SoulBuddy commitments and help me review today without judgment.",
+          "Reflect with me on the past week and suggest one practical adjustment."
+        ]
+      }
+    }
+  }
+}
