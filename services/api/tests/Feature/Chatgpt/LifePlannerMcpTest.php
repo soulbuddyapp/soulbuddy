@@ -124,6 +124,14 @@ it('does not expose private plans without a verified scoped bearer', function ()
         $pem, 'private@example.com', 'life.read', ['https://soulbuddy.app/email_verified' => false]
     ))->assertJsonPath('result.isError', true);
 
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), chatgptTestBearer(
+        $pem, 'private@example.com', 'life.read', ['exp' => null]
+    ))->assertJsonPath('result.isError', true);
+
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), chatgptTestBearer(
+        $pem, 'private@example.com', 'life.read', ['exp' => now()->addHours(25)->timestamp]
+    ))->assertJsonPath('result.isError', true);
+
     expect(DB::table('life_plans')->count())->toBe(0);
 });
 

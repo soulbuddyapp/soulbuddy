@@ -15,6 +15,10 @@ The current prayer flow offers deterministic reviewed prayers or **Write/Speak y
 
 SoulBuddy treats prayer and practice as aids to formation, not a way to earn grace or measure holiness. Product decisions should help a person respond to grace, form character, bear outward fruit, and remember what God has done. The app does not turn those aims into a spiritual score, streak, leaderboard, or extra dashboard.
 
+## ChatGPT Life Planner integration (pre-release)
+
+An opt-in, account-scoped seven-day planner for ChatGPT is under development in `integrations/chatgpt-plugin`, backed by the Laravel API's `/mcp` endpoint. It adds self-directed routines, private check-ins and weekly reflection without modifying existing Android Goals or generating prayer text. This integration is **not deployed or listed publicly until OAuth, data policies and the separate production release gates pass**. See `docs/deployment/chatgpt-life-planner.md`.
+
 ## Orientation
 
 The welcome flow and Settings include eight replayable orientation courses with bundled narration, music, and synchronized word/sentence highlighting. Listeners can change playback speed (0.5–1.5×) and text size, seek by tapping a sentence, and continue from their saved position. **Previous** and **Next** switch directly between lessons, saving the current position and opening the adjacent course paused. Manual scrolling pauses automatic following; **Follow narration** restores it. Opening a course never autoplays, and **Skip for now** keeps the existing route into Today.

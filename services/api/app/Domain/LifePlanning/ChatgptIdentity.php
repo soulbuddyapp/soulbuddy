@@ -69,6 +69,14 @@ class ChatgptIdentity
                 && in_array($key['alg'] ?? 'RS256', ['RS256'], true)
                 && ($key['use'] ?? 'sig') === 'sig'));
             $claims = JWT::decode($bearer, JWK::parseKeySet(['keys' => $trustedKeys], 'RS256'));
+            $issuedAt = $claims->iat ?? null;
+            $expiresAt = $claims->exp ?? null;
+            // Require bounded lifetime; JWT libraries only check exp when the claim exists.
+            if (! is_int($issuedAt) || ! is_int($expiresAt) ||
+                $expiresAt <= $issuedAt || $expiresAt - $issuedAt > 3600) {
+                return null;
+            }
+
             if (($claims->iss ?? null) !== $this->issuer() ||
                 ! in_array($this->audience(), (array) ($claims->aud ?? []), true) ||
                 empty($claims->sub) || ! is_string($claims->sub)) {
