@@ -1,0 +1,62 @@
+name: ChatGPT Life Planner MCP
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/chatgpt-life-planner.yml'
+      - 'services/api/app/Domain/LifePlanning/**'
+      - 'services/api/app/Http/Controllers/Chatgpt/**'
+      - 'services/api/database/migrations/*life_planner*'
+      - 'services/api/routes/web.php'
+      - 'services/api/bootstrap/app.php'
+      - 'services/api/config/services.php'
+      - 'services/api/tests/Feature/Chatgpt/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/chatgpt-life-planner.yml'
+      - 'services/api/app/Domain/LifePlanning/**'
+      - 'services/api/app/Http/Controllers/Chatgpt/**'
+      - 'services/api/database/migrations/*life_planner*'
+      - 'services/api/routes/web.php'
+      - 'services/api/bootstrap/app.php'
+      - 'services/api/config/services.php'
+      - 'services/api/tests/Feature/Chatgpt/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  laravel-mcp:
+    name: MCP and life planner regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite, openssl
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Lint PHP
+        run: |
+          for file in \
+            app/Domain/LifePlanning/*.php \
+            app/Http/Controllers/Chatgpt/*.php \
+            database/migrations/*life_planner*.php \
+            tests/Feature/Chatgpt/*.php; do php -l "$file"; done
+      - name: Feature and authorization regressions
+        run: php artisan test tests/Feature/Chatgpt
+      - name: Existing account/session and Goal regressions
+        run: php artisan test tests/Feature/Auth tests/Feature/Accounts tests/Feature/Goals
