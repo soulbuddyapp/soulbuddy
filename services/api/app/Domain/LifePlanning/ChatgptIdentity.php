@@ -23,7 +23,9 @@ class ChatgptIdentity
 
     public function issuer(): string
     {
-        return rtrim((string) config('services.chatgpt.issuer'), '/').'/';
+        $issuer = rtrim((string) config('services.chatgpt.issuer'), '/');
+
+        return $issuer === '' ? '' : $issuer.'/';
     }
 
     public function audience(): string
