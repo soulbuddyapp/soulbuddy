@@ -695,3 +695,29 @@ it('rejects linking two different subjects from the same provider to one SoulBud
     ]), $second)->assertJsonPath('result.isError', true);
     expect(DB::table('chatgpt_oauth_identities')->count())->toBe(1);
 });
+
+
+it('invalidates older account link codes when a new one is issued or access is unlinked', function () {
+    $pem = configureChatgptTestOAuth();
+    $owner = User::factory()->create(['email' => 'rotate@example.com', 'email_verified_at' => now()]);
+    $auth = chatgptTestBearer($pem, 'rotate@example.com');
+
+    $first = $this->actingAs($owner, 'sanctum')
+        ->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])
+        ->assertCreated()->json('code');
+    $second = $this->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])
+        ->assertCreated()->json('code');
+
+    expect($second)->not->toBe($first);
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $first, 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.isError', true);
+
+    $this->postJson('/api/account/chatgpt/unlink', ['confirmed' => true])
+        ->assertJsonPath('unlinked', false);
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $second, 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.isError', true);
+
+    expect(DB::table('chatgpt_account_link_codes')->whereNull('consumed_at')->count())->toBe(0);
+});
