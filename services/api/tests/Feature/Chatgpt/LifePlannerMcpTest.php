@@ -30,25 +30,38 @@ function configureChatgptTestOAuth(array $introspectionResponses = []): string
     $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => 2048]);
     openssl_pkey_export($key, $pem);
     $rsa = openssl_pkey_get_details($key)['rsa'];
-    $introspection = Http::sequence();
-    foreach ($introspectionResponses as $response) {
-        if ($response['connection_failure'] ?? false) {
-            $introspection->pushFailedConnection();
-        } else {
-            $introspection->push($response['body'], $response['status']);
+    // The default provider introspection follows the token's subject. Explicit
+    // queued overrides simulate revocation, malformed answers and outages.
+    $queuedResponses = $introspectionResponses;
+    Http::fake(function (\Illuminate\Http\Client\Request $request) use (&$queuedResponses, $rsa) {
+        if ($request->url() === 'https://issuer.example/jwks.json') {
+            return Http::response(['keys' => [[
+                'kty' => 'RSA', 'alg' => 'RS256', 'use' => 'sig',
+                'kid' => 'soulbuddy-test-key',
+                'n' => JWT::urlsafeB64Encode($rsa['n']),
+                'e' => JWT::urlsafeB64Encode($rsa['e']),
+            ]]]);
         }
-    }
-    $introspection->whenEmpty(Http::response(['active' => true, 'sub' => 'auth0|person']));
-    Http::fake(['https://issuer.example/introspect' => $introspection, 'https://issuer.example/jwks.json' => Http::response([
-        'keys' => [[
-            'kty' => 'RSA',
-            'alg' => 'RS256',
-            'use' => 'sig',
-            'kid' => 'soulbuddy-test-key',
-            'n' => JWT::urlsafeB64Encode($rsa['n']),
-            'e' => JWT::urlsafeB64Encode($rsa['e']),
-        ]],
-    ])]);
+        if ($request->url() === 'https://issuer.example/introspect') {
+            if ($queuedResponses !== []) {
+                $next = array_shift($queuedResponses);
+                if ($next['connection_failure'] ?? false) {
+                    throw new \Illuminate\Http\Client\ConnectionException('Simulated provider outage');
+                }
+
+                return Http::response($next['body'], $next['status']);
+            }
+
+            $parts = explode('.', (string) ($request['token'] ?? ''));
+            $claims = count($parts) === 3
+                ? json_decode(JWT::urlsafeB64Decode($parts[1]), true)
+                : [];
+
+            return Http::response(['active' => true, 'sub' => $claims['sub'] ?? null]);
+        }
+
+        return Http::response([], 404);
+    });
 
     return $pem;
 }
@@ -67,6 +80,30 @@ function chatgptTestBearer(string $pem, string $email, string $scope = 'life.rea
     ], $overrides);
 
     return ['Authorization' => 'Bearer '.JWT::encode($claims, $pem, 'RS256', 'soulbuddy-test-key')];
+}
+
+function chatgptBindTestIdentity(
+    string $email,
+    string $subject = 'auth0|person',
+    string $issuer = 'https://issuer.example/',
+    ?User $existing = null,
+): User {
+    $user = $existing ?? User::factory()->create([
+        'email' => $email,
+        'email_verified_at' => now(),
+    ]);
+    DB::table('chatgpt_oauth_identities')->insert([
+        'id' => (string) Str::uuid(),
+        'user_id' => $user->id,
+        'issuer' => $issuer,
+        'subject' => $subject,
+        'identity_hash' => hash('sha256', $issuer."\0".$subject),
+        'issuer_hash' => hash('sha256', $issuer),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return $user;
 }
 
 function chatgptTestPlan(): array
@@ -164,6 +201,7 @@ it('does not expose private plans without a verified scoped bearer', function ()
 
 it('returns a concise empty-plan result without instructions to the assistant', function () {
     $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('empty-plan@example.com');
     $response = $this->postJson('/mcp', chatgptTestCall('get_life_plan'),
         chatgptTestBearer($pem, 'empty-plan@example.com', 'life.read')
     )->assertOk()->assertJsonPath('result.structuredContent.plan', null)
@@ -219,6 +257,7 @@ it('advertises a scoped read-only daily plan and distinguishes an absent plan fr
         ->assertJsonPath('result.isError', true);
     $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'empty-daily@example.com', 'life.write'))
         ->assertJsonPath('result.isError', true);
+    chatgptBindTestIdentity('empty-daily@example.com');
     $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'empty-daily@example.com', 'life.read'))
         ->assertJsonPath('result.structuredContent.state', 'no_plan');
 });
@@ -227,6 +266,8 @@ it('returns only the owner’s current local-day commitments without private not
     $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 00:30:00', 'UTC'));
     JWT::$timestamp = now()->timestamp;
     $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('daily-owner@example.com');
+    chatgptBindTestIdentity('other-daily@example.com', 'auth0|other-daily');
     $auth = chatgptTestBearer($pem, 'daily-owner@example.com');
     $payload = chatgptTestPlan();
     $payload['starts_on'] = '2026-10-28';
@@ -239,7 +280,7 @@ it('returns only the owner’s current local-day commitments without private not
     $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), $auth)
         ->assertJsonPath('result.structuredContent.state', 'upcoming')
         ->assertJsonPath('result.structuredContent.starts_on', '2026-10-28');
-    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'other-daily@example.com', 'life.read'))
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'other-daily@example.com', 'life.read', ['sub' => 'auth0|other-daily']))
         ->assertJsonPath('result.structuredContent.state', 'no_plan');
 
     $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 07:30:00', 'UTC'));
@@ -274,8 +315,10 @@ it('saves idempotent plans, scopes access and records reversible observations ra
     $pem = configureChatgptTestOAuth();
     $a = User::factory()->create(['email' => 'a@example.com', 'email_verified_at' => now()]);
     $b = User::factory()->create(['email' => 'b@example.com', 'email_verified_at' => now()]);
+    chatgptBindTestIdentity('a@example.com', 'auth0|person', 'https://issuer.example/', $a);
+    chatgptBindTestIdentity('b@example.com', 'auth0|person-b', 'https://issuer.example/', $b);
     $authA = chatgptTestBearer($pem, 'a@example.com');
-    $authB = chatgptTestBearer($pem, 'b@example.com');
+    $authB = chatgptTestBearer($pem, 'b@example.com', 'life.read life.write', ['sub' => 'auth0|person-b']);
     $payload = chatgptTestPlan();
 
     $created = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $payload), $authA)
@@ -333,6 +376,7 @@ it('refuses unapproved changes, incomplete weeks and unverified local accounts',
         chatgptTestBearer($pem, 'unverified@example.com')
     )->assertJsonPath('result.isError', true);
 
+    chatgptBindTestIdentity('newperson@example.com');
     $auth = chatgptTestBearer($pem, 'newperson@example.com');
     $bad = chatgptTestPlan();
     $bad['confirmed'] = false;
@@ -357,8 +401,10 @@ it('does not advertise account linking until an identity provider is configured'
 
 it('lets an owner find, inspect and delete archived plans without exposing them to another account', function () {
     $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('history-a@example.com');
+    chatgptBindTestIdentity('history-b@example.com', 'auth0|history-b');
     $authA = chatgptTestBearer($pem, 'history-a@example.com');
-    $authB = chatgptTestBearer($pem, 'history-b@example.com');
+    $authB = chatgptTestBearer($pem, 'history-b@example.com', 'life.read life.write', ['sub' => 'auth0|history-b']);
     $first = chatgptTestPlan();
     $old = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $first), $authA)
         ->json('result.structuredContent.plan.id');
@@ -399,6 +445,7 @@ it('advertises explicit and accurate safety annotations on every tool', function
 it('paginates plan history without including another owner’s records', function () {
     $pem = configureChatgptTestOAuth();
     $owner = User::factory()->create(['email' => 'paged@example.com', 'email_verified_at' => now()]);
+    chatgptBindTestIdentity('paged@example.com', 'auth0|person', 'https://issuer.example/', $owner);
     $other = User::factory()->create(['email' => 'other@example.com', 'email_verified_at' => now()]);
     foreach (range(1, 21) as $number) {
         DB::table('life_plans')->insert([
@@ -428,6 +475,7 @@ it('paginates plan history without including another owner’s records', functio
 it('uses the configured issuer exactly including its trailing slash', function () {
     $pem = configureChatgptTestOAuth();
     config()->set('services.chatgpt.issuer', 'https://issuer.example');
+    chatgptBindTestIdentity('exact-issuer@example.com', 'auth0|person', 'https://issuer.example');
     $this->getJson('/.well-known/oauth-protected-resource')
         ->assertJsonPath('authorization_servers.0', 'https://issuer.example');
     $auth = chatgptTestBearer($pem, 'exact-issuer@example.com', 'life.read', ['iss' => 'https://issuer.example']);
@@ -440,6 +488,7 @@ it('checks every valid token against the issuer and refuses a token after revoca
         ['status' => 200, 'body' => ['active' => true, 'sub' => 'auth0|person']],
         ['status' => 200, 'body' => ['active' => false]],
     ]);
+    chatgptBindTestIdentity('revoked@example.com');
     $auth = chatgptTestBearer($pem, 'revoked@example.com', 'life.read');
     $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
         ->assertJsonPath('result.structuredContent.plan', null);
@@ -459,6 +508,7 @@ it('fails closed when introspection fails, is malformed or reports a different s
         ['status' => 200, 'body' => ['active' => 'true', 'sub' => 'auth0|person']],
         ['status' => 200, 'body' => ['active' => true, 'sub' => 'someone-else']],
     ]);
+    chatgptBindTestIdentity('fail-closed@example.com');
     $auth = chatgptTestBearer($pem, 'fail-closed@example.com', 'life.read');
     foreach (range(1, 5) as $attempt) {
         $this->postJson('/mcp', chatgptTestCall('get_life_plan', [], $attempt), $auth)
@@ -481,4 +531,166 @@ it('accepts the site origin when the configured MCP resource uses a path prefix'
     $body = ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'];
     $this->postJson('/mcp', $body, ['Origin' => 'https://sbuddy.elbiblio.com'])->assertOk();
     $this->postJson('/mcp', $body, ['Origin' => 'https://untrusted.example'])->assertStatus(403);
+});
+
+
+it('does not provision users or retrieve private records when a verified OAuth identity is unlinked', function () {
+    $pem = configureChatgptTestOAuth();
+    $auth = chatgptTestBearer($pem, 'unlinked@example.com');
+
+    $this->postJson('/mcp', chatgptTestCall('get_account_link_status'), $auth)
+        ->assertJsonPath('result.structuredContent.status', 'not_linked');
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('users')->count())->toBe(0)
+        ->and(DB::table('chatgpt_oauth_identities')->count())->toBe(0);
+
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => false]), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('users')->count())->toBe(0);
+});
+
+it('explicitly provisions a new owner with a stable provider key and permits idempotent retries', function () {
+    $pem = configureChatgptTestOAuth();
+    $auth = chatgptTestBearer($pem, 'newmember@example.com');
+
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => true]), $auth)
+        ->assertJsonPath('result.structuredContent.status', 'linked');
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => true]), $auth)
+        ->assertJsonPath('result.structuredContent.status', 'linked');
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.structuredContent.plan', null);
+    expect(User::query()->where('email', 'newmember@example.com')->count())->toBe(1)
+        ->and(DB::table('chatgpt_oauth_identities')->count())->toBe(1)
+        ->and(DB::table('chatgpt_oauth_identities')->value('subject'))->toBe('auth0|person');
+});
+
+it('never inherits an existing SoulBuddy account from an email-only match', function () {
+    $pem = configureChatgptTestOAuth();
+    $owner = User::factory()->create(['email' => 'existing@example.com', 'email_verified_at' => now()]);
+    $auth = chatgptTestBearer($pem, 'existing@example.com');
+
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => true]), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('chatgpt_oauth_identities')->count())->toBe(0)
+        ->and(User::query()->count())->toBe(1)
+        ->and($owner->fresh()->public_id)->toBe($owner->public_id);
+});
+
+it('links an existing verified account only with a one-use owner-issued code and explicit consent', function () {
+    $pem = configureChatgptTestOAuth();
+    $owner = User::factory()->create(['email' => 'linked@example.com', 'email_verified_at' => now()]);
+    $auth = chatgptTestBearer($pem, 'linked@example.com');
+
+    $this->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])->assertUnauthorized();
+    $challengeResponse = $this->actingAs($owner, 'sanctum')
+        ->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])->assertCreated();
+    $code = $challengeResponse->json('code');
+    expect($code)->toMatch('/^[a-f0-9]{32}$/')
+        ->and(DB::table('chatgpt_account_link_codes')->value('code_hash'))->toBe(hash('sha256', $code))
+        ->and(DB::table('chatgpt_account_link_codes')->value('code_hash'))->not->toBe($code);
+
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $code, 'confirmed' => false,
+    ]), $auth)->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $code, 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.status', 'linked');
+    $this->postJson('/mcp', chatgptTestCall('get_account_link_status'), $auth)
+        ->assertJsonPath('result.structuredContent.status', 'linked');
+
+    expect(DB::table('chatgpt_oauth_identities')->value('user_id'))->toBe($owner->id)
+        ->and(DB::table('chatgpt_account_link_codes')->value('consumed_at'))->not->toBeNull();
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $code, 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.isError', true);
+
+    $this->postJson('/api/account/chatgpt/unlink', ['confirmed' => false])->assertUnprocessable();
+    $this->postJson('/api/account/chatgpt/unlink', ['confirmed' => true])
+        ->assertJsonPath('unlinked', true);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('chatgpt_oauth_identities')->count())->toBe(0);
+});
+
+it('refuses expired codes, mismatched identities and unverified SoulBuddy owners', function () {
+    $pem = configureChatgptTestOAuth();
+    $unverified = User::factory()->unverified()->create(['email' => 'pending@example.com']);
+    $this->actingAs($unverified, 'sanctum')
+        ->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])->assertUnprocessable();
+
+    $owner = User::factory()->create(['email' => 'account@example.com', 'email_verified_at' => now()]);
+    $code = $this->actingAs($owner, 'sanctum')
+        ->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])->assertCreated()->json('code');
+    $wrongAuth = chatgptTestBearer($pem, 'another@example.com');
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $code, 'confirmed' => true,
+    ]), $wrongAuth)->assertJsonPath('result.isError', true);
+    expect(DB::table('chatgpt_account_link_codes')->value('consumed_at'))->toBeNull();
+
+    DB::table('chatgpt_account_link_codes')->update(['expires_at' => now()->subSecond()]);
+    $rightAuth = chatgptTestBearer($pem, 'account@example.com');
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $code, 'confirmed' => true,
+    ]), $rightAuth)->assertJsonPath('result.isError', true);
+    expect(DB::table('chatgpt_oauth_identities')->count())->toBe(0);
+});
+
+it('keeps private history bound to subject after email changes and blocks reassignment', function () {
+    $pem = configureChatgptTestOAuth();
+    $alice = chatgptTestBearer($pem, 'first@example.com');
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => true]), $alice)
+        ->assertJsonPath('result.structuredContent.status', 'linked');
+    $planId = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', chatgptTestPlan()), $alice)
+        ->json('result.structuredContent.plan.id');
+    expect($planId)->not->toBeNull();
+
+    // A new provider subject with the same verified email cannot inherit the plan.
+    $other = chatgptTestBearer($pem, 'first@example.com', 'life.read life.write', ['sub' => 'auth0|other-person']);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $other)
+        ->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => true]), $other)
+        ->assertJsonPath('result.isError', true);
+
+    $owner = User::query()->where('email', 'first@example.com')->firstOrFail();
+    $owner->forceFill(['email' => 'renamed@example.com'])->save();
+    // Same issuer/subject can still read even with changed or absent email claim.
+    $renamed = chatgptTestBearer($pem, 'renamed@example.com', 'life.read');
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $renamed)
+        ->assertJsonPath('result.structuredContent.plan.id', $planId);
+    $missingEmail = chatgptTestBearer($pem, 'renamed@example.com', 'life.read', [
+        'https://soulbuddy.app/email' => null,
+        'https://soulbuddy.app/email_verified' => false,
+    ]);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $missingEmail)
+        ->assertJsonPath('result.structuredContent.plan.id', $planId);
+
+    // Reassignment creates a distinct account when the email is genuinely free.
+    $this->postJson('/mcp', chatgptTestCall('create_soulbuddy_account', ['confirmed' => true]), $other)
+        ->assertJsonPath('result.structuredContent.status', 'linked');
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $other)
+        ->assertJsonPath('result.structuredContent.plan', null);
+    expect(User::query()->count())->toBe(2)
+        ->and(DB::table('chatgpt_oauth_identities')->count())->toBe(2);
+});
+
+it('rejects linking two different subjects from the same provider to one SoulBuddy account', function () {
+    $pem = configureChatgptTestOAuth();
+    $owner = User::factory()->create(['email' => 'single@example.com', 'email_verified_at' => now()]);
+    $first = chatgptTestBearer($pem, 'single@example.com');
+    $second = chatgptTestBearer($pem, 'single@example.com', 'life.write', ['sub' => 'auth0|second']);
+
+    $code = $this->actingAs($owner, 'sanctum')
+        ->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])->json('code');
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $code, 'confirmed' => true,
+    ]), $first)->assertJsonPath('result.structuredContent.status', 'linked');
+
+    $anotherCode = $this->postJson('/api/account/chatgpt/link-codes', ['confirmed' => true])
+        ->assertCreated()->json('code');
+    $this->postJson('/mcp', chatgptTestCall('link_existing_soulbuddy_account', [
+        'code' => $anotherCode, 'confirmed' => true,
+    ]), $second)->assertJsonPath('result.isError', true);
+    expect(DB::table('chatgpt_oauth_identities')->count())->toBe(1);
 });
