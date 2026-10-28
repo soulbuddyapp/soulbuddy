@@ -46,7 +46,11 @@ class McpController extends Controller
         }
 
         $origin = $request->header('Origin');
-        if ($origin && ! in_array($origin, [rtrim((string) config('app.url'), '/'), 'https://chatgpt.com'], true)) {
+        $appUrl = parse_url((string) config('app.url'));
+        $appOrigin = isset($appUrl['scheme'], $appUrl['host'])
+            ? $appUrl['scheme'].'://'.$appUrl['host'].(isset($appUrl['port']) ? ':'.$appUrl['port'] : '')
+            : '';
+        if ($origin && ! in_array($origin, [$appOrigin, 'https://chatgpt.com'], true)) {
             return $this->rpc($id, null, -32600, 'Origin not allowed', 403);
         }
 

@@ -351,3 +351,11 @@ it('does not enable protected access without secure introspection configuration'
     $this->postJson('/mcp', chatgptTestCall('get_life_plan'), chatgptTestBearer($pem, 'missing@example.com'))
         ->assertJsonPath('result.isError', true);
 });
+
+it('accepts the site origin when the configured MCP resource uses a path prefix', function () {
+    configureChatgptTestOAuth();
+    config()->set('app.url', 'https://sbuddy.elbiblio.com/sb-stage');
+    $body = ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'];
+    $this->postJson('/mcp', $body, ['Origin' => 'https://sbuddy.elbiblio.com'])->assertOk();
+    $this->postJson('/mcp', $body, ['Origin' => 'https://untrusted.example'])->assertStatus(403);
+});
