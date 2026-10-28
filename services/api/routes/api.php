@@ -33,6 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('throttle:account-email-challenges');
     Route::post('/account/email/confirm', AccountEmailConfirmationController::class)
         ->middleware('throttle:account-email-challenges');
+    Route::get('/account/chatgpt/status', [ChatgptAccountLinkController::class, 'status'])
+        ->middleware('throttle:account-email-challenges');
     Route::post('/account/chatgpt/link-codes', [ChatgptAccountLinkController::class, 'issue'])
         ->middleware('throttle:account-email-challenges');
     Route::post('/account/chatgpt/unlink', [ChatgptAccountLinkController::class, 'unlink'])
