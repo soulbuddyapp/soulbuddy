@@ -28,3 +28,11 @@ All authenticated tests use a pre-created, **fake** verified test account. Start
 - Record a check-in for an item belonging to another user and confirm denial.
 - Delete the fake account's plan only with explicit confirmation and verify cascade deletion.
 - Verify existing SoulBuddy Android accounts, Goal sync and prayer data remain untouched.
+
+## Stable account identity launch tests
+
+- A valid OAuth token with an unbound provider subject must not expose an existing record or silently create a user. Check account status and then explicitly create an account.
+- Two provider subjects with the same verified email must not share plans. Change or reassign email and confirm the original issuer/subject still owns its plan.
+- Link an existing verified SoulBuddy user using a ten-minute one-time code from its authenticated local account. Check expiry, replay, mismatched email, an already-linked subject, and a second subject from the same issuer.
+- Unlink from an authenticated SoulBuddy session while the provider token remains active; the next private read must be denied. Ending the identity-provider application session and invalidating refresh credentials remain separately verified launch requirements.
+- Confirm OAuth PKCE access expiry, ChatGPT token refresh, real scheduled MCP daily read, disconnect, provider-side grant revocation and reconnect using synthetic staging accounts. A passing test suite is not evidence of refresh-token behavior.
