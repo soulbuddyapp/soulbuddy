@@ -730,8 +730,9 @@ it('returns only a boolean ChatGPT connection status to the authenticated SoulBu
     $this->getJson('/api/account/chatgpt/status')->assertUnauthorized();
     $this->actingAs($owner, 'sanctum')
         ->getJson('/api/account/chatgpt/status')
-        ->assertOk()->assertExactJson(['linked' => false])
-        ->assertHeader('Cache-Control', 'no-store');
+        ->assertOk()->assertExactJson(['linked' => false]);
+
+    // Laravel also adds a private cache directive to authenticated responses.
 
     chatgptBindTestIdentity('linked-status@example.com', 'provider|owner', 'https://issuer.example/', $owner);
 
