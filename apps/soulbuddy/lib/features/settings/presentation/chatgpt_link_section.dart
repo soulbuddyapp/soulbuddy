@@ -85,17 +85,19 @@ class _ChatgptLinkSectionState extends State<ChatgptLinkSection>
       if (linked) _hideCode();
       setState(() => _linked = linked);
     } on ChatgptLinkException catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _linked = null;
           _notice = error.message;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _linked = null;
           _notice = 'Could not check the ChatGPT connection.';
         });
+      }
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -118,25 +120,28 @@ class _ChatgptLinkSectionState extends State<ChatgptLinkSection>
       }
       _expires?.cancel();
       _expires = Timer(remaining, () {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _code = null;
             _notice = 'The link code expired. Generate a new one.';
           });
+        }
       });
       setState(() => _code = link);
     } on ChatgptLinkException catch (error) {
       if (mounted) setState(() => _notice = error.message);
     } on StateError {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _notice = 'Connect SoulBuddy to the server and try again.';
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _notice = 'Could not generate a link code. Try again.';
         });
+      }
     } finally {
       if (mounted) setState(() => _working = false);
     }
