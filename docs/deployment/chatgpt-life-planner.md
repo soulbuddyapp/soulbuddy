@@ -12,7 +12,13 @@ Use a mature OAuth provider with Authorization Code + PKCE S256, discovery metad
 
 The resource server currently maps the *verified email claim* of the trusted access JWT to the corresponding verified SoulBuddy user; unverified installation email is not taken over. Configure verified, normalized email before using this bridge; testing must cover address changes, reassignment and claims integrity. New email accounts are created as verified SoulBuddy users. Linking to an existing unverified anonymous Android installation is **not supported**; create an explicit merge flow before advertising that feature.
 
-**Release blocker: revocation.** This implementation verifies JWT signatures and expiry locally and does not query a revocation or grant-status service. Revoking a grant or disconnecting an account does not by itself invalidate an already issued token at this server; it may remain usable for up to its one-hour maximum lifetime. Do not claim immediate revocation or mark the revocation test as passed until a provider-backed, fail-closed grant-status mechanism is implemented and tested against actual access tokens. Decide and document the intended revocation guarantee before launch.
+**Release blocker: live revocation and disconnect.** The resource server verifies the signed JWT locally and then checks the same token against the configured introspection endpoint on every protected call. It fails closed if the response is unavailable, inactive, malformed, or reports a different subject. This is covered by simulated tests; it is not yet verified against a real provider. A disconnected ChatGPT connection is not proof that the provider revoked the access token or grant. Test that actual disconnect/revocation changes the provider's introspection response; if not, implement and verify an explicit revocation path before claiming immediate disconnect.
+
+### Staging candidate: Keycloak
+
+Use a dedicated staging Keycloak realm and a separate staging Laravel database and HTTPS host; never connect staging to production personal records. Keycloak supports introspection and token revocation. Its [MCP guidance](https://www.keycloak.org/securing-apps/mcp-authz-server) labels resource indicators and CIMD experimental, so prove compatibility before choosing it for production. Prefer a pre-registered ChatGPT client where practical rather than opening dynamic client registration. Do not enable experimental features or public registration on an existing shared identity service without reviewing their effect.
+
+For the staging candidate, configure an API/resource client allowed to introspect and issue a separate confidential client credential for the Laravel resource server. Keycloak 26.6.2 and newer [require the introspecting client in the token audience](https://www.keycloak.org/docs/latest/upgrading/index.html); retain the exact MCP resource audience and configure the introspector's audience as required. Do not enable the deprecated audience-check bypass. Verify `life.read`, `life.write`, `sub`, email and email-verification claims in actual access tokens and introspection responses. Verify resource binding end to end; the selected provider must not silently ignore the `resource` parameter. The introspection client must be authorized only for this resource and its secret must stay in protected server configuration.
 
 Use the exact issuer string from the provider's discovery metadata, including whether it ends in `/`; the server does not normalize it. Verify the provider's metadata, access-token `iss`, callback, and resource audience together in a real staging authorization flow.
 
@@ -23,11 +29,14 @@ APP_URL=https://sbuddy.elbiblio.com
 CHATGPT_OAUTH_ISSUER=https://YOUR-OAUTH-PROVIDER.example/
 CHATGPT_OAUTH_AUDIENCE=https://sbuddy.elbiblio.com/mcp
 CHATGPT_OAUTH_JWKS_URL=https://YOUR-OAUTH-PROVIDER.example/.well-known/jwks.json
+CHATGPT_OAUTH_INTROSPECTION_URL=https://YOUR-OAUTH-PROVIDER.example/introspect
+CHATGPT_OAUTH_INTROSPECTION_CLIENT_ID=YOUR-RESOURCE-CLIENT-ID
+CHATGPT_OAUTH_INTROSPECTION_CLIENT_SECRET=YOUR-RESOURCE-CLIENT-SECRET
 CHATGPT_OAUTH_EMAIL_CLAIM=https://soulbuddy.app/email
 CHATGPT_OAUTH_VERIFIED_CLAIM=https://soulbuddy.app/email_verified
 ```
 
-Have your provider add the two namespaced email claims to the **access token** and make email-verified=true only after actual email verification. The provider itself must expose `openid`/`email` UserInfo for OpenAI workspace-domain protections.
+Have your provider add the two namespaced email claims to the **access token** and make email-verified=true only after actual email verification. The provider itself must expose `openid`/`email` UserInfo for OpenAI workspace-domain protections. The introspection endpoint must support OAuth client-secret Basic authentication and return boolean `active` and the same `sub` as the signed token. It must use HTTPS, and redirects are rejected. Provider failures deny protected calls; plan for availability and latency monitoring without logging tokens or reflections.
 
 Do not mistake `ChatGPT_OAUTH_ISSUER` for SoulBuddy's Laravel URL. Avoid reusing installation secrets or PowerSync tokens. The provider must echo the OAuth `resource` argument through the flow. Configure ChatGPT's discovered callback redirect URL before testing. Tokens, authorization codes and private reflections must not appear in logs.
 

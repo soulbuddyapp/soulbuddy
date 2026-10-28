@@ -18,7 +18,7 @@ All authenticated tests use a pre-created, **fake** verified test account. Start
 
 ## Additional operator checks
 
-- Release blocker: implement and test a provider-backed, fail-closed revocation check. Local JWT verification alone accepts an otherwise valid revoked token until it expires; do not mark revocation verified without an actual live test.
+- Release blocker: using the real provider, revoke an access token and confirm the next protected request fails. Simulated fail-closed introspection tests pass, but do not prove the provider's revocation or ChatGPT disconnect behavior. Test both separately.
 - Try access tokens with wrong issuer, wrong audience, expired `exp`, insufficient scope, and an unverified email claim.
 - Record a check-in for an item belonging to another user and confirm denial.
 - Delete the fake account's plan only with explicit confirmation and verify cascade deletion.

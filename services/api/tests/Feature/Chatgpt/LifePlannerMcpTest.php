@@ -10,12 +10,15 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
-function configureChatgptTestOAuth(): string
+function configureChatgptTestOAuth(array $introspectionResponses = []): string
 {
     config()->set('app.url', 'https://sbuddy.elbiblio.com');
     config()->set('services.chatgpt.issuer', 'https://issuer.example/');
     config()->set('services.chatgpt.audience', 'https://sbuddy.elbiblio.com/mcp');
     config()->set('services.chatgpt.jwks_url', 'https://issuer.example/jwks.json');
+    config()->set('services.chatgpt.introspection_url', 'https://issuer.example/introspect');
+    config()->set('services.chatgpt.introspection_client_id', 'resource-client');
+    config()->set('services.chatgpt.introspection_client_secret', 'test-secret');
     config()->set('services.chatgpt.email_claim', 'https://soulbuddy.app/email');
     config()->set('services.chatgpt.email_verified_claim', 'https://soulbuddy.app/email_verified');
     Cache::flush();
@@ -23,7 +26,16 @@ function configureChatgptTestOAuth(): string
     $key = openssl_pkey_new(['private_key_type' => OPENSSL_KEYTYPE_RSA, 'private_key_bits' => 2048]);
     openssl_pkey_export($key, $pem);
     $rsa = openssl_pkey_get_details($key)['rsa'];
-    Http::fake(['https://issuer.example/jwks.json' => Http::response([
+    $introspection = Http::sequence();
+    foreach ($introspectionResponses as $response) {
+        if ($response['connection_failure'] ?? false) {
+            $introspection->pushFailedConnection();
+        } else {
+            $introspection->push($response['body'], $response['status']);
+        }
+    }
+    $introspection->whenEmpty(Http::response(['active' => true, 'sub' => 'auth0|person']));
+    Http::fake(['https://issuer.example/introspect' => $introspection, 'https://issuer.example/jwks.json' => Http::response([
         'keys' => [[
             'kty' => 'RSA',
             'alg' => 'RS256',
@@ -298,4 +310,44 @@ it('uses the configured issuer exactly including its trailing slash', function (
     $auth = chatgptTestBearer($pem, 'exact-issuer@example.com', 'life.read', ['iss' => 'https://issuer.example']);
     $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
         ->assertJsonPath('result.structuredContent.plan', null);
+});
+
+it('checks every valid token against the issuer and refuses a token after revocation', function () {
+    $pem = configureChatgptTestOAuth([
+        ['status' => 200, 'body' => ['active' => true, 'sub' => 'auth0|person']],
+        ['status' => 200, 'body' => ['active' => false]],
+    ]);
+    $auth = chatgptTestBearer($pem, 'revoked@example.com', 'life.read');
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.structuredContent.plan', null);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.isError', true);
+    Http::assertSentCount(3); // One JWKS request and one introspection per call.
+    Http::assertSent(fn ($request) => $request->url() === 'https://issuer.example/introspect'
+        && $request->method() === 'POST' && $request->hasHeader('Authorization', 'Basic '.base64_encode('resource-client:test-secret'))
+        && ($request['token'] ?? '') === substr($auth['Authorization'], 7));
+});
+
+it('fails closed when introspection fails, is malformed or reports a different subject', function () {
+    $pem = configureChatgptTestOAuth([
+        ['status' => 503, 'body' => []],
+        ['status' => 302, 'body' => ['active' => true, 'sub' => 'auth0|person']],
+        ['connection_failure' => true],
+        ['status' => 200, 'body' => ['active' => 'true', 'sub' => 'auth0|person']],
+        ['status' => 200, 'body' => ['active' => true, 'sub' => 'someone-else']],
+    ]);
+    $auth = chatgptTestBearer($pem, 'fail-closed@example.com', 'life.read');
+    foreach (range(1, 5) as $attempt) {
+        $this->postJson('/mcp', chatgptTestCall('get_life_plan', [], $attempt), $auth)
+            ->assertJsonPath('result.isError', true);
+    }
+    expect(User::query()->where('email', 'fail-closed@example.com')->exists())->toBeFalse();
+});
+
+it('does not enable protected access without secure introspection configuration', function () {
+    $pem = configureChatgptTestOAuth();
+    config()->set('services.chatgpt.introspection_url', 'http://issuer.example/introspect');
+    $this->getJson('/.well-known/oauth-protected-resource')->assertStatus(503);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), chatgptTestBearer($pem, 'missing@example.com'))
+        ->assertJsonPath('result.isError', true);
 });

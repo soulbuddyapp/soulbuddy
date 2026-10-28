@@ -18,7 +18,10 @@ class ChatgptIdentity
     public function configured(): bool
     {
         return $this->issuer() !== '' && $this->audience() !== ''
-            && $this->jwksUrl() !== '' && str_starts_with($this->jwksUrl(), 'https://');
+            && str_starts_with($this->jwksUrl(), 'https://')
+            && str_starts_with((string) config('services.chatgpt.introspection_url'), 'https://')
+            && (string) config('services.chatgpt.introspection_client_id') !== ''
+            && (string) config('services.chatgpt.introspection_client_secret') !== '';
     }
 
     public function issuer(): string
@@ -83,6 +86,20 @@ class ChatgptIdentity
 
             $scopes = preg_split('/\\s+/', (string) ($claims->scope ?? ''), -1, PREG_SPLIT_NO_EMPTY);
             if (! in_array($scope, $scopes, true)) {
+                return null;
+            }
+
+            // Check every call; never cache active status or follow redirects carrying credentials.
+            $status = Http::asForm()->acceptJson()->connectTimeout(3)->timeout(5)
+                ->withoutRedirecting()->withBasicAuth(
+                    urlencode((string) config('services.chatgpt.introspection_client_id')),
+                    urlencode((string) config('services.chatgpt.introspection_client_secret')),
+                )->post((string) config('services.chatgpt.introspection_url'), [
+                    'token' => $bearer,
+                    'token_type_hint' => 'access_token',
+                ]);
+            if (! $status->successful() || $status->json('active') !== true ||
+                ! is_string($status->json('sub')) || ! hash_equals($claims->sub, $status->json('sub'))) {
                 return null;
             }
 
