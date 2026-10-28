@@ -748,3 +748,28 @@ it('returns only a boolean ChatGPT connection status to the authenticated SoulBu
     $this->getJson('/api/account/chatgpt/status')
         ->assertExactJson(['linked' => false]);
 });
+
+it('prunes only expired account link codes without deleting current codes or OAuth bindings', function () {
+    $owner = User::factory()->create(['email' => 'prune@example.com', 'email_verified_at' => now()]);
+    chatgptBindTestIdentity('prune@example.com', 'auth0|prune', 'https://issuer.example/', $owner);
+
+    foreach ([
+        ['id' => (string) Str::uuid(), 'code_hash' => hash('sha256', 'expired'), 'expires_at' => now()->subMinute()],
+        ['id' => (string) Str::uuid(), 'code_hash' => hash('sha256', 'active'), 'expires_at' => now()->addMinutes(5)],
+    ] as $code) {
+        DB::table('chatgpt_account_link_codes')->insert([
+            'id' => $code['id'],
+            'user_id' => $owner->id,
+            'code_hash' => $code['code_hash'],
+            'expires_at' => $code['expires_at'],
+            'consumed_at' => null,
+            'created_at' => now(),
+        ]);
+    }
+
+    $this->artisan('chatgpt:prune-link-codes')->assertSuccessful();
+
+    expect(DB::table('chatgpt_account_link_codes')->count())->toBe(1)
+        ->and(DB::table('chatgpt_account_link_codes')->value('code_hash'))->toBe(hash('sha256', 'active'))
+        ->and(DB::table('chatgpt_oauth_identities')->count())->toBe(1);
+});

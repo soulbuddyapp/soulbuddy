@@ -11,6 +11,7 @@ on:
       - 'services/api/database/migrations/*life_planner*'
       - 'services/api/database/migrations/*chatgpt_oauth*'
       - 'services/api/routes/api.php'
+      - 'services/api/routes/console.php'
       - 'services/api/routes/web.php'
       - 'services/api/bootstrap/app.php'
       - 'services/api/config/services.php'
@@ -34,6 +35,7 @@ on:
       - 'services/api/database/migrations/*life_planner*'
       - 'services/api/database/migrations/*chatgpt_oauth*'
       - 'services/api/routes/api.php'
+      - 'services/api/routes/console.php'
       - 'services/api/routes/web.php'
       - 'services/api/bootstrap/app.php'
       - 'services/api/config/services.php'
@@ -97,6 +99,7 @@ jobs:
             app/Domain/LifePlanning/*.php \
             app/Http/Controllers/Chatgpt/*.php \
             app/Http/Controllers/Api/Chatgpt*.php \
+            routes/console.php \
             database/migrations/*life_planner*.php \
             database/migrations/*chatgpt_oauth*.php \
             tests/Feature/Chatgpt/*.php; do php -l "$file"; done

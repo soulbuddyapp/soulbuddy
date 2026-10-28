@@ -14,7 +14,7 @@ Use a mature OAuth provider with Authorization Code + PKCE S256, discovery metad
 
 Existing verified SoulBuddy owners can authenticate to the existing Laravel API and explicitly request a ten-minute, one-use 128-bit code from POST /api/account/chatgpt/link-codes with confirmed=true. Only the hash is stored. They then approve linking from the authenticated ChatGPT tool using the same code. The code, matching verified email, issuer, subject and live introspection must all succeed. Unverified installations cannot link. Users can unlink from the authenticated SoulBuddy API at POST /api/account/chatgpt/unlink, which immediately removes local access but **does not revoke provider tokens**.
 
-**No mobile UI for generating the code has been shipped yet.** The authenticated linking API is present, but an ordinary Android user cannot complete the self-service experience without the UI. Existing accounts (including old synthetic staging accounts) will not be backfilled by email. Back up the staging database, then link through an authenticated verified local session or recreate only explicitly approved synthetic test records. Do not infer ownership from a matching email; email reassignment cannot transfer a plan to a different provider subject.
+**Mobile code-entry support is implemented in the feature branch, not yet published.** Settings → ChatGPT life planner can request, display and copy a ten-minute code after email verification, show connection status and unlink after confirmation. The code is stored only in in-memory UI state, hidden when the app leaves the foreground and not logged or saved to app storage. Users still need the OAuth-authenticated ChatGPT tool to finish linking. Verify with Flutter CI and an actual release build before advertising this to installed Android users. Existing accounts (including old synthetic staging accounts) will not be backfilled by email. Back up the staging database, then link through an authenticated verified local session or recreate only explicitly approved synthetic test records. Do not infer ownership from a matching email; email reassignment cannot transfer a plan to a different provider subject.
 
 **Release blocker: live revocation and disconnect.** The resource server verifies the signed JWT locally and then checks the same token against the configured introspection endpoint on every protected call. It fails closed if the response is unavailable, inactive, malformed, or reports a different subject. On 2026-10-28, a real staging ChatGPT access token remained active after the user disconnected the account in ChatGPT, and the API accepted a read with that same token. Explicitly revoking that token at Keycloak made introspection report inactive and the API denied it. Implement and verify a user-accessible provider-side grant or session revocation path before publication; do not claim ChatGPT disconnect immediately revokes the provider grant. Also verify that any refresh token is invalidated, other sessions remain appropriately scoped, and stale access is denied immediately.
 
@@ -98,6 +98,15 @@ curl -i -H 'Content-Type: application/json' https://sbuddy.elbiblio.com/mcp \
 ```
 
 Use MCP Inspector to perform OAuth connection with a real nonproduction identity and test authorization, token expiry, wrong issuer and audience, cross-user isolation, denial of unapproved mutations, and account deletion. Then repeat from ChatGPT.
+
+## Gate 2a: Mobile account-linking acceptance
+
+The new Flutter Settings section is separate from the ChatGPT OAuth provider and uses the existing installation's Sanctum token. Confirm in an Android/iOS test build that the user can verify email, request a one-use code, copy it into the ChatGPT linking tool and subsequently see the connected state. Verify the code is not in device storage, is hidden on backgrounding, expires server-side after ten minutes and that generating another code invalidates the earlier code.
+
+Unlinking via the app removes SoulBuddy's provider-to-user association, but does not delete the life plan, revoke access tokens at Keycloak or disconnect ChatGPT's own connection. Validate this exact distinction in the interface. Reconcile the installed app release version and backend migration before enabling the UI in production.
+
+The Laravel scheduler deletes expired link-code hashes once daily. Verify that the server cron is active and the new command runs after schema migration; no historical migration of email-based associations is allowed.
+
 
 ## Gate 3: Public Plugin Directory
 

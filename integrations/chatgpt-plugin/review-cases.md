@@ -36,3 +36,10 @@ All authenticated tests use a pre-created, **fake** verified test account. Start
 - Link an existing verified SoulBuddy user using a ten-minute one-time code from its authenticated local account. Check expiry, replay, mismatched email, an already-linked subject, and a second subject from the same issuer.
 - Unlink from an authenticated SoulBuddy session while the provider token remains active; the next private read must be denied. Ending the identity-provider application session and invalidating refresh credentials remain separately verified launch requirements.
 - Confirm OAuth PKCE access expiry, ChatGPT token refresh, real scheduled MCP daily read, disconnect, provider-side grant revocation and reconnect using synthetic staging accounts. A passing test suite is not evidence of refresh-token behavior.
+
+## Mobile and information-handling acceptance
+- In a Flutter test build, open Settings → ChatGPT life planner. Verify connection status is private and does not provision an account, then verify email and create a code.
+- Copy the one-use code, paste it into the authenticated ChatGPT linking tool, and check that local Settings shows connected. Codes must not be saved to local preferences or logging.
+- With a code displayed, background and foreground the app; it should no longer display the code. Confirm it expires server-side and a replacement invalidates the first.
+- Attempt unlink: cancellation must not modify the binding; confirmation must immediately deny access to the old local account, while provider-side grant revocation remains a separate operation.
+- Check that all published privacy, support, terms and data-deletion claims match the deployed service; do not substitute the draft review memo as a live policy.
