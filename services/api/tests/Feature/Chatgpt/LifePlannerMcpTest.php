@@ -99,6 +99,10 @@ it('advertises discovery, MCP handshake and accurate auth metadata without crede
         ->assertOk()->assertJsonPath('resource', 'https://sbuddy.elbiblio.com/mcp')
         ->assertJsonPath('authorization_servers.0', 'https://issuer.example/');
 
+    $this->getJson('/.well-known/oauth-protected-resource/mcp')
+        ->assertOk()->assertJsonPath('resource', 'https://sbuddy.elbiblio.com/mcp')
+        ->assertJsonPath('authorization_servers.0', 'https://issuer.example/');
+
     $this->postJson('/mcp', [
         'jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize',
         'params' => ['protocolVersion' => '2025-11-25'],
@@ -145,6 +149,16 @@ it('does not expose private plans without a verified scoped bearer', function ()
     ))->assertJsonPath('result.isError', true);
 
     expect(DB::table('life_plans')->count())->toBe(0);
+});
+
+it('returns a concise empty-plan result without instructions to the assistant', function () {
+    $pem = configureChatgptTestOAuth();
+    $response = $this->postJson('/mcp', chatgptTestCall('get_life_plan'),
+        chatgptTestBearer($pem, 'empty-plan@example.com', 'life.read')
+    )->assertOk()->assertJsonPath('result.structuredContent.plan', null)
+        ->assertJsonPath('result.structuredContent.message', 'No seven-day plan yet.');
+
+    expect($response->json('result.content.0.text'))->not->toContain('Ask the person');
 });
 
 it('saves idempotent plans, scopes access and records reversible observations rather than spiritual scores', function () {

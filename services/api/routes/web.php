@@ -19,3 +19,4 @@ Route::get('/', function () {
 Route::post('/mcp', [McpController::class, 'handle'])->middleware('throttle:chatgpt-mcp');
 Route::get('/mcp', fn () => response()->json(['message' => 'Use MCP Streamable HTTP POST.'], 405));
 Route::get('/.well-known/oauth-protected-resource', [McpController::class, 'protectedResource']);
+Route::get('/.well-known/oauth-protected-resource/mcp', [McpController::class, 'protectedResource']);

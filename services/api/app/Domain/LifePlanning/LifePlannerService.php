@@ -22,7 +22,7 @@ class LifePlannerService
 
         return $plan ? $this->snapshot($user, $plan) : [
             'plan' => null,
-            'message' => 'No seven-day plan yet. Ask the person about their priorities and available time before proposing a plan.',
+            'message' => 'No seven-day plan yet.',
         ];
     }
 
