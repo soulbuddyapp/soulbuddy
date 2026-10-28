@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Chatgpt;
 
 use App\Domain\LifePlanning\ChatgptIdentity;
+use App\Domain\LifePlanning\ChatgptAccountLinks;
 use App\Domain\LifePlanning\LifePlannerService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -30,7 +31,7 @@ class McpController extends Controller
         ]);
     }
 
-    public function handle(Request $request, ChatgptIdentity $identity, LifePlannerService $planner): JsonResponse|Response
+    public function handle(Request $request, ChatgptIdentity $identity, ChatgptAccountLinks $accounts, LifePlannerService $planner): JsonResponse|Response
     {
         $version = $request->header('MCP-Protocol-Version');
         if ($version && ! in_array($version, self::PROTOCOLS, true)) {
@@ -67,7 +68,7 @@ class McpController extends Controller
                     ? $clientVersion : '2025-11-25',
                 'capabilities' => ['tools' => ['listChanged' => false]],
                 'serverInfo' => ['name' => 'soulbuddy-life-planner', 'version' => '0.1.0'],
-                'instructions' => 'Help people thoughtfully design and review a seven-day rule of life. Ask about work, family, prayer, learning, reflection, service and rest. Never suggest that completion measures holiness, claim divine revelation, or compose prayers on SoulBuddy behalf. Before any write, show exactly what will be saved and obtain explicit consent. Do not record intimate confessions. '
+                'instructions' => 'Help people thoughtfully design and review a seven-day rule of life. Ask about work, family, prayer, learning, reflection, service and rest. Never suggest that completion measures holiness, claim divine revelation, or compose prayers on SoulBuddy behalf. Before any write, show exactly what will be saved and obtain explicit consent. Do not record intimate confessions. Check get_account_link_status before storing private plans. Read tools do not create accounts: with consent, call create_soulbuddy_account for a new user or link_existing_soulbuddy_account with a code generated from the user’s already authenticated SoulBuddy account. Never infer account ownership from email alone. '
                     .'During planning, offer an optional daily reminder once. Only with explicit consent and a chosen local time and time zone, request a recurring ChatGPT scheduled task if available. Ask whether reminders may include commitment details; default to a generic reminder because notifications can be visible to others. Each run must read get_daily_life_plan without writing: invite setup when there is no plan, report the start date for an upcoming plan, remind about today’s commitments, or invite a review after the week ends. Include commitment details only with permission. Do not treat authentication or service failure as an empty plan. Say a reminder is active only when the platform has confirmed it; never claim notification delivery without evidence. '
                     .'For a disconnect request, use get_connection_management to find verified provider controls, explain that ending the provider session and disconnecting ChatGPT are separate steps, and never claim a session or token was revoked merely because a link was returned.',
             ]);
@@ -118,6 +119,8 @@ class McpController extends Controller
         }
 
         $scope = match ($name) {
+            'get_account_link_status' => 'life.read',
+            'create_soulbuddy_account', 'link_existing_soulbuddy_account' => 'life.write',
             'get_life_plan', 'get_daily_life_plan', 'list_life_plans', 'review_week' => 'life.read',
             'create_seven_day_plan', 'record_daily_checkin', 'save_weekly_review', 'delete_life_plan' => 'life.write',
             default => null,
@@ -127,13 +130,13 @@ class McpController extends Controller
             return $this->rpc($id, null, -32602, 'Unknown tool');
         }
 
-        $user = $identity->authenticate($request, $scope);
-        if (! $user) {
+        $principal = $identity->verify($request, $scope);
+        if (! $principal) {
             if (! $identity->configured()) {
                 return $this->rpc($id, $this->toolError('Life planner is not configured for secure account linking.'));
             }
 
-            return $this->rpc($id, $this->toolError('Connect a verified SoulBuddy account to continue.', [
+            return $this->rpc($id, $this->toolError('Sign in with your SoulBuddy identity provider to continue.', [
                 'mcp/www_authenticate' => [
                     'Bearer resource_metadata="'.rtrim((string) config('app.url'), '/').'/.well-known/oauth-protected-resource", error="insufficient_scope", error_description="Sign in to SoulBuddy with life planning access"',
                 ],
@@ -141,6 +144,34 @@ class McpController extends Controller
         }
 
         try {
+            if ($name === 'get_account_link_status') {
+                return $this->rpc($id, $this->toolResponse([
+                    'status' => $accounts->resolve($principal) ? 'linked' : 'not_linked',
+                    'message' => 'Account lookup is based on the provider issuer and subject, never email alone.',
+                ]));
+            }
+            if ($name === 'create_soulbuddy_account') {
+                $user = $accounts->create($principal, $args);
+
+                return $this->rpc($id, $this->toolResponse([
+                    'status' => 'linked',
+                    'message' => 'A SoulBuddy account is associated with this provider identity.',
+                ]));
+            }
+            if ($name === 'link_existing_soulbuddy_account') {
+                $user = $accounts->link($principal, $args);
+
+                return $this->rpc($id, $this->toolResponse([
+                    'status' => 'linked',
+                    'message' => 'The verified SoulBuddy account is now linked to this provider identity.',
+                ]));
+            }
+
+            $user = $accounts->resolve($principal);
+            if (! $user) {
+                return $this->rpc($id, $this->toolError('No SoulBuddy account is linked to this identity. Choose to create a new account or link an existing verified account with its one-time code.'));
+            }
+
             $result = match ($name) {
                 'get_life_plan' => $planner->get($user, $args),
                 'get_daily_life_plan' => $planner->daily($user),
@@ -200,6 +231,30 @@ class McpController extends Controller
         $domains = LifePlannerService::DOMAINS;
 
         return [
+            [
+                'name' => 'get_account_link_status', 'title' => 'Check SoulBuddy account connection',
+                'description' => 'Check whether this verified OAuth issuer and subject are linked. Does not create users or reveal personal data.',
+                'inputSchema' => $object([]),
+                'securitySchemes' => $read,
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
+            ],
+            [
+                'name' => 'create_soulbuddy_account', 'title' => 'Create my SoulBuddy account',
+                'description' => 'Create an account only after explicit permission and a verified provider email. Never attach to existing accounts by email; if an account exists, use explicit linking instead.',
+                'inputSchema' => $object(['confirmed' => $confirmed], ['confirmed']),
+                'securitySchemes' => $write,
+                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'openWorldHint' => false],
+            ],
+            [
+                'name' => 'link_existing_soulbuddy_account', 'title' => 'Link my existing SoulBuddy account',
+                'description' => 'Connect a previously verified SoulBuddy account with a short-lived single-use code generated from its authenticated app account via POST /api/account/chatgpt/link-codes. Requires explicit user confirmation and matching verified email. Never claim a match from email alone.',
+                'inputSchema' => $object([
+                    'code' => ['type' => 'string', 'minLength' => 32, 'maxLength' => 32, 'description' => 'One-time 32-character hexadecimal code from the authenticated SoulBuddy account'],
+                    'confirmed' => $confirmed,
+                ], ['code', 'confirmed']),
+                'securitySchemes' => $write,
+                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'openWorldHint' => false],
+            ],
             [
                 'name' => 'get_planning_guide', 'title' => 'Discover SoulBuddy planning',
                 'description' => 'Explain the free planning approach without saving anything or requiring login.',

@@ -2,14 +2,11 @@
 
 namespace App\Domain\LifePlanning;
 
-use App\Models\User;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
@@ -17,7 +14,9 @@ class ChatgptIdentity
 {
     public function configured(): bool
     {
-        return $this->issuer() !== '' && $this->audience() !== ''
+        return filter_var($this->issuer(), FILTER_VALIDATE_URL) &&
+            parse_url($this->issuer(), PHP_URL_SCHEME) === 'https' &&
+            $this->audience() !== ''
             && str_starts_with($this->jwksUrl(), 'https://')
             && str_starts_with((string) config('services.chatgpt.introspection_url'), 'https://')
             && (string) config('services.chatgpt.introspection_client_id') !== ''
@@ -65,7 +64,8 @@ class ChatgptIdentity
         return $url;
     }
 
-    public function authenticate(Request $request, string $scope): ?User
+    /** @return array{issuer:string, subject:string, email:?string, email_verified:bool}|null */
+    public function verify(Request $request, string $scope): ?array
     {
         $bearer = $request->bearerToken();
         if (! $this->configured() || ! $bearer || strlen($bearer) > 8192) {
@@ -129,35 +129,24 @@ class ChatgptIdentity
                 return null;
             }
 
-            // Only verified identity claims from our pinned OAuth issuer may link an existing SoulBuddy account.
+            // Email is profile metadata, never an account lookup key. Existing bindings
+            // continue to work when the provider changes or stops emitting this claim.
             $emailClaim = (string) config('services.chatgpt.email_claim', 'email');
             $verifiedClaim = (string) config('services.chatgpt.email_verified_claim', 'email_verified');
             $email = $claims->{$emailClaim} ?? null;
-            if (! is_string($email) || ! filter_var($email, FILTER_VALIDATE_EMAIL) ||
-                ($claims->{$verifiedClaim} ?? false) !== true) {
+            $email = is_string($email) && strlen($email) <= 254 &&
+                filter_var($email, FILTER_VALIDATE_EMAIL) ? mb_strtolower($email) : null;
+
+            if (strlen($claims->sub) > 255 || strlen($this->issuer()) > 255) {
                 return null;
             }
-            $email = mb_strtolower($email);
 
-            $user = User::query()->where('email', $email)->first();
-            if ($user) {
-                // Never take over a pending/unverified local installation's identity.
-                return $user->email_verified_at ? $user : null;
-            }
-
-            try {
-                $user = new User;
-                $user->forceFill([
-                    'email' => $email,
-                    'email_verified_at' => now(),
-                    'name' => 'SoulBuddy member',
-                    'password' => Str::random(64),
-                ])->save();
-            } catch (UniqueConstraintViolationException) {
-                $user = User::query()->where('email', $email)->first();
-            }
-
-            return $user?->email_verified_at ? $user : null;
+            return [
+                'issuer' => $this->issuer(),
+                'subject' => $claims->sub,
+                'email' => $email,
+                'email_verified' => $email !== null && ($claims->{$verifiedClaim} ?? false) === true,
+            ];
         } catch (Throwable) {
             // Never echo JWTs, claims, email, identity provider errors, or personal data to clients or logs.
             return null;

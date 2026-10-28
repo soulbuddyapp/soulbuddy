@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountEmailChallengeController;
 use App\Http\Controllers\Api\AccountEmailConfirmationController;
+use App\Http\Controllers\Api\ChatgptAccountLinkController;
 use App\Http\Controllers\Api\CircleController;
 use App\Http\Controllers\Api\CircleReportController;
 use App\Http\Controllers\Api\DailyScriptureController;
@@ -31,6 +32,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/account/email/challenges', AccountEmailChallengeController::class)
         ->middleware('throttle:account-email-challenges');
     Route::post('/account/email/confirm', AccountEmailConfirmationController::class)
+        ->middleware('throttle:account-email-challenges');
+    Route::post('/account/chatgpt/link-codes', [ChatgptAccountLinkController::class, 'issue'])
+        ->middleware('throttle:account-email-challenges');
+    Route::post('/account/chatgpt/unlink', [ChatgptAccountLinkController::class, 'unlink'])
         ->middleware('throttle:account-email-challenges');
     Route::post('/companions/telegram/link-codes', TelegramLinkCodeController::class)
         ->middleware('throttle:account-email-challenges');
