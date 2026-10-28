@@ -67,7 +67,8 @@ class McpController extends Controller
                     ? $clientVersion : '2025-11-25',
                 'capabilities' => ['tools' => ['listChanged' => false]],
                 'serverInfo' => ['name' => 'soulbuddy-life-planner', 'version' => '0.1.0'],
-                'instructions' => 'Help people thoughtfully design and review a seven-day rule of life. Ask about work, family, prayer, learning, reflection, service and rest. Never suggest that completion measures holiness, claim divine revelation, or compose prayers on SoulBuddy behalf. Before any write, show exactly what will be saved and obtain explicit consent. Do not record intimate confessions.',
+                'instructions' => 'Help people thoughtfully design and review a seven-day rule of life. Ask about work, family, prayer, learning, reflection, service and rest. Never suggest that completion measures holiness, claim divine revelation, or compose prayers on SoulBuddy behalf. Before any write, show exactly what will be saved and obtain explicit consent. Do not record intimate confessions. '
+                    .'During planning, offer an optional daily reminder once. Only with explicit consent and a chosen local time and time zone, request a recurring ChatGPT scheduled task if available. Ask whether reminders may include commitment details; default to a generic reminder because notifications can be visible to others. Each run must read get_daily_life_plan without writing: invite setup when there is no plan, report the start date for an upcoming plan, remind about today’s commitments, or invite a review after the week ends. Include commitment details only with permission. Do not treat authentication or service failure as an empty plan. Say a reminder is active only when the platform has confirmed it; never claim notification delivery without evidence.',
             ]);
         }
 

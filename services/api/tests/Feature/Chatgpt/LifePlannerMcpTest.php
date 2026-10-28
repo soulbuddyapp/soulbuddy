@@ -107,10 +107,16 @@ it('advertises discovery, MCP handshake and accurate auth metadata without crede
         ->assertOk()->assertJsonPath('resource', 'https://sbuddy.elbiblio.com/mcp')
         ->assertJsonPath('authorization_servers.0', 'https://issuer.example/');
 
-    $this->postJson('/mcp', [
+    $initialized = $this->postJson('/mcp', [
         'jsonrpc' => '2.0', 'id' => 1, 'method' => 'initialize',
         'params' => ['protocolVersion' => '2025-11-25'],
     ])->assertOk()->assertJsonPath('result.serverInfo.name', 'soulbuddy-life-planner');
+    expect($initialized->json('result.instructions'))
+        ->toContain('get_daily_life_plan')
+        ->toContain('consent')
+        ->toContain('time zone')
+        ->toContain('generic')
+        ->toContain('confirmed');
 
     $listed = $this->postJson('/mcp', [
         'jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list',

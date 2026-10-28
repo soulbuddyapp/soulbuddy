@@ -2,11 +2,11 @@
 
 ## Outcome
 
-People may choose a daily ChatGPT reminder for their SoulBuddy life plan. Before a plan exists, the reminder prompts setup. During a seven-day plan, it presents only commitments due on the plan's local date. Before a future start or after the seven days, it states the relevant condition rather than presenting old or future commitments as today's work.
+People may choose a daily ChatGPT reminder for their SoulBuddy life plan. Before a plan exists, the reminder prompts setup. During a seven-day plan, it refers to the plan's local date and includes only that day's commitments when the person has explicitly approved detailed reminders. Before a future start or after the seven days, it states the relevant condition rather than presenting old or future commitments as today's work.
 
 ## Delivery and consent
 
-ChatGPT's scheduled-task service owns scheduling and notification delivery. The SoulBuddy plugin provides a read-only daily-plan tool and onboarding guidance. It does not create a schedule on connection, register a background job on the SoulBuddy server, send email, or claim a task was created until ChatGPT confirms it. Users choose whether to enable reminders, their local time and IANA time zone, and notification preferences. Users can change, pause or remove the task using ChatGPT's task controls.
+ChatGPT's scheduled-task service owns scheduling and notification delivery. The SoulBuddy plugin provides a read-only daily-plan tool and onboarding guidance. It does not create a schedule on connection, register a background job on the SoulBuddy server, send email, or claim a task was created until ChatGPT confirms it. Users choose whether to enable reminders, their local time and IANA time zone, and notification preferences. Reminders default to generic text because notifications can be visible to other people; commitment details are included only with explicit approval. Users can change, pause or remove the task using ChatGPT's task controls.
 
 After an explicit reminder request, the assistant confirms the intended time, time zone and daily frequency, then asks ChatGPT to schedule a task using the connected SoulBuddy tool. A task must explicitly identify the plugin and the daily-plan tool, handle authentication failure without pretending the plan is empty, and make no writes or unsupported claims about delivery. If scheduling is unavailable, explain the limitation and do not represent a proposed schedule as active. A staging account and a disposable one-time task are used to verify an actual scheduled run and, separately, notification delivery before claiming availability.
 

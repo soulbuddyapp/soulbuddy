@@ -20,7 +20,7 @@
 
 **Files:** `integrations/chatgpt-plugin/skills/setup/SKILL.md`, `integrations/chatgpt-plugin/review-cases.md`, `docs/deployment/chatgpt-life-planner.md`.
 
-- [x] Add scheduling instructions covering consent, time, time zone, setup, active plans, future plans, finished plans, authorization errors and platform availability.
+- [x] Add scheduling instructions to both the bundled setup skill and MCP server initialization, covering consent, time, time zone, generic-by-default reminder privacy, plan states, authorization errors and platform availability.
 - [x] Add review scenarios for reminder setup and privacy. State that a proposed task is not active until confirmed by ChatGPT.
 - [x] Update the deployment runbook without claiming delivery is verified before an end-to-end test.
 
