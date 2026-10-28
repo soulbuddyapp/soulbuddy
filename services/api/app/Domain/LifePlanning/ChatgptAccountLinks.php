@@ -107,14 +107,20 @@ class ChatgptAccountLinks
 
         try {
             return DB::transaction(function () use ($principal, $email, $codeHash): User {
+                // Match the account-then-challenge lock order used during code issuance.
+                $candidate = DB::table('chatgpt_account_link_codes')
+                    ->where('code_hash', $codeHash)->first();
+                if (! $candidate) {
+                    $this->fail('This link code is invalid, expired, or already used.');
+                }
+                $user = User::query()->whereKey($candidate->user_id)->lockForUpdate()->first();
                 $challenge = DB::table('chatgpt_account_link_codes')
+                    ->where('id', $candidate->id)
                     ->where('code_hash', $codeHash)->lockForUpdate()->first();
                 if (! $challenge || $challenge->consumed_at !== null ||
                     now()->greaterThanOrEqualTo($challenge->expires_at)) {
                     $this->fail('This link code is invalid, expired, or already used.');
                 }
-
-                $user = User::query()->whereKey($challenge->user_id)->lockForUpdate()->first();
                 if (! $user || ! $user->email_verified_at ||
                     ! hash_equals(mb_strtolower($user->email), $email)) {
                     $this->fail('The verified email on both accounts must match before linking.');
