@@ -18,6 +18,12 @@ on:
       - 'services/api/app/Providers/AppServiceProvider.php'
       - 'services/api/docker/production/sbuddy.nginx.conf'
       - 'integrations/chatgpt-plugin/**'
+      - 'apps/soulbuddy/lib/core/identity/chatgpt_link_client.dart'
+      - 'apps/soulbuddy/lib/core/identity/local_identity_providers.dart'
+      - 'apps/soulbuddy/lib/features/settings/presentation/chatgpt_link_section.dart'
+      - 'apps/soulbuddy/lib/features/settings/presentation/settings_screen.dart'
+      - 'apps/soulbuddy/test/core/identity/chatgpt_link_client_test.dart'
+      - 'apps/soulbuddy/test/features/settings/chatgpt_link_section_test.dart'
   push:
     branches: [main]
     paths:
@@ -32,6 +38,12 @@ on:
       - 'services/api/bootstrap/app.php'
       - 'services/api/config/services.php'
       - 'services/api/tests/Feature/Chatgpt/**'
+      - 'apps/soulbuddy/lib/core/identity/chatgpt_link_client.dart'
+      - 'apps/soulbuddy/lib/core/identity/local_identity_providers.dart'
+      - 'apps/soulbuddy/lib/features/settings/presentation/chatgpt_link_section.dart'
+      - 'apps/soulbuddy/lib/features/settings/presentation/settings_screen.dart'
+      - 'apps/soulbuddy/test/core/identity/chatgpt_link_client_test.dart'
+      - 'apps/soulbuddy/test/features/settings/chatgpt_link_section_test.dart'
   workflow_dispatch:
 
 permissions:
@@ -92,3 +104,34 @@ jobs:
         run: php artisan test tests/Feature/Chatgpt
       - name: Existing account/session and Goal regressions
         run: php artisan test tests/Feature/Auth tests/Feature/Accounts tests/Feature/Goals
+
+  flutter-account-link:
+    name: Flutter ChatGPT account linking
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Prepare ignored Scripture asset for focused widget tests
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets/scripture | Out-Null
+          if (-not (Test-Path assets/scripture/rsvce.db)) {
+            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
+          }
+      - name: Format ChatGPT linkage
+        shell: pwsh
+        run: |
+          dart format --output=none --set-exit-if-changed lib/core/identity/chatgpt_link_client.dart lib/core/identity/local_identity_providers.dart lib/features/settings/presentation/chatgpt_link_section.dart lib/features/settings/presentation/settings_screen.dart test/core/identity/chatgpt_link_client_test.dart test/features/settings/chatgpt_link_section_test.dart
+      - name: Analyze account linking and Settings
+        run: flutter analyze --fatal-infos lib/core/identity/chatgpt_link_client.dart lib/core/identity/local_identity_providers.dart lib/features/settings/presentation/chatgpt_link_section.dart lib/features/settings/presentation/settings_screen.dart
+      - name: Test account linking and existing connection controls
+        run: flutter test test/core/identity/chatgpt_link_client_test.dart test/features/settings/chatgpt_link_section_test.dart test/core/identity/account_email_link_client_test.dart test/features/settings/account_email_link_section_test.dart test/core/identity/telegram_link_client_test.dart test/features/settings/telegram_link_section_test.dart
