@@ -51,6 +51,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: chatgpt-life-planner-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   laravel-mcp:
     name: MCP and life planner regression tests
@@ -110,7 +114,7 @@ jobs:
 
   flutter-account-link:
     name: Flutter ChatGPT account linking
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
@@ -124,28 +128,25 @@ jobs:
           cache: true
       - run: flutter pub get
       - name: Prepare ignored Scripture asset for focused widget tests
-        shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force assets/scripture | Out-Null
-          if (-not (Test-Path assets/scripture/rsvce.db)) {
-            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
-          }
+          mkdir -p assets/scripture
+          touch assets/scripture/rsvce.db
       - name: Format ChatGPT linkage
-        shell: pwsh
         run: |
-          $paths = @(
-            'lib/core/identity/chatgpt_link_client.dart',
-            'lib/core/identity/local_identity_providers.dart',
-            'lib/features/settings/presentation/chatgpt_link_section.dart',
-            'lib/features/settings/presentation/settings_screen.dart',
-            'test/core/identity/chatgpt_link_client_test.dart',
-            'test/features/settings/chatgpt_link_section_test.dart'
+          files=(
+            lib/core/identity/chatgpt_link_client.dart
+            lib/core/identity/local_identity_providers.dart
+            lib/features/settings/presentation/chatgpt_link_section.dart
+            lib/features/settings/presentation/settings_screen.dart
+            test/core/identity/chatgpt_link_client_test.dart
+            test/features/settings/chatgpt_link_section_test.dart
           )
-          dart format $paths
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          git diff --color=never -- $paths
-          $drift = git status --porcelain -- $paths
-          if ($drift) { throw 'Commit Dart formatter output shown above.' }
+          dart format "${files[@]}"
+          git diff --color=never -- "${files[@]}"
+          if ! git diff --quiet -- "${files[@]}"; then
+            echo "Commit Dart formatter changes printed above"
+            exit 1
+          fi
       - name: Analyze account linking and Settings
         run: flutter analyze --fatal-infos lib/core/identity/chatgpt_link_client.dart lib/core/identity/local_identity_providers.dart lib/features/settings/presentation/chatgpt_link_section.dart lib/features/settings/presentation/settings_screen.dart
       - name: Test account linking and existing connection controls
