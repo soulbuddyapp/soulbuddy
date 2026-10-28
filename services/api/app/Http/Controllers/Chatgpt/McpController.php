@@ -103,7 +103,7 @@ class McpController extends Controller
         }
 
         $scope = match ($name) {
-            'get_life_plan', 'list_life_plans', 'review_week' => 'life.read',
+            'get_life_plan', 'get_daily_life_plan', 'list_life_plans', 'review_week' => 'life.read',
             'create_seven_day_plan', 'record_daily_checkin', 'save_weekly_review', 'delete_life_plan' => 'life.write',
             default => null,
         };
@@ -128,6 +128,7 @@ class McpController extends Controller
         try {
             $result = match ($name) {
                 'get_life_plan' => $planner->get($user, $args),
+                'get_daily_life_plan' => $planner->daily($user),
                 'list_life_plans' => $planner->history($user, $args),
                 'create_seven_day_plan' => $planner->create($user, $args),
                 'record_daily_checkin' => $planner->checkIn($user, $args),
@@ -195,6 +196,13 @@ class McpController extends Controller
                 'name' => 'get_life_plan', 'title' => 'View my seven-day plan',
                 'description' => 'Read the signed-in person’s active plan, or a specified plan from their history.',
                 'inputSchema' => $object(['plan_id' => ['type' => 'string', 'format' => 'uuid', 'description' => 'Optional plan ID from plan history']]),
+                'securitySchemes' => $read,
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
+            ],
+            [
+                'name' => 'get_daily_life_plan', 'title' => 'View today’s commitments',
+                'description' => 'Read today’s commitments in the plan’s time zone, or whether a plan is missing, upcoming, or finished. Excludes private notes and reflections.',
+                'inputSchema' => $object([]),
                 'securitySchemes' => $read,
                 'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
             ],

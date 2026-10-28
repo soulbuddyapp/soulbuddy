@@ -10,6 +10,10 @@ use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
+afterEach(function () {
+    JWT::$timestamp = null;
+});
+
 function configureChatgptTestOAuth(array $introspectionResponses = []): string
 {
     config()->set('app.url', 'https://sbuddy.elbiblio.com');
@@ -159,6 +163,69 @@ it('returns a concise empty-plan result without instructions to the assistant', 
         ->assertJsonPath('result.structuredContent.message', 'No seven-day plan yet.');
 
     expect($response->json('result.content.0.text'))->not->toContain('Ask the person');
+});
+
+it('advertises a scoped read-only daily plan and distinguishes an absent plan from an auth failure', function () {
+    $pem = configureChatgptTestOAuth();
+    $listed = $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])->json('result.tools');
+    $daily = collect($listed)->firstWhere('name', 'get_daily_life_plan');
+    expect($daily)->not->toBeNull()
+        ->and($daily['securitySchemes'][0]['scopes'])->toBe(['life.read'])
+        ->and($daily['annotations']['readOnlyHint'])->toBeTrue();
+
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'))
+        ->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'empty-daily@example.com', 'life.write'))
+        ->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'empty-daily@example.com', 'life.read'))
+        ->assertJsonPath('result.structuredContent.state', 'no_plan');
+});
+
+it('returns only the owner’s current local-day commitments without private notes', function () {
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 00:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $pem = configureChatgptTestOAuth();
+    $auth = chatgptTestBearer($pem, 'daily-owner@example.com');
+    $payload = chatgptTestPlan();
+    $payload['starts_on'] = '2026-10-28';
+    $payload['timezone'] = 'America/Los_Angeles';
+    $created = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $payload), $auth)
+        ->assertOk();
+    $itemId = $created->json('result.structuredContent.items.0.id');
+    expect($itemId)->not->toBeNull();
+
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), $auth)
+        ->assertJsonPath('result.structuredContent.state', 'upcoming')
+        ->assertJsonPath('result.structuredContent.starts_on', '2026-10-28');
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'other-daily@example.com', 'life.read'))
+        ->assertJsonPath('result.structuredContent.state', 'no_plan');
+
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 07:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $auth = chatgptTestBearer($pem, 'daily-owner@example.com');
+    $this->postJson('/mcp', chatgptTestCall('record_daily_checkin', [
+        'item_id' => $itemId, 'outcome' => 'partial', 'note' => 'Private check-in', 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.items.0.outcome', 'partial');
+    $daily = $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), $auth)
+        ->assertJsonPath('result.structuredContent.state', 'today')
+        ->assertJsonPath('result.structuredContent.date', '2026-10-28')
+        ->assertJsonPath('result.structuredContent.timezone', 'America/Los_Angeles')
+        ->assertJsonPath('result.structuredContent.items.0.outcome', 'partial')
+        ->assertJsonCount(1, 'result.structuredContent.items')
+        ->assertJsonMissingPath('result.structuredContent.items.0.note')
+        ->assertJsonMissingPath('result.structuredContent.review');
+    expect($daily->getContent())->not->toContain('Private check-in');
+
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-03 08:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'daily-owner@example.com', 'life.read'))
+        ->assertJsonPath('result.structuredContent.state', 'today')
+        ->assertJsonPath('result.structuredContent.date', '2026-11-03');
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-04 08:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $this->postJson('/mcp', chatgptTestCall('get_daily_life_plan'), chatgptTestBearer($pem, 'daily-owner@example.com', 'life.read'))
+        ->assertJsonPath('result.structuredContent.state', 'finished')
+        ->assertJsonPath('result.structuredContent.ends_on', '2026-11-03');
 });
 
 it('saves idempotent plans, scopes access and records reversible observations rather than spiritual scores', function () {

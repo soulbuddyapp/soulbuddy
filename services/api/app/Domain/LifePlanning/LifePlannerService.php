@@ -26,6 +26,40 @@ class LifePlannerService
         ];
     }
 
+    public function daily(User $user): array
+    {
+        $plan = DB::table('life_plans')->where('user_id', $user->id)
+            ->whereNull('archived_at')->orderByDesc('created_at')->first();
+        if (! $plan) {
+            return ['state' => 'no_plan'];
+        }
+
+        $today = Carbon::now($plan->timezone)->startOfDay();
+        $starts = Carbon::createFromFormat('!Y-m-d', $plan->starts_on, $plan->timezone);
+        $ends = $starts->copy()->addDays(6);
+        $context = ['date' => $today->toDateString(), 'timezone' => $plan->timezone];
+        if ($today->lt($starts)) {
+            return ['state' => 'upcoming', ...$context, 'starts_on' => $starts->toDateString()];
+        }
+        if ($today->gt($ends)) {
+            return ['state' => 'finished', ...$context, 'ends_on' => $ends->toDateString()];
+        }
+
+        $items = DB::table('life_plan_items as item')
+            ->leftJoin('life_plan_checkins as checkin', function ($join): void {
+                $join->on('checkin.item_id', '=', 'item.id')
+                    ->on('checkin.plan_id', '=', 'item.plan_id')
+                    ->on('checkin.user_id', '=', 'item.user_id');
+            })
+            ->where('item.user_id', $user->id)->where('item.plan_id', $plan->id)
+            ->whereDate('item.planned_on', $today->toDateString())
+            ->orderBy('item.created_at')->orderBy('item.id')
+            ->get(['item.id', 'item.title', 'item.domain', 'item.minutes', 'checkin.outcome'])
+            ->map(fn (object $item): array => (array) $item)->all();
+
+        return ['state' => 'today', ...$context, 'items' => $items];
+    }
+
     public function history(User $user, array $input): array
     {
         $data = Validator::make($input, ['page' => ['sometimes', 'integer', 'between:1,10000']])->validate();

@@ -18,6 +18,9 @@ All authenticated tests use a pre-created, **fake** verified test account. Start
 
 ## Additional operator checks
 
+- **Daily setup reminder:** With no plan, explicitly request a daily reminder, select a time and IANA time zone, and confirm. Verify ChatGPT creates a task using `get_daily_life_plan`; the next staging run invites setup without changing data. Test notification delivery independently.
+- **Daily commitments and boundaries:** With a synthetic plan, test its plan-local day, the day before it starts, and the day after it ends. Verify only the current day's commitments appear; no check-in notes, review or other person's data are disclosed. A missing token or unavailable provider must not be reported as no plan.
+- **Reminder consent and management:** Connecting or planning alone must not silently create a task. Verify the person can change, pause and delete the task, and an unavailable scheduler is reported honestly.
 - Release blocker: using the real provider, revoke an access token and confirm the next protected request fails. Simulated fail-closed introspection tests pass, but do not prove the provider's revocation or ChatGPT disconnect behavior. Test both separately.
 - Try access tokens with wrong issuer, wrong audience, expired `exp`, insufficient scope, and an unverified email claim.
 - Record a check-in for an item belonging to another user and confirm denial.

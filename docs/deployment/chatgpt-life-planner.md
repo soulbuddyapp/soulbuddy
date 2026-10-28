@@ -95,4 +95,4 @@ Use MCP Inspector to perform OAuth connection with a real nonproduction identity
 
 ## Not in the MVP
 
-A Flutter-native rendering of the seven-day planner; cross-device synchronization with local-first Goals; paid entitlements; push reminders from ChatGPT; clinical counseling; generated prayers; spiritual scoring. Each needs its own reviewed tranche.
+A Flutter-native rendering of the seven-day planner; cross-device synchronization with local-first Goals; paid entitlements; a SoulBuddy-operated notification service; clinical counseling; generated prayers; spiritual scoring. Each needs its own reviewed tranche. Opt-in reminders through ChatGPT scheduled tasks are being implemented and require a real scheduled-run and notification-delivery test before they can be advertised.
