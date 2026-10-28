@@ -721,3 +721,29 @@ it('invalidates older account link codes when a new one is issued or access is u
 
     expect(DB::table('chatgpt_account_link_codes')->whereNull('consumed_at')->count())->toBe(0);
 });
+
+
+it('returns only a boolean ChatGPT connection status to the authenticated SoulBuddy owner', function () {
+    $owner = User::factory()->create(['email' => 'linked-status@example.com', 'email_verified_at' => now()]);
+    $other = User::factory()->create(['email' => 'unlinked-status@example.com', 'email_verified_at' => now()]);
+
+    $this->getJson('/api/account/chatgpt/status')->assertUnauthorized();
+    $this->actingAs($owner, 'sanctum')
+        ->getJson('/api/account/chatgpt/status')
+        ->assertOk()->assertExactJson(['linked' => false])
+        ->assertHeader('Cache-Control', 'no-store');
+
+    chatgptBindTestIdentity('linked-status@example.com', 'provider|owner', 'https://issuer.example/', $owner);
+
+    $this->getJson('/api/account/chatgpt/status')
+        ->assertOk()->assertExactJson(['linked' => true]);
+    $this->actingAs($other, 'sanctum')
+        ->getJson('/api/account/chatgpt/status')
+        ->assertOk()->assertExactJson(['linked' => false]);
+
+    $this->actingAs($owner, 'sanctum')
+        ->postJson('/api/account/chatgpt/unlink', ['confirmed' => true])
+        ->assertJsonPath('unlinked', true);
+    $this->getJson('/api/account/chatgpt/status')
+        ->assertExactJson(['linked' => false]);
+});
