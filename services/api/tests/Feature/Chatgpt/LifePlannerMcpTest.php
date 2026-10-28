@@ -514,7 +514,8 @@ it('fails closed when introspection fails, is malformed or reports a different s
         $this->postJson('/mcp', chatgptTestCall('get_life_plan', [], $attempt), $auth)
             ->assertJsonPath('result.isError', true);
     }
-    expect(User::query()->where('email', 'fail-closed@example.com')->exists())->toBeFalse();
+    expect(User::query()->where('email', 'fail-closed@example.com')->exists())->toBeTrue()
+        ->and(DB::table('life_plans')->count())->toBe(0);
 });
 
 it('does not enable protected access without secure introspection configuration', function () {
