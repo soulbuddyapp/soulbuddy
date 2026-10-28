@@ -89,7 +89,8 @@ class ChatgptLinkClient {
   }
 
   Future<http.Response> _request(String method, String segment) async {
-    final local = apiBaseUri.scheme == 'http' &&
+    final local =
+        apiBaseUri.scheme == 'http' &&
         (apiBaseUri.host == 'localhost' ||
             apiBaseUri.host == '127.0.0.1' ||
             apiBaseUri.host == '::1');
@@ -120,9 +121,9 @@ class ChatgptLinkClient {
     if (method == 'POST') request.body = jsonEncode({'confirmed': true});
 
     final streamed = await httpClient.send(request).timeout(requestTimeout);
-    final response = await http.Response.fromStream(streamed).timeout(
-      requestTimeout,
-    );
+    final response = await http.Response.fromStream(
+      streamed,
+    ).timeout(requestTimeout);
     // Reject redirects rather than carrying session credentials off-site.
     if (response.statusCode >= 300 && response.statusCode < 400) {
       throw const ChatgptLinkException(
@@ -135,9 +136,7 @@ class ChatgptLinkClient {
       );
     }
     if (response.statusCode == 429) {
-      throw const ChatgptLinkException(
-        'Too many attempts. Try again later.',
-      );
+      throw const ChatgptLinkException('Too many attempts. Try again later.');
     }
     return response;
   }
