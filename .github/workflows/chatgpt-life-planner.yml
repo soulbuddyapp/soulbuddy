@@ -63,6 +63,7 @@ jobs:
           interface = extension['interface']
           for path in (extension['onboardingSkill'], interface['logo'], interface['composerIcon']):
               assert path.startswith('./') and (root / path).is_file(), path
+          assert (root / 'skills/setup/references/daily-reminder.md').is_file(), 'Missing reminder task guidance'
           assert 'privacyPolicyURL' not in interface, 'Do not invent unreviewed policy URLs'
           assert 'termsOfServiceURL' not in interface, 'Do not invent unreviewed legal URLs'
           assert 'HTTP_AUTHORIZATION' in Path('docker/production/sbuddy.nginx.conf').read_text()
