@@ -12,21 +12,21 @@
 
 **Files:** `services/api/app/Domain/LifePlanning/LifePlannerService.php`, `services/api/app/Http/Controllers/Chatgpt/McpController.php`, `services/api/tests/Feature/Chatgpt/LifePlannerMcpTest.php`.
 
-- [ ] Add failing tests for `no_plan`, `upcoming`, `today`, `finished`, time-zone boundaries, owner isolation, `life.read` and exclusion of notes and other days.
-- [ ] Implement the daily-plan service and declare the authenticated, read-only MCP tool.
-- [ ] Run ChatGPT, auth, account and Goal regressions with `OPENSSL_CONF=C:\php\extras\ssl\openssl.cnf`.
+- [x] Add failing tests for `no_plan`, `upcoming`, `today`, `finished`, time-zone boundaries, owner isolation, `life.read` and exclusion of notes and other days.
+- [x] Implement the daily-plan service and declare the authenticated, read-only MCP tool.
+- [x] Run ChatGPT, auth, account and Goal regressions with `OPENSSL_CONF=C:\php\extras\ssl\openssl.cnf`.
 
 ### Task 2: Opt-in scheduling workflow
 
 **Files:** `integrations/chatgpt-plugin/skills/setup/SKILL.md`, `integrations/chatgpt-plugin/review-cases.md`, `docs/deployment/chatgpt-life-planner.md`.
 
-- [ ] Add scheduling instructions covering consent, time, time zone, setup, active plans, future plans, finished plans, authorization errors and platform availability.
-- [ ] Add review scenarios for reminder setup and privacy. State that a proposed task is not active until confirmed by ChatGPT.
-- [ ] Update the deployment runbook without claiming delivery is verified before an end-to-end test.
+- [x] Add scheduling instructions covering consent, time, time zone, setup, active plans, future plans, finished plans, authorization errors and platform availability.
+- [x] Add review scenarios for reminder setup and privacy. State that a proposed task is not active until confirmed by ChatGPT.
+- [x] Update the deployment runbook without claiming delivery is verified before an end-to-end test.
 
 ### Task 3: Staging verification
 
-- [ ] Deploy the reviewed daily-read files only to the isolated staging API, retaining backups.
+- [x] Deploy the daily-read files only to the isolated staging API, retaining backups. A real PKCE authorization and daily read returned `no_plan`; the disposable access token was revoked.
 - [ ] Refresh the personal staging plugin's tool list and verify `get_daily_life_plan` against the synthetic reviewer.
 - [ ] Schedule a disposable one-time ChatGPT task using the staging plugin; inspect the completed run and independently verify notification delivery if available.
 - [ ] Record observed results and remaining blockers, update PR #20, and preserve the existing production environment.
