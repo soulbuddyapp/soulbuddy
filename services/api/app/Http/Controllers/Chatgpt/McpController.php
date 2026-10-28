@@ -99,7 +99,7 @@ class McpController extends Controller
         }
 
         $scope = match ($name) {
-            'get_life_plan', 'review_week' => 'life.read',
+            'get_life_plan', 'list_life_plans', 'review_week' => 'life.read',
             'create_seven_day_plan', 'record_daily_checkin', 'save_weekly_review', 'delete_life_plan' => 'life.write',
             default => null,
         };
@@ -123,7 +123,8 @@ class McpController extends Controller
 
         try {
             $result = match ($name) {
-                'get_life_plan' => $planner->current($user),
+                'get_life_plan' => $planner->get($user, $args),
+                'list_life_plans' => $planner->history($user, $args),
                 'create_seven_day_plan' => $planner->create($user, $args),
                 'record_daily_checkin' => $planner->checkIn($user, $args),
                 'review_week' => $planner->weeklySummary($user),
@@ -184,14 +185,21 @@ class McpController extends Controller
                 'description' => 'Explain the free planning approach without saving anything or requiring login.',
                 'inputSchema' => $object([]),
                 'securitySchemes' => [['type' => 'noauth']],
-                'annotations' => ['readOnlyHint' => true, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
             ],
             [
                 'name' => 'get_life_plan', 'title' => 'View my seven-day plan',
-                'description' => 'Read only the signed-in person’s active commitments and check-ins. Check before making changes.',
-                'inputSchema' => $object([]),
+                'description' => 'Read the signed-in person’s active plan, or a specified plan from their history.',
+                'inputSchema' => $object(['plan_id' => ['type' => 'string', 'format' => 'uuid', 'description' => 'Optional plan ID from plan history']]),
                 'securitySchemes' => $read,
-                'annotations' => ['readOnlyHint' => true, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
+            ],
+            [
+                'name' => 'list_life_plans', 'title' => 'View my life plan history',
+                'description' => 'List the signed-in person’s active and archived plans, including IDs for review or deletion.',
+                'inputSchema' => $object(['page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 10000, 'description' => 'Page number, starting at 1']]),
+                'securitySchemes' => $read,
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
             ],
             [
                 'name' => 'create_seven_day_plan', 'title' => 'Save my seven-day life plan',
@@ -211,7 +219,7 @@ class McpController extends Controller
                     ], ['day', 'domain', 'title', 'minutes'])],
                 ], ['request_id', 'confirmed', 'focus', 'starts_on', 'timezone', 'items']),
                 'securitySchemes' => $write,
-                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true, 'openWorldHint' => false],
             ],
             [
                 'name' => 'record_daily_checkin', 'title' => 'Record my daily check-in',
@@ -223,14 +231,14 @@ class McpController extends Controller
                     'confirmed' => $confirmed,
                 ], ['item_id', 'outcome', 'confirmed']),
                 'securitySchemes' => $write,
-                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true, 'openWorldHint' => false],
             ],
             [
                 'name' => 'review_week', 'title' => 'Reflect on my past week',
                 'description' => 'Read observed outcomes and gentle reflection prompts. No ranking of character, virtue, or holiness.',
                 'inputSchema' => $object([]),
                 'securitySchemes' => $read,
-                'annotations' => ['readOnlyHint' => true, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
             ],
             [
                 'name' => 'save_weekly_review', 'title' => 'Save my weekly reflection',
@@ -242,7 +250,7 @@ class McpController extends Controller
                     'confirmed' => $confirmed,
                 ], ['plan_id', 'reflection', 'next_adjustment', 'confirmed']),
                 'securitySchemes' => $write,
-                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'openWorldHint' => false],
+                'annotations' => ['readOnlyHint' => false, 'destructiveHint' => true, 'openWorldHint' => false],
             ],
             [
                 'name' => 'delete_life_plan', 'title' => 'Delete my life plan',

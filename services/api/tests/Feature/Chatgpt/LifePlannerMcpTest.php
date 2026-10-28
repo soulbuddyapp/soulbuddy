@@ -219,3 +219,83 @@ it('does not advertise account linking until an identity provider is configured'
     $this->postJson('/mcp', chatgptTestCall('get_life_plan'))
         ->assertJsonPath('result.isError', true);
 });
+
+it('lets an owner find, inspect and delete archived plans without exposing them to another account', function () {
+    $pem = configureChatgptTestOAuth();
+    $authA = chatgptTestBearer($pem, 'history-a@example.com');
+    $authB = chatgptTestBearer($pem, 'history-b@example.com');
+    $first = chatgptTestPlan();
+    $old = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $first), $authA)
+        ->json('result.structuredContent.plan.id');
+    $second = chatgptTestPlan();
+    $second['replace_active'] = true;
+    $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $second), $authA)
+        ->assertJsonPath('result.structuredContent.plan.archived', false);
+
+    $this->postJson('/mcp', chatgptTestCall('list_life_plans'), $authA)
+        ->assertJsonCount(2, 'result.structuredContent.plans')
+        ->assertJsonFragment(['id' => $old, 'archived' => true]);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan', ['plan_id' => $old]), $authA)
+        ->assertJsonPath('result.structuredContent.plan.id', $old)
+        ->assertJsonPath('result.structuredContent.plan.archived', true);
+    $this->postJson('/mcp', chatgptTestCall('list_life_plans'), $authB)
+        ->assertJsonCount(0, 'result.structuredContent.plans');
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan', ['plan_id' => $old]), $authB)
+        ->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('delete_life_plan', ['plan_id' => $old, 'confirmed' => true]), $authA)
+        ->assertJsonPath('result.structuredContent.deleted', true);
+    $this->postJson('/mcp', chatgptTestCall('list_life_plans'), $authA)
+        ->assertJsonCount(1, 'result.structuredContent.plans');
+});
+
+it('advertises explicit and accurate safety annotations on every tool', function () {
+    $listed = $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])->json('result.tools');
+    foreach ($listed as $tool) {
+        expect($tool['annotations'])->toHaveKeys(['readOnlyHint', 'destructiveHint', 'openWorldHint']);
+        foreach ($tool['annotations'] as $value) {
+            expect($value)->toBeBool();
+        }
+    }
+    foreach (['create_seven_day_plan', 'record_daily_checkin', 'save_weekly_review', 'delete_life_plan'] as $name) {
+        expect(collect($listed)->firstWhere('name', $name)['annotations']['destructiveHint'])->toBeTrue();
+    }
+});
+
+it('paginates plan history without including another owner’s records', function () {
+    $pem = configureChatgptTestOAuth();
+    $owner = User::factory()->create(['email' => 'paged@example.com', 'email_verified_at' => now()]);
+    $other = User::factory()->create(['email' => 'other@example.com', 'email_verified_at' => now()]);
+    foreach (range(1, 21) as $number) {
+        DB::table('life_plans')->insert([
+            'id' => (string) Str::uuid(), 'user_id' => $owner->id, 'request_id' => (string) Str::uuid(),
+            'focus' => 'Plan '.$number, 'starts_on' => now()->toDateString(), 'timezone' => 'UTC',
+            'archived_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+    }
+    DB::table('life_plans')->insert([
+        'id' => (string) Str::uuid(), 'user_id' => $other->id, 'request_id' => (string) Str::uuid(),
+        'focus' => 'Other person', 'starts_on' => now()->toDateString(), 'timezone' => 'UTC',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    $auth = chatgptTestBearer($pem, 'paged@example.com', 'life.read');
+    $first = $this->postJson('/mcp', chatgptTestCall('list_life_plans'), $auth)
+        ->assertJsonCount(20, 'result.structuredContent.plans')
+        ->assertJsonPath('result.structuredContent.next_page', 2)
+        ->json('result.structuredContent.plans');
+    $second = $this->postJson('/mcp', chatgptTestCall('list_life_plans', ['page' => 2]), $auth)
+        ->assertJsonCount(1, 'result.structuredContent.plans')
+        ->assertJsonPath('result.structuredContent.next_page', null)
+        ->json('result.structuredContent.plans');
+    expect(collect(array_merge($first, $second))->pluck('id')->unique()->count())->toBe(21)
+        ->and(collect(array_merge($first, $second))->pluck('focus'))->not->toContain('Other person');
+});
+
+it('uses the configured issuer exactly including its trailing slash', function () {
+    $pem = configureChatgptTestOAuth();
+    config()->set('services.chatgpt.issuer', 'https://issuer.example');
+    $this->getJson('/.well-known/oauth-protected-resource')
+        ->assertJsonPath('authorization_servers.0', 'https://issuer.example');
+    $auth = chatgptTestBearer($pem, 'exact-issuer@example.com', 'life.read', ['iss' => 'https://issuer.example']);
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.structuredContent.plan', null);
+});

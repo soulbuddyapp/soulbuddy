@@ -26,6 +26,40 @@ class LifePlannerService
         ];
     }
 
+    public function history(User $user, array $input): array
+    {
+        $data = Validator::make($input, ['page' => ['sometimes', 'integer', 'between:1,10000']])->validate();
+        $page = $data['page'] ?? 1;
+        $plans = DB::table('life_plans')->where('user_id', $user->id)
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->offset(($page - 1) * 20)->limit(21)->get();
+
+        return [
+            'plans' => $plans->take(20)->map(fn (object $plan): array => [
+                'id' => $plan->id,
+                'focus' => $plan->focus,
+                'starts_on' => $plan->starts_on,
+                'timezone' => $plan->timezone,
+                'archived' => $plan->archived_at !== null,
+            ])->values()->all(),
+            'next_page' => $plans->count() > 20 ? $page + 1 : null,
+        ];
+    }
+
+    public function get(User $user, array $input): array
+    {
+        $data = Validator::make($input, ['plan_id' => ['sometimes', 'uuid']])->validate();
+        if (! isset($data['plan_id'])) {
+            return $this->current($user);
+        }
+        $plan = DB::table('life_plans')->where('user_id', $user->id)->where('id', $data['plan_id'])->first();
+        if (! $plan) {
+            throw ValidationException::withMessages(['plan_id' => ['Plan not found.']]);
+        }
+
+        return $this->snapshot($user, $plan);
+    }
+
     public function create(User $user, array $input): array
     {
         $data = Validator::make($input, [

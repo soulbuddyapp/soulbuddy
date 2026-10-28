@@ -18,7 +18,7 @@ All authenticated tests use a pre-created, **fake** verified test account. Start
 
 ## Additional operator checks
 
-- Revoke a token and confirm private requests fail.
+- Release blocker: implement and test a provider-backed, fail-closed revocation check. Local JWT verification alone accepts an otherwise valid revoked token until it expires; do not mark revocation verified without an actual live test.
 - Try access tokens with wrong issuer, wrong audience, expired `exp`, insufficient scope, and an unverified email claim.
 - Record a check-in for an item belonging to another user and confirm denial.
 - Delete the fake account's plan only with explicit confirmation and verify cascade deletion.

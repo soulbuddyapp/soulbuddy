@@ -10,7 +10,11 @@ The launch consists of three independently verified gates: backend production re
 
 Use a mature OAuth provider with Authorization Code + PKCE S256, discovery metadata, and CIMD (or DCR and adjusted mcp.json). Configure a resource/API whose audience is exactly `https://sbuddy.elbiblio.com/mcp`. The provider must issue a **JWT RS256 access token** (not merely an ID token) with matching issuer, audience and `life.read`/`life.write` scopes.
 
-The resource server currently maps the *verified email claim* of the trusted access JWT to the corresponding verified SoulBuddy user; unverified installation email is not taken over. Configure verified, normalized email before using this bridge; testing must cover address changes and claims integrity. New email accounts are created as verified SoulBuddy users. Linking to an existing unverified anonymous Android installation is **not supported**; create an explicit merge flow before advertising that feature.
+The resource server currently maps the *verified email claim* of the trusted access JWT to the corresponding verified SoulBuddy user; unverified installation email is not taken over. Configure verified, normalized email before using this bridge; testing must cover address changes, reassignment and claims integrity. New email accounts are created as verified SoulBuddy users. Linking to an existing unverified anonymous Android installation is **not supported**; create an explicit merge flow before advertising that feature.
+
+**Release blocker: revocation.** This implementation verifies JWT signatures and expiry locally and does not query a revocation or grant-status service. Revoking a grant or disconnecting an account does not by itself invalidate an already issued token at this server; it may remain usable for up to its one-hour maximum lifetime. Do not claim immediate revocation or mark the revocation test as passed until a provider-backed, fail-closed grant-status mechanism is implemented and tested against actual access tokens. Decide and document the intended revocation guarantee before launch.
+
+Use the exact issuer string from the provider's discovery metadata, including whether it ends in `/`; the server does not normalize it. Verify the provider's metadata, access-token `iss`, callback, and resource audience together in a real staging authorization flow.
 
 Configure only in the protected production `.env` (do not commit credentials):
 
@@ -52,7 +56,7 @@ Use MCP Inspector to perform OAuth connection with a real nonproduction identity
 
 ## Gate 3: Public Plugin Directory
 
-- The portable package is in `integrations/chatgpt-plugin`.
+- The portable package is in `integrations/chatgpt-plugin`. Plan history includes archived plans and supports paged discovery and deletion; verify those flows with the reviewer account.
 - Provide *reviewed, live* product website, support, privacy policy and terms URL. Policies must explain personal planning notes, spiritual data sensitivity, hosting, retention, sharing, and deletion.
 - Verify the publisher business/individual identity and MCP domain on OpenAI Platform; confirm the organization role can submit plugins.
 - Provide a reviewer OAuth account with no MFA, SMS or email OTP blockers and seeded **non-sensitive** sample plan. Never disclose real personal reflection content.
