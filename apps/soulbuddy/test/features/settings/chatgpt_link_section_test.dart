@@ -25,7 +25,9 @@ void main() {
         );
       },
       unlink: () async => true,
-      copyCode: (value) async => copied = value,
+      copyCode: (value) async {
+        copied = value;
+      },
     )));
     await tester.pumpAndSettle();
 
