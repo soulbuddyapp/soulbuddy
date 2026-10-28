@@ -63,6 +63,7 @@ return [
         'introspection_url' => env('CHATGPT_OAUTH_INTROSPECTION_URL'),
         'introspection_client_id' => env('CHATGPT_OAUTH_INTROSPECTION_CLIENT_ID'),
         'introspection_client_secret' => env('CHATGPT_OAUTH_INTROSPECTION_CLIENT_SECRET'),
+        'account_management_url' => env('CHATGPT_OAUTH_ACCOUNT_MANAGEMENT_URL'),
         'email_claim' => env('CHATGPT_OAUTH_EMAIL_CLAIM', 'https://soulbuddy.app/email'),
         'email_verified_claim' => env('CHATGPT_OAUTH_VERIFIED_CLAIM', 'https://soulbuddy.app/email_verified'),
     ],

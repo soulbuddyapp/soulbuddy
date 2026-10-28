@@ -68,7 +68,8 @@ class McpController extends Controller
                 'capabilities' => ['tools' => ['listChanged' => false]],
                 'serverInfo' => ['name' => 'soulbuddy-life-planner', 'version' => '0.1.0'],
                 'instructions' => 'Help people thoughtfully design and review a seven-day rule of life. Ask about work, family, prayer, learning, reflection, service and rest. Never suggest that completion measures holiness, claim divine revelation, or compose prayers on SoulBuddy behalf. Before any write, show exactly what will be saved and obtain explicit consent. Do not record intimate confessions. '
-                    .'During planning, offer an optional daily reminder once. Only with explicit consent and a chosen local time and time zone, request a recurring ChatGPT scheduled task if available. Ask whether reminders may include commitment details; default to a generic reminder because notifications can be visible to others. Each run must read get_daily_life_plan without writing: invite setup when there is no plan, report the start date for an upcoming plan, remind about today’s commitments, or invite a review after the week ends. Include commitment details only with permission. Do not treat authentication or service failure as an empty plan. Say a reminder is active only when the platform has confirmed it; never claim notification delivery without evidence.',
+                    .'During planning, offer an optional daily reminder once. Only with explicit consent and a chosen local time and time zone, request a recurring ChatGPT scheduled task if available. Ask whether reminders may include commitment details; default to a generic reminder because notifications can be visible to others. Each run must read get_daily_life_plan without writing: invite setup when there is no plan, report the start date for an upcoming plan, remind about today’s commitments, or invite a review after the week ends. Include commitment details only with permission. Do not treat authentication or service failure as an empty plan. Say a reminder is active only when the platform has confirmed it; never claim notification delivery without evidence. '
+                    .'For a disconnect request, use get_connection_management to find verified provider controls, explain that ending the provider session and disconnecting ChatGPT are separate steps, and never claim a session or token was revoked merely because a link was returned.',
             ]);
         }
 
@@ -100,6 +101,19 @@ class McpController extends Controller
                 ],
                 'other_domains' => ['work', 'relationships', 'rest'],
                 'privacy' => 'Do not write personal details to SoulBuddy until the user has explicitly agreed.',
+            ]));
+        }
+
+        if ($name === 'get_connection_management') {
+            $url = $identity->accountManagementUrl();
+
+            return $this->rpc($id, $this->toolResponse($url ? [
+                'status' => 'available',
+                'url' => $url,
+                'message' => 'End the SoulBuddy application session with your provider, then disconnect in ChatGPT.',
+            ] : [
+                'status' => 'unavailable',
+                'message' => 'Account access controls are unavailable.',
             ]));
         }
 
@@ -189,6 +203,13 @@ class McpController extends Controller
             [
                 'name' => 'get_planning_guide', 'title' => 'Discover SoulBuddy planning',
                 'description' => 'Explain the free planning approach without saving anything or requiring login.',
+                'inputSchema' => $object([]),
+                'securitySchemes' => [['type' => 'noauth']],
+                'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
+            ],
+            [
+                'name' => 'get_connection_management', 'title' => 'Manage account access',
+                'description' => 'Find verified identity-provider controls for ending the SoulBuddy application session. This does not itself revoke access.',
                 'inputSchema' => $object([]),
                 'securitySchemes' => [['type' => 'noauth']],
                 'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],

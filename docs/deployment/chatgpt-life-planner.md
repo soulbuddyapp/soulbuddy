@@ -52,11 +52,14 @@ CHATGPT_OAUTH_JWKS_URL=https://YOUR-OAUTH-PROVIDER.example/.well-known/jwks.json
 CHATGPT_OAUTH_INTROSPECTION_URL=https://YOUR-OAUTH-PROVIDER.example/introspect
 CHATGPT_OAUTH_INTROSPECTION_CLIENT_ID=YOUR-RESOURCE-CLIENT-ID
 CHATGPT_OAUTH_INTROSPECTION_CLIENT_SECRET=YOUR-RESOURCE-CLIENT-SECRET
+CHATGPT_OAUTH_ACCOUNT_MANAGEMENT_URL=https://YOUR-OAUTH-PROVIDER.example/account/
 CHATGPT_OAUTH_EMAIL_CLAIM=https://soulbuddy.app/email
 CHATGPT_OAUTH_VERIFIED_CLAIM=https://soulbuddy.app/email_verified
 ```
 
 Have your provider add the two namespaced email claims to the **access token** and make email-verified=true only after actual email verification. The provider itself must expose `openid`/`email` UserInfo for OpenAI workspace-domain protections. The introspection endpoint must support OAuth client-secret Basic authentication and return boolean `active` and the same `sub` as the signed token. It must use HTTPS, and redirects are rejected. Provider failures deny protected calls; plan for availability and latency monitoring without logging tokens or reflections.
+
+The optional account-management URL must be HTTPS, share the issuer's origin, contain no credentials, query or fragment, and lead to a provider control that has been verified to end the person's SoulBuddy application session. `get_connection_management` is available without a token so a person can find those controls after disconnecting; it only returns a link and does not revoke anything. A configured link does not clear the release blocker: verify actual access-token and refresh-token behavior and the user's full disconnect flow with the production provider.
 
 Do not mistake `ChatGPT_OAUTH_ISSUER` for SoulBuddy's Laravel URL. Avoid reusing installation secrets or PowerSync tokens. The provider must echo the OAuth `resource` argument through the flow. Configure ChatGPT's discovered callback redirect URL before testing. Tokens, authorization codes and private reflections must not appear in logs.
 

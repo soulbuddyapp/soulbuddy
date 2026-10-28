@@ -116,6 +116,7 @@ it('advertises discovery, MCP handshake and accurate auth metadata without crede
         ->toContain('consent')
         ->toContain('time zone')
         ->toContain('generic')
+        ->toContain('get_connection_management')
         ->toContain('confirmed');
 
     $listed = $this->postJson('/mcp', [
@@ -169,6 +170,41 @@ it('returns a concise empty-plan result without instructions to the assistant', 
         ->assertJsonPath('result.structuredContent.message', 'No seven-day plan yet.');
 
     expect($response->json('result.content.0.text'))->not->toContain('Ask the person');
+});
+
+it('offers provider access controls without requiring an active connection', function () {
+    configureChatgptTestOAuth();
+    config()->set('services.chatgpt.account_management_url', 'https://issuer.example/realm/account/');
+    $listed = $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])->json('result.tools');
+    $tool = collect($listed)->firstWhere('name', 'get_connection_management');
+    expect($tool)->not->toBeNull()
+        ->and($tool['securitySchemes'])->toBe([['type' => 'noauth']])
+        ->and($tool['annotations']['readOnlyHint'])->toBeTrue();
+
+    $this->postJson('/mcp', chatgptTestCall('get_connection_management'))
+        ->assertOk()
+        ->assertJsonPath('result.structuredContent.status', 'available')
+        ->assertJsonPath('result.structuredContent.url', 'https://issuer.example/realm/account/');
+});
+
+it('does not return an unsafe or unconfigured provider access link', function () {
+    configureChatgptTestOAuth();
+    foreach ([null, 'http://issuer.example/account', 'https://evil.example/account',
+        'https://user@issuer.example/account', 'https://issuer.example:444/account',
+        'https://issuer.example/account?token=unsafe', 'https://issuer.example/account#fragment'] as $url) {
+        config()->set('services.chatgpt.account_management_url', $url);
+        $this->postJson('/mcp', chatgptTestCall('get_connection_management'))
+            ->assertOk()->assertJsonPath('result.structuredContent.status', 'unavailable')
+            ->assertJsonMissingPath('result.structuredContent.url');
+    }
+    config()->set('services.chatgpt.account_management_url', 'https://issuer.example/account');
+    config()->set('services.chatgpt.issuer', 'https://user@issuer.example/realm');
+    $this->postJson('/mcp', chatgptTestCall('get_connection_management'))
+        ->assertJsonPath('result.structuredContent.status', 'unavailable');
+    config()->set('services.chatgpt.issuer', 'https://issuer.example/');
+    config()->set('services.chatgpt.introspection_url', null);
+    $this->postJson('/mcp', chatgptTestCall('get_connection_management'))
+        ->assertJsonPath('result.structuredContent.status', 'unavailable');
 });
 
 it('advertises a scoped read-only daily plan and distinguishes an absent plan from an auth failure', function () {

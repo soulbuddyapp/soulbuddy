@@ -39,6 +39,32 @@ class ChatgptIdentity
         return rtrim((string) config('app.url'), '/').'/mcp';
     }
 
+    public function accountManagementUrl(): ?string
+    {
+        $url = (string) config('services.chatgpt.account_management_url');
+        if (! $this->configured() || ! filter_var($url, FILTER_VALIDATE_URL) ||
+            ! filter_var($this->issuer(), FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        $target = parse_url($url);
+        $issuer = parse_url($this->issuer());
+        if (! is_array($target) || ! is_array($issuer) ||
+            strtolower($target['scheme'] ?? '') !== 'https' ||
+            strtolower($issuer['scheme'] ?? '') !== 'https' ||
+            empty($target['host']) || empty($issuer['host']) ||
+            strcasecmp($target['host'], $issuer['host']) !== 0 ||
+            ($target['port'] ?? 443) !== ($issuer['port'] ?? 443) ||
+            isset($target['user']) || isset($target['pass']) ||
+            isset($target['query']) || isset($target['fragment']) ||
+            isset($issuer['user']) || isset($issuer['pass']) ||
+            isset($issuer['query']) || isset($issuer['fragment'])) {
+            return null;
+        }
+
+        return $url;
+    }
+
     public function authenticate(Request $request, string $scope): ?User
     {
         $bearer = $request->bearerToken();
