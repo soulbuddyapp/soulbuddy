@@ -854,3 +854,50 @@ it('rolls a finished week forward without interrupting active dates or losing hi
 
     expect(DB::table('life_plan_reviews')->where('plan_id', $firstId)->count())->toBe(1);
 });
+
+
+it('records outcomes only on or after the planned local day and preserves corrections', function () {
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 00:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('timely@example.com');
+    $auth = chatgptTestBearer($pem, 'timely@example.com');
+
+    $plan = chatgptTestPlan();
+    $plan['starts_on'] = '2026-10-28';
+    $plan['timezone'] = 'America/Los_Angeles';
+    $created = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $plan), $auth)
+        ->assertOk()->json('result.structuredContent');
+    $firstId = $created['items'][0]['id'];
+    $secondId = $created['items'][1]['id'];
+
+    // Midnight UTC is still the previous calendar date in the plan timezone.
+    $this->postJson('/mcp', chatgptTestCall('record_daily_checkin', [
+        'item_id' => $firstId, 'outcome' => 'done', 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.isError', true);
+    expect(DB::table('life_plan_checkins')->count())->toBe(0);
+
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 07:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $auth = chatgptTestBearer($pem, 'timely@example.com');
+    $this->postJson('/mcp', chatgptTestCall('record_daily_checkin', [
+        'item_id' => $secondId, 'outcome' => 'done', 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('record_daily_checkin', [
+        'item_id' => $firstId, 'outcome' => 'done', 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.items.0.outcome', 'done');
+    $this->postJson('/mcp', chatgptTestCall('record_daily_checkin', [
+        'item_id' => $firstId, 'outcome' => 'partial', 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.items.0.outcome', 'partial');
+
+    expect(DB::table('life_plan_checkins')->count())->toBe(1)
+        ->and(DB::table('life_plan_checkins')->value('outcome'))->toBe('partial');
+
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-29 07:30:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $auth = chatgptTestBearer($pem, 'timely@example.com');
+    $this->postJson('/mcp', chatgptTestCall('record_daily_checkin', [
+        'item_id' => $secondId, 'outcome' => 'skipped', 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.items.1.outcome', 'skipped');
+    expect(DB::table('life_plan_checkins')->count())->toBe(2);
+});
