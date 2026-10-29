@@ -6,6 +6,18 @@ This integration shares SoulBuddy's Laravel API and user table, but introduces i
 
 The launch consists of three independently verified gates: backend production release, OAuth identity provider and live connection, then OpenAI plugin submission.
 
+## Seven-day renewal, historical reviews and safe deletion
+
+An approved new plan automatically archives the previous plan only after all seven days have elapsed in the previous plan's own IANA timezone and the new plan begins on a nonoverlapping calendar date. Replacing an upcoming or unfinished plan still requires explicitly approved `replace_active`. Completed plans remain readable until the user creates a new plan or deletes them; passage of time alone does not silently archive records.
+
+`review_week` can now target a specific archived `plan_id`, and `save_weekly_review` can save a review to that user's archived plan without switching the active week. Check-ins are allowed only from the planned local date onward, are serializable against plan replacement and return the actual changed week. Never infer a future action was completed, or treat a missing observation as a spiritual judgment.
+
+The new additive migration `2026_10_29_000000_create_life_planner_deleted_requests.php` creates `life_plan_deleted_requests`. When an owned plan is deliberately deleted, its contents and related rows are removed via foreign-key cascade, but the server retains only `user_id`, opaque `request_id` and marker timestamp. This prevents a delayed, previously approved request from recreating deleted content. The marker itself cascades on full parent-account deletion. Reusing a deleted request ID fails closed; a genuinely new approved plan needs a fresh UUID. Do not prune deletion markers independently during the lifetime of an account or change the deletion behavior without reviewing the privacy notice and retention policy.
+
+Before staging rollout, run schema migrations, then specifically test archival on the eighth calendar day, late review of an archived week, future-day check-in rejection around timezone midnight, deleted-request replay, and full account cascade. Preserve backups and do not run destructive schema rollback automatically.
+
+
+
 ## Gate 1: OAuth resource security (required before publication)
 
 Use a mature OAuth provider with Authorization Code + PKCE S256, discovery metadata, and CIMD (or DCR and adjusted mcp.json). Configure a resource/API whose audience is exactly `https://sbuddy.elbiblio.com/mcp`. The provider must issue a **JWT RS256 access token** (not merely an ID token) with matching issuer, audience and `life.read`/`life.write` scopes.
