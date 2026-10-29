@@ -773,3 +773,84 @@ it('prunes only expired account link codes without deleting current codes or OAu
         ->and(DB::table('chatgpt_account_link_codes')->value('code_hash'))->toBe(hash('sha256', 'active'))
         ->and(DB::table('chatgpt_oauth_identities')->count())->toBe(1);
 });
+
+
+it('rolls a finished week forward without interrupting active dates or losing historical review', function () {
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-28 10:00:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('rollover@example.com');
+    chatgptBindTestIdentity('not-owner@example.com', 'auth0|not-owner');
+    $auth = chatgptTestBearer($pem, 'rollover@example.com');
+
+    $first = chatgptTestPlan();
+    $firstId = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $first), $auth)
+        ->assertJsonPath('result.structuredContent.plan.archived', false)
+        ->json('result.structuredContent.plan.id');
+    expect($firstId)->toBeString();
+
+    $premature = chatgptTestPlan();
+    $premature['starts_on'] = '2026-10-29';
+    $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $premature), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('life_plans')->count())->toBe(1);
+
+    // On the seventh day, it is still too early to archive the plan without
+    // the person's explicit request to interrupt the active week.
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-03 10:00:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $auth = chatgptTestBearer($pem, 'rollover@example.com');
+    $next = chatgptTestPlan();
+    $next['starts_on'] = '2026-11-04';
+    $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $next), $auth)
+        ->assertJsonPath('result.isError', true);
+
+    $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-04 10:00:00', 'UTC'));
+    JWT::$timestamp = now()->timestamp;
+    $auth = chatgptTestBearer($pem, 'rollover@example.com');
+    $nextId = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $next), $auth)
+        ->assertJsonPath('result.structuredContent.plan.archived', false)
+        ->json('result.structuredContent.plan.id');
+
+    expect($nextId)->toBeString()->not->toBe($firstId)
+        ->and(DB::table('life_plans')->whereNull('archived_at')->count())->toBe(1)
+        ->and(DB::table('life_plans')->where('id', $firstId)->whereNotNull('archived_at')->exists())->toBeTrue();
+
+    // A late network retry with the same request_id remains idempotent even
+    // when the original week is in the past and has since been archived.
+    $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $first), $auth)
+        ->assertJsonPath('result.structuredContent.plan.id', $firstId)
+        ->assertJsonPath('result.structuredContent.plan.archived', true);
+    expect(DB::table('life_plans')->count())->toBe(2);
+
+    $this->postJson('/mcp', chatgptTestCall('review_week', ['plan_id' => $firstId]), $auth)
+        ->assertJsonPath('result.structuredContent.plan.id', $firstId)
+        ->assertJsonPath('result.structuredContent.plan.archived', true)
+        ->assertJsonPath('result.structuredContent.outcomes.not_recorded', 7);
+
+    $this->postJson('/mcp', chatgptTestCall('save_weekly_review', [
+        'plan_id' => $firstId,
+        'reflection' => 'Our first week helped me make more time for my family.',
+        'next_adjustment' => 'Keep the evening reflection practical.',
+        'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.plan.id', $firstId)
+        ->assertJsonPath('result.structuredContent.review.next_adjustment', 'Keep the evening reflection practical.');
+
+    // The historical review does not become the active plan and cannot be
+    // inspected or changed by another authenticated account.
+    $this->postJson('/mcp', chatgptTestCall('get_life_plan'), $auth)
+        ->assertJsonPath('result.structuredContent.plan.id', $nextId);
+    $other = chatgptTestBearer($pem, 'not-owner@example.com', 'life.read life.write', [
+        'sub' => 'auth0|not-owner',
+    ]);
+    $this->postJson('/mcp', chatgptTestCall('review_week', ['plan_id' => $firstId]), $other)
+        ->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('save_weekly_review', [
+        'plan_id' => $firstId,
+        'reflection' => 'A forged review should not be saved.',
+        'next_adjustment' => 'A forged adjustment.',
+        'confirmed' => true,
+    ]), $other)->assertJsonPath('result.isError', true);
+
+    expect(DB::table('life_plan_reviews')->where('plan_id', $firstId)->count())->toBe(1);
+});
