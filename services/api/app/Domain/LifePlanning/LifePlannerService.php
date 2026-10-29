@@ -142,6 +142,15 @@ class LifePlannerService
             // Serialize competing plan writes per account, including the initial creation.
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
+            // Retain only an opaque marker so delayed retries cannot
+            // recreate a plan whose contents were deliberately deleted.
+            if (DB::table('life_plan_deleted_requests')->where('user_id', $user->id)
+                ->where('request_id', $data['request_id'])->exists()) {
+                throw ValidationException::withMessages([
+                    'request_id' => ['This request was previously deleted. Ask approval for a new plan with a fresh request ID.'],
+                ]);
+            }
+
             $previous = DB::table('life_plans')->where('user_id', $user->id)
                 ->where('request_id', $data['request_id'])->first();
             if ($previous) {
@@ -303,23 +312,27 @@ class LifePlannerService
 
         // Archived plans are still owned by this person and must remain
         // reviewable after an approved weekly rollover.
-        $plan = DB::table('life_plans')->where('id', $data['plan_id'])
-            ->where('user_id', $user->id)->first();
-        if (! $plan) {
-            throw ValidationException::withMessages(['plan_id' => ['The plan was not found.']]);
-        }
-        $existing = DB::table('life_plan_reviews')->where('plan_id', $plan->id)->first();
+        DB::transaction(function () use ($user, $data): void {
+            // Serialize this write against plan deletion and weekly rollover.
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $plan = DB::table('life_plans')->where('id', $data['plan_id'])
+                ->where('user_id', $user->id)->first();
+            if (! $plan) {
+                throw ValidationException::withMessages(['plan_id' => ['The plan was not found.']]);
+            }
+            $existing = DB::table('life_plan_reviews')->where('plan_id', $plan->id)->first();
 
-        DB::table('life_plan_reviews')->updateOrInsert(['plan_id' => $plan->id], [
-            'id' => $existing?->id ?? (string) Str::uuid(),
-            'user_id' => $user->id,
-            'reflection' => $data['reflection'],
-            'next_adjustment' => $data['next_adjustment'],
-            'created_at' => $existing?->created_at ?? now(),
-            'updated_at' => now(),
-        ]);
+            DB::table('life_plan_reviews')->updateOrInsert(['plan_id' => $plan->id], [
+                'id' => $existing?->id ?? (string) Str::uuid(),
+                'user_id' => $user->id,
+                'reflection' => $data['reflection'],
+                'next_adjustment' => $data['next_adjustment'],
+                'created_at' => $existing?->created_at ?? now(),
+                'updated_at' => now(),
+            ]);
+        }, attempts: 3);
 
-        return $this->weeklySummary($user, ['plan_id' => $plan->id]);
+        return $this->weeklySummary($user, ['plan_id' => $data['plan_id']]);
     }
 
     public function delete(User $user, array $input): array
@@ -329,10 +342,26 @@ class LifePlannerService
             'confirmed' => ['required', 'accepted'],
         ])->validate();
 
-        $deleted = DB::table('life_plans')->where('user_id', $user->id)
-            ->where('id', $data['plan_id'])->delete();
+        $deleted = DB::transaction(function () use ($user, $data): bool {
+            // Use the same lock as creation, check-ins and reviews to prevent
+            // concurrent writes from rebuilding a deleted plan.
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $plan = DB::table('life_plans')->where('user_id', $user->id)
+                ->where('id', $data['plan_id'])->first();
+            if (! $plan) {
+                return false;
+            }
 
-        return ['deleted' => $deleted === 1, 'message' => 'Plan, commitments, check-ins and review deleted if owned by this account.'];
+            DB::table('life_plan_deleted_requests')->insert([
+                'user_id' => $user->id,
+                'request_id' => $plan->request_id,
+                'created_at' => now(),
+            ]);
+            return DB::table('life_plans')->where('user_id', $user->id)
+                ->where('id', $plan->id)->delete() === 1;
+        }, attempts: 3);
+
+        return ['deleted' => $deleted, 'message' => 'Plan, commitments, check-ins and review deleted if owned by this account.'];
     }
 
     private function snapshot(User $user, object $plan): array
