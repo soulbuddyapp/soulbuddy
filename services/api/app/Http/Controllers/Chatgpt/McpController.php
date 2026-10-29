@@ -292,7 +292,7 @@ class McpController extends Controller
             ],
             [
                 'name' => 'create_seven_day_plan', 'title' => 'Save my seven-day life plan',
-                'description' => 'After explicit user approval, save a practical seven-day plan. Ask about realistic time and priorities first. Never create generated prayers or assign spiritual scores. Reuse request_id for retries. A finished seven-day plan rolls into the new week automatically when dates do not overlap; replacing an ongoing or upcoming plan requires explicit replace_active approval.',
+                'description' => 'After explicit user approval, save a practical seven-day plan. Ask about realistic time and priorities first. Never create generated prayers or assign spiritual scores. Reuse request_id for retries. A finished seven-day plan can be archived as the new approved week starts without overlapping dates. Replacing an ongoing or upcoming plan requires explicit replace_active approval. After deleting a plan, its request_id cannot be reused; get new approval and a fresh UUID.',
                 'inputSchema' => $object([
                     'request_id' => ['type' => 'string', 'format' => 'uuid'],
                     'confirmed' => $confirmed,
@@ -312,7 +312,7 @@ class McpController extends Controller
             ],
             [
                 'name' => 'record_daily_checkin', 'title' => 'Record my daily check-in',
-                'description' => 'Record or correct one commitment outcome only after the person confirms what to record. A missed commitment is never spiritual failure.',
+                'description' => 'Record or correct one commitment outcome only after the person confirms it and the planned day has begun in the plan timezone. Never record future days or interpret missing observations as spiritual failure.',
                 'inputSchema' => $object([
                     'item_id' => ['type' => 'string', 'format' => 'uuid'],
                     'outcome' => ['type' => 'string', 'enum' => ['done', 'partial', 'skipped']],
@@ -343,7 +343,7 @@ class McpController extends Controller
             ],
             [
                 'name' => 'delete_life_plan', 'title' => 'Delete my life plan',
-                'description' => 'Permanently delete a specific plan and all its check-ins/review ONLY after explicit informed confirmation.',
+                'description' => 'Delete a specific plan, commitments, check-ins and review ONLY after explicit informed confirmation. A content-free request marker remains to block delayed retries from recreating a deleted plan.',
                 'inputSchema' => $object([
                     'plan_id' => ['type' => 'string', 'format' => 'uuid'],
                     'confirmed' => $confirmed,
