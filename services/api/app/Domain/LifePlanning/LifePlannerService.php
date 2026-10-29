@@ -212,19 +212,32 @@ class LifePlannerService
             'confirmed' => ['required', 'accepted'],
         ])->validate();
 
-        $item = DB::table('life_plan_items as items')
-            ->join('life_plans as plans', 'plans.id', '=', 'items.plan_id')
-            ->where('items.user_id', $user->id)
-            ->where('plans.user_id', $user->id)
-            ->whereNull('plans.archived_at')
-            ->where('items.id', $data['item_id'])
-            ->select('items.id', 'items.plan_id')->first();
-        if (! $item) {
-            throw ValidationException::withMessages(['item_id' => ['The active commitment was not found.']]);
-        }
+        $planId = DB::transaction(function () use ($user, $data): string {
+            // The same owner row lock is used for plan creation and rollover,
+            // keeping a check-in from racing into a just-archived week.
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
-        DB::transaction(function () use ($user, $item, $data): void {
-            // Lock the parent row so duplicate calls cannot race to insert a second check-in.
+            $item = DB::table('life_plan_items as items')
+                ->join('life_plans as plans', 'plans.id', '=', 'items.plan_id')
+                ->where('items.user_id', $user->id)
+                ->where('plans.user_id', $user->id)
+                ->whereNull('plans.archived_at')
+                ->where('items.id', $data['item_id'])
+                ->select('items.id', 'items.plan_id', 'items.planned_on', 'plans.timezone')->first();
+            if (! $item) {
+                throw ValidationException::withMessages([
+                    'item_id' => ['The active commitment was not found.'],
+                ]);
+            }
+
+            if ($item->planned_on > Carbon::now($item->timezone)->toDateString()) {
+                throw ValidationException::withMessages([
+                    'item_id' => ['This commitment is scheduled for a future day. Check in on or after its planned date.'],
+                ]);
+            }
+
+            // Serialize updates to a single observed outcome; a correction
+            // replaces rather than duplicates the previous observation.
             DB::table('life_plan_items')->where('id', $item->id)->lockForUpdate()->first();
             $previous = DB::table('life_plan_checkins')->where('item_id', $item->id)->first();
             $payload = [
@@ -243,9 +256,13 @@ class LifePlannerService
                     'created_at' => now(),
                 ]);
             }
-        });
 
-        return $this->current($user);
+            return $item->plan_id;
+        }, attempts: 3);
+
+        // Report the modified week rather than assuming it is still active
+        // when another request starts a new week immediately afterward.
+        return $this->get($user, ['plan_id' => $planId]);
     }
 
     public function weeklySummary(User $user, array $input = []): array
