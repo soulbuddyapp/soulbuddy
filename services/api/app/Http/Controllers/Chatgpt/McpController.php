@@ -178,7 +178,7 @@ class McpController extends Controller
                 'list_life_plans' => $planner->history($user, $args),
                 'create_seven_day_plan' => $planner->create($user, $args),
                 'record_daily_checkin' => $planner->checkIn($user, $args),
-                'review_week' => $planner->weeklySummary($user),
+                'review_week' => $planner->weeklySummary($user, $args),
                 'save_weekly_review' => $planner->saveReview($user, $args),
                 'delete_life_plan' => $planner->delete($user, $args),
             };
@@ -292,11 +292,11 @@ class McpController extends Controller
             ],
             [
                 'name' => 'create_seven_day_plan', 'title' => 'Save my seven-day life plan',
-                'description' => 'After user approval, save a practical seven-day plan. Ask about available time and priorities first. Never create generated prayers or claim spiritual scores. Use a fresh UUID request_id; reuse it for retries. Existing plans require explicitly approved replace_active.',
+                'description' => 'After explicit user approval, save a practical seven-day plan. Ask about realistic time and priorities first. Never create generated prayers or assign spiritual scores. Reuse request_id for retries. A finished seven-day plan rolls into the new week automatically when dates do not overlap; replacing an ongoing or upcoming plan requires explicit replace_active approval.',
                 'inputSchema' => $object([
                     'request_id' => ['type' => 'string', 'format' => 'uuid'],
                     'confirmed' => $confirmed,
-                    'replace_active' => ['type' => 'boolean', 'description' => 'Explicitly replace the current active plan'],
+                    'replace_active' => ['type' => 'boolean', 'description' => 'Explicitly approve replacing an unfinished or upcoming plan. Unnecessary for a finished, nonoverlapping week.'],
                     'focus' => $string('Person-approved life priority, maximum 240 characters'),
                     'starts_on' => $string('First local date YYYY-MM-DD, today or up to 14 days ahead'),
                     'timezone' => $string('IANA timezone name, e.g. Africa/Lagos'),
@@ -324,14 +324,14 @@ class McpController extends Controller
             ],
             [
                 'name' => 'review_week', 'title' => 'Reflect on my past week',
-                'description' => 'Read observed outcomes and gentle reflection prompts. No ranking of character, virtue, or holiness.',
-                'inputSchema' => $object([]),
+                'description' => 'Read observed outcomes and gentle reflection prompts for the current or a specified archived week. No ranking of character, virtue, or holiness.',
+                'inputSchema' => $object(['plan_id' => ['type' => 'string', 'format' => 'uuid', 'description' => 'Optional owned plan ID from list_life_plans; allows a past archived week']]),
                 'securitySchemes' => $read,
                 'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'openWorldHint' => false],
             ],
             [
                 'name' => 'save_weekly_review', 'title' => 'Save my weekly reflection',
-                'description' => 'Save only the reflection and next adjustment the person approved. Never invent personal reflections.',
+                'description' => 'Save only the reflection and next adjustment the person approved, including on an archived week they own. Never invent personal reflections.',
                 'inputSchema' => $object([
                     'plan_id' => ['type' => 'string', 'format' => 'uuid'],
                     'reflection' => $string('Person-authored summary, up to 2,000 characters'),
