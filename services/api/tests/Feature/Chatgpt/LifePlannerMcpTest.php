@@ -935,6 +935,13 @@ it('cannot resurrect a deleted seven-day plan through an old confirmed retry', f
     expect(array_keys((array) $marker))->toEqualCanonicalizing([
         'user_id', 'request_id', 'created_at',
     ]);
+
+    // Only full account erasure removes this minimal replay marker.
+    $owner = User::query()->where('email', 'deletion-retry@example.com')->firstOrFail();
+    $owner->delete();
+    expect(DB::table('life_plan_deleted_requests')->count())->toBe(0)
+        ->and(DB::table('life_plans')->count())->toBe(0)
+        ->and(DB::table('chatgpt_oauth_identities')->count())->toBe(0);
 });
 
 it('refuses reviews for a deleted plan and keeps a different owner isolated', function () {
