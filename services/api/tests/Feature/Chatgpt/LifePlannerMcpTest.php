@@ -901,3 +901,64 @@ it('records outcomes only on or after the planned local day and preserves correc
     ]), $auth)->assertJsonPath('result.structuredContent.items.1.outcome', 'skipped');
     expect(DB::table('life_plan_checkins')->count())->toBe(2);
 });
+
+
+it('cannot resurrect a deleted seven-day plan through an old confirmed retry', function () {
+    $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('deletion-retry@example.com');
+    $auth = chatgptTestBearer($pem, 'deletion-retry@example.com');
+
+    $original = chatgptTestPlan();
+    $id = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $original), $auth)
+        ->assertOk()->json('result.structuredContent.plan.id');
+    $this->postJson('/mcp', chatgptTestCall('delete_life_plan', [
+        'plan_id' => $id, 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.deleted', true);
+
+    expect(DB::table('life_plans')->count())->toBe(0)
+        ->and(DB::table('life_plan_items')->count())->toBe(0)
+        ->and(DB::table('life_plan_deleted_requests')->count())->toBe(1)
+        ->and(DB::table('life_plan_deleted_requests')->value('request_id'))->toBe($original['request_id']);
+
+    $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $original), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('life_plans')->count())->toBe(0);
+
+    // A newly confirmed plan with a fresh request ID is still allowed.
+    $replacement = chatgptTestPlan();
+    $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', $replacement), $auth)
+        ->assertJsonPath('result.structuredContent.plan.archived', false);
+    expect(DB::table('life_plans')->count())->toBe(1);
+
+    // Deleting plan data does not preserve its private contents in the marker.
+    $marker = DB::table('life_plan_deleted_requests')->first();
+    expect(array_keys((array) $marker))->toEqualCanonicalizing([
+        'user_id', 'request_id', 'created_at',
+    ]);
+});
+
+it('refuses reviews for a deleted plan and keeps a different owner isolated', function () {
+    $pem = configureChatgptTestOAuth();
+    chatgptBindTestIdentity('review-delete@example.com');
+    chatgptBindTestIdentity('review-other@example.com', 'subject|review-other');
+    $auth = chatgptTestBearer($pem, 'review-delete@example.com');
+    $other = chatgptTestBearer($pem, 'review-other@example.com', 'life.read life.write', [
+        'sub' => 'subject|review-other',
+    ]);
+
+    $id = $this->postJson('/mcp', chatgptTestCall('create_seven_day_plan', chatgptTestPlan()), $auth)
+        ->json('result.structuredContent.plan.id');
+    $review = [
+        'plan_id' => $id, 'reflection' => 'There was progress during the week.',
+        'next_adjustment' => 'Make the next schedule simpler.',
+        'confirmed' => true,
+    ];
+    $this->postJson('/mcp', chatgptTestCall('save_weekly_review', $review), $other)
+        ->assertJsonPath('result.isError', true);
+    $this->postJson('/mcp', chatgptTestCall('delete_life_plan', [
+        'plan_id' => $id, 'confirmed' => true,
+    ]), $auth)->assertJsonPath('result.structuredContent.deleted', true);
+    $this->postJson('/mcp', chatgptTestCall('save_weekly_review', $review), $auth)
+        ->assertJsonPath('result.isError', true);
+    expect(DB::table('life_plan_reviews')->count())->toBe(0);
+});
