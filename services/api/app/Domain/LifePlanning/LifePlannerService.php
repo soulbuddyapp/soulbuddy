@@ -122,6 +122,14 @@ class LifePlannerService
             ]);
         }
 
+        // Idempotent retries remain safe after the original week has finished.
+        // The request ID belongs to this authenticated owner; never resolve it globally.
+        $prior = DB::table('life_plans')->where('user_id', $user->id)
+            ->where('request_id', $data['request_id'])->first();
+        if ($prior) {
+            return $this->snapshot($user, $prior);
+        }
+
         $starts = Carbon::createFromFormat('!Y-m-d', $data['starts_on'], $data['timezone']);
         $now = Carbon::now($data['timezone'])->startOfDay();
         if ($starts->lt($now) || $starts->gt($now->copy()->addDays(14))) {
@@ -142,9 +150,18 @@ class LifePlannerService
 
             $active = DB::table('life_plans')->where('user_id', $user->id)
                 ->whereNull('archived_at')->get();
-            if ($active->isNotEmpty() && ! ($data['replace_active'] ?? false)) {
+            // An elapsed seven-day plan may roll into a new approved week.
+            // Never silently interrupt a current/upcoming plan or overlap dates.
+            $finished = $active->every(function (object $plan) use ($data): bool {
+                $next = Carbon::createFromFormat('!Y-m-d', $plan->starts_on, $plan->timezone)
+                    ->addDays(7);
+
+                return Carbon::now($plan->timezone)->startOfDay()->greaterThanOrEqualTo($next)
+                    && $data['starts_on'] >= $next->toDateString();
+            });
+            if ($active->isNotEmpty() && ! ($data['replace_active'] ?? false) && ! $finished) {
                 throw ValidationException::withMessages([
-                    'replace_active' => ['An active plan exists. Review it before explicitly replacing it.'],
+                    'replace_active' => ['A current or upcoming plan exists. Explicitly approve its replacement, or wait until the full seven days have ended.'],
                 ]);
             }
             if ($active->isNotEmpty()) {
@@ -231,9 +248,9 @@ class LifePlannerService
         return $this->current($user);
     }
 
-    public function weeklySummary(User $user): array
+    public function weeklySummary(User $user, array $input = []): array
     {
-        $snapshot = $this->current($user);
+        $snapshot = $this->get($user, $input);
         if ($snapshot['plan'] === null) {
             return $snapshot;
         }
@@ -267,10 +284,12 @@ class LifePlannerService
             'confirmed' => ['required', 'accepted'],
         ])->validate();
 
+        // Archived plans are still owned by this person and must remain
+        // reviewable after an approved weekly rollover.
         $plan = DB::table('life_plans')->where('id', $data['plan_id'])
-            ->where('user_id', $user->id)->whereNull('archived_at')->first();
+            ->where('user_id', $user->id)->first();
         if (! $plan) {
-            throw ValidationException::withMessages(['plan_id' => ['The active plan was not found.']]);
+            throw ValidationException::withMessages(['plan_id' => ['The plan was not found.']]);
         }
         $existing = DB::table('life_plan_reviews')->where('plan_id', $plan->id)->first();
 
@@ -283,7 +302,7 @@ class LifePlannerService
             'updated_at' => now(),
         ]);
 
-        return $this->weeklySummary($user);
+        return $this->weeklySummary($user, ['plan_id' => $plan->id]);
     }
 
     public function delete(User $user, array $input): array
