@@ -30,6 +30,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for('chatgpt-mcp', function (Request $request): array {
+            $bearer = $request->bearerToken();
+
+            if (! is_string($bearer) || $bearer === '') {
+                return [Limit::perMinute(50)->by('chatgpt-mcp:anonymous:'.$request->ip())];
+            }
+
+            return [
+                Limit::perMinute(90)->by('chatgpt-mcp:token:'.hash('sha256', $bearer)),
+                Limit::perMinute(1200)->by('chatgpt-mcp:ip:'.$request->ip()),
+            ];
+        });
         RateLimiter::for('prayer-narrations', function (Request $request): array {
             $userKey = (string) ($request->user()?->public_id ?? 'guest');
 

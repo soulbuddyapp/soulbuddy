@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">SoulBuddy</title>
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="#214B43"/>
+  <circle cx="64" cy="66" r="42" fill="none" stroke="#B6D8C1" stroke-width="3" opacity=".55"/>
+  <path d="M64 28v48M47 44h34" fill="none" stroke="#F6F1DE" stroke-width="9" stroke-linecap="round"/>
+  <path d="M38 92c12-8 25-9 26-9s14 1 26 9" fill="none" stroke="#DBBD8B" stroke-width="6" stroke-linecap="round"/>
+</svg>

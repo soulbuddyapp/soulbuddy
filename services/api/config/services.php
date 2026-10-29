@@ -56,6 +56,18 @@ return [
         'model' => env('GOAL_GUIDANCE_MODEL', 'deepseek-chat'),
     ],
 
+    'chatgpt' => [
+        'issuer' => env('CHATGPT_OAUTH_ISSUER'),
+        'audience' => env('CHATGPT_OAUTH_AUDIENCE'),
+        'jwks_url' => env('CHATGPT_OAUTH_JWKS_URL'),
+        'introspection_url' => env('CHATGPT_OAUTH_INTROSPECTION_URL'),
+        'introspection_client_id' => env('CHATGPT_OAUTH_INTROSPECTION_CLIENT_ID'),
+        'introspection_client_secret' => env('CHATGPT_OAUTH_INTROSPECTION_CLIENT_SECRET'),
+        'account_management_url' => env('CHATGPT_OAUTH_ACCOUNT_MANAGEMENT_URL'),
+        'email_claim' => env('CHATGPT_OAUTH_EMAIL_CLAIM', 'https://soulbuddy.app/email'),
+        'email_verified_claim' => env('CHATGPT_OAUTH_VERIFIED_CLAIM', 'https://soulbuddy.app/email_verified'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

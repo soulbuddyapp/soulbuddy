@@ -20,6 +20,7 @@ import '../../sacred_hours/presentation/sacred_hour_editor_sheet.dart';
 import '../../sacred_hours/presentation/sacred_hours_settings_section.dart';
 import '../../sacred_hours/providers/sacred_hour_providers.dart';
 import 'account_email_link_section.dart';
+import 'chatgpt_link_section.dart';
 import 'telegram_link_section.dart';
 
 final privacyPolicyUri = Uri.parse('https://sbuddy.elbiblio.com/privacy');
@@ -65,6 +66,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
               const _AccountEmailSettingsHost(),
+              const SizedBox(height: AppSpacing.lg),
+              const _ChatgptSettingsHost(),
               const SizedBox(height: AppSpacing.lg),
               _TelegramSettingsHost(openUri: widget.openUri),
               const SizedBox(height: AppSpacing.xl),
@@ -177,6 +180,17 @@ class _AccountEmailSettingsHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => AccountEmailLinkSection(
     requestLink: ref.read(accountEmailLinkClientProvider).request,
+  );
+}
+
+class _ChatgptSettingsHost extends ConsumerWidget {
+  const _ChatgptSettingsHost();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ChatgptLinkSection(
+    getStatus: ref.read(chatgptLinkClientProvider).status,
+    createCode: ref.read(chatgptLinkClientProvider).createCode,
+    unlink: ref.read(chatgptLinkClientProvider).unlink,
   );
 }
 
