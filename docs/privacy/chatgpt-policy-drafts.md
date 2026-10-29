@@ -32,7 +32,7 @@ ChatGPT scheduled reminders are optional and run through ChatGPT's scheduling an
 
 ### Choices, access and deletion
 
-You can review your own life plans and history in ChatGPT. You can approve changes to commitments and check-ins and delete a selected life plan; deleting a plan also removes its associated commitments, notes and review from active life-planner tables. Archived plans remain available until individually deleted.
+You can review your own current and archived life plans in ChatGPT. When a seven-day period ends, an approved nonoverlapping next week can archive the earlier plan without removing its history or reflection. A check-in cannot be recorded before its scheduled local date. You can delete a selected life plan; deletion removes its associated commitments, notes and review from active life-planner tables. The service retains only an opaque, account-scoped request identifier and timestamp to prevent delayed retries from recreating deleted information. This marker is removed when its parent account is deleted; backup retention must still be verified. Archived plans remain available until individually deleted.
 
 You may unlink your SoulBuddy account from the mobile Settings controls. This stops the former OAuth identity from accessing that SoulBuddy account through the linked tools, but it does not terminate an identity-provider session or remove a ChatGPT-side app connection. Use the controls of both services separately. [Operator must document complete account deletion, backup retention, data export and support handling before publication.]
 

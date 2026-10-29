@@ -43,3 +43,11 @@ All authenticated tests use a pre-created, **fake** verified test account. Start
 - With a code displayed, background and foreground the app; it should no longer display the code. Confirm it expires server-side and a replacement invalidates the first.
 - Attempt unlink: cancellation must not modify the binding; confirmation must immediately deny access to the old local account, while provider-side grant revocation remains a separate operation.
 - Check that all published privacy, support, terms and data-deletion claims match the deployed service; do not substitute the draft review memo as a live policy.
+
+## Weekly lifecycle, timezone and deletion protections
+
+- Start a synthetic seven-day plan with an IANA timezone. On its seventh local day, an unapproved second plan must not interrupt it; after the full seven days have elapsed, a newly approved, nonoverlapping week should archive the old plan without `replace_active`.
+- Review the archived week by `review_week(plan_id)` and save a user-authored reflection to that historical plan. Verify the active week remains unchanged and another account cannot read or modify the archived review.
+- Try to mark a future-day commitment complete just before midnight in the plan timezone, then just after its local date begins. Only the latter should succeed; correcting an observation replaces the existing row rather than duplicating it.
+- Delete a synthetic plan, verify its plan, commitment, notes and review contents are removed, and retry its original `request_id`. The retry must fail without restoring data. A new user-approved plan with a new UUID remains possible. Only a content-free account/request/timestamp marker may persist.
+- Verify this new marker is removed on account deletion and will not resurrect a deleted plan after a failed migration or staged restart.

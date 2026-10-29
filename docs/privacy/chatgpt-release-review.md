@@ -11,12 +11,13 @@
 | OAuth access token | Authenticate request and check issuer, expiry, audience, scopes and live active status | Passed to configured HTTPS provider introspection endpoint; JWKS responses cached | Provider application-session termination must be tested for revocation |
 | One-time link codes | Prove control over existing SoulBuddy account | 128-bit value sent once over authenticated TLS, SHA-256 hash held server-side for 10 minutes; new code invalidates old | Owner can regenerate or unlink; expired hashes scheduled for daily deletion |
 | Seven-day plan, daily commitment | Retain approved plan | `life_plans`, `life_plan_items` | Read, replace (archive), explicitly delete |
+| Deleted plan request marker | Block delayed or repeated requests from recreating deliberately deleted plan content | `life_plan_deleted_requests` retains only user ID, request UUID and deletion-marker timestamp; cascades on account deletion | An old request ID cannot be reused; a genuinely new plan requires a fresh approved request |
 | Check-in, optional note | Track self-reported daily outcome | `life_plan_checkins` | User confirms write; deleted with owning plan |
 | Weekly reflection | Store user-authored review | `life_plan_reviews` | User confirms write; deleted with owning plan |
 | ChatGPT scheduled reminder | Optional, external scheduling | ChatGPT scheduled task service (not stored or delivered by SoulBuddy Laravel) | Opt in; task modification/pausing/deletion via ChatGPT |
 | Flutter link code display | Move link code between trusted app and ChatGPT | In-memory UI; user-initiated clipboard copy | Code hidden on app background; server expires it |
 
-The stored plan and review are private user content, often indicative of spiritual or religious practices. Handle them as sensitive personal data regardless of whether the user volunteers them. Review of a week never measures holiness. No automatic generated prayer writing is introduced.
+The stored plan and review are private user content, often indicative of spiritual or religious practices. An expired week can be archived on creation of a user-approved nonoverlapping next week. Archived reviews remain user-editable until their plan is deleted; future-dated check-ins are rejected in the plan timezone. Handle them as sensitive personal data regardless of whether the user volunteers them. Review of a week never measures holiness. No automatic generated prayer writing is introduced.
 
 ## Verify before publishing any privacy policy, terms or support URL
 
