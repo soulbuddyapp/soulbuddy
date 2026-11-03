@@ -1,0 +1,41 @@
+name: iOS simulator audio
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-simulator-audio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  simulator:
+    runs-on: macos-14
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Prepare Scripture test asset
+        run: |
+          mkdir -p assets/scripture
+          test -f assets/scripture/rsvce.db || touch assets/scripture/rsvce.db
+      - name: Boot iPhone simulator
+        run: |
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for a in d["devices"].values() for x in a if x["name"].startswith("iPhone")))')
+          echo "SIMULATOR_ID=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device" || true
+          xcrun simctl bootstatus "$device" -b
+      - name: Build and exercise inline recording
+        run: flutter test integration_test/ios_inline_recording_test.dart -d "$SIMULATOR_ID"
