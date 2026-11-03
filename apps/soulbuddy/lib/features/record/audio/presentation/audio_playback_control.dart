@@ -11,6 +11,7 @@ import '../application/memory_soundscape_player.dart';
 import '../domain/memory_audio.dart';
 import '../domain/memory_soundscape.dart';
 import '../providers/memory_audio_providers.dart';
+import 'soundscape_controls.dart';
 
 class AudioPlaybackControl extends ConsumerStatefulWidget {
   const AudioPlaybackControl({
@@ -49,7 +50,6 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
   Future<bool>? _preparation;
   bool _deleting = false;
   MemorySoundscapePlaybackCoordinator? _soundscapePlayback;
-  MemoryAudioPlaybackCoordinator? _listeningCoordinator;
 
   @override
   void initState() {
@@ -78,7 +78,6 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _listeningCoordinator?.removeListener(_handlePlaybackState);
     final coordinator = _coordinator;
     if (widget.stopOnDispose && coordinator?.state.assetId == widget.audio.id) {
       unawaited(coordinator!.stop());
@@ -96,7 +95,6 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
           Text('${widget.label} · ${_durationLabel(widget.audio.duration)}'),
       data: (coordinator) {
         _coordinator = coordinator;
-        _attachPlaybackListener(coordinator);
         _soundscapePlayback = ref.watch(memorySoundscapePlaybackProvider);
         final soundscape =
             ref
@@ -339,97 +337,28 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
     MemorySoundscapeSettings settings, {
     required bool playing,
   }) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
+    return SoundscapeControls(
+      settings: settings,
+      enabled: !_deleting,
+      onSelected: (soundscape) => _selectSoundscape(
+        settings.copyWith(soundscape: soundscape),
+        playing: playing,
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Add a light background',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: [
-                for (final soundscape in MemorySoundscape.values)
-                  ChoiceChip(
-                    key: Key('memory-soundscape-${soundscape.name}'),
-                    label: Text(soundscape.label),
-                    selected: settings.soundscape == soundscape,
-                    onSelected: (_) => _selectSoundscape(
-                      settings.copyWith(soundscape: soundscape),
-                      playing: playing,
-                    ),
-                  ),
-              ],
-            ),
-            if (settings.soundscape != MemorySoundscape.quiet) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Semantics(
-                label:
-                    'Background volume ${(_validVolume(settings.volume) * 100).round()} percent',
-                child: Slider(
-                  key: const Key('memory-soundscape-volume'),
-                  value: _validVolume(settings.volume),
-                  min: 0.05,
-                  max: 0.35,
-                  divisions: 6,
-                  label: '${(_validVolume(settings.volume) * 100).round()}%',
-                  onChanged: (value) => _changeSoundscapeVolume(
-                    settings.copyWith(volume: value),
-                    playing: playing,
-                  ),
-                ),
-              ),
-            ],
-            const Text('Your original voice recording stays unchanged.'),
-          ],
-        ),
+      onVolumeChanged: (volume) => _changeSoundscapeVolume(
+        settings.copyWith(volume: volume),
+        playing: playing,
       ),
     );
   }
 
-  void _attachPlaybackListener(MemoryAudioPlaybackCoordinator coordinator) {
-    if (_listeningCoordinator == coordinator) return;
-    _listeningCoordinator?.removeListener(_handlePlaybackState);
-    _listeningCoordinator = coordinator..addListener(_handlePlaybackState);
-  }
-
-  void _handlePlaybackState() {
-    final state = _listeningCoordinator?.state;
-    final sessionController = ref.read(spiritualSessionControllerProvider);
-    if (state?.assetId == widget.audio.id &&
-        sessionController.state.session?.id == _sessionId) {
-      sessionController.updateProgress(
-        position: state!.position,
-        duration: state.duration,
-      );
-      if (state.status == MemoryAudioPlaybackStatus.completed ||
-          state.status == MemoryAudioPlaybackStatus.idle ||
-          state.status == MemoryAudioPlaybackStatus.error) {
-        sessionController.finishPlayback(_sessionId);
-      }
-    }
-    if (state == null ||
-        state.assetId != widget.audio.id ||
-        state.status == MemoryAudioPlaybackStatus.completed ||
-        state.status == MemoryAudioPlaybackStatus.paused ||
-        state.status == MemoryAudioPlaybackStatus.idle ||
-        state.status == MemoryAudioPlaybackStatus.error) {
-      unawaited(_soundscapePlayback?.stop(widget.audio.id));
-    }
-  }
-
   Future<void> _pauseForInterruption() async {
-    await _soundscapePlayback?.stop(widget.audio.id);
     final coordinator = _coordinator;
+    final sessionController = ref.read(spiritualSessionControllerProvider);
+    if (sessionController.state.session?.id == _sessionId) {
+      await sessionController.pause();
+      return;
+    }
+    await _soundscapePlayback?.stop(widget.audio.id);
     if (coordinator?.state.assetId == widget.audio.id &&
         coordinator?.state.status == MemoryAudioPlaybackStatus.playing) {
       await coordinator?.pause();
@@ -464,117 +393,147 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
       await sessionController.resume();
       return;
     }
-    if (sessionController.state.session != null) {
-      await sessionController.close();
-    }
-    await coordinator.play(widget.audio);
-    if (coordinator.state.status != MemoryAudioPlaybackStatus.playing ||
-        settings.soundscape == MemorySoundscape.quiet) {
-      if (coordinator.state.status != MemoryAudioPlaybackStatus.playing) return;
-    } else {
-      try {
-        await _soundscapePlayback?.start(widget.audio.id, settings);
-      } on Object {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('The background sound could not be played.'),
-            ),
-          );
-        }
-      }
-    }
+    final audio = widget.audio;
+    final sessionId = _sessionId;
+    final soundscapePlayback = _soundscapePlayback;
+    final preferences = ref.read(memorySoundscapePreferencesProvider);
+    final onComplete = widget.onSessionComplete;
+    final messenger = ScaffoldMessenger.of(context);
+    var starting = true;
     late VoidCallback sessionListener;
     sessionListener = () {
       final state = coordinator.state;
-      if (sessionController.state.session?.id != _sessionId) {
+      if (sessionController.state.session?.id != sessionId) {
         coordinator.removeListener(sessionListener);
         return;
       }
+      if (state.assetId != audio.id) {
+        if (!starting) {
+          coordinator.removeListener(sessionListener);
+          unawaited(soundscapePlayback?.stop(audio.id));
+          sessionController.finishPlayback(sessionId);
+        }
+        return;
+      }
       sessionController.updateProgress(
+        sessionId: sessionId,
         position: state.position,
         duration: state.duration,
+        status: state.status == MemoryAudioPlaybackStatus.paused
+            ? SpiritualSessionStatus.paused
+            : state.status == MemoryAudioPlaybackStatus.playing
+            ? SpiritualSessionStatus.playing
+            : null,
       );
-      if (state.status == MemoryAudioPlaybackStatus.completed ||
-          state.status == MemoryAudioPlaybackStatus.idle ||
-          state.status == MemoryAudioPlaybackStatus.error) {
+      if (!starting &&
+          (state.status == MemoryAudioPlaybackStatus.completed ||
+              state.status == MemoryAudioPlaybackStatus.idle ||
+              state.status == MemoryAudioPlaybackStatus.error)) {
         coordinator.removeListener(sessionListener);
-        unawaited(_soundscapePlayback?.stop(widget.audio.id));
-        sessionController.finishPlayback(_sessionId);
+        unawaited(soundscapePlayback?.stop(audio.id));
+        sessionController.finishPlayback(sessionId);
+      } else if (state.status == MemoryAudioPlaybackStatus.paused) {
+        unawaited(soundscapePlayback?.stop(audio.id));
       }
     };
-    coordinator.addListener(sessionListener);
+
+    Future<void> startPlayback(MemorySoundscapeSettings selected) async {
+      starting = true;
+      try {
+        await coordinator.play(audio);
+        if (coordinator.state.assetId != audio.id ||
+            coordinator.state.status != MemoryAudioPlaybackStatus.playing ||
+            sessionController.state.session?.id != sessionId) {
+          return;
+        }
+        try {
+          await soundscapePlayback?.start(audio.id, selected);
+        } on Object {
+          if (messenger.mounted) {
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Background sound unavailable.')),
+            );
+          }
+        }
+        if (coordinator.state.assetId != audio.id ||
+            coordinator.state.status != MemoryAudioPlaybackStatus.playing) {
+          await soundscapePlayback?.stop(audio.id);
+        }
+      } finally {
+        starting = false;
+        sessionListener();
+      }
+    }
+
+    Future<void> stopPlayback() async {
+      coordinator.removeListener(sessionListener);
+      await soundscapePlayback?.stop(audio.id);
+      if (coordinator.state.assetId == audio.id) await coordinator.stop();
+    }
+
     await sessionController.begin(
-      _session(
-        coordinator,
-        settings,
-        detach: () => coordinator.removeListener(sessionListener),
+      SpiritualSession(
+        id: sessionId,
+        kind: widget.sessionKind,
+        title: widget.label,
+        route: widget.sessionRoute ?? '/remember/${audio.encounterId}',
+        canPause: true,
+        completionLabel: onComplete == null ? 'Close' : 'Complete',
+        onStart: () async {
+          coordinator.addListener(sessionListener);
+          await startPlayback(settings);
+        },
+        onPause: () async {
+          await soundscapePlayback?.stop(audio.id);
+          if (coordinator.state.assetId == audio.id) await coordinator.pause();
+        },
+        onResume: () async {
+          await startPlayback(await preferences.load(audio.id));
+        },
+        onComplete: () async {
+          await stopPlayback();
+          await onComplete?.call();
+        },
+        onClose: stopPlayback,
       ),
     );
-    sessionListener();
   }
 
   String get _sessionId => '${widget.sessionKind.name}:${widget.audio.id}';
-
-  SpiritualSession _session(
-    MemoryAudioPlaybackCoordinator coordinator,
-    MemorySoundscapeSettings settings, {
-    required VoidCallback detach,
-  }) => SpiritualSession(
-    id: _sessionId,
-    kind: widget.sessionKind,
-    title: widget.label,
-    route: widget.sessionRoute ?? '/remember/${widget.audio.encounterId}',
-    canPause: true,
-    completionLabel: widget.onSessionComplete == null ? 'Close' : 'Complete',
-    onPause: () async {
-      await coordinator.pause();
-      await _soundscapePlayback?.stop(widget.audio.id);
-    },
-    onResume: () async {
-      await coordinator.play(widget.audio);
-      if (settings.soundscape != MemorySoundscape.quiet) {
-        await _soundscapePlayback?.start(widget.audio.id, settings);
-      }
-    },
-    onComplete: () async {
-      detach();
-      await widget.onSessionComplete?.call();
-      await coordinator.stop();
-      await _soundscapePlayback?.stop(widget.audio.id);
-    },
-    onClose: () async {
-      detach();
-      await coordinator.stop();
-      await _soundscapePlayback?.stop(widget.audio.id);
-    },
-  );
 
   Future<void> _selectSoundscape(
     MemorySoundscapeSettings settings, {
     required bool playing,
   }) async {
-    await ref
-        .read(memorySoundscapePreferencesProvider)
-        .save(widget.audio.id, settings);
-    ref.invalidate(memorySoundscapeSettingsProvider(widget.audio.id));
-    if (!playing || settings.soundscape == MemorySoundscape.quiet) {
-      await _soundscapePlayback?.stop(widget.audio.id);
+    final assetId = widget.audio.id;
+    final playback = _soundscapePlayback;
+    final coordinator = _coordinator;
+    await ref.read(memorySoundscapePreferencesProvider).save(assetId, settings);
+    if (mounted) ref.invalidate(memorySoundscapeSettingsProvider(assetId));
+    if (!playing ||
+        coordinator?.state.assetId != assetId ||
+        coordinator?.state.status != MemoryAudioPlaybackStatus.playing ||
+        settings.soundscape == MemorySoundscape.quiet) {
+      await playback?.stop(assetId);
       return;
     }
-    await _soundscapePlayback?.start(widget.audio.id, settings);
+    await playback?.start(assetId, settings);
+    if (coordinator?.state.assetId != assetId ||
+        coordinator?.state.status != MemoryAudioPlaybackStatus.playing) {
+      await playback?.stop(assetId);
+    }
   }
 
   Future<void> _changeSoundscapeVolume(
     MemorySoundscapeSettings settings, {
     required bool playing,
   }) async {
-    await ref
-        .read(memorySoundscapePreferencesProvider)
-        .save(widget.audio.id, settings);
-    ref.invalidate(memorySoundscapeSettingsProvider(widget.audio.id));
+    final assetId = widget.audio.id;
+    final playback = _soundscapePlayback;
+    await ref.read(memorySoundscapePreferencesProvider).save(assetId, settings);
+    if (mounted) ref.invalidate(memorySoundscapeSettingsProvider(assetId));
     if (playing) {
-      await _soundscapePlayback?.setVolume(widget.audio.id, settings.volume);
+      await playback?.setVolume(assetId, settings.volume);
     }
   }
 
@@ -619,8 +578,6 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
     }
   }
 }
-
-double _validVolume(double value) => value.clamp(0.05, 0.35).toDouble();
 
 String _durationLabel(Duration value) {
   final minutes = value.inMinutes.toString().padLeft(2, '0');

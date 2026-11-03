@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database_provider.dart';
 import '../../../../core/identity/local_identity_providers.dart';
+import '../../../../core/playback/spiritual_session_providers.dart';
 import '../application/audioplayers_memory_audio_player.dart';
 import '../application/memory_audio_deletion.dart';
 import '../application/memory_audio_player.dart';
@@ -88,8 +89,15 @@ final audioCaptureControllerProvider =
     FutureProvider.autoDispose<AudioCaptureController>((ref) async {
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
       final recorder = createRecordPluginAudioRecorder(assetStore);
+      final session = ref.watch(spiritualSessionControllerProvider);
+      final captureOwner = Object();
       final controller = AudioCaptureController(
         recorder: recorder,
+        beforeCapture: () async {
+          await session.acquireCapture(captureOwner);
+          await pauseAudioForCapture(ref);
+        },
+        afterCapture: () async => session.releaseCapture(captureOwner),
         allocateTemporary: () => assetStore.allocateTemporary(
           takeId: const Uuid().v7(),
           extension: kIsWeb ? 'webm' : 'm4a',
@@ -98,3 +106,12 @@ final audioCaptureControllerProvider =
       ref.onDispose(() => unawaited(controller.close()));
       return controller;
     });
+
+/// Called after microphone permission is granted, before any samples are taken.
+/// A failed handoff prevents capture; it must never record audible app playback.
+Future<void> pauseAudioForCapture(Ref ref) async {
+  await ref.read(spiritualSessionControllerProvider).pauseForCapture();
+  await ref.read(memorySoundscapePlaybackProvider).stopAll();
+  final playback = ref.read(memoryAudioPlaybackCoordinatorProvider).value;
+  if (playback != null) await playback.pause();
+}

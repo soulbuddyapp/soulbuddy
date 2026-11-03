@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/identity/local_identity_providers.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../record/audio/application/audio_capture_controller.dart';
 import '../../record/audio/application/record_plugin_driver.dart';
 import '../../record/audio/domain/memory_audio.dart';
@@ -41,8 +42,15 @@ final voiceTabletProvider = StreamProvider.autoDispose
 final voiceTabletAudioCaptureControllerProvider = FutureProvider.autoDispose
     .family<AudioCaptureController, VoiceTabletAudioKind>((ref, kind) async {
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
+      final session = ref.watch(spiritualSessionControllerProvider);
+      final captureOwner = Object();
       final controller = AudioCaptureController(
         recorder: createRecordPluginAudioRecorder(assetStore),
+        beforeCapture: () async {
+          await session.acquireCapture(captureOwner);
+          await pauseAudioForCapture(ref);
+        },
+        afterCapture: () async => session.releaseCapture(captureOwner),
         allocateTemporary: () => assetStore.allocateTemporary(
           takeId: const Uuid().v7(),
           extension: kIsWeb ? 'webm' : 'm4a',

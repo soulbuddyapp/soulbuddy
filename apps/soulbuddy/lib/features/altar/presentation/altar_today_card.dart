@@ -163,36 +163,47 @@ Future<void> _listenToAltar(
   final coordinator = await ref.read(
     memoryAudioPlaybackCoordinatorProvider.future,
   );
-  await coordinator.playTrack(
-    PrivateAudioTrack(
-      id: audio.id,
-      storageKey: audio.storageKey,
-      duration: audio.duration,
-    ),
+  final track = PrivateAudioTrack(
+    id: audio.id,
+    storageKey: audio.storageKey,
+    duration: audio.duration,
   );
-  if (coordinator.state.status != MemoryAudioPlaybackStatus.playing) return;
   final spiritual = ref.read(spiritualSessionControllerProvider);
   final sessionId =
       'altar:${due.ritual.id}@${due.occurrenceAt.toUtc().toIso8601String()}';
   late VoidCallback listener;
+  var starting = true;
   listener = () {
     final state = coordinator.state;
     if (spiritual.state.session?.id != sessionId) {
       coordinator.removeListener(listener);
       return;
     }
+    if (state.assetId != audio.id) {
+      if (!starting) {
+        coordinator.removeListener(listener);
+        spiritual.finishPlayback(sessionId);
+      }
+      return;
+    }
     spiritual.updateProgress(
+      sessionId: sessionId,
       position: state.position,
       duration: state.duration,
+      status: state.status == MemoryAudioPlaybackStatus.paused
+          ? SpiritualSessionStatus.paused
+          : state.status == MemoryAudioPlaybackStatus.playing
+          ? SpiritualSessionStatus.playing
+          : null,
     );
-    if (state.status == MemoryAudioPlaybackStatus.completed ||
-        state.status == MemoryAudioPlaybackStatus.idle ||
-        state.status == MemoryAudioPlaybackStatus.error) {
+    if (!starting &&
+        (state.status == MemoryAudioPlaybackStatus.completed ||
+            state.status == MemoryAudioPlaybackStatus.idle ||
+            state.status == MemoryAudioPlaybackStatus.error)) {
       coordinator.removeListener(listener);
       spiritual.finishPlayback(sessionId);
     }
   };
-  coordinator.addListener(listener);
   await spiritual.begin(
     SpiritualSession(
       id: sessionId,
@@ -201,26 +212,28 @@ Future<void> _listenToAltar(
       route: '/today?focus=altar',
       canPause: true,
       completionLabel: 'I prayed',
+      onStart: () async {
+        coordinator.addListener(listener);
+        try {
+          await coordinator.playTrack(track);
+        } finally {
+          starting = false;
+          listener();
+        }
+      },
       onPause: coordinator.pause,
-      onResume: () => coordinator.playTrack(
-        PrivateAudioTrack(
-          id: audio.id,
-          storageKey: audio.storageKey,
-          duration: audio.duration,
-        ),
-      ),
+      onResume: () => coordinator.playTrack(track),
       onComplete: () async {
         coordinator.removeListener(listener);
-        await coordinator.stop();
+        if (coordinator.state.assetId == audio.id) await coordinator.stop();
         await _recordAltarPrayer(ref, due, tablet);
       },
       onClose: () async {
         coordinator.removeListener(listener);
-        await coordinator.stop();
+        if (coordinator.state.assetId == audio.id) await coordinator.stop();
       },
     ),
   );
-  listener();
 }
 
 Future<String> _recordAltarPrayer(

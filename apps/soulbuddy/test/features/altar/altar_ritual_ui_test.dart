@@ -1,12 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/core/playback/spiritual_session.dart';
+import 'package:soulbuddy/core/playback/spiritual_session_controller.dart';
+import 'package:soulbuddy/core/playback/spiritual_session_providers.dart';
 import 'package:soulbuddy/features/altar/domain/altar_ritual.dart';
 import 'package:soulbuddy/features/altar/presentation/altar_ritual_sheet.dart';
 import 'package:soulbuddy/features/altar/presentation/altar_today_card.dart';
+import 'package:soulbuddy/features/altar/providers/altar_ritual_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
+import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 
 void main() {
   testWidgets('keeps a Prayer Refrain as an every-day Altar ritual', (
@@ -111,6 +120,62 @@ void main() {
     await tester.tap(find.byKey(const Key('altar-prayed')));
     await tester.pump();
     expect(prayers, 1);
+  });
+
+  testWidgets('Altar listening closes old playback before starting', (
+    tester,
+  ) async {
+    final driver = _AltarAudioDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: _AltarAudioStore(),
+      driver: driver,
+    );
+    final spiritual = SpiritualSessionController();
+    await coordinator.playTrack(
+      const PrivateAudioTrack(
+        id: 'old',
+        storageKey: 'private/old.m4a',
+        duration: Duration(seconds: 12),
+      ),
+    );
+    await spiritual.begin(
+      SpiritualSession(
+        id: 'old-session',
+        kind: SpiritualSessionKind.memory,
+        title: 'Previous memory',
+        route: '/remember/old',
+        canPause: true,
+        onPause: coordinator.pause,
+        onResume: () async {},
+        onComplete: () async {},
+        onClose: coordinator.stop,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dueAltarRitualProvider.overrideWith((ref) => Stream.value(_due())),
+          voiceTabletProvider.overrideWith(
+            (ref, id) => Stream.value(_tablet(withRefrain: true)),
+          ),
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => coordinator,
+          ),
+          spiritualSessionControllerProvider.overrideWithValue(spiritual),
+        ],
+        child: const _App(child: AltarReminderOverlayHost()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('altar-listen')));
+    await tester.pumpAndSettle();
+
+    expect(driver.events, ['play:old', 'stop:old', 'play:refrain']);
+    expect(coordinator.state.assetId, 'refrain');
+    expect(coordinator.state.status, MemoryAudioPlaybackStatus.playing);
+    expect(spiritual.state.session?.kind, SpiritualSessionKind.altar);
+    await spiritual.close();
+    await coordinator.close();
   });
 
   testWidgets('Undo remains available after the completed card unmounts', (
@@ -231,3 +296,47 @@ DueAltarRitual _due() => DueAltarRitual(
   autoplayWhenOpened: false,
   audioStorageKey: 'private/refrain.m4a',
 );
+
+class _AltarAudioDriver implements MemoryAudioPlayerDriver {
+  final events = <String>[];
+  String? _active;
+
+  @override
+  Stream<Duration> get durationChanges => const Stream.empty();
+
+  @override
+  Stream<Duration> get positionChanges => const Stream.empty();
+
+  @override
+  Stream<MemoryAudioDriverStatus> get statusChanges => const Stream.empty();
+
+  @override
+  Future<void> play(String assetId, AudioPlaybackSource source) async {
+    _active = assetId;
+    events.add('play:$assetId');
+  }
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> stop() async {
+    if (_active != null) events.add('stop:$_active');
+    _active = null;
+  }
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _AltarAudioStore implements AudioAssetStore {
+  @override
+  Future<AudioPlaybackSource?> open(String storageKey) async =>
+      FileAudioPlaybackSource(storageKey);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

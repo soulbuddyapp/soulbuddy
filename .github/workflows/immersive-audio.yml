@@ -1,0 +1,86 @@
+name: Immersive audio
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/immersive-audio.yml'
+      - 'apps/soulbuddy/lib/**'
+      - 'apps/soulbuddy/test/**'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/immersive-audio.yml'
+      - 'apps/soulbuddy/lib/**'
+      - 'apps/soulbuddy/test/**'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: immersive-audio-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-audio:
+    name: Flutter recording and playback
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Flutter 3.35.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Prepare ignored Scripture test asset
+        run: |
+          # Focused tests supply their own Scripture data. The ignored
+          # production database must still have a path in Flutter's bundle.
+          New-Item -ItemType Directory -Force assets/scripture | Out-Null
+          if (-not (Test-Path assets/scripture/rsvce.db)) {
+            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
+          }
+
+      - name: Analyze changed Dart sources
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          $base = $env:BASE_SHA
+          if ($base -notmatch '^[0-9a-f]{40}$' -or $base -eq ('0' * 40)) {
+            $base = git merge-base HEAD origin/main
+          }
+          $changed = @(git diff --name-only --diff-filter=ACMR $base HEAD -- apps/soulbuddy/lib apps/soulbuddy/test)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $targets = @($changed | Where-Object { $_.EndsWith('.dart') } | ForEach-Object { $_.Substring('apps/soulbuddy/'.Length) })
+          if ($targets.Count -gt 0) {
+            Push-Location apps/soulbuddy
+            flutter analyze --fatal-infos @targets
+            $result = $LASTEXITCODE
+            Pop-Location
+            if ($result -ne 0) { exit $result }
+          }
+          git diff --check $base HEAD
+
+      - name: Verify capture, memories, prayers, and session ownership
+        run: flutter test test/core/playback test/features/record test/features/remember test/features/prayers test/features/daily_formation test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
