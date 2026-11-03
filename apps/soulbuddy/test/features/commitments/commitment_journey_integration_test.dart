@@ -186,16 +186,18 @@ void main() {
 
       Future<void> tapText(String text) => tapAction(find.text(text), text);
 
-      Future<void> finishCleanup(
-        Future<void> operation, {
+      Future<T> waitWithPumps<T>(
+        Future<T> operation, {
         required String stage,
       }) async {
+        late T value;
         var completed = false;
         Object? failure;
         StackTrace? failureStack;
         unawaited(
           operation.then<void>(
-            (_) {
+            (result) {
+              value = result;
               completed = true;
             },
             onError: (Object error, StackTrace stackTrace) {
@@ -215,13 +217,17 @@ void main() {
         if (failure case final error?) {
           Error.throwWithStackTrace(error, failureStack!);
         }
+        return value;
       }
 
-      Future<void> stage(String heading) => settleUntil(
-        () =>
-            find.text(heading).evaluate().isNotEmpty &&
-            find.text('Saving…').evaluate().isEmpty,
-      );
+      Future<void> stage(String heading) async {
+        await settleUntil(
+          () =>
+              find.text(heading).evaluate().isNotEmpty &&
+              find.text('Saving…').evaluate().isEmpty,
+        );
+        stdout.writeln('Commitment journey: $heading');
+      }
       Future<void> enter(String label, String value) async {
         final field = find.byWidgetPredicate(
           (w) => w is TextField && w.decoration?.labelText == label,
@@ -419,26 +425,32 @@ void main() {
                   .evaluate()
                   .isNotEmpty,
         );
+        stdout.writeln('Commitment journey: summary visible');
         await capture('summary');
+        stdout.writeln('Commitment journey: verifying durable data');
 
-        final saved = (await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM commitments'),
-        ))!.single;
-        final plan = (await tester.runAsync(
-          () => database.powersync.getAll(
+        final saved = (await waitWithPumps(
+          database.powersync.getAll('SELECT * FROM commitments'),
+          stage: 'read commitments',
+        )).single;
+        final plan = (await waitWithPumps(
+          database.powersync.getAll(
             'SELECT * FROM commitment_meditation_plans',
           ),
-        ))!.single;
-        final practice = (await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM commitment_practices'),
-        ))!.single;
+          stage: 'read commitment_meditation_plans',
+        )).single;
+        final practice = (await waitWithPumps(
+          database.powersync.getAll('SELECT * FROM commitment_practices'),
+          stage: 'read commitment_practices',
+        )).single;
         expect(saved['name'], 'Faithful service');
         expect(saved['calling'], 'Serve my neighbors');
         expect(saved['guide_id'], 'peace');
         expect(practice['body'], 'Walk with a neighbor');
-        final links = (await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM voice_note_links'),
-        ))!;
+        final links = await waitWithPumps(
+          database.powersync.getAll('SELECT * FROM voice_note_links'),
+          stage: 'read voice_note_links',
+        );
         expect(links, hasLength(6));
         expect(links.every((row) => row['context_id'] == saved['id']), isTrue);
         expect(
@@ -447,48 +459,57 @@ void main() {
           ),
           hasLength(1),
         );
-        final audioAssets = await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM memory_audio_assets'),
+        final audioAssets = await waitWithPumps(
+          database.powersync.getAll('SELECT * FROM memory_audio_assets'),
+          stage: 'read memory_audio_assets',
         );
         expect(audioAssets, hasLength(6));
         expect(plan['duration_minutes'], 10);
         expect(plan['local_time'], '07:00');
         expect(
-          (await tester.runAsync(() => progressRepo!.load()))!.progress,
+          (await waitWithPumps(
+            progressRepo!.load(),
+            stage: 'read completed journey progress',
+          )).progress,
           isNull,
         );
         expect(
-          await tester.runAsync(
-            () => database.powersync.getAll('SELECT * FROM goals'),
+          await waitWithPumps(
+            database.powersync.getAll('SELECT * FROM goals'),
+            stage: 'read goals',
           ),
           hasLength(1),
         );
         expect(
-          await tester.runAsync(
-            () => database.powersync.getAll('SELECT * FROM goal_actions'),
+          await waitWithPumps(
+            database.powersync.getAll('SELECT * FROM goal_actions'),
+            stage: 'read goal_actions',
           ),
           hasLength(1),
         );
         expect(
-          await tester.runAsync(
-            () => database.powersync.getAll('SELECT * FROM goal_action_events'),
+          await waitWithPumps(
+            database.powersync.getAll('SELECT * FROM goal_action_events'),
+            stage: 'read goal_action_events',
           ),
           isEmpty,
         );
         expect(
-          await tester.runAsync(
-            () => database.powersync.getAll(
+          await waitWithPumps(
+            database.powersync.getAll(
               'SELECT * FROM commitment_meditation_sessions',
             ),
+            stage: 'read commitment_meditation_sessions',
           ),
           isEmpty,
         );
         expect(tester.takeException(), isNull);
       } finally {
+        stdout.writeln('Commitment journey: cleanup');
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
         for (final controller in captureControllers) {
-          await finishCleanup(
+          await waitWithPumps(
             controller.close(),
             stage: 'close the journey recording',
           );
@@ -497,15 +518,19 @@ void main() {
         router.dispose();
         container.dispose();
         await tester.pump();
-        await finishCleanup(playback.close(), stage: 'close restored playback');
+        await waitWithPumps(playback.close(), stage: 'close restored playback');
         playback.dispose();
-        await finishCleanup(
+        await waitWithPumps(
           database.close(),
           stage: 'close the journey database',
         );
-        await tester.runAsync(() => directory.delete(recursive: true));
+        await waitWithPumps(
+          directory.delete(recursive: true),
+          stage: 'delete the journey test directory',
+        );
       }
     },
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }
 
