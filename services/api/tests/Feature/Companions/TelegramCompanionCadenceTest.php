@@ -76,6 +76,7 @@ it('activates the companion when a private Telegram chat is linked', function ()
 });
 
 it('sends one weekly prayer prompt for an unattended person', function () {
+    $this->travelTo(now()->setDate(2026, 10, 4)->setTime(8, 0)->utc());
     config()->set('services.telegram.bot_token', 'bot-token');
     Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
     $user = companionUser();
@@ -90,7 +91,6 @@ it('sends one weekly prayer prompt for an unattended person', function () {
         'updated_at' => now()->subDays(8),
     ]);
 
-    $this->travelTo(now()->setDate(2026, 10, 4)->setTime(8, 0)->utc());
     expect(Artisan::call('telegram-companion:send'))->toBe(0);
 
     expect(DB::table('telegram_companion_deliveries')
