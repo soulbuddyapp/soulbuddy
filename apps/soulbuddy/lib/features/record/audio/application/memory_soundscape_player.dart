@@ -87,10 +87,7 @@ class AudioplayersMemorySoundscapePlayer implements MemorySoundscapePlayer {
   Future<void>? _disposing;
 
   @override
-  Future<void> start(
-    MemorySoundscape soundscape, {
-    required double volume,
-  }) {
+  Future<void> start(MemorySoundscape soundscape, {required double volume}) {
     if (_disposed) return Future.value();
     final generation = ++_generation;
     bool current() => !_disposed && generation == _generation;

@@ -19,22 +19,24 @@ class MemoryReflectionContent extends ConsumerWidget {
       children: [
         if (reflection.body.isNotEmpty) SelectableText(reflection.body),
         if (audioEncounterId != null)
-          ref.watch(memoryAudioForEncounterProvider(audioEncounterId)).when(
-            loading: () => const LinearProgressIndicator(),
-            error: (_, _) => TextButton(
-              onPressed: () => ref.invalidate(
-                memoryAudioForEncounterProvider(audioEncounterId),
-              ),
-              child: const Text('Retry recording'),
-            ),
-            data: (audio) => audio == null
-                ? const Text('Recording unavailable on this device')
-                : AudioPlaybackControl(
-                    audio: audio,
-                    label: 'Reflection',
-                    sessionRoute: '/remember/${reflection.encounterId}',
+          ref
+              .watch(memoryAudioForEncounterProvider(audioEncounterId))
+              .when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, _) => TextButton(
+                  onPressed: () => ref.invalidate(
+                    memoryAudioForEncounterProvider(audioEncounterId),
                   ),
-          ),
+                  child: const Text('Retry recording'),
+                ),
+                data: (audio) => audio == null
+                    ? const Text('Recording unavailable on this device')
+                    : AudioPlaybackControl(
+                        audio: audio,
+                        label: 'Reflection',
+                        sessionRoute: '/remember/${reflection.encounterId}',
+                      ),
+              ),
       ],
     );
   }

@@ -251,11 +251,18 @@ class _LiveFirstPrayer extends ConsumerWidget {
               child: Column(
                 children: [
                   VoiceNotesField(
-                    noteContext: (type: 'first_prayer', id: 'onboarding', field: 'intention'),
+                    noteContext: (
+                      type: 'first_prayer',
+                      id: 'onboarding',
+                      field: 'intention',
+                    ),
                     title: 'My intention',
                     onRecorded: (_) => controller.usePreparedPrayer(),
                   ),
-                  TextButton(onPressed: controller.usePreparedPrayer, child: const Text('Not now')),
+                  TextButton(
+                    onPressed: controller.usePreparedPrayer,
+                    child: const Text('Not now'),
+                  ),
                 ],
               ),
             ),
@@ -294,26 +301,31 @@ class _LiveFirstPrayer extends ConsumerWidget {
               choices: const ['Record'],
               onChoose: (_) => controller.chooseRemembranceMode(speak: true),
             ),
-            FirstPrayerStage.remembrance => ref
-                .watch(audioCaptureControllerProvider)
-                .when(
-                  data: (audioController) => _FirstPrayerAudioRemembrance(
-                    controller: audioController,
-                    initialDraft: flow.remembranceAudio,
-                    onSave: (audio) => controller.saveRemembrance(
-                      body: flow.progress.remembranceText ?? '',
-                      audio: audio,
+            FirstPrayerStage.remembrance =>
+              ref
+                  .watch(audioCaptureControllerProvider)
+                  .when(
+                    data: (audioController) => _FirstPrayerAudioRemembrance(
+                      controller: audioController,
+                      initialDraft: flow.remembranceAudio,
+                      onSave: (audio) => controller.saveRemembrance(
+                        body: flow.progress.remembranceText ?? '',
+                        audio: audio,
+                      ),
+                      onSaved: () {
+                        if (context.mounted) context.go('/today');
+                      },
                     ),
-                    onSaved: () { if (context.mounted) context.go('/today'); },
-                  ),
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (_, _) => Center(
-                    child: FilledButton(
-                      onPressed: () => ref.invalidate(audioCaptureControllerProvider),
-                      child: const Text('Retry recording'),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, _) => Center(
+                      child: FilledButton(
+                        onPressed: () =>
+                            ref.invalidate(audioCaptureControllerProvider),
+                        child: const Text('Retry recording'),
+                      ),
                     ),
                   ),
-                ),
           },
         ),
       ),

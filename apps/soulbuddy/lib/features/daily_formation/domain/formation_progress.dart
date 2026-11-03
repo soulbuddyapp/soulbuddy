@@ -100,7 +100,8 @@ class FormationCompletion {
     'day': day,
     'videoId': videoId,
     'completedAt': completedAt.toUtc().toIso8601String(),
-    if (reflectionEncounterId != null) 'reflectionEncounterId': reflectionEncounterId,
+    if (reflectionEncounterId != null)
+      'reflectionEncounterId': reflectionEncounterId,
     if (reflection != null && reflection!.trim().isNotEmpty)
       'reflection': reflection!.trim(),
     if (action != null && action!.trim().isNotEmpty) 'action': action!.trim(),

@@ -91,15 +91,22 @@ class _VoiceNotesFieldState extends ConsumerState<VoiceNotesField> {
   @override
   Widget build(BuildContext context) {
     final scope = widget.noteContext;
-    final notes = ref.watch(voiceNotesProvider(
-      widget.includeAllFields ? (type: scope.type, id: scope.id, field: '*') : scope,
-    ));
+    final notes = ref.watch(
+      voiceNotesProvider(
+        widget.includeAllFields
+            ? (type: scope.type, id: scope.id, field: '*')
+            : scope,
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
         for (final note in notes.value ?? const <VoiceNoteLink>[])
-          RecordedMemoryPlayer(encounterId: note.encounterId, title: note.title),
+          RecordedMemoryPlayer(
+            encounterId: note.encounterId,
+            title: note.title,
+          ),
         if (notes.hasError) const Text('Recordings unavailable'),
         if (_error != null) Text(_error!),
         Align(
@@ -107,7 +114,13 @@ class _VoiceNotesFieldState extends ConsumerState<VoiceNotesField> {
           child: OutlinedButton.icon(
             onPressed: _busy || !widget.enabled ? null : _record,
             icon: const Icon(Icons.mic_none),
-            label: Text(_busy ? 'Saving…' : _pending == null ? 'Record' : 'Retry'),
+            label: Text(
+              _busy
+                  ? 'Saving…'
+                  : _pending == null
+                  ? 'Record'
+                  : 'Retry',
+            ),
           ),
         ),
       ],
@@ -116,7 +129,11 @@ class _VoiceNotesFieldState extends ConsumerState<VoiceNotesField> {
 }
 
 class RecordedMemoryPlayer extends ConsumerWidget {
-  const RecordedMemoryPlayer({required this.encounterId, required this.title, super.key});
+  const RecordedMemoryPlayer({
+    required this.encounterId,
+    required this.title,
+    super.key,
+  });
   final String encounterId;
   final String title;
 

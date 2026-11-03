@@ -73,7 +73,11 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                     PrayerSessionActions(prayer: value),
                     const SizedBox(height: AppSpacing.md),
                     VoiceNotesField(
-                      noteContext: (type: 'prayer', id: value.id, field: 'reflection'),
+                      noteContext: (
+                        type: 'prayer',
+                        id: value.id,
+                        field: 'reflection',
+                      ),
                       title: 'After prayer',
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -85,7 +89,10 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                           SelectableText(value.body),
                           if (value.action case final action?) ...[
                             const SizedBox(height: AppSpacing.md),
-                            Text('Practice', style: Theme.of(context).textTheme.labelLarge),
+                            Text(
+                              'Practice',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
                             SelectableText(action),
                           ],
                         ],

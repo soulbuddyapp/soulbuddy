@@ -130,9 +130,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
       );
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _saveError = 'Recording kept. Try saving again.',
-        );
+        setState(() => _saveError = 'Recording kept. Try saving again.');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -240,9 +238,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                           _audioDraft == null ? Icons.mic_none : Icons.mic,
                         ),
                         label: Text(
-                          _audioDraft == null
-                              ? 'Record audio'
-                              : 'Record again',
+                          _audioDraft == null ? 'Record audio' : 'Record again',
                         ),
                       ),
                     ),
@@ -322,7 +318,9 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                     ],
                     FilledButton(
                       key: const Key('encounter-save'),
-                      onPressed: _isSaving || _audioDraft == null ? null : _save,
+                      onPressed: _isSaving || _audioDraft == null
+                          ? null
+                          : _save,
                       child: Text(_isSaving ? 'Saving…' : 'Save'),
                     ),
                   ],

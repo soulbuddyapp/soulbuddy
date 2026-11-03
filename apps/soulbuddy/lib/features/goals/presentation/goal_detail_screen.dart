@@ -170,12 +170,15 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                       title: 'Reflections',
                       includeAllFields: true,
                     ),
-                    if (_hasText(goal.currentSituation) || _hasText(goal.whyItMatters))
+                    if (_hasText(goal.currentSituation) ||
+                        _hasText(goal.whyItMatters))
                       ExpansionTile(
                         title: const Text('Earlier written notes'),
                         children: [
-                          if (_hasText(goal.currentSituation)) SelectableText(goal.currentSituation!),
-                          if (_hasText(goal.whyItMatters)) SelectableText(goal.whyItMatters!),
+                          if (_hasText(goal.currentSituation))
+                            SelectableText(goal.currentSituation!),
+                          if (_hasText(goal.whyItMatters))
+                            SelectableText(goal.whyItMatters!),
                         ],
                       ),
                   ],

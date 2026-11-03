@@ -177,7 +177,15 @@ void main() {
         'INSERT INTO voice_note_links '
         '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
         'VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [id, owner, 'goal', context, 'situation', 'audio-$id', '2026-11-03T00:00:00Z'],
+        [
+          id,
+          owner,
+          'goal',
+          context,
+          'situation',
+          'audio-$id',
+          '2026-11-03T00:00:00Z',
+        ],
       );
     }
 

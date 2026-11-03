@@ -86,7 +86,11 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
               ),
               const SizedBox(height: AppSpacing.md),
               VoiceNotesField(
-                noteContext: (type: 'prayer', id: prayer.id, field: 'reflection'),
+                noteContext: (
+                  type: 'prayer',
+                  id: prayer.id,
+                  field: 'reflection',
+                ),
                 title: 'After prayer',
               ),
               const SizedBox(height: AppSpacing.md),
@@ -96,7 +100,10 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                   SelectableText(prayer.body),
                   if (prayer.action case final action?) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text('Suggested action', style: Theme.of(context).textTheme.labelLarge),
+                    Text(
+                      'Suggested action',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
                     SelectableText(action),
                   ],
                 ],

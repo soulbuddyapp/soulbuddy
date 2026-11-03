@@ -486,52 +486,58 @@ class _CompletionSheetState extends State<_CompletionSheet> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_recordingBusy,
     child: Padding(
-    padding: EdgeInsets.fromLTRB(
-      20,
-      0,
-      20,
-      20 + MediaQuery.viewInsetsOf(context).bottom,
-    ),
-    child: SingleChildScrollView(child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'After watching',
-          style: Theme.of(context).textTheme.titleLarge,
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'After watching',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 6),
+            VoiceNotesField(
+              noteContext: (
+                type: 'formation',
+                id: '${widget.video.id}:day-${widget.day.day}',
+                field: 'reflection',
+              ),
+              title: widget.video.title,
+              onRecorded: (memory) {
+                if (mounted) setState(() => _recordingId = memory.id);
+              },
+              onBusyChanged: (busy) {
+                if (mounted) setState(() => _recordingBusy = busy);
+              },
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _action,
+              maxLength: 80,
+              maxLines: 1,
+              decoration: const InputDecoration(
+                labelText: 'Next step · short title',
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _recordingBusy
+                  ? null
+                  : () => Navigator.pop(context, (
+                      recordingId: _recordingId,
+                      action: _action.text,
+                    )),
+              child: const Text('Complete today'),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        VoiceNotesField(
-          noteContext: (
-            type: 'formation',
-            id: '${widget.video.id}:day-${widget.day.day}',
-            field: 'reflection',
-          ),
-          title: widget.video.title,
-          onRecorded: (memory) {
-            if (mounted) setState(() => _recordingId = memory.id);
-          },
-          onBusyChanged: (busy) {
-            if (mounted) setState(() => _recordingBusy = busy);
-          },
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _action,
-          maxLength: 80,
-          maxLines: 1,
-          decoration: const InputDecoration(labelText: 'Next step · short title'),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: _recordingBusy ? null : () => Navigator.pop(context, (
-            recordingId: _recordingId,
-            action: _action.text,
-          )),
-          child: const Text('Complete today'),
-        ),
-      ],
-    )),
+      ),
     ),
   );
 }

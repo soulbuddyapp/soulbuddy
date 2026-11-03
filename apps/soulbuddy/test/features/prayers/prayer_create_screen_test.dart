@@ -72,7 +72,9 @@ void main() {
     expect(personalRepository.createCalls, 0);
   });
 
-  testWidgets('own prayer saves the recording without a long text form', (tester) async {
+  testWidgets('own prayer saves the recording without a long text form', (
+    tester,
+  ) async {
     final personalRepository = _PersonalRepository();
     final recorded = _RecordedRepository();
     var generationReads = 0;
@@ -83,7 +85,9 @@ void main() {
       recordedRepository: recorded,
       onGenerationProviderRead: () => generationReads++,
     );
-    await tester.tap(find.byKey(const Key('prayer-create-purpose-difficult_time')));
+    await tester.tap(
+      find.byKey(const Key('prayer-create-purpose-difficult_time')),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('prayer-create-write')), findsNothing);
     await tester.ensureVisible(find.byKey(const Key('prayer-create-speak')));
@@ -152,7 +156,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a failed discard keeps prayer capture open for retry', (tester) async {
+  testWidgets('a failed discard keeps prayer capture open for retry', (
+    tester,
+  ) async {
     final recorder = _PrayerRecorder()..failCancel = true;
     await _pump(
       tester,
@@ -190,26 +196,27 @@ void main() {
     expect(find.byKey(const Key('prayer-create-speak')), findsOneWidget);
   });
 
-  testWidgets('meditation prayer keeps its context without generating a text draft', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      editorialRepository: _EditorialRepository(const []),
-      personalRepository: _PersonalRepository(),
-      onGenerationProviderRead: () {},
-      screen: const PrayerCreateScreen(
-        contextTitle: 'Forgiveness · Matthew 6:14–15',
-        prayerStarter: 'Lord, help me release what I am holding.',
-        initialPurpose: PrayerPurpose.guidance,
-      ),
-    );
+  testWidgets(
+    'meditation prayer keeps its context without generating a text draft',
+    (tester) async {
+      await _pump(
+        tester,
+        editorialRepository: _EditorialRepository(const []),
+        personalRepository: _PersonalRepository(),
+        onGenerationProviderRead: () {},
+        screen: const PrayerCreateScreen(
+          contextTitle: 'Forgiveness · Matthew 6:14–15',
+          prayerStarter: 'Lord, help me release what I am holding.',
+          initialPurpose: PrayerPurpose.guidance,
+        ),
+      );
 
-    expect(find.text('From your meditation'), findsOneWidget);
-    expect(find.text('Forgiveness · Matthew 6:14–15'), findsOneWidget);
-    expect(find.byKey(const Key('prayer-create-own-words')), findsNothing);
-    expect(find.byKey(const Key('prayer-create-speak')), findsOneWidget);
-  });
+      expect(find.text('From your meditation'), findsOneWidget);
+      expect(find.text('Forgiveness · Matthew 6:14–15'), findsOneWidget);
+      expect(find.byKey(const Key('prayer-create-own-words')), findsNothing);
+      expect(find.byKey(const Key('prayer-create-speak')), findsOneWidget);
+    },
+  );
 }
 
 Future<void> _pump(
@@ -249,10 +256,16 @@ Future<void> _pump(
         recordedPersonalPrayerRepositoryProvider.overrideWith(
           (ref) async => recordedRepository ?? _RecordedRepository(),
         ),
-        voiceTabletAudioCaptureControllerProvider.overrideWith((ref, kind) async {
+        voiceTabletAudioCaptureControllerProvider.overrideWith((
+          ref,
+          kind,
+        ) async {
           final controller = AudioCaptureController(
             recorder: recorder ?? _PrayerRecorder(),
-            allocateTemporary: () async => const TemporaryAudio(key: 'take', locator: '/private/prayer.m4a'),
+            allocateTemporary: () async => const TemporaryAudio(
+              key: 'take',
+              locator: '/private/prayer.m4a',
+            ),
           );
           ref.onDispose(() => unawaited(controller.close()));
           return controller;
@@ -403,10 +416,18 @@ class _RecordedRepository implements RecordedPersonalPrayerRepository {
     this.audio = audio;
     this.purpose = purpose;
     return PersonalPrayer(
-      id: 'recorded-1', ownerId: 'owner', title: title, style: 'situational',
-      reach: 'personal', grounding: grounding, purpose: purpose,
-      currentRevisionId: 'revision', body: '', contentFormat: PersonalPrayerContentFormat.audio,
-      createdAt: DateTime.utc(2026, 11, 3), updatedAt: DateTime.utc(2026, 11, 3),
+      id: 'recorded-1',
+      ownerId: 'owner',
+      title: title,
+      style: 'situational',
+      reach: 'personal',
+      grounding: grounding,
+      purpose: purpose,
+      currentRevisionId: 'revision',
+      body: '',
+      contentFormat: PersonalPrayerContentFormat.audio,
+      createdAt: DateTime.utc(2026, 11, 3),
+      updatedAt: DateTime.utc(2026, 11, 3),
     );
   }
 }
@@ -424,7 +445,10 @@ class _PrayerRecorder implements AudioRecorderGateway {
   @override
   Future<void> start(TemporaryAudio temporary) async {}
   @override
-  Future<void> pause() async { pauseCalls++; }
+  Future<void> pause() async {
+    pauseCalls++;
+  }
+
   @override
   Future<void> resume() async {}
   @override
@@ -432,10 +456,14 @@ class _PrayerRecorder implements AudioRecorderGateway {
     cancelCalls++;
     if (failCancel) throw StateError('Recorder unavailable');
   }
+
   @override
   Future<void> dispose() async {}
   @override
   Future<void> discard(AudioRecorderResult result) async {}
   @override
-  Future<AudioRecorderResult> stop() async => const AudioRecorderResult(locator: '/private/prayer.m4a', mimeType: 'audio/mp4');
+  Future<AudioRecorderResult> stop() async => const AudioRecorderResult(
+    locator: '/private/prayer.m4a',
+    mimeType: 'audio/mp4',
+  );
 }

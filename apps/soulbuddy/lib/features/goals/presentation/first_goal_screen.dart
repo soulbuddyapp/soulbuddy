@@ -298,7 +298,8 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                               situation: recordings.isEmpty
                                   ? earlierNote
                                   : recordings.first.title,
-                              byVoice: recordings.isNotEmpty ||
+                              byVoice:
+                                  recordings.isNotEmpty ||
                                   progress.situationByVoice == true,
                             ),
                   child: const Text('Continue'),
@@ -421,7 +422,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                       _pendingPrayerId != null
                           ? 'Retry prayer selection'
                           : progress.prayerSource ==
-                              GoalOnboardingPrayerSource.personalPrayer
+                                GoalOnboardingPrayerSource.personalPrayer
                           ? 'Record another prayer'
                           : 'Record my prayer',
                     ),
@@ -757,7 +758,6 @@ class _GoalTextPage extends StatefulWidget {
     this.hintText,
     this.continueLabel = 'Continue',
     this.onSkip,
-    this.skipLabel = 'Not now',
     this.maxLength = 120,
     this.requireText = false,
     this.supporting,
@@ -773,7 +773,6 @@ class _GoalTextPage extends StatefulWidget {
   final String continueLabel;
   final FutureOr<void> Function(String value) onContinue;
   final FutureOr<void> Function()? onSkip;
-  final String skipLabel;
   final int maxLength;
   final bool requireText;
   final Widget? supporting;
@@ -787,7 +786,8 @@ class _GoalTextPage extends StatefulWidget {
 }
 
 class _GoalTextPageState extends State<_GoalTextPage> {
-  bool get _hasLegacyText => widget.initialValue != null &&
+  bool get _hasLegacyText =>
+      widget.initialValue != null &&
       (widget.initialValue!.runes.length > widget.maxLength ||
           widget.initialValue!.contains('\n'));
 
@@ -871,12 +871,16 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               builder: (context, value, child) {
                 final missingRequiredText =
                     widget.requireText && value.text.trim().isEmpty;
-                final invalidLabel = value.text.trim().runes.length >
-                        widget.maxLength ||
+                final invalidLabel =
+                    value.text.trim().runes.length > widget.maxLength ||
                     value.text.contains('\n');
                 return FilledButton(
                   key: const Key('first-goal-text-continue'),
-                  onPressed: !widget.enabled || _working || missingRequiredText || invalidLabel
+                  onPressed:
+                      !widget.enabled ||
+                          _working ||
+                          missingRequiredText ||
+                          invalidLabel
                       ? null
                       : () => _run(
                           () => widget.onContinue(
@@ -891,8 +895,10 @@ class _GoalTextPageState extends State<_GoalTextPage> {
             ),
             if (widget.onSkip case final onSkip?)
               TextButton(
-                onPressed: !widget.enabled || _working ? null : () => _run(onSkip),
-                child: Text(widget.skipLabel),
+                onPressed: !widget.enabled || _working
+                    ? null
+                    : () => _run(onSkip),
+                child: const Text('Not now'),
               ),
           ],
         ),

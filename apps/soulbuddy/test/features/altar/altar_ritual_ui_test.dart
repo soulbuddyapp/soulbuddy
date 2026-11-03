@@ -131,25 +131,33 @@ void main() {
       driver: driver,
     );
     final spiritual = SpiritualSessionController();
-    await coordinator.playTrack(
-      const PrivateAudioTrack(
-        id: 'old',
-        storageKey: 'private/old.m4a',
-        duration: Duration(seconds: 12),
+    await _pumpPlaybackOperation(
+      tester,
+      coordinator.playTrack(
+        const PrivateAudioTrack(
+          id: 'old',
+          storageKey: 'private/old.m4a',
+          duration: Duration(seconds: 12),
+        ),
       ),
+      stage: 'start the previous audio',
     );
-    await spiritual.begin(
-      SpiritualSession(
-        id: 'old-session',
-        kind: SpiritualSessionKind.memory,
-        title: 'Previous memory',
-        route: '/remember/old',
-        canPause: true,
-        onPause: coordinator.pause,
-        onResume: () async {},
-        onComplete: () async {},
-        onClose: coordinator.stop,
+    await _pumpPlaybackOperation(
+      tester,
+      spiritual.begin(
+        SpiritualSession(
+          id: 'old-session',
+          kind: SpiritualSessionKind.memory,
+          title: 'Previous memory',
+          route: '/remember/old',
+          canPause: true,
+          onPause: coordinator.pause,
+          onResume: () async {},
+          onComplete: () async {},
+          onClose: coordinator.stop,
+        ),
       ),
+      stage: 'register the previous session',
     );
     await tester.pumpWidget(
       ProviderScope(
@@ -166,16 +174,34 @@ void main() {
         child: const _App(child: AltarReminderOverlayHost()),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
     await tester.tap(find.byKey(const Key('altar-listen')));
-    await tester.pumpAndSettle();
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 5),
+    );
 
     expect(driver.events, ['play:old', 'stop:old', 'play:refrain']);
     expect(coordinator.state.assetId, 'refrain');
     expect(coordinator.state.status, MemoryAudioPlaybackStatus.playing);
     expect(spiritual.state.session?.kind, SpiritualSessionKind.altar);
-    await spiritual.close();
-    await coordinator.close();
+    await _pumpPlaybackOperation(
+      tester,
+      spiritual.close(),
+      stage: 'close the Altar session',
+    );
+    await _pumpPlaybackOperation(
+      tester,
+      coordinator.close(),
+      stage: 'dispose the playback coordinator',
+    );
+    spiritual.dispose();
+    coordinator.dispose();
   });
 
   testWidgets('Undo remains available after the completed card unmounts', (
@@ -227,6 +253,35 @@ void main() {
 }
 
 Widget _app(Widget child) => _App(child: child);
+
+Future<void> _pumpPlaybackOperation(
+  WidgetTester tester,
+  Future<void> operation, {
+  required String stage,
+}) async {
+  var completed = false;
+  Object? failure;
+  StackTrace? failureStack;
+  unawaited(
+    operation.then<void>(
+      (_) {
+        completed = true;
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        failure = error;
+        failureStack = stackTrace;
+        completed = true;
+      },
+    ),
+  );
+  for (var frame = 0; frame < 20 && !completed; frame += 1) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  expect(completed, isTrue, reason: 'Timed out trying to $stage.');
+  if (failure case final error?) {
+    Error.throwWithStackTrace(error, failureStack!);
+  }
+}
 
 class _App extends StatelessWidget {
   const _App({required this.child});
@@ -299,16 +354,21 @@ DueAltarRitual _due() => DueAltarRitual(
 
 class _AltarAudioDriver implements MemoryAudioPlayerDriver {
   final events = <String>[];
+  final _durations = StreamController<Duration>(onCancel: () async {});
+  final _positions = StreamController<Duration>(onCancel: () async {});
+  final _statuses = StreamController<MemoryAudioDriverStatus>(
+    onCancel: () async {},
+  );
   String? _active;
 
   @override
-  Stream<Duration> get durationChanges => const Stream.empty();
+  Stream<Duration> get durationChanges => _durations.stream;
 
   @override
-  Stream<Duration> get positionChanges => const Stream.empty();
+  Stream<Duration> get positionChanges => _positions.stream;
 
   @override
-  Stream<MemoryAudioDriverStatus> get statusChanges => const Stream.empty();
+  Stream<MemoryAudioDriverStatus> get statusChanges => _statuses.stream;
 
   @override
   Future<void> play(String assetId, AudioPlaybackSource source) async {
@@ -326,7 +386,11 @@ class _AltarAudioDriver implements MemoryAudioPlayerDriver {
   }
 
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async {
+    await _durations.close();
+    await _positions.close();
+    await _statuses.close();
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

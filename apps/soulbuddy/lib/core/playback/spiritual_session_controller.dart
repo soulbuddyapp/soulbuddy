@@ -167,23 +167,25 @@ class SpiritualSessionController extends ChangeNotifier {
 
   Future<void> _run(Future<void> Function() command) {
     if (_disposed) return Future.value();
-    final operation = _tail.then((_) async {
-      if (!_disposed) await command();
-    }).catchError((Object error) {
-      final session = _state.session;
-      if (session != null) {
-        _emit(
-          SpiritualSessionState(
-            session: session,
-            status: SpiritualSessionStatus.error,
-            position: _state.position,
-            duration: _state.duration,
-            error: 'Playback could not continue.',
-          ),
-        );
-      }
-      throw error;
-    });
+    final operation = _tail
+        .then((_) async {
+          if (!_disposed) await command();
+        })
+        .catchError((Object error) {
+          final session = _state.session;
+          if (session != null) {
+            _emit(
+              SpiritualSessionState(
+                session: session,
+                status: SpiritualSessionStatus.error,
+                position: _state.position,
+                duration: _state.duration,
+                error: 'Playback could not continue.',
+              ),
+            );
+          }
+          throw error;
+        });
     _tail = operation.then<void>((_) {}, onError: (_, _) {});
     return operation;
   }
@@ -200,9 +202,11 @@ class SpiritualSessionController extends ChangeNotifier {
     _disposed = true;
     _captureOwners.clear();
     unawaited(
-      _tail.then<void>((_) async {
-        await _state.session?.onClose();
-      }).catchError((Object _) {}),
+      _tail
+          .then<void>((_) async {
+            await _state.session?.onClose();
+          })
+          .catchError((Object _) {}),
     );
     super.dispose();
   }

@@ -22,9 +22,7 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
     text: widget.initialCircle?.name ?? '',
   );
   late final _descriptionController = TextEditingController(
-    text: _legacyPurpose == null
-        ? widget.initialCircle?.description ?? ''
-        : '',
+    text: _legacyPurpose == null ? widget.initialCircle?.description ?? '' : '',
   );
   late final _linkController = TextEditingController(
     text: widget.initialCircle?.openUri?.toString() ?? '',
@@ -211,7 +209,9 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
       return;
     }
     if (purposeLabel.runes.length > 120 || purposeLabel.contains('\n')) {
-      setState(() => _error = 'Use one short purpose label, up to 120 characters.');
+      setState(
+        () => _error = 'Use one short purpose label, up to 120 characters.',
+      );
       return;
     }
     if (link == null || !_provider.allows(link)) {

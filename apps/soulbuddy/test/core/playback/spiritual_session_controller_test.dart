@@ -115,10 +115,14 @@ void main() {
     final pausing = Completer<void>();
     final controller = SpiritualSessionController();
     await controller.begin(
-      _session('one', [], onPause: () async {
-        pausing.complete();
-        await paused.future;
-      }),
+      _session(
+        'one',
+        [],
+        onPause: () async {
+          pausing.complete();
+          await paused.future;
+        },
+      ),
     );
 
     final operation = controller.pauseForCapture();
@@ -152,10 +156,14 @@ void main() {
     final paused = Completer<void>();
     final controller = SpiritualSessionController();
     await controller.begin(
-      _session('one', events, onPause: () async {
-        pausing.complete();
-        await paused.future;
-      }),
+      _session(
+        'one',
+        events,
+        onPause: () async {
+          pausing.complete();
+          await paused.future;
+        },
+      ),
     );
 
     final pause = controller.pause();

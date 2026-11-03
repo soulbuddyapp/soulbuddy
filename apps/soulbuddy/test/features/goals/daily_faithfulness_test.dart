@@ -108,7 +108,10 @@ void main() {
         ),
         throwsArgumentError,
       );
-      for (final body in [List.filled(121, 'a').join(), 'First line\nSecond line']) {
+      for (final body in [
+        List.filled(121, 'a').join(),
+        'First line\nSecond line',
+      ]) {
         await expectLater(
           service.save(
             precept: SpiritualPrecept.strengthForToday,

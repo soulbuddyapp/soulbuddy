@@ -1071,4 +1071,3 @@ final class SyncMutationRejected extends \RuntimeException
         parent::__construct($syncCode);
     }
 }
-

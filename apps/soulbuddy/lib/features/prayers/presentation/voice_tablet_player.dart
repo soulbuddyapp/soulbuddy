@@ -607,9 +607,8 @@ class _PlaybackControlsState extends ConsumerState<_PlaybackControls>
         SoundscapeControls(
           settings: settings,
           enabled: !blocked,
-          onSelected: (soundscape) => _changeBackground(
-            settings.copyWith(soundscape: soundscape),
-          ),
+          onSelected: (soundscape) =>
+              _changeBackground(settings.copyWith(soundscape: soundscape)),
           onVolumeChanged: (volume) => _changeBackground(
             settings.copyWith(volume: volume),
             volumeOnly: true,
@@ -627,10 +626,7 @@ class _PlaybackControlsState extends ConsumerState<_PlaybackControls>
     );
   }
 
-  Future<void> _toggle(
-    bool playing,
-    MemorySoundscapeSettings settings,
-  ) async {
+  Future<void> _toggle(bool playing, MemorySoundscapeSettings settings) async {
     final audio = widget.audio;
     final coordinator = widget.coordinator;
     final spiritual = widget.spiritualSession;
@@ -770,16 +766,17 @@ class _PlaybackControlsState extends ConsumerState<_PlaybackControls>
     builder: (context) => Consumer(
       builder: (context, ref, _) {
         final settings =
-            ref.watch(memorySoundscapeSettingsProvider(widget.audio.id)).value ??
+            ref
+                .watch(memorySoundscapeSettingsProvider(widget.audio.id))
+                .value ??
             MemorySoundscapeSettings.defaults;
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: SoundscapeControls(
               settings: settings,
-              onSelected: (soundscape) => _changeBackground(
-                settings.copyWith(soundscape: soundscape),
-              ),
+              onSelected: (soundscape) =>
+                  _changeBackground(settings.copyWith(soundscape: soundscape)),
               onVolumeChanged: (volume) => _changeBackground(
                 settings.copyWith(volume: volume),
                 volumeOnly: true,

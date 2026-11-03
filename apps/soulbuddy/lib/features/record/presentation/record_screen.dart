@@ -87,28 +87,28 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       // Once transferred, the take belongs to the form even while storage is
       // loading or unavailable. Provider retries must not unmount that owner.
       _RecordView.form => EncounterForm(
-          memoryType: _memoryType,
-          allowMemoryTypeChoice:
-              widget.allowMemoryTypeChoice ||
-              _audioDraft != null ||
-              widget.startMode == RecordStartMode.person,
-          initialTitle: widget.initialTitle,
-          initialDate: widget.initialDate,
-          audio: _audioDraft,
-          people: people,
-          initialPersonIds: widget.initialPersonIds,
-          initialSensitive: widget.privateReflection,
-          initialRecallEnabled: !widget.privateReflection,
-          onCancel: _cancelForm,
-          onSave: _saveEncounter,
+        memoryType: _memoryType,
+        allowMemoryTypeChoice:
+            widget.allowMemoryTypeChoice ||
+            _audioDraft != null ||
+            widget.startMode == RecordStartMode.person,
+        initialTitle: widget.initialTitle,
+        initialDate: widget.initialDate,
+        audio: _audioDraft,
+        people: people,
+        initialPersonIds: widget.initialPersonIds,
+        initialSensitive: widget.privateReflection,
+        initialRecallEnabled: !widget.privateReflection,
+        onCancel: _cancelForm,
+        onSave: _saveEncounter,
       ),
       _RecordView.capture => PopScope(
-          canPop: panelHandlesBack,
-          onPopInvokedWithResult: (didPop, _) {
-            if (!didPop && !panelHandlesBack) leaveCapture();
-          },
-          child: audioController.when(
-            data: (controller) => AudioCapturePanel(
+        canPop: panelHandlesBack,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && !panelHandlesBack) leaveCapture();
+        },
+        child: audioController.when(
+          data: (controller) => AudioCapturePanel(
             controller: controller,
             handlesSystemBack: true,
             enableSoundscape: true,
@@ -121,14 +121,14 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
               _audioDraft = draft;
               _view = _RecordView.form;
             }),
-            ),
-            loading: () => _RecordLoading(onClose: leaveCapture),
-            error: (error, stackTrace) => _RecordUnavailable(
-              onRetry: () => ref.invalidate(audioCaptureControllerProvider),
-              onClose: leaveCapture,
-            ),
+          ),
+          loading: () => _RecordLoading(onClose: leaveCapture),
+          error: (error, stackTrace) => _RecordUnavailable(
+            onRetry: () => ref.invalidate(audioCaptureControllerProvider),
+            onClose: leaveCapture,
           ),
         ),
+      ),
     };
   }
 

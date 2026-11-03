@@ -207,4 +207,3 @@ function narrationPayload(PersonalPrayer $prayer, PersonalPrayerRevision $revisi
         'consent' => true,
     ];
 }
-

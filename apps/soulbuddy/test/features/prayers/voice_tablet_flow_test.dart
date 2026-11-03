@@ -428,8 +428,12 @@ void main() {
           memorySoundscapePlaybackProvider.overrideWith(
             (ref) => MemorySoundscapePlaybackCoordinator(player: background),
           ),
-          prayerPracticeRepositoryProvider.overrideWith((ref) async => practice),
-          prayerDeviceTimezoneProvider.overrideWithValue(() async => 'Africa/Lagos'),
+          prayerPracticeRepositoryProvider.overrideWith(
+            (ref) async => practice,
+          ),
+          prayerDeviceTimezoneProvider.overrideWithValue(
+            () async => 'Africa/Lagos',
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -494,7 +498,10 @@ class _Background implements MemorySoundscapePlayer {
   bool playing = false;
 
   @override
-  Future<void> start(MemorySoundscape soundscape, {required double volume}) async {
+  Future<void> start(
+    MemorySoundscape soundscape, {
+    required double volume,
+  }) async {
     playing = soundscape != MemorySoundscape.quiet;
   }
 

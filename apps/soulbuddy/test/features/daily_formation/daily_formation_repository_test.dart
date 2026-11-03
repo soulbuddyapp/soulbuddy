@@ -31,29 +31,38 @@ void main() {
     expect(progress.currentDay, 2);
     expect(progress.selectedVideoId, isNull);
     expect(progress.completions.single.videoId, 'V002');
-    expect(progress.completions.single.reflectionEncounterId, 'recording-after-v002');
-    expect(progress.completions.single.reflection, 'I will make room to listen.');
+    expect(
+      progress.completions.single.reflectionEncounterId,
+      'recording-after-v002',
+    );
+    expect(
+      progress.completions.single.reflection,
+      'I will make room to listen.',
+    );
     expect(jsonDecode(stored!)['completions'], hasLength(1));
   });
 
-  test('does not add a duplicate completion when a completed day is retried', () async {
-    String? stored;
-    final repository = DailyFormationRepository(
-      read: (_) async => stored,
-      write: (_, value) async => stored = value,
-    );
-    final completion = FormationCompletion(
-      day: 1,
-      videoId: 'V001',
-      completedAt: DateTime.utc(2026, 9, 16),
-    );
+  test(
+    'does not add a duplicate completion when a completed day is retried',
+    () async {
+      String? stored;
+      final repository = DailyFormationRepository(
+        read: (_) async => stored,
+        write: (_, value) async => stored = value,
+      );
+      final completion = FormationCompletion(
+        day: 1,
+        videoId: 'V001',
+        completedAt: DateTime.utc(2026, 9, 16),
+      );
 
-    await repository.complete(completion);
-    await repository.complete(completion);
+      await repository.complete(completion);
+      await repository.complete(completion);
 
-    final progress = await repository.load();
-    expect(progress.currentDay, 2);
-    expect(progress.completions, hasLength(1));
-    expect(progress.completions.single.reflectionEncounterId, isNull);
-  });
+      final progress = await repository.load();
+      expect(progress.currentDay, 2);
+      expect(progress.completions, hasLength(1));
+      expect(progress.completions.single.reflectionEncounterId, isNull);
+    },
+  );
 }

@@ -29,9 +29,7 @@ void main() {
     ) async {
       final fixture = _RecordFixture();
       addTearDown(fixture.close);
-      await tester.pumpWidget(
-        fixture.wrap(RecordScreen(startMode: mode)),
-      );
+      await tester.pumpWidget(fixture.wrap(RecordScreen(startMode: mode)));
       await _settle(tester);
 
       expect(find.text('Start recording'), findsOneWidget);
@@ -107,7 +105,9 @@ void main() {
     await _recordAndContinue(tester);
 
     expect(
-      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Person')).selected,
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Person'))
+          .selected,
       isTrue,
     );
     // Clearing an optional title still retains a useful context-based title.
@@ -184,7 +184,9 @@ void main() {
             body: EncounterForm(
               initialTitle: 'A title alone',
               onCancel: () {},
-              onSave: (_) async { saves++; },
+              onSave: (_) async {
+                saves++;
+              },
             ),
           ),
         ),
@@ -193,7 +195,9 @@ void main() {
     expect(find.byKey(const Key('encounter-body')), findsNothing);
     expect(find.text('Record audio'), findsOneWidget);
     expect(
-      tester.widget<FilledButton>(find.byKey(const Key('encounter-save'))).onPressed,
+      tester
+          .widget<FilledButton>(find.byKey(const Key('encounter-save')))
+          .onPressed,
       isNull,
     );
     expect(saves, 0);
@@ -236,10 +240,12 @@ void main() {
     final store = _DiscardTrackingAudioStore();
     await tester.pumpWidget(
       fixture.wrap(
-        Consumer(builder: (context, ref, _) {
-          ref.watch(encounterRepositoryProvider);
-          return const RecordScreen();
-        }),
+        Consumer(
+          builder: (context, ref, _) {
+            ref.watch(encounterRepositoryProvider);
+            return const RecordScreen();
+          },
+        ),
         loadRepository: () => pending.future,
         audioStore: store,
       ),
@@ -292,7 +298,10 @@ void main() {
     expect(saved, isNotNull);
     expect(attempts, 2);
     expect(fixture.recorder.permissionRequests, 1);
-    expect(fixture.repository.lastDraft!.audio!.temporaryKey, '/private/take.m4a');
+    expect(
+      fixture.repository.lastDraft!.audio!.temporaryKey,
+      '/private/take.m4a',
+    );
   });
 
   testWidgets('empty Remember offers one recording action', (tester) async {
@@ -320,7 +329,10 @@ void main() {
           key: const Key('test-shell-navigation'),
           destinations: const [
             NavigationDestination(icon: Icon(Icons.history), label: 'Remember'),
-            NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+            NavigationDestination(
+              icon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
           ],
         ),
       ),
@@ -332,7 +344,10 @@ void main() {
         tester.getTopLeft(find.byKey(const Key('test-shell-navigation'))).dy,
       ),
     );
-    expect(find.byKey(const Key('remember-speak')).hitTestable(), findsOneWidget);
+    expect(
+      find.byKey(const Key('remember-speak')).hitTestable(),
+      findsOneWidget,
+    );
   });
 
   testWidgets('audio metadata remains accessible at large text sizes', (
@@ -397,8 +412,6 @@ void main() {
     expect(find.text('A promise to remember'), findsOneWidget);
     expect(find.text('A private freedom'), findsNothing);
   });
-
-
 }
 
 MemoryAudioDraft _audioDraft() => MemoryAudioDraft(
@@ -443,33 +456,31 @@ class _RecordFixture {
     bool largeText = false,
     Future<InMemoryEncounterRepository> Function()? loadRepository,
     AudioAssetStore? audioStore,
-  }) =>
-      ProviderScope(
-        retry: (_, _) => null,
-        overrides: [
-          encounterRepositoryProvider.overrideWith(
-            (ref) async => loadRepository == null
-                ? repository
-                : await loadRepository(),
-          ),
-          audioCaptureControllerProvider.overrideWith((ref) async => controller),
-          prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
-          if (audioStore != null)
-            audioAssetStoreProvider.overrideWith((ref) async => audioStore),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          builder: largeText
-              ? (context, child) => MediaQuery(
-                  data: MediaQuery.of(context).copyWith(
-                    textScaler: const TextScaler.linear(2),
-                  ),
-                  child: child!,
-                )
-              : null,
-          home: Scaffold(body: child, bottomNavigationBar: navigation),
-        ),
-      );
+  }) => ProviderScope(
+    retry: (_, _) => null,
+    overrides: [
+      encounterRepositoryProvider.overrideWith(
+        (ref) async =>
+            loadRepository == null ? repository : await loadRepository(),
+      ),
+      audioCaptureControllerProvider.overrideWith((ref) async => controller),
+      prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
+      if (audioStore != null)
+        audioAssetStoreProvider.overrideWith((ref) async => audioStore),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.light(),
+      builder: largeText
+          ? (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2)),
+              child: child!,
+            )
+          : null,
+      home: Scaffold(body: child, bottomNavigationBar: navigation),
+    ),
+  );
 
   Future<void> close() async {
     await controller.close();

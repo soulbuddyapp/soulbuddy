@@ -71,7 +71,9 @@ void main() {
     expect(find.text('The help I received'), findsOneWidget);
   });
 
-  testWidgets('new memory authoring offers recording and no body editor', (tester) async {
+  testWidgets('new memory authoring offers recording and no body editor', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -247,14 +249,17 @@ void main() {
     final controller = AudioCaptureController(
       recorder: _CaptureRecorder(),
       allocateTemporary: () async => const TemporaryAudio(
-        key: '/private/encounter.m4a', locator: '/private/encounter.m4a',
+        key: '/private/encounter.m4a',
+        locator: '/private/encounter.m4a',
       ),
     );
     addTearDown(controller.close);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          audioCaptureControllerProvider.overrideWith((ref) async => controller),
+          audioCaptureControllerProvider.overrideWith(
+            (ref) async => controller,
+          ),
           encounterRepositoryProvider.overrideWith((ref) async => repository),
           prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
         ],
@@ -287,7 +292,8 @@ void main() {
     final controller = AudioCaptureController(
       recorder: _CaptureRecorder(),
       allocateTemporary: () async => const TemporaryAudio(
-        key: '/private/encounter.m4a', locator: '/private/encounter.m4a',
+        key: '/private/encounter.m4a',
+        locator: '/private/encounter.m4a',
       ),
     );
     addTearDown(controller.close);
@@ -295,7 +301,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          audioCaptureControllerProvider.overrideWith((ref) async => controller),
+          audioCaptureControllerProvider.overrideWith(
+            (ref) async => controller,
+          ),
           encounterRepositoryProvider.overrideWith((ref) async => repository),
           prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
         ],
@@ -333,7 +341,8 @@ void main() {
     final controller = AudioCaptureController(
       recorder: _CaptureRecorder(),
       allocateTemporary: () async => const TemporaryAudio(
-        key: '/private/encounter.m4a', locator: '/private/encounter.m4a',
+        key: '/private/encounter.m4a',
+        locator: '/private/encounter.m4a',
       ),
     );
     addTearDown(controller.close);
@@ -342,7 +351,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          audioCaptureControllerProvider.overrideWith((ref) async => controller),
+          audioCaptureControllerProvider.overrideWith(
+            (ref) async => controller,
+          ),
           encounterRepositoryProvider.overrideWith((ref) async => repository),
           prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
         ],

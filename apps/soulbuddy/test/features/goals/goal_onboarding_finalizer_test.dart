@@ -52,8 +52,13 @@ void main() {
         '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
         'VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
-          'note-$field', 'owner-1', 'goal', 'onboarding', field,
-          'recording-$field', '2026-11-03T00:00:00Z',
+          'note-$field',
+          'owner-1',
+          'goal',
+          'onboarding',
+          field,
+          'recording-$field',
+          '2026-11-03T00:00:00Z',
         ],
       );
     }
@@ -61,8 +66,15 @@ void main() {
       'INSERT INTO voice_note_links '
       '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
       'VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ['other-note', 'owner-2', 'goal', 'onboarding', 'situation',
-        'other-recording', '2026-11-03T00:00:00Z'],
+      [
+        'other-note',
+        'owner-2',
+        'goal',
+        'onboarding',
+        'situation',
+        'other-recording',
+        '2026-11-03T00:00:00Z',
+      ],
     );
     final finalizer = PowerSyncGoalOnboardingFinalizer(
       database: database.powersync,
@@ -82,7 +94,10 @@ void main() {
       ['owner-1'],
     );
     expect(recordings, hasLength(3));
-    expect(recordings.every((row) => row['context_id'] == result.goalId), isTrue);
+    expect(
+      recordings.every((row) => row['context_id'] == result.goalId),
+      isTrue,
+    );
     expect(
       (await database.powersync.get(
         'SELECT context_id FROM voice_note_links WHERE id = ?',
@@ -208,8 +223,15 @@ void main() {
       'INSERT INTO voice_note_links '
       '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
       'VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ['draft-note', 'owner-1', 'goal', 'onboarding', 'situation',
-        'recording', '2026-11-03T00:00:00Z'],
+      [
+        'draft-note',
+        'owner-1',
+        'goal',
+        'onboarding',
+        'situation',
+        'recording',
+        '2026-11-03T00:00:00Z',
+      ],
     );
     final finalizer = PowerSyncGoalOnboardingFinalizer(
       database: database.powersync,

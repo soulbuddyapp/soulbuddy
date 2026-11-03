@@ -32,10 +32,12 @@ class _RecordedPrayerCapture extends ConsumerStatefulWidget {
   final PrayerPurpose purpose;
 
   @override
-  ConsumerState<_RecordedPrayerCapture> createState() => _RecordedPrayerCaptureState();
+  ConsumerState<_RecordedPrayerCapture> createState() =>
+      _RecordedPrayerCaptureState();
 }
 
-class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> {
+class _RecordedPrayerCaptureState
+    extends ConsumerState<_RecordedPrayerCapture> {
   late final _title = TextEditingController();
   RecordedAudioDraft? _draft;
   bool _saving = false;
@@ -50,12 +52,20 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
 
   Future<void> _save(RecordedAudioDraft draft) async {
     if (_saving) return;
-    setState(() { _draft = draft; _saving = true; _error = null; });
+    setState(() {
+      _draft = draft;
+      _saving = true;
+      _error = null;
+    });
     try {
-      final repository = await ref.read(recordedPersonalPrayerRepositoryProvider.future);
+      final repository = await ref.read(
+        recordedPersonalPrayerRepositoryProvider.future,
+      );
       final title = _title.text.trim();
       final prayer = await repository.create(
-        title: title.isEmpty ? String.fromCharCodes(widget.title.runes.take(80)) : title,
+        title: title.isEmpty
+            ? String.fromCharCodes(widget.title.runes.take(80))
+            : title,
         audio: draft,
         purpose: widget.purpose,
       );
@@ -70,9 +80,13 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
 
   Future<void> _close() async {
     if (_saving || _closing) return;
-    final controller = ref.read(
-      voiceTabletAudioCaptureControllerProvider(VoiceTabletAudioKind.fullPrayer),
-    ).value;
+    final controller = ref
+        .read(
+          voiceTabletAudioCaptureControllerProvider(
+            VoiceTabletAudioKind.fullPrayer,
+          ),
+        )
+        .value;
     if (controller?.state.commandInFlight == true) return;
     _closing = true;
     try {
@@ -91,8 +105,14 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
           builder: (dialogContext) => AlertDialog(
             title: const Text('Discard recording?'),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Keep')),
-              FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Discard')),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Keep'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Discard'),
+              ),
             ],
           ),
         );
@@ -114,7 +134,9 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
       }
       if (mounted) Navigator.pop(context);
     } catch (_) {
-      if (mounted) setState(() => _error = 'Recording could not be discarded. Retry.');
+      if (mounted) {
+        setState(() => _error = 'Recording could not be discarded. Retry.');
+      }
     } finally {
       _closing = false;
     }
@@ -123,13 +145,17 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
   @override
   Widget build(BuildContext context) {
     final capture = ref.watch(
-      voiceTabletAudioCaptureControllerProvider(VoiceTabletAudioKind.fullPrayer),
+      voiceTabletAudioCaptureControllerProvider(
+        VoiceTabletAudioKind.fullPrayer,
+      ),
     );
-    final panelHandlesBack = _draft == null && capture.when(
-      data: (_) => true,
-      loading: () => false,
-      error: (_, _) => false,
-    );
+    final panelHandlesBack =
+        _draft == null &&
+        capture.when(
+          data: (_) => true,
+          loading: () => false,
+          error: (_, _) => false,
+        );
     return PopScope(
       canPop: panelHandlesBack,
       onPopInvokedWithResult: (didPop, _) {
@@ -146,15 +172,26 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
                     if (_saving) const CircularProgressIndicator(),
                     if (_error != null) Text(_error!),
                     if (!_saving) ...[
-                      FilledButton(onPressed: () => _save(_draft!), child: const Text('Retry save')),
-                      TextButton(onPressed: _close, child: const Text('Discard')),
+                      FilledButton(
+                        onPressed: () => _save(_draft!),
+                        child: const Text('Retry save'),
+                      ),
+                      TextButton(
+                        onPressed: _close,
+                        child: const Text('Discard'),
+                      ),
                     ],
                   ],
                 ),
               )
             : capture.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, _) => Center(child: TextButton(onPressed: _close, child: const Text('Recording unavailable · Close'))),
+                error: (_, _) => Center(
+                  child: TextButton(
+                    onPressed: _close,
+                    child: const Text('Recording unavailable · Close'),
+                  ),
+                ),
                 data: (controller) => AudioCapturePanel(
                   controller: controller,
                   handlesSystemBack: true,
@@ -164,7 +201,10 @@ class _RecordedPrayerCaptureState extends ConsumerState<_RecordedPrayerCapture> 
                     controller: _title,
                     maxLength: 80,
                     maxLines: 1,
-                    decoration: InputDecoration(labelText: 'Title · optional', hintText: widget.title),
+                    decoration: InputDecoration(
+                      labelText: 'Title · optional',
+                      hintText: widget.title,
+                    ),
                   ),
                   enableSoundscape: true,
                   continueLabel: 'Save prayer',

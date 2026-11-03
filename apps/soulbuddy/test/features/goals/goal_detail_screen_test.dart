@@ -50,6 +50,7 @@ void main() {
     expect(find.text(goal.title), findsOneWidget);
     expect(find.text('Reflections'), findsOneWidget);
     await tester.ensureVisible(find.text('Earlier written notes'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Earlier written notes'));
     await tester.pumpAndSettle();
     expect(find.text(goal.currentSituation!), findsOneWidget);

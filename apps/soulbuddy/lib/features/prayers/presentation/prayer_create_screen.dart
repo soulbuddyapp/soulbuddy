@@ -163,7 +163,6 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
       if (mounted) setState(() => _saving = false);
     }
   }
-
 }
 
 class _ReviewedPrayerOptions extends StatelessWidget {

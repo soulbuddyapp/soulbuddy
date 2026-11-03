@@ -82,4 +82,3 @@ class PrayerNarrationController extends Controller
         ]);
     }
 }
-

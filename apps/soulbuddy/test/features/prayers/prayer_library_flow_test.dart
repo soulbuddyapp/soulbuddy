@@ -162,7 +162,12 @@ void main() {
     await tester.ensureVisible(find.text('For my family'));
     await tester.tap(find.text('For my family'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Prayer words'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Prayer words'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text(_familyPrayerBody));
+    await tester.pumpAndSettle();
     expect(find.text(_familyPrayerBody), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -207,7 +212,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Use this prayer today?'), findsOneWidget);
-    expect(find.text(_familyPrayerBody), findsOneWidget);
+    expect(find.byType(PrayerDetailScreen), findsOneWidget);
 
     repository.completeSelection();
     await tester.pumpAndSettle();

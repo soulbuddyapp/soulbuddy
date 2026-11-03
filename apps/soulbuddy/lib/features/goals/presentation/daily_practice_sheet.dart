@@ -135,20 +135,22 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
                   ),
                 ),
                 TextButton.icon(
-                onPressed: _blocked ? null : () {
-                    Navigator.pop(context);
-                    context.push(
-                      Uri(
-                        path: '/remember/capture',
-                        queryParameters: {
-                          'mode': 'reflection',
-                          'source': 'daily-scripture',
-                          'title': 'Evening reflection',
-                          'prompt': _precept.reflection,
+                  onPressed: _blocked
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                          context.push(
+                            Uri(
+                              path: '/remember/capture',
+                              queryParameters: {
+                                'mode': 'reflection',
+                                'source': 'daily-scripture',
+                                'title': 'Evening reflection',
+                                'prompt': _precept.reflection,
+                              },
+                            ).toString(),
+                          );
                         },
-                      ).toString(),
-                    );
-                  },
                   icon: const Icon(Icons.mic_none),
                   label: const Text('Record reflection'),
                 ),
@@ -302,7 +304,9 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
       return;
     }
     if (label.runes.length > 120 || label.contains('\n')) {
-      setState(() => _error = 'Use one short action label, up to 120 characters.');
+      setState(
+        () => _error = 'Use one short action label, up to 120 characters.',
+      );
       return;
     }
     setState(() {
@@ -333,9 +337,11 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
       ).showSnackBar(const SnackBar(content: Text('Commitment saved.')));
     } catch (_) {
       if (mounted) {
-        setState(() => _error = _savedAction == null
-            ? 'Commitment could not be saved. Try again.'
-            : 'Commitment saved. Retry to link your recordings.');
+        setState(
+          () => _error = _savedAction == null
+              ? 'Commitment could not be saved. Try again.'
+              : 'Commitment saved. Retry to link your recordings.',
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);

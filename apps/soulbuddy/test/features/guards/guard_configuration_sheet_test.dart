@@ -54,7 +54,9 @@ void main() {
     },
   );
 
-  testWidgets('guard notes record in context and preserve earlier words', (tester) async {
+  testWidgets('guard notes record in context and preserve earlier words', (
+    tester,
+  ) async {
     final now = DateTime.utc(2026, 11, 3);
     final definition = GuardDefinition(
       id: 'phone-away',
@@ -88,14 +90,22 @@ void main() {
       createdAt: now,
       updatedAt: now,
     );
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        guardCatalogueProvider.overrideWithValue([definition]),
-        guardSelectionRepositoryProvider.overrideWith((ref) async => repository),
-        voiceNotesProvider.overrideWith((ref, noteContext) => Stream.value([])),
-      ],
-      child: MaterialApp(home: Scaffold(body: GuardConfigurationSheet(goal: goal))),
-    ));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          guardCatalogueProvider.overrideWithValue([definition]),
+          guardSelectionRepositoryProvider.overrideWith(
+            (ref) async => repository,
+          ),
+          voiceNotesProvider.overrideWith(
+            (ref, noteContext) => Stream.value([]),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: GuardConfigurationSheet(goal: goal)),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Review or edit'));
     await tester.pumpAndSettle();
@@ -103,7 +113,11 @@ void main() {
     final field = tester.widget<VoiceNotesField>(
       find.byKey(const Key('guard-private-recording')),
     );
-    expect(field.noteContext, (type: 'goal', id: 'goal', field: 'guard:phone-away'));
+    expect(field.noteContext, (
+      type: 'goal',
+      id: 'goal',
+      field: 'guard:phone-away',
+    ));
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Earlier note'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('guard-mark-configured')));
@@ -120,7 +134,8 @@ class _Selections implements GuardSelectionRepository {
   String? savedNote;
 
   @override
-  Stream<List<GoalGuardSelection>> watchForGoal(String goalId) => Stream.value([selection]);
+  Stream<List<GoalGuardSelection>> watchForGoal(String goalId) =>
+      Stream.value([selection]);
 
   @override
   Future<GoalGuardSelection> select({

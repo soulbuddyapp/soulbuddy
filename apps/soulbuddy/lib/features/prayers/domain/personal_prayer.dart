@@ -8,7 +8,9 @@ enum PersonalPrayerContentFormat {
   static PersonalPrayerContentFormat fromWire(String? value) => switch (value) {
     null || 'text' => PersonalPrayerContentFormat.text,
     'audio' => PersonalPrayerContentFormat.audio,
-    _ => throw FormatException('Unknown personal prayer content format: $value'),
+    _ => throw FormatException(
+      'Unknown personal prayer content format: $value',
+    ),
   };
 }
 

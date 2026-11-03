@@ -239,7 +239,10 @@ void main() {
       tester,
       repository,
       situationRecordings: const [
-        VoiceNoteLink(encounterId: 'morning-recording', title: 'Morning prayer'),
+        VoiceNoteLink(
+          encounterId: 'morning-recording',
+          title: 'Morning prayer',
+        ),
       ],
     );
 
@@ -278,29 +281,33 @@ void main() {
     expect(field.maxLines, 1);
   });
 
-  testWidgets('new personal prayers use the recorder and legacy words stay readable', (
-    tester,
-  ) async {
-    final repository = _MemoryGoalProgressRepository(
-      const GoalOnboardingProgress(
-        stage: GoalOnboardingStage.prayer,
-        starterKey: GoalStarterKey.direction,
-        title: 'Find direction',
-        agencyChoice: GoalAgencyChoice.notSure,
-        prayerSource: GoalOnboardingPrayerSource.ownWords,
-        ownPrayerText: 'Lord, guide the next step I take.',
-      ),
-    );
-    await _pump(tester, repository);
+  testWidgets(
+    'new personal prayers use the recorder and legacy words stay readable',
+    (tester) async {
+      final repository = _MemoryGoalProgressRepository(
+        const GoalOnboardingProgress(
+          stage: GoalOnboardingStage.prayer,
+          starterKey: GoalStarterKey.direction,
+          title: 'Find direction',
+          agencyChoice: GoalAgencyChoice.notSure,
+          prayerSource: GoalOnboardingPrayerSource.ownWords,
+          ownPrayerText: 'Lord, guide the next step I take.',
+        ),
+      );
+      await _pump(tester, repository);
 
-    expect(find.text('Record my prayer'), findsOneWidget);
-    expect(find.text('Use my own words'), findsNothing);
-    expect(find.byType(TextField), findsNothing);
-    await tester.tap(find.text('Earlier prayer'));
-    await tester.pumpAndSettle();
-    expect(find.text('Lord, guide the next step I take.'), findsOneWidget);
-    expect(repository.progress?.ownPrayerText, 'Lord, guide the next step I take.');
-  });
+      expect(find.text('Record my prayer'), findsOneWidget);
+      expect(find.text('Use my own words'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      await tester.tap(find.text('Earlier prayer'));
+      await tester.pumpAndSettle();
+      expect(find.text('Lord, guide the next step I take.'), findsOneWidget);
+      expect(
+        repository.progress?.ownPrayerText,
+        'Lord, guide the next step I take.',
+      );
+    },
+  );
 
   testWidgets('starter remains usable at 200 percent text on a small phone', (
     tester,
@@ -346,7 +353,9 @@ Future<void> _pump(
                 : const <VoiceNoteLink>[],
           ),
         ),
-        memoryAudioForEncounterProvider.overrideWith((ref, id) async => null),
+        memoryAudioForEncounterProvider.overrideWith(
+          (ref, id) => Stream.value(null),
+        ),
         firstGoalPrayerOptionsProvider.overrideWith((ref, starter) async => []),
       ],
       child: MaterialApp(theme: AppTheme.light(), home: child),

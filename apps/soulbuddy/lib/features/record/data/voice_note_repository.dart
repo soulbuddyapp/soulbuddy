@@ -28,18 +28,31 @@ class VoiceNoteRepository {
           AND memory.archived_at IS NULL
         ORDER BY link.created_at DESC, link.id DESC
         ''',
-        parameters: [ownerId, context.type, context.id, context.field, context.field],
+        parameters: [
+          ownerId,
+          context.type,
+          context.id,
+          context.field,
+          context.field,
+        ],
       )
-      .map((rows) => [
-        for (final row in rows)
-          VoiceNoteLink(
-            encounterId: row['encounter_id'] as String,
-            title: row['title'] as String,
-          ),
-      ]);
+      .map(
+        (rows) => [
+          for (final row in rows)
+            VoiceNoteLink(
+              encounterId: row['encounter_id'] as String,
+              title: row['title'] as String,
+            ),
+        ],
+      );
 
   Future<void> attach(VoiceNoteContext context, String encounterId) async {
-    for (final value in [context.type, context.id, context.field, encounterId]) {
+    for (final value in [
+      context.type,
+      context.id,
+      context.field,
+      encounterId,
+    ]) {
       if (value.trim().isEmpty || value.length > 160) {
         throw ArgumentError('Invalid recording context');
       }
@@ -68,8 +81,13 @@ class VoiceNoteRepository {
         '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
         'VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
-          const Uuid().v7(), ownerId, context.type, context.id, context.field,
-          encounterId, DateTime.now().toUtc().toIso8601String(),
+          const Uuid().v7(),
+          ownerId,
+          context.type,
+          context.id,
+          context.field,
+          encounterId,
+          DateTime.now().toUtc().toIso8601String(),
         ],
       );
     });

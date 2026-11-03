@@ -113,35 +113,38 @@ void main() {
     expect(driver.events, ['start', 'pause']);
   });
 
-  test('failed native disposal is retryable without allowing new capture', () async {
-    final driver = _FakeRecordPluginDriver(supported: {SoulAudioCodec.aacLc})
-      ..disposeError = StateError('native disposal failed');
-    final recorder = RecordPluginAudioRecorder(
-      driver: driver,
-      isWeb: false,
-      discardLocator: (_) async {},
-    );
-    await recorder.start(
-      const TemporaryAudio(key: 'take', locator: '/private/take.m4a'),
-    );
+  test(
+    'failed native disposal is retryable without allowing new capture',
+    () async {
+      final driver = _FakeRecordPluginDriver(supported: {SoulAudioCodec.aacLc})
+        ..disposeError = StateError('native disposal failed');
+      final recorder = RecordPluginAudioRecorder(
+        driver: driver,
+        isWeb: false,
+        discardLocator: (_) async {},
+      );
+      await recorder.start(
+        const TemporaryAudio(key: 'take', locator: '/private/take.m4a'),
+      );
 
-    await expectLater(recorder.dispose(), throwsStateError);
-    expect(driver.events, ['start', 'dispose']);
-    expect(driver.configChanged, isNull);
-    await expectLater(
-      recorder.start(
-        const TemporaryAudio(key: 'take-2', locator: '/private/take-2.m4a'),
-      ),
-      throwsStateError,
-    );
+      await expectLater(recorder.dispose(), throwsStateError);
+      expect(driver.events, ['start', 'dispose']);
+      expect(driver.configChanged, isNull);
+      await expectLater(
+        recorder.start(
+          const TemporaryAudio(key: 'take-2', locator: '/private/take-2.m4a'),
+        ),
+        throwsStateError,
+      );
 
-    await recorder.cancel();
-    driver.disposeError = null;
-    await recorder.dispose();
-    await recorder.dispose();
+      await recorder.cancel();
+      driver.disposeError = null;
+      await recorder.dispose();
+      await recorder.dispose();
 
-    expect(driver.events, ['start', 'dispose', 'cancel', 'dispose']);
-  });
+      expect(driver.events, ['start', 'dispose', 'cancel', 'dispose']);
+    },
+  );
 
   test('normalizes dBFS amplitude and never emits invalid samples', () async {
     final driver = _FakeRecordPluginDriver(supported: {SoulAudioCodec.aacLc});

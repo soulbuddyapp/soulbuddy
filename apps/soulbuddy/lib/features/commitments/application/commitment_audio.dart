@@ -202,15 +202,26 @@ class CommitmentAudio extends ChangeNotifier {
   Future<void> setVolume(double value) =>
       _enqueue(() => _player.setVolume(value.clamp(0.0, 1.0)));
 
-  Future<void> stop() {
+  Future<void> stop() => _stop();
+
+  /// Recording must wait for confirmed silence, including queued preparation.
+  /// Ordinary playback errors remain recoverable in the reading surface.
+  Future<void> stopForRecording() => _stop(requireNativeStop: true);
+
+  Future<void> _stop({bool requireNativeStop = false}) async {
     ++_epoch;
     _restart = null;
     _sourceReady = false;
     playing = false;
     _notify();
-    return _enqueue(() async {
+    var stopped = false;
+    await _enqueue(() async {
       await _player.stop();
+      stopped = true;
     });
+    if (requireNativeStop && !stopped) {
+      throw StateError('Instruction audio could not stop');
+    }
   }
 
   @override

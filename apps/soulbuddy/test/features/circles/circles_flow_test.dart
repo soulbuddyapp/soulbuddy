@@ -131,8 +131,13 @@ void main() {
     },
   );
 
-  testWidgets('saving settings preserves an earlier long purpose', (tester) async {
-    final earlier = List.filled(5, 'We meet to pray and walk together.').join(' ');
+  testWidgets('saving settings preserves an earlier long purpose', (
+    tester,
+  ) async {
+    final earlier = List.filled(
+      5,
+      'We meet to pray and walk together.',
+    ).join(' ');
     final repository = _FakeDirectoryRepository([
       _publicCircle(isOwner: true, description: earlier),
     ]);
@@ -150,7 +155,10 @@ void main() {
     );
     expect(purpose.controller?.text, isEmpty);
     expect(find.text('Earlier purpose'), findsOneWidget);
-    await tester.enterText(find.byKey(const Key('circle-name-field')), 'Prayer friends');
+    await tester.enterText(
+      find.byKey(const Key('circle-name-field')),
+      'Prayer friends',
+    );
     final save = find.byKey(const Key('confirm-create-circle'));
     await tester.ensureVisible(save);
     await tester.tap(save);

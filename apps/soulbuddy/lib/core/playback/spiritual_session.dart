@@ -33,6 +33,7 @@ class SpiritualSession {
   final String route;
   final bool canPause;
   final String completionLabel;
+
   /// Starts both playback layers after the previous session has closed.
   ///
   /// Playback owners should use this callback instead of starting audio before

@@ -54,7 +54,9 @@ void main() {
     expect(find.text('Choose a prepared prayer'), findsOneWidget);
   });
 
-  testWidgets('optional detail offers a recording without a text form', (tester) async {
+  testWidgets('optional detail offers a recording without a text form', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(

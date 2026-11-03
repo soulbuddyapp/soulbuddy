@@ -365,8 +365,7 @@ final class ApplyPersonalPrayerMutation
                 ->where('personal_prayer_id', $revision['data']['prayer_id'])
                 ->where('prayer_revision_id', $revision['id'])
                 ->exists();
-            $sourceInBatch = $tablets->contains(fn (array $tablet): bool =>
-                $tablet['table'] === 'voice_tablets'
+            $sourceInBatch = $tablets->contains(fn (array $tablet): bool => $tablet['table'] === 'voice_tablets'
                 && $tablet['type'] === 'put'
                 && ($tablet['data']['source_type'] ?? null) === 'personal_prayer'
                 && ($tablet['data']['personal_prayer_id'] ?? null) === $revision['data']['prayer_id']
@@ -425,4 +424,3 @@ final class ApplyPersonalPrayerMutation
         return null;
     }
 }
-

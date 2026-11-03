@@ -441,39 +441,42 @@ class _CommitmentSummaryScreenState
                 children: [
                   ListTile(
                     title: Text(_shortLabel(p.body)),
-                    trailing: p.body.runes.length > 120 && d.practices.length <= 1
+                    trailing:
+                        p.body.runes.length > 120 && d.practices.length <= 1
                         ? null
                         : PopupMenuButton<String>(
-                      tooltip: 'Practice options',
-                      onSelected: (value) async {
-                        if (value == 'edit') {
-                          await _editTitle(
-                            'Practice title',
-                            p.body,
-                            (body) async => (await ref.read(
-                              commitmentRepositoryProvider.future,
-                            )).updatePractice(p.id, body: body),
-                          );
-                        }
-                        if (value == 'remove') {
-                          await _run(
-                            () async => (await ref.read(
-                              commitmentRepositoryProvider.future,
-                            )).archivePractice(p.id),
-                          );
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        if (p.body.runes.length <= 120)
-                          const PopupMenuItem(
-                            value: 'edit', child: Text('Edit title'),
+                            tooltip: 'Practice options',
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await _editTitle(
+                                  'Practice title',
+                                  p.body,
+                                  (body) async => (await ref.read(
+                                    commitmentRepositoryProvider.future,
+                                  )).updatePractice(p.id, body: body),
+                                );
+                              }
+                              if (value == 'remove') {
+                                await _run(
+                                  () async => (await ref.read(
+                                    commitmentRepositoryProvider.future,
+                                  )).archivePractice(p.id),
+                                );
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              if (p.body.runes.length <= 120)
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Edit title'),
+                                ),
+                              if (d.practices.length > 1)
+                                const PopupMenuItem(
+                                  value: 'remove',
+                                  child: Text('Remove'),
+                                ),
+                            ],
                           ),
-                        if (d.practices.length > 1)
-                          const PopupMenuItem(
-                            value: 'remove', child: Text('Remove'),
-                          ),
-                      ],
-                    ),
                   ),
                   _recordedSection(
                     'practice:${p.id}',
@@ -488,7 +491,11 @@ class _CommitmentSummaryScreenState
           ExpansionTile(
             title: const Text('My declaration'),
             children: [
-              _recordedSection('declaration', 'Declaration', d.declaration!.body),
+              _recordedSection(
+                'declaration',
+                'Declaration',
+                d.declaration!.body,
+              ),
             ],
           ),
         ListTile(
@@ -506,7 +513,11 @@ class _CommitmentSummaryScreenState
   }
 
   Widget _recordedSection(String field, String title, String legacyText) {
-    final noteContext = (type: 'commitment', id: widget.commitmentId, field: field);
+    final noteContext = (
+      type: 'commitment',
+      id: widget.commitmentId,
+      field: field,
+    );
     final notes = ref.watch(voiceNotesProvider(noteContext));
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -570,4 +581,5 @@ class _CommitmentSummaryScreenState
   );
 }
 
-String _shortLabel(String value) => String.fromCharCodes(value.trim().runes.take(120));
+String _shortLabel(String value) =>
+    String.fromCharCodes(value.trim().runes.take(120));

@@ -212,9 +212,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       if (!resume) await _playGuide();
     } on Object {
       if (mounted) {
-        setState(
-          () => _error = 'Audio is unavailable. Continue quietly.',
-        );
+        setState(() => _error = 'Audio is unavailable. Continue quietly.');
       }
     }
   }

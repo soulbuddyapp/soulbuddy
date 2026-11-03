@@ -146,13 +146,17 @@ class SoulBuddyApp extends ConsumerWidget {
                       child: SafeArea(
                         top: false,
                         child: ListenableBuilder(
-                          listenable: Listenable.merge([appRouter.routerDelegate, audioSession]),
+                          listenable: Listenable.merge([
+                            appRouter.routerDelegate,
+                            audioSession,
+                          ]),
                           builder: (context, _) {
                             final uri = appRouter
                                 .routerDelegate
                                 .currentConfiguration
                                 .uri;
-                            if (audioSession.isCapturing || AppOverlayVisibility.hideGlobalOverlays(uri)) {
+                            if (audioSession.isCapturing ||
+                                AppOverlayVisibility.hideGlobalOverlays(uri)) {
                               return const SizedBox.shrink();
                             }
                             return Column(

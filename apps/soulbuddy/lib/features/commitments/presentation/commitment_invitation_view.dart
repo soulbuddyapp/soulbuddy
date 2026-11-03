@@ -139,9 +139,21 @@ class _CommitmentInvitationViewState extends State<CommitmentInvitationView> {
   void dispose() {
     _dead = true;
     _ticker?.cancel();
-    _voice.dispose();
-    _music.dispose();
-    _bell.dispose();
+    if (widget.voice == null) {
+      _voice.dispose();
+    } else {
+      unawaited(_voice.stop());
+    }
+    if (widget.music == null) {
+      _music.dispose();
+    } else {
+      unawaited(_music.stop());
+    }
+    if (widget.bell == null) {
+      _bell.dispose();
+    } else {
+      unawaited(_bell.stop());
+    }
     super.dispose();
   }
 

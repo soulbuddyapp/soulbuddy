@@ -126,8 +126,9 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                           : 'Pause',
                       onPressed: () => unawaited(
                         (state.status == SpiritualSessionStatus.paused
-                            ? controller.resume()
-                            : controller.pause()).catchError((Object _) {}),
+                                ? controller.resume()
+                                : controller.pause())
+                            .catchError((Object _) {}),
                       ),
                       color: scheme.onSurface,
                       icon: Icon(
@@ -148,9 +149,8 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                   IconButton(
                     key: const Key('spiritual-session-close'),
                     tooltip: 'Close player',
-                    onPressed: () => unawaited(
-                      controller.close().catchError((Object _) {}),
-                    ),
+                    onPressed: () =>
+                        unawaited(controller.close().catchError((Object _) {})),
                     color: scheme.onSurface,
                     icon: const Icon(Icons.close),
                   ),
