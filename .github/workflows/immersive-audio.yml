@@ -64,6 +64,7 @@ jobs:
           }
 
       - name: Analyze changed Dart sources
+        id: analyze_audio
         working-directory: .
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -98,9 +99,22 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
-      - name: Verify capture, memories, prayers, and session ownership
-        timeout-minutes: 8
-        run: flutter test --timeout 2m test/core/playback test/features/record test/features/remember test/features/prayers test/features/daily_formation test/features/guards/guard_configuration_sheet_test.dart test/features/circles/circles_flow_test.dart test/features/circles/legacy_circle_migration_service_test.dart test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
+      # Keep failures independent so a hung recorder cannot hide prayer or
+      # formation results. All three steps still gate the job.
+      - name: Verify capture, memories, and session ownership
+        if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
+        timeout-minutes: 6
+        run: flutter test --reporter expanded --timeout 2m test/core/playback test/features/record test/features/remember
+
+      - name: Verify prayer recording and playback
+        if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
+        timeout-minutes: 6
+        run: flutter test --reporter expanded --timeout 2m test/features/prayers
+
+      - name: Verify recording after formation and in linked activities
+        if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
+        timeout-minutes: 6
+        run: flutter test --reporter expanded --timeout 2m test/features/daily_formation test/features/guards/guard_configuration_sheet_test.dart test/features/circles/circles_flow_test.dart test/features/circles/legacy_circle_migration_service_test.dart test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
 
   laravel-audio:
     name: Laravel audio metadata and sync

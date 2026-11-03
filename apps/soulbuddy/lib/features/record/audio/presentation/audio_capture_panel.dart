@@ -51,12 +51,14 @@ class AudioCapturePanel extends StatefulWidget {
 
 class _AudioCapturePanelState extends State<AudioCapturePanel>
     with WidgetsBindingObserver {
-  late final AudioPlayer _reviewPlayer;
+  AudioPlayer? _reviewPlayer;
   MemorySoundscapePlayer? _reviewSoundscapePlayer;
   StreamSubscription<PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _positionSubscription;
   var _playerState = PlayerState.stopped;
   var _position = Duration.zero;
+  Duration? _requestedPosition;
+  RecordedAudioDraft? _loadedReview;
   String? _playbackError;
   var _reviewSoundscape = MemorySoundscape.quiet;
   var _reviewSoundVolume = 0.15;
@@ -65,10 +67,14 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
   @override
   void initState() {
     super.initState();
-    _reviewPlayer = widget.reviewPlayer ?? AudioPlayer();
     _reviewSoundscapePlayer = widget.reviewSoundscapePlayer;
     WidgetsBinding.instance.addObserver(this);
-    _playerStateSubscription = _reviewPlayer.onPlayerStateChanged.listen((
+    if (widget.reviewPlayer case final player?) _attachReviewPlayer(player);
+  }
+
+  AudioPlayer _attachReviewPlayer(AudioPlayer player) {
+    _reviewPlayer = player;
+    _playerStateSubscription = player.onPlayerStateChanged.listen((
       state,
     ) {
       if (mounted) setState(() => _playerState = state);
@@ -78,9 +84,10 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         unawaited(_stopSoundscapeAfterPlayback());
       }
     });
-    _positionSubscription = _reviewPlayer.onPositionChanged.listen((position) {
+    _positionSubscription = player.onPositionChanged.listen((position) {
       if (mounted) setState(() => _position = position);
     });
+    return player;
   }
 
   @override
@@ -98,8 +105,8 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_playerStateSubscription?.cancel());
     unawaited(_positionSubscription?.cancel());
-    unawaited(_reviewSoundscapePlayer?.dispose() ?? Future.value());
-    unawaited(_reviewPlayer.dispose());
+    unawaited(_reviewSoundscapePlayer?.dispose());
+    unawaited(_reviewPlayer?.dispose());
     super.dispose();
   }
 
@@ -298,8 +305,15 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
           max: review.duration.inMilliseconds.toDouble(),
           onChanged: _reviewCommandInFlight
               ? null
-              : (value) =>
-                    _reviewPlayer.seek(Duration(milliseconds: value.round())),
+              : (value) => setState(
+                  () => _position = Duration(milliseconds: value.round()),
+                ),
+          onChangeEnd: _reviewCommandInFlight
+              ? null
+              : (value) => _seekReview(
+                  review,
+                  Duration(milliseconds: value.round()),
+                ),
         ),
       ),
       Center(
@@ -364,31 +378,59 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     ];
   }
 
+  Future<void> _seekReview(RecordedAudioDraft review, Duration position) async {
+    final player = _reviewPlayer;
+    if (player == null ||
+        !identical(_loadedReview, review) ||
+        (_playerState != PlayerState.playing &&
+            _playerState != PlayerState.paused)) {
+      // Scrubbing before Play selects a starting position without opening an
+      // output or sending a seek to a player that has no source yet.
+      _requestedPosition = position;
+      return;
+    }
+    await _reviewCommand(
+      () => player.seek(position),
+      error: 'Playback unavailable. Your recording is still here.',
+    );
+  }
+
   Future<void> _togglePlayback() => _reviewCommand(() async {
     final review = widget.controller.state.review;
     if (review == null) return;
-    if (_playerState == PlayerState.playing) {
-      await _reviewPlayer.pause();
+    final player = _reviewPlayer ?? _attachReviewPlayer(AudioPlayer());
+    if (identical(_loadedReview, review) &&
+        _playerState == PlayerState.playing) {
+      await player.pause();
       await _reviewSoundscapePlayer?.stop();
-    } else if (_playerState == PlayerState.paused) {
-      await _reviewPlayer.resume();
-      await _startReviewSoundscape();
+    } else if (identical(_loadedReview, review) &&
+        _playerState == PlayerState.paused) {
+      await player.resume();
+      if (mounted) await _startReviewSoundscape();
     } else {
-      await prepareVoicePlaybackPlayer(_reviewPlayer);
-      await _reviewPlayer.play(
+      await prepareVoicePlaybackPlayer(player);
+      if (!mounted) return;
+      await player.play(
         kIsWeb
             ? UrlSource(review.temporaryKey)
             : DeviceFileSource(review.temporaryKey),
+        position: _requestedPosition,
       );
-      await _startReviewSoundscape();
+      _loadedReview = review;
+      _requestedPosition = null;
+      if (mounted) await _startReviewSoundscape();
     }
   }, error: 'Playback unavailable. Your recording is still here.');
 
   Future<void> _stopReview() async {
-    await Future.wait([
-      _reviewPlayer.stop(),
-      _reviewSoundscapePlayer?.stop() ?? Future<void>.value(),
+    await Future.wait<void>([
+      if (_reviewPlayer case final player?) player.stop(),
+      if (_reviewSoundscapePlayer case final background?) background.stop(),
     ]);
+    _loadedReview = null;
+    _requestedPosition = null;
+    _position = Duration.zero;
+    _playerState = PlayerState.stopped;
   }
 
   Future<void> _stopSoundscapeAfterPlayback() async {
@@ -403,9 +445,9 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
 
   Future<void> _pauseReviewAfterInterruption() async {
     try {
-      await Future.wait([
-        _reviewPlayer.pause(),
-        _reviewSoundscapePlayer?.stop() ?? Future<void>.value(),
+      await Future.wait<void>([
+        if (_reviewPlayer case final player?) player.pause(),
+        if (_reviewSoundscapePlayer case final background?) background.stop(),
       ]);
     } catch (_) {
       if (mounted) {
@@ -519,6 +561,9 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
   }
 
   Future<void> _startReviewSoundscape() {
+    if (_reviewSoundscape == MemorySoundscape.quiet) {
+      return _reviewSoundscapePlayer?.stop() ?? Future.value();
+    }
     final player = _reviewSoundscapePlayer ??=
         AudioplayersMemorySoundscapePlayer();
     return player.start(_reviewSoundscape, volume: _reviewSoundVolume);

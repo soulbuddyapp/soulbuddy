@@ -20,6 +20,7 @@ import 'package:soulbuddy/features/commitments/providers/commitment_providers.da
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
+import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store_io.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
@@ -57,11 +58,19 @@ void main() {
         applicationSupportDirectory: directory,
         temporaryDirectory: directory,
       );
+      final playbackDriver = _JourneyPlaybackDriver();
+      final playback = MemoryAudioPlaybackCoordinator(
+        assetStore: assets,
+        driver: playbackDriver,
+      );
       var takeNumber = 0;
       final captureControllers = <AudioCaptureController>[];
       final container = ProviderContainer(
         overrides: [
           audioAssetStoreProvider.overrideWith((ref) async => assets),
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => playback,
+          ),
           audioCaptureControllerProvider.overrideWith((ref) async {
             final controller = AudioCaptureController(
               recorder: _JourneyRecorder(),
@@ -273,8 +282,9 @@ void main() {
         await tapText('Not now');
         await stage('Continue your commitment');
         final progressRepo = await tester.runAsync(
-          () =>
-              container.read(commitmentJourneyProgressRepositoryProvider.future),
+          () => container.read(
+            commitmentJourneyProgressRepositoryProvider.future,
+          ),
         );
         final deferred = await tester.runAsync(() => progressRepo!.load());
         expect(deferred!.progress!.deferred, isTrue);
@@ -291,7 +301,9 @@ void main() {
         );
         expect(recordedDrafts, hasLength(3));
         expect(
-          recordedDrafts!.every((row) => row['context_id'] == 'journey:primary'),
+          recordedDrafts!.every(
+            (row) => row['context_id'] == 'journey:primary',
+          ),
           isTrue,
         );
         final recordedCrud = await tester.runAsync(
@@ -309,9 +321,26 @@ void main() {
 
         await tapText('Continue your commitment');
         await stage('What do you need from God?');
-        expect(find.text('Grace in each conversation'), findsOneWidget);
-        expect(find.text('Patience with my family'), findsOneWidget);
-        expect(find.text('Courage to serve'), findsOneWidget);
+        const restoredTitles = [
+          'Grace in each conversation',
+          'Patience with my family',
+          'Courage to serve',
+        ];
+        Finder restoredRecording(String title) => find.descendant(
+          of: find.byWidgetPredicate(
+            (widget) => widget is RecordedMemoryPlayer && widget.title == title,
+          ),
+          matching: find.text(title),
+        );
+        await settleUntil(
+          () => restoredTitles.every(
+            (title) => restoredRecording(title).evaluate().length == 1,
+          ),
+        );
+        for (final title in restoredTitles) {
+          expect(restoredRecording(title), findsOneWidget);
+        }
+        expect(playbackDriver.playCalls, 0);
         await tapText('Continue');
         await stage('What is your calling?');
         await recordAudio('calling', 'Serve my neighbors');
@@ -320,7 +349,11 @@ void main() {
         await tapText('Record my own');
         await settleUntil(() => find.byType(AlertDialog).evaluate().isNotEmpty);
         await enter('Practice title', 'Walk with a neighbor');
-        await recordAudio('practice', 'Listening to my neighbor', practice: true);
+        await recordAudio(
+          'practice',
+          'Listening to my neighbor',
+          practice: true,
+        );
         await tapText('Add');
         await settleUntil(() => find.byType(AlertDialog).evaluate().isEmpty);
         await tapText('Continue');
@@ -380,7 +413,9 @@ void main() {
         expect(links, hasLength(6));
         expect(links.every((row) => row['context_id'] == saved['id']), isTrue);
         expect(
-          links.where((row) => row['field_key'] == 'practice:${practice['id']}'),
+          links.where(
+            (row) => row['field_key'] == 'practice:${practice['id']}',
+          ),
           hasLength(1),
         );
         final audioAssets = await tester.runAsync(
@@ -433,6 +468,8 @@ void main() {
         router.dispose();
         container.dispose();
         await tester.pump();
+        await finishCleanup(playback.close(), stage: 'close restored playback');
+        playback.dispose();
         await finishCleanup(
           database.close(),
           stage: 'close the journey database',
@@ -441,6 +478,45 @@ void main() {
       }
     },
   );
+}
+
+/// The journey fixture persists four bytes per take, not an encoded media
+/// file. Keep the real store and preparation queue; replace only the decoder.
+class _JourneyPlaybackDriver implements MemoryAudioPlayerDriver {
+  var playCalls = 0;
+
+  @override
+  Stream<Duration> get positionChanges => const Stream.empty();
+  @override
+  Stream<Duration> get durationChanges => const Stream.empty();
+  @override
+  Stream<MemoryAudioDriverStatus> get statusChanges => const Stream.empty();
+
+  @override
+  Future<void> prepare(String assetId, AudioPlaybackSource source) async {
+    if (source is! FileAudioPlaybackSource ||
+        await File(source.path).length() != 4) {
+      throw StateError('Expected the durable journey recording fixture');
+    }
+  }
+
+  @override
+  Future<void> play(String assetId, AudioPlaybackSource source) async {
+    playCalls++;
+  }
+
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> resume() async {}
+  @override
+  Future<void> seek(Duration position) async {}
+  @override
+  Future<void> stop() async {}
+  @override
+  Future<void> release(String assetId) async {}
+  @override
+  Future<void> dispose() async {}
 }
 
 class _JourneyRecorder implements AudioRecorderGateway {

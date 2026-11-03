@@ -5,7 +5,9 @@
 New long-form contributions are voice recordings. Text inputs are limited to
 names, short titles, search, email, and invitation codes. Opening the recorder
 does not start the microphone: the person explicitly starts, pauses, reviews,
-and saves the take. Titles are optional where a context or date can supply one.
+and saves the take. A person can save without listening first; the recorder
+opens a playback device only when they press Play. Titles are optional where a
+context or date can supply one.
 
 | Place | Recording behavior |
 | --- | --- |

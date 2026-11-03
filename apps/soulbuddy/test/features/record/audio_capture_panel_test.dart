@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
@@ -78,7 +79,7 @@ void main() {
     await tester.pump();
     expect(controller.state.phase, AudioCapturePhase.recording);
 
-    await _closeCapture(tester, controller);
+    await _cancelCapture(tester, controller);
   });
 
   testWidgets('accepts focused prayer recording copy without duplicating UI', (
@@ -191,6 +192,59 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('an unpreviewed take saves without a native audio output', (
+    tester,
+  ) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final outputCalls = <String>[];
+    for (final channel in const [
+      MethodChannel('xyz.luan/audioplayers.global'),
+      MethodChannel('xyz.luan/audioplayers'),
+    ]) {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        outputCalls.add(call.method);
+        throw PlatformException(code: 'output_unavailable');
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    }
+    RecordedAudioDraft? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AudioCapturePanel(
+            controller: controller,
+            enableSoundscape: true,
+            onContinue: (draft) => saved = draft,
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(slider.max / 2);
+    slider.onChangeEnd!(slider.max / 2);
+    await tester.pump();
+    final background = find.byKey(const Key('recording-soundscape-stillness'));
+    await tester.ensureVisible(background);
+    await tester.tap(background);
+    await tester.pump();
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
+    await tester.pump();
+
+    expect(saved?.temporaryKey, '/private/take.m4a');
+    expect(saved?.soundscape, MemorySoundscape.stillness);
+    expect(controller.hasPendingRecording, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(outputCalls, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('handoff waits for both preview layers and runs only once', (
     tester,
@@ -327,7 +381,7 @@ void main() {
     expect(phaseAtClose, AudioCapturePhase.paused);
     expect(controller.state.phase, AudioCapturePhase.paused);
 
-    await _closeCapture(tester, controller);
+    await _cancelCapture(tester, controller);
   });
 
   testWidgets(
@@ -355,22 +409,22 @@ void main() {
       expect(controller.state.phase, AudioCapturePhase.paused);
       expect(find.text('Resume'), findsOneWidget);
 
-      await _closeCapture(tester, controller);
+      await _cancelCapture(tester, controller);
     },
   );
 }
 
-Future<void> _closeCapture(
+Future<void> _cancelCapture(
   WidgetTester tester,
   AudioCaptureController controller,
 ) async {
-  // Flutter verifies pending timers before the registered tearDown callback.
-  // Finish active/paused capture while its fake-async zone is still pumping.
+  // Cancel the test's active take and its fake timer here. The recorder and
+  // its stream were created in setUp and are closed in the matching tearDown.
   var completed = false;
   Object? failure;
   StackTrace? failureStack;
   unawaited(
-    controller.close().then<void>(
+    controller.cancel().then<void>(
       (_) {
         completed = true;
       },
@@ -384,11 +438,12 @@ Future<void> _closeCapture(
   for (var frame = 0; frame < 20 && !completed; frame += 1) {
     await tester.pump(const Duration(milliseconds: 10));
   }
-  expect(completed, isTrue, reason: 'Capture cleanup did not complete.');
+  expect(completed, isTrue, reason: 'Capture cancellation did not complete.');
   if (failure case final error?) {
     Error.throwWithStackTrace(error, failureStack!);
   }
   expect(controller.hasPendingRecording, isFalse);
+  expect(controller.state.phase, AudioCapturePhase.explaining);
 }
 
 class _PanelRecorder implements AudioRecorderGateway {

@@ -500,7 +500,7 @@ void main() {
     );
     sessions.dispose();
     coordinator.dispose();
-  });
+  }, timeout: const Timeout(Duration(seconds: 30)));
 }
 
 Future<void> _pumpPlaybackOperation(
