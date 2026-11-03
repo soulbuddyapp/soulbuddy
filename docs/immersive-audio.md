@@ -83,6 +83,12 @@ readable; no historical content is overwritten to manufacture an audio format.
    The repository contains only a commitment rules fragment, so the deployed
    private bucket configuration must be updated and verified in its actual
    configuration source. Do not create a new public bucket for these columns.
+   Use the [projection comparison and two-account acceptance procedure](../infra/powersync/immersive-audio.md)
+   with that configuration's actual baseline and candidate.
+   See the [API deployment procedure](deployment/sbuddy.elbiblio.com.md#deploying-audio-authoring-metadata)
+   for migration order and recovery. The audio workflow rehearses the upgrade
+   on a disposable MariaDB 10.11 service using PHP 8.3, including existing
+   text rows, a clean rollback and safeguards once recordings exist.
 3. Verify a new recorded prayer and a linked reflection upload and download
    their metadata to the same account, without exposing it to another account.
    Verify older text rows continue to load. Audio bytes remain local.
@@ -110,3 +116,20 @@ call or background transition; stop/review/save; reopen an offline recording;
 and cancel or retry a failed save. Confirm no speaker audio leaks into a newly
 started take and no stale ambience restarts after capture begins. Review the
 flows at large text sizes with screen-reader labels enabled.
+
+### Android phone build
+
+Open the [Android audio QA workflow](https://github.com/xwiz/soulbuddy/actions/workflows/android-audio-qa.yml),
+select the run for the commit under test, and download its ARM64 artifact.
+Extract the ZIP and install the APK in it. The separate **SoulBuddy Audio QA**
+app has its own storage and signing key; leave the Play Store app installed.
+Use disposable recordings. Uninstalling the QA app deletes that app's takes.
+
+Start with a saved prayer and **Flowing water** on the speaker. Start an
+**After prayer** recording, say a short phrase, save, and replay it. The
+original prayer and water should fall silent before the microphone starts;
+the new recording should contain just the phrase. Repeat on headphones,
+then interrupt a take with an app switch or a call, and reopen a saved take
+after restarting the app. Record the commit, phone/OS, output route and any
+failing step. The offline QA build cannot verify account sync or remote push;
+use the separate private staging checks for those.

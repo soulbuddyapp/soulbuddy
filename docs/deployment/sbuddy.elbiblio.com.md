@@ -67,3 +67,41 @@ archive on devices that created them before retirement. The server exposes no
 prayer-draft generation route, prompt, provider configuration, or retry worker.
 Accepted historical personal prayers remain ordinary private personal-prayer
 records and must not be rewritten or deleted during deployment.
+
+## Deploying audio authoring metadata
+
+Prepare the same reviewed commit in the host and Snap release trees. Before
+switching either active pointer, confirm a restorable MariaDB backup and review
+all pending migrations: the documented notification hotfix was a partial
+release. Run the following from the prepared candidate's Laravel directory
+inside the deployment PHP 8.3 container, using its protected `.env` and the
+host database socket:
+
+```sh
+set -eu
+test -f artisan
+test -f database/migrations/2026_11_03_000000_add_audio_authoring_metadata.php
+php artisan migrate:status
+php artisan migrate --pretend --force
+```
+
+After reviewing the preview, run `php artisan migrate --force` in that same
+candidate and check `php artisan migrate:status`. Confirm the named migration
+is marked **Ran**. It adds `personal_prayer_revisions.content_format` (existing
+rows default to `text`) and nullable `memory_reflections.audio_encounter_id`.
+Finish the normal seeding and optimization steps, switch both pointers to that
+commit, and restart `soulbuddy-api` so the sync and narration handlers match
+the schema.
+
+Before releasing the client, add those columns to the existing private
+PowerSync projections in their deployed configuration. Preserve the existing
+owner filters and verify the positive and negative two-account checks in
+[the audio release checklist](../immersive-audio.md#release-order). No audio
+files or device-local context links belong in the projections.
+
+For recovery, keep the additive columns, the MariaDB data and shared storage.
+While recording-capable clients are active, retain compatible sync handlers.
+If switching application releases, point **both** release trees at the same
+compatible commit and restart the container. The migration refuses to roll
+back while audio-authored data exists; do not remove recordings or references
+to bypass that guard.
