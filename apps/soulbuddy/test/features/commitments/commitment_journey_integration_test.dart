@@ -25,10 +25,12 @@ import 'package:soulbuddy/features/record/audio/data/audio_asset_store_io.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 import 'package:soulbuddy/features/record/presentation/record_screen.dart';
 import 'package:soulbuddy/features/record/presentation/voice_notes_field.dart';
+import '../../helpers/audio_player_mocks.dart';
 import '../../helpers/powersync_test_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(installAudioPlayerMocks);
   late Directory directory;
   late AppDatabase database;
   testWidgets(
@@ -46,28 +48,9 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      for (final channel in [
-        'xyz.luan/audioplayers.global',
-        'xyz.luan/audioplayers.global/events',
-        'app.soulbuddy/screen_awake',
-      ]) {
-        messenger.setMockMethodCallHandler(
-          MethodChannel(channel),
-          (_) async => null,
-        );
-      }
       messenger.setMockMethodCallHandler(
-        const MethodChannel('xyz.luan/audioplayers'),
-        (call) async {
-          if (call.method == 'create') {
-            final id = (call.arguments as Map)['playerId'];
-            messenger.setMockMethodCallHandler(
-              MethodChannel('xyz.luan/audioplayers/events/$id'),
-              (_) async => null,
-            );
-          }
-          return null;
-        },
+        const MethodChannel('app.soulbuddy/screen_awake'),
+        (_) async => null,
       );
 
       final assets = IoAudioAssetStore(
@@ -75,6 +58,7 @@ void main() {
         temporaryDirectory: directory,
       );
       var takeNumber = 0;
+      final captureControllers = <AudioCaptureController>[];
       final container = ProviderContainer(
         overrides: [
           audioAssetStoreProvider.overrideWith((ref) async => assets),
@@ -86,6 +70,7 @@ void main() {
                 extension: 'm4a',
               ),
             );
+            captureControllers.add(controller);
             ref.onDispose(() => unawaited(controller.close()));
             return controller;
           }),
@@ -154,11 +139,43 @@ void main() {
       Future<void> tapText(String text) async {
         final target = find.text(text).last;
         await tester.ensureVisible(target);
-        await tester.pumpAndSettle();
-        await tester.ensureVisible(target);
-        await tester.pumpAndSettle();
+        // Recording keeps updating its elapsed time. Advance the scroll/frame
+        // without waiting for the active microphone's UI to become idle.
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(target.hitTestable(), findsOneWidget);
         await tester.runAsync(() => tester.tap(target));
         await tester.pump();
+      }
+
+      Future<void> finishCleanup(
+        Future<void> operation, {
+        required String stage,
+      }) async {
+        var completed = false;
+        Object? failure;
+        StackTrace? failureStack;
+        unawaited(
+          operation.then<void>(
+            (_) {
+              completed = true;
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              failure = error;
+              failureStack = stackTrace;
+              completed = true;
+            },
+          ),
+        );
+        for (var frame = 0; frame < 100 && !completed; frame += 1) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump(const Duration(milliseconds: 30));
+        }
+        expect(completed, isTrue, reason: 'Timed out trying to $stage.');
+        if (failure case final error?) {
+          Error.throwWithStackTrace(error, failureStack!);
+        }
       }
 
       Future<void> stage(String heading) => settleUntil(
@@ -242,176 +259,186 @@ void main() {
         debugDisableShadows = disableShadows;
       }
 
-      await stage('Skip to quiet place');
-      await capture('invitation');
-      await tapText('Skip to quiet place');
-      await stage('A moment with God');
-      await tapText('Continue');
-      await stage('What do you need from God?');
-      await recordAudio('needs-1', 'Grace in each conversation');
-      await recordAudio('needs-2', 'Patience with my family');
-      await recordAudio('needs-3', 'Courage to serve');
-      // Leave immediately: the 350 ms draft debounce has not fired.
-      await tapText('Not now');
-      await stage('Continue your commitment');
-      final progressRepo = await tester.runAsync(
-        () =>
-            container.read(commitmentJourneyProgressRepositoryProvider.future),
-      );
-      final deferred = await tester.runAsync(() => progressRepo!.load());
-      expect(deferred!.progress!.deferred, isTrue);
-      expect(deferred.progress!.stage, CommitmentJourneyStage.needs);
-      expect(deferred.progress!.keyNeedThree, 'Courage to serve');
-      expect(
-        await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM goals'),
-        ),
-        isEmpty,
-      );
-      final recordedDrafts = await tester.runAsync(
-        () => database.powersync.getAll('SELECT * FROM voice_note_links'),
-      );
-      expect(recordedDrafts, hasLength(3));
-      expect(
-        recordedDrafts!.every((row) => row['context_id'] == 'journey:primary'),
-        isTrue,
-      );
-      final recordedCrud = await tester.runAsync(
-        () => database.powersync.getCrudBatch(),
-      );
-      expect(recordedCrud, isNotNull);
-      expect(
-        recordedCrud!.crud.any(
-          (entry) =>
-              entry.table == 'memory_audio_assets' ||
-              entry.table == 'voice_note_links',
-        ),
-        isFalse,
-      );
-
-      await tapText('Continue your commitment');
-      await stage('What do you need from God?');
-      expect(find.text('Grace in each conversation'), findsOneWidget);
-      expect(find.text('Patience with my family'), findsOneWidget);
-      expect(find.text('Courage to serve'), findsOneWidget);
-      await tapText('Continue');
-      await stage('What is your calling?');
-      await recordAudio('calling', 'Serve my neighbors');
-      await tapText('Continue');
-      await stage('Small, faithful choices');
-      await tapText('Record my own');
-      await tester.pumpAndSettle();
-      await enter('Practice title', 'Walk with a neighbor');
-      await recordAudio('practice', 'Listening to my neighbor', practice: true);
-      await tapText('Add');
-      await tester.pumpAndSettle();
-      await tapText('Continue');
-      await stage('My declaration');
-      await recordAudio('declaration', 'A faithful intention');
-      await tapText('Continue');
-      expect(
-        find.text('Review your declaration before continuing.'),
-        findsOneWidget,
-      );
-      await tapText('This reflects my intention');
-      await tapText('Continue');
-      await stage('A prayerful beginning');
-      await tapText('Peace');
-      await tapText('Continue');
-      await stage('A regular time with God');
-      expect(find.text('07:00'), findsOneWidget);
-      expect(find.text('Africa/Lagos'), findsOneWidget);
-      await tapText('Continue');
-      await stage('Name your commitment');
-      await enter('Commitment name', 'Faithful service');
-      await tapText('Continue');
-      await stage('Save commitment');
-      expect(find.text('Faithful service'), findsOneWidget);
-      await tapText('Save commitment');
-      await settleUntil(
-        () =>
-            find.byType(CommitmentSummaryScreen).evaluate().isNotEmpty &&
-            find
-                .descendant(
-                  of: find.byType(CommitmentSummaryScreen),
-                  matching: find.text('Faithful service'),
-                )
-                .evaluate()
-                .isNotEmpty,
-      );
-      await capture('summary');
-
-      final saved = (await tester.runAsync(
-        () => database.powersync.getAll('SELECT * FROM commitments'),
-      ))!.single;
-      final plan = (await tester.runAsync(
-        () => database.powersync.getAll(
-          'SELECT * FROM commitment_meditation_plans',
-        ),
-      ))!.single;
-      final practice = (await tester.runAsync(
-        () => database.powersync.getAll('SELECT * FROM commitment_practices'),
-      ))!.single;
-      expect(saved['name'], 'Faithful service');
-      expect(saved['calling'], 'Serve my neighbors');
-      expect(saved['guide_id'], 'peace');
-      expect(practice['body'], 'Walk with a neighbor');
-      final links = (await tester.runAsync(
-        () => database.powersync.getAll('SELECT * FROM voice_note_links'),
-      ))!;
-      expect(links, hasLength(6));
-      expect(links.every((row) => row['context_id'] == saved['id']), isTrue);
-      expect(
-        links.where((row) => row['field_key'] == 'practice:${practice['id']}'),
-        hasLength(1),
-      );
-      final audioAssets = await tester.runAsync(
-        () => database.powersync.getAll('SELECT * FROM memory_audio_assets'),
-      );
-      expect(audioAssets, hasLength(6));
-      expect(plan['duration_minutes'], 10);
-      expect(plan['local_time'], '07:00');
-      expect(
-        (await tester.runAsync(() => progressRepo!.load()))!.progress,
-        isNull,
-      );
-      expect(
-        await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM goals'),
-        ),
-        hasLength(1),
-      );
-      expect(
-        await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM goal_actions'),
-        ),
-        hasLength(1),
-      );
-      expect(
-        await tester.runAsync(
-          () => database.powersync.getAll('SELECT * FROM goal_action_events'),
-        ),
-        isEmpty,
-      );
-      expect(
-        await tester.runAsync(
-          () => database.powersync.getAll(
-            'SELECT * FROM commitment_meditation_sessions',
+      try {
+        await stage('Skip to quiet place');
+        await capture('invitation');
+        await tapText('Skip to quiet place');
+        await stage('A moment with God');
+        await tapText('Continue');
+        await stage('What do you need from God?');
+        await recordAudio('needs-1', 'Grace in each conversation');
+        await recordAudio('needs-2', 'Patience with my family');
+        await recordAudio('needs-3', 'Courage to serve');
+        // Leave immediately: the 350 ms draft debounce has not fired.
+        await tapText('Not now');
+        await stage('Continue your commitment');
+        final progressRepo = await tester.runAsync(
+          () =>
+              container.read(commitmentJourneyProgressRepositoryProvider.future),
+        );
+        final deferred = await tester.runAsync(() => progressRepo!.load());
+        expect(deferred!.progress!.deferred, isTrue);
+        expect(deferred.progress!.stage, CommitmentJourneyStage.needs);
+        expect(deferred.progress!.keyNeedThree, 'Courage to serve');
+        expect(
+          await tester.runAsync(
+            () => database.powersync.getAll('SELECT * FROM goals'),
           ),
-        ),
-        isEmpty,
-      );
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpAndSettle();
-      router.dispose();
-      container.dispose();
-      await tester.pump();
-      var closed = false;
-      final closing = database.close().then((_) => closed = true);
-      await settleUntil(() => closed);
-      await closing;
-      await tester.runAsync(() => directory.delete(recursive: true));
+          isEmpty,
+        );
+        final recordedDrafts = await tester.runAsync(
+          () => database.powersync.getAll('SELECT * FROM voice_note_links'),
+        );
+        expect(recordedDrafts, hasLength(3));
+        expect(
+          recordedDrafts!.every((row) => row['context_id'] == 'journey:primary'),
+          isTrue,
+        );
+        final recordedCrud = await tester.runAsync(
+          () => database.powersync.getCrudBatch(),
+        );
+        expect(recordedCrud, isNotNull);
+        expect(
+          recordedCrud!.crud.any(
+            (entry) =>
+                entry.table == 'memory_audio_assets' ||
+                entry.table == 'voice_note_links',
+          ),
+          isFalse,
+        );
+
+        await tapText('Continue your commitment');
+        await stage('What do you need from God?');
+        expect(find.text('Grace in each conversation'), findsOneWidget);
+        expect(find.text('Patience with my family'), findsOneWidget);
+        expect(find.text('Courage to serve'), findsOneWidget);
+        await tapText('Continue');
+        await stage('What is your calling?');
+        await recordAudio('calling', 'Serve my neighbors');
+        await tapText('Continue');
+        await stage('Small, faithful choices');
+        await tapText('Record my own');
+        await settleUntil(() => find.byType(AlertDialog).evaluate().isNotEmpty);
+        await enter('Practice title', 'Walk with a neighbor');
+        await recordAudio('practice', 'Listening to my neighbor', practice: true);
+        await tapText('Add');
+        await settleUntil(() => find.byType(AlertDialog).evaluate().isEmpty);
+        await tapText('Continue');
+        await stage('My declaration');
+        await recordAudio('declaration', 'A faithful intention');
+        await tapText('Continue');
+        expect(
+          find.text('Review your declaration before continuing.'),
+          findsOneWidget,
+        );
+        await tapText('This reflects my intention');
+        await tapText('Continue');
+        await stage('A prayerful beginning');
+        await tapText('Peace');
+        await tapText('Continue');
+        await stage('A regular time with God');
+        expect(find.text('07:00'), findsOneWidget);
+        expect(find.text('Africa/Lagos'), findsOneWidget);
+        await tapText('Continue');
+        await stage('Name your commitment');
+        await enter('Commitment name', 'Faithful service');
+        await tapText('Continue');
+        await stage('Save commitment');
+        expect(find.text('Faithful service'), findsOneWidget);
+        await tapText('Save commitment');
+        await settleUntil(
+          () =>
+              find.byType(CommitmentSummaryScreen).evaluate().isNotEmpty &&
+              find
+                  .descendant(
+                    of: find.byType(CommitmentSummaryScreen),
+                    matching: find.text('Faithful service'),
+                  )
+                  .evaluate()
+                  .isNotEmpty,
+        );
+        await capture('summary');
+
+        final saved = (await tester.runAsync(
+          () => database.powersync.getAll('SELECT * FROM commitments'),
+        ))!.single;
+        final plan = (await tester.runAsync(
+          () => database.powersync.getAll(
+            'SELECT * FROM commitment_meditation_plans',
+          ),
+        ))!.single;
+        final practice = (await tester.runAsync(
+          () => database.powersync.getAll('SELECT * FROM commitment_practices'),
+        ))!.single;
+        expect(saved['name'], 'Faithful service');
+        expect(saved['calling'], 'Serve my neighbors');
+        expect(saved['guide_id'], 'peace');
+        expect(practice['body'], 'Walk with a neighbor');
+        final links = (await tester.runAsync(
+          () => database.powersync.getAll('SELECT * FROM voice_note_links'),
+        ))!;
+        expect(links, hasLength(6));
+        expect(links.every((row) => row['context_id'] == saved['id']), isTrue);
+        expect(
+          links.where((row) => row['field_key'] == 'practice:${practice['id']}'),
+          hasLength(1),
+        );
+        final audioAssets = await tester.runAsync(
+          () => database.powersync.getAll('SELECT * FROM memory_audio_assets'),
+        );
+        expect(audioAssets, hasLength(6));
+        expect(plan['duration_minutes'], 10);
+        expect(plan['local_time'], '07:00');
+        expect(
+          (await tester.runAsync(() => progressRepo!.load()))!.progress,
+          isNull,
+        );
+        expect(
+          await tester.runAsync(
+            () => database.powersync.getAll('SELECT * FROM goals'),
+          ),
+          hasLength(1),
+        );
+        expect(
+          await tester.runAsync(
+            () => database.powersync.getAll('SELECT * FROM goal_actions'),
+          ),
+          hasLength(1),
+        );
+        expect(
+          await tester.runAsync(
+            () => database.powersync.getAll('SELECT * FROM goal_action_events'),
+          ),
+          isEmpty,
+        );
+        expect(
+          await tester.runAsync(
+            () => database.powersync.getAll(
+              'SELECT * FROM commitment_meditation_sessions',
+            ),
+          ),
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        for (final controller in captureControllers) {
+          await finishCleanup(
+            controller.close(),
+            stage: 'close the journey recording',
+          );
+          controller.dispose();
+        }
+        router.dispose();
+        container.dispose();
+        await tester.pump();
+        await finishCleanup(
+          database.close(),
+          stage: 'close the journey database',
+        );
+        await tester.runAsync(() => directory.delete(recursive: true));
+      }
     },
   );
 }

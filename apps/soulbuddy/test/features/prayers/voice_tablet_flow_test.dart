@@ -216,7 +216,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Stop'));
       await _settle(tester);
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('Use recording'));
       await _settle(tester);
 
       expect(recorder.discarded, isEmpty);
@@ -272,7 +272,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Stop'));
       await _settle(tester);
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('Use recording'));
       await _settle(tester);
       await tester.tap(find.text('Save without a refrain'));
       await _settle(tester);
@@ -335,8 +335,8 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Stop'));
     await _settle(tester);
-    await tester.ensureVisible(find.text('Continue'));
-    await tester.tap(find.text('Continue'));
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
     await _settle(tester);
     await tester.tap(find.text('Save without a refrain'));
     await _settle(tester);
@@ -405,7 +405,6 @@ void main() {
       assetStore: _FakeAudioStore(),
       driver: driver,
     );
-    addTearDown(coordinator.close);
     final sessions = SpiritualSessionController();
     final background = _Background();
     final practice = _PracticeRepository();
@@ -464,7 +463,11 @@ void main() {
     await tester.pump();
     expect(background.playing, false);
     expect(sessions.state.status, SpiritualSessionStatus.paused);
-    await sessions.resume();
+    await _pumpPlaybackOperation(
+      tester,
+      sessions.resume(),
+      stage: 'resume prayer with its background after focus loss',
+    );
     expect(background.playing, true);
     driver.statuses.add(MemoryAudioDriverStatus.completed);
     await tester.pump();
@@ -477,13 +480,56 @@ void main() {
     await _settle(tester);
     visible.value = false;
     await tester.pump();
-    await sessions.complete();
+    await _pumpPlaybackOperation(
+      tester,
+      sessions.complete(),
+      stage: 'record prayer completion after leaving its player',
+    );
 
     expect(background.playing, false);
     expect(practice.recorded.single.id, 'prayer-1');
     expect(practice.timezone, 'Africa/Lagos');
     expect(tester.takeException(), isNull);
+
+    // Close while the widget test still pumps its fake-async zone. A registered
+    // teardown runs afterward and cannot drain these queued player operations.
+    await _pumpPlaybackOperation(
+      tester,
+      coordinator.close(),
+      stage: 'dispose prayer playback after navigation',
+    );
+    sessions.dispose();
+    coordinator.dispose();
   });
+}
+
+Future<void> _pumpPlaybackOperation(
+  WidgetTester tester,
+  Future<void> operation, {
+  required String stage,
+}) async {
+  var completed = false;
+  Object? failure;
+  StackTrace? failureStack;
+  unawaited(
+    operation.then<void>(
+      (_) {
+        completed = true;
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        failure = error;
+        failureStack = stackTrace;
+        completed = true;
+      },
+    ),
+  );
+  for (var frame = 0; frame < 20 && !completed; frame += 1) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  expect(completed, isTrue, reason: 'Timed out trying to $stage.');
+  if (failure case final error?) {
+    Error.throwWithStackTrace(error, failureStack!);
+  }
 }
 
 MemorySoundscapePreferences _preferences() {

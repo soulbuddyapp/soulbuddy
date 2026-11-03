@@ -429,8 +429,20 @@ Future<void> _recordAndContinue(WidgetTester tester) async {
   await tester.tap(find.text('Stop'));
   await _settle(tester);
   await tester.ensureVisible(find.text('Use recording'));
-  await tester.tap(find.text('Use recording'));
-  await _settle(tester);
+  await tester.pump();
+  await tester.runAsync(() => tester.tap(find.text('Use recording')));
+  final form = find.byKey(const Key('encounter-title'));
+  for (var attempt = 0; attempt < 30 && form.evaluate().isEmpty; attempt++) {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  expect(
+    form,
+    findsOneWidget,
+    reason:
+        'Recording handoff did not reach the form. Visible text: '
+        '${tester.widgetList<Text>(find.byType(Text)).map((text) => text.data).join(' | ')}',
+  );
 }
 
 Future<void> _saveForm(WidgetTester tester) async {

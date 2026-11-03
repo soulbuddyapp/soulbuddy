@@ -80,7 +80,11 @@ void main() {
     await tester.pump();
     expect(busy, ['first:true']);
     expect(
-      tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+      tester
+          .widget<OutlinedButton>(
+            find.byWidgetPredicate((widget) => widget is OutlinedButton),
+          )
+          .onPressed,
       isNull,
     );
 

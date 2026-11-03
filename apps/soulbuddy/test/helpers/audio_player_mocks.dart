@@ -1,8 +1,9 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Allows capture UI tests to exercise playback teardown without native audio.
-void installAudioPlayerMocks() {
+Future<void> installAudioPlayerMocks() async {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   for (final name in [
@@ -24,4 +25,8 @@ void installAudioPlayerMocks() {
       return null;
     },
   );
+  // Run in setUp, before the widget test enters FakeAsync. AudioPlayer caches
+  // this completer globally; a completed future owned by an earlier fake zone
+  // must not strand a later test's awaited stop/dispose operations.
+  await AudioPlayer.global.ensureInitialized();
 }

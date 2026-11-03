@@ -38,21 +38,29 @@ completion remains an explicit action.
 Private audio bytes and local playback metadata remain on the recording device.
 The feature adds no transcription, AI prayer generation, or audio upload queue.
 Other devices show an unavailable-recording state when only synced metadata is
-present.
+present. Account synchronization is not an audio backup: clearing app or browser
+data can remove the only app-managed copy. Native recordings use the existing
+application-support file store; web recordings use IndexedDB. This change adds
+no application-level encryption to those audio stores.
 
 `voice_note_links` is an owner-scoped, local-only table joining existing audio
 memories to a context type, context ID, and field. Attaching verifies ownership,
 active memory status, and local audio metadata, and deduplicates retries. Goal
 and commitment finalization moves draft links to the finalized identity in the
 same local transaction. A failed context attachment retains the already-saved
-memory for a link retry. Captured media is not duplicated just to add a link.
+memory for a retry in the open flow; the recording also remains in Remember.
+Pending link retries are not persisted across closing the flow or restarting.
+Context links themselves do not sync, so another device cannot reconstruct these
+contextual recording lists. Captured media is not duplicated just to add a link.
 
 Recorded prayers use `personal_prayer_revisions.content_format = 'audio'` and an
 empty body, with a voice tablet referring to that exact revision. The durable
-audio copy and local metadata save as one visible action. If metadata fails, the
-copy is cleaned up while the original take remains available for retry. Failure
-to delete a temporary take after a successful save does not turn that save into
-an apparent failure or invite a duplicate.
+audio copy and local metadata save as one visible action. If metadata fails,
+deletion of the copied file is attempted while the original take remains
+available for retry. Failed deletion is left to the existing orphan cleanup;
+it is not guaranteed to finish immediately. Failure to delete a temporary take
+after a successful save does not turn that save into an apparent failure or
+invite a duplicate.
 
 Audio memory reflections use `memory_reflections.audio_encounter_id`. Sync
 validation requires an owned target and rejects invalid mixed batches atomically.
@@ -76,6 +84,8 @@ readable; no historical content is overwritten to manufacture an audio format.
    their metadata to the same account, without exposing it to another account.
    Verify older text rows continue to load. Audio bytes remain local.
 4. Release the client after the automated checks and device checks below pass.
+   Keep the device-only storage and lack of audio backup clear in release copy;
+   do not describe synced titles or prayer metadata as backed-up recordings.
 
 The migration refuses a destructive rollback while audio-authored data exists.
 Rolling back the client does not require deleting the additive columns.

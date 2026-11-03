@@ -77,6 +77,8 @@ void main() {
     await tester.tap(find.text('Try microphone again'));
     await tester.pump();
     expect(controller.state.phase, AudioCapturePhase.recording);
+
+    await _closeCapture(tester, controller);
   });
 
   testWidgets('accepts focused prayer recording copy without duplicating UI', (
@@ -324,6 +326,8 @@ void main() {
     await tester.pump();
     expect(phaseAtClose, AudioCapturePhase.paused);
     expect(controller.state.phase, AudioCapturePhase.paused);
+
+    await _closeCapture(tester, controller);
   });
 
   testWidgets(
@@ -350,8 +354,41 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.state.phase, AudioCapturePhase.paused);
       expect(find.text('Resume'), findsOneWidget);
+
+      await _closeCapture(tester, controller);
     },
   );
+}
+
+Future<void> _closeCapture(
+  WidgetTester tester,
+  AudioCaptureController controller,
+) async {
+  // Flutter verifies pending timers before the registered tearDown callback.
+  // Finish active/paused capture while its fake-async zone is still pumping.
+  var completed = false;
+  Object? failure;
+  StackTrace? failureStack;
+  unawaited(
+    controller.close().then<void>(
+      (_) {
+        completed = true;
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        failure = error;
+        failureStack = stackTrace;
+        completed = true;
+      },
+    ),
+  );
+  for (var frame = 0; frame < 20 && !completed; frame += 1) {
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  expect(completed, isTrue, reason: 'Capture cleanup did not complete.');
+  if (failure case final error?) {
+    Error.throwWithStackTrace(error, failureStack!);
+  }
+  expect(controller.hasPendingRecording, isFalse);
 }
 
 class _PanelRecorder implements AudioRecorderGateway {
