@@ -199,7 +199,10 @@ void main() {
       tester,
       coordinator.close(),
       stage: 'dispose the playback coordinator',
+      describePending: driver.describeShutdown,
     );
+    expect(driver.disposeCompleted, isTrue);
+    expect(driver.hasListeners, isFalse);
     spiritual.dispose();
     coordinator.dispose();
   });
@@ -258,6 +261,7 @@ Future<void> _pumpPlaybackOperation(
   WidgetTester tester,
   Future<void> operation, {
   required String stage,
+  String Function()? describePending,
 }) async {
   var completed = false;
   Object? failure;
@@ -275,9 +279,16 @@ Future<void> _pumpPlaybackOperation(
     ),
   );
   for (var frame = 0; frame < 20 && !completed; frame += 1) {
+    // Closing an already-cancelled stream can return Dart's shared root-zone
+    // future. Its continuation needs a real turn as well as a fake frame.
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(milliseconds: 10));
   }
-  expect(completed, isTrue, reason: 'Timed out trying to $stage.');
+  expect(
+    completed,
+    isTrue,
+    reason: 'Timed out trying to $stage. ${describePending?.call() ?? ''}',
+  );
   if (failure case final error?) {
     Error.throwWithStackTrace(error, failureStack!);
   }
@@ -360,6 +371,16 @@ class _AltarAudioDriver implements MemoryAudioPlayerDriver {
     onCancel: () async {},
   );
   String? _active;
+  bool disposeCompleted = false;
+
+  bool get hasListeners =>
+      _positions.hasListener || _durations.hasListener || _statuses.hasListener;
+
+  String describeShutdown() =>
+      'Listeners (position/duration/status): ${_positions.hasListener}/'
+      '${_durations.hasListener}/${_statuses.hasListener}; closed: '
+      '${_positions.isClosed}/${_durations.isClosed}/${_statuses.isClosed}; '
+      'driver disposal completed: $disposeCompleted.';
 
   @override
   Stream<Duration> get durationChanges => _durations.stream;
@@ -390,6 +411,7 @@ class _AltarAudioDriver implements MemoryAudioPlayerDriver {
     await _durations.close();
     await _positions.close();
     await _statuses.close();
+    disposeCompleted = true;
   }
 
   @override

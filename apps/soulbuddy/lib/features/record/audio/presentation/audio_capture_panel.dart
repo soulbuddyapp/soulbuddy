@@ -74,9 +74,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
 
   AudioPlayer _attachReviewPlayer(AudioPlayer player) {
     _reviewPlayer = player;
-    _playerStateSubscription = player.onPlayerStateChanged.listen((
-      state,
-    ) {
+    _playerStateSubscription = player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _playerState = state);
       if (state == PlayerState.completed ||
           state == PlayerState.stopped ||
@@ -310,10 +308,8 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                 ),
           onChangeEnd: _reviewCommandInFlight
               ? null
-              : (value) => _seekReview(
-                  review,
-                  Duration(milliseconds: value.round()),
-                ),
+              : (value) =>
+                    _seekReview(review, Duration(milliseconds: value.round())),
         ),
       ),
       Center(

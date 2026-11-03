@@ -145,16 +145,46 @@ void main() {
         expect(tester.takeException(), isNull);
       }
 
-      Future<void> tapText(String text) async {
-        final target = find.text(text).last;
-        await tester.ensureVisible(target);
-        // Recording keeps updating its elapsed time. Advance the scroll/frame
-        // without waiting for the active microphone's UI to become idle.
-        await tester.pump(const Duration(milliseconds: 50));
-        expect(target.hitTestable(), findsOneWidget);
-        await tester.runAsync(() => tester.tap(target));
-        await tester.pump();
+      Future<void> tapAction(Finder label, String description) async {
+        final controls = find.ancestor(
+          of: label,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                (widget is ButtonStyleButton && widget.onPressed != null) ||
+                (widget is ChoiceChip && widget.onSelected != null) ||
+                (widget is CheckboxListTile && widget.onChanged != null) ||
+                (widget is ListTile && widget.onTap != null),
+          ),
+        );
+        // A route heading or restored player can be built before the route is
+        // accepting input. Center the enabled action after any layout change,
+        // and wait for its actual hit-test path without settling a live mic.
+        for (var attempt = 0; attempt < 40; attempt++) {
+          if (controls.evaluate().isNotEmpty) {
+            await Scrollable.ensureVisible(
+              tester.element(controls.last),
+              alignment: .5,
+            );
+          }
+          await tester.pump(const Duration(milliseconds: 40));
+          final hittable = controls.hitTestable();
+          if (hittable.evaluate().isNotEmpty) {
+            await tester.runAsync(() => tester.tap(hittable.last));
+            await tester.pump();
+            return;
+          }
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        }
+        final bounds = controls.evaluate().isEmpty
+            ? 'none'
+            : tester.getRect(controls.last).toString();
+        fail(
+          'Could not tap $description. Enabled control bounds: $bounds. '
+          'Visible text: ${tester.widgetList<Text>(find.byType(Text)).map((w) => w.data).join(' | ')}',
+        );
       }
+
+      Future<void> tapText(String text) => tapAction(find.text(text), text);
 
       Future<void> finishCleanup(
         Future<void> operation, {
@@ -217,8 +247,7 @@ void main() {
           matching: find.text('Record'),
         );
         expect(button, findsOneWidget);
-        await tester.ensureVisible(button);
-        await tester.runAsync(() => tester.tap(button));
+        await tapAction(button, 'Record $field');
         await settleUntil(
           () => find.text('Start recording').evaluate().isNotEmpty,
         );

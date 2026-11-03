@@ -395,118 +395,124 @@ void main() {
     expect(prayed, 1);
   });
 
-  testWidgets('prayer mix and completion survive leaving the player', (
-    tester,
-  ) async {
-    final visible = ValueNotifier(true);
-    addTearDown(visible.dispose);
-    final driver = _FakeAudioDriver();
-    final coordinator = MemoryAudioPlaybackCoordinator(
-      assetStore: _FakeAudioStore(),
-      driver: driver,
-    );
-    final sessions = SpiritualSessionController();
-    final background = _Background();
-    final practice = _PracticeRepository();
-    final preferences = _preferences();
-    await preferences.save(
-      'audio-1',
-      const MemorySoundscapeSettings(
-        soundscape: MemorySoundscape.flowingWater,
-        volume: .15,
-      ),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          memoryAudioPlaybackCoordinatorProvider.overrideWith(
-            (ref) async => coordinator,
-          ),
-          spiritualSessionControllerProvider.overrideWithValue(sessions),
-          memorySoundscapePreferencesProvider.overrideWithValue(preferences),
-          memorySoundscapePlaybackProvider.overrideWith(
-            (ref) => MemorySoundscapePlaybackCoordinator(player: background),
-          ),
-          prayerPracticeRepositoryProvider.overrideWith(
-            (ref) async => practice,
-          ),
-          prayerDeviceTimezoneProvider.overrideWithValue(
-            () async => 'Africa/Lagos',
-          ),
-        ],
-        child: MaterialApp(
-          home: Scaffold(
-            body: ValueListenableBuilder<bool>(
-              valueListenable: visible,
-              builder: (context, show, _) => show
-                  ? SingleChildScrollView(
-                      child: VoiceTabletPlayer(tablet: _tablet()),
-                    )
-                  : const SizedBox.shrink(),
+  testWidgets(
+    'prayer mix and completion survive leaving the player',
+    (tester) async {
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      final driver = _FakeAudioDriver();
+      final coordinator = MemoryAudioPlaybackCoordinator(
+        assetStore: _FakeAudioStore(),
+        driver: driver,
+      );
+      final sessions = SpiritualSessionController();
+      final background = _Background();
+      final practice = _PracticeRepository();
+      final preferences = _preferences();
+      await preferences.save(
+        'audio-1',
+        const MemorySoundscapeSettings(
+          soundscape: MemorySoundscape.flowingWater,
+          volume: .15,
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            memoryAudioPlaybackCoordinatorProvider.overrideWith(
+              (ref) async => coordinator,
+            ),
+            spiritualSessionControllerProvider.overrideWithValue(sessions),
+            memorySoundscapePreferencesProvider.overrideWithValue(preferences),
+            memorySoundscapePlaybackProvider.overrideWith(
+              (ref) => MemorySoundscapePlaybackCoordinator(player: background),
+            ),
+            prayerPracticeRepositoryProvider.overrideWith(
+              (ref) async => practice,
+            ),
+            prayerDeviceTimezoneProvider.overrideWithValue(
+              () async => 'Africa/Lagos',
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ValueListenableBuilder<bool>(
+                valueListenable: visible,
+                builder: (context, show, _) => show
+                    ? SingleChildScrollView(
+                        child: VoiceTabletPlayer(tablet: _tablet()),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await _settle(tester);
-    await tester.tap(find.text('Listen'));
-    await _settle(tester);
-    expect(background.playing, true);
-    expect(practice.recorded, isEmpty);
-    visible.value = false;
-    await tester.pump();
+      );
+      await _settle(tester);
+      await tester.tap(find.text('Listen'));
+      await _settle(tester);
+      expect(background.playing, true);
+      expect(practice.recorded, isEmpty);
+      visible.value = false;
+      await tester.pump();
 
-    driver.positions.add(const Duration(seconds: 8));
-    await tester.pump();
-    expect(sessions.state.position, const Duration(seconds: 8));
-    driver.statuses.add(MemoryAudioDriverStatus.paused);
-    await tester.pump();
-    expect(background.playing, false);
-    expect(sessions.state.status, SpiritualSessionStatus.paused);
-    await _pumpPlaybackOperation(
-      tester,
-      sessions.resume(),
-      stage: 'resume prayer with its background after focus loss',
-    );
-    expect(background.playing, true);
-    driver.statuses.add(MemoryAudioDriverStatus.completed);
-    await tester.pump();
-    expect(background.playing, false);
-    expect(sessions.state.session, isNull);
+      driver.positions.add(const Duration(seconds: 8));
+      await tester.pump();
+      expect(sessions.state.position, const Duration(seconds: 8));
+      driver.statuses.add(MemoryAudioDriverStatus.paused);
+      await tester.pump();
+      expect(background.playing, false);
+      expect(sessions.state.status, SpiritualSessionStatus.paused);
+      await _pumpPlaybackOperation(
+        tester,
+        sessions.resume(),
+        stage: 'resume prayer with its background after focus loss',
+      );
+      expect(background.playing, true);
+      driver.statuses.add(MemoryAudioDriverStatus.completed);
+      await tester.pump();
+      expect(background.playing, false);
+      expect(sessions.state.session, isNull);
 
-    visible.value = true;
-    await _settle(tester);
-    await tester.tap(find.text('Listen'));
-    await _settle(tester);
-    visible.value = false;
-    await tester.pump();
-    await _pumpPlaybackOperation(
-      tester,
-      sessions.complete(),
-      stage: 'record prayer completion after leaving its player',
-    );
+      visible.value = true;
+      await _settle(tester);
+      await tester.tap(find.text('Listen'));
+      await _settle(tester);
+      visible.value = false;
+      await tester.pump();
+      await _pumpPlaybackOperation(
+        tester,
+        sessions.complete(),
+        stage: 'record prayer completion after leaving its player',
+      );
 
-    expect(background.playing, false);
-    expect(practice.recorded.single.id, 'prayer-1');
-    expect(practice.timezone, 'Africa/Lagos');
-    expect(tester.takeException(), isNull);
+      expect(background.playing, false);
+      expect(practice.recorded.single.id, 'prayer-1');
+      expect(practice.timezone, 'Africa/Lagos');
+      expect(tester.takeException(), isNull);
 
-    // Close while the widget test still pumps its fake-async zone. A registered
-    // teardown runs afterward and cannot drain these queued player operations.
-    await _pumpPlaybackOperation(
-      tester,
-      coordinator.close(),
-      stage: 'dispose prayer playback after navigation',
-    );
-    sessions.dispose();
-    coordinator.dispose();
-  }, timeout: const Timeout(Duration(seconds: 30)));
+      // Close while the widget test still pumps its fake-async zone. A registered
+      // teardown runs afterward and cannot drain these queued player operations.
+      await _pumpPlaybackOperation(
+        tester,
+        coordinator.close(),
+        stage: 'dispose prayer playback after navigation',
+        describePending: driver.describeShutdown,
+      );
+      expect(driver.disposeCompleted, isTrue);
+      expect(driver.hasListeners, isFalse);
+      sessions.dispose();
+      coordinator.dispose();
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 }
 
 Future<void> _pumpPlaybackOperation(
   WidgetTester tester,
   Future<void> operation, {
   required String stage,
+  String Function()? describePending,
 }) async {
   var completed = false;
   Object? failure;
@@ -524,9 +530,16 @@ Future<void> _pumpPlaybackOperation(
     ),
   );
   for (var frame = 0; frame < 20 && !completed; frame += 1) {
+    // Broadcast subscription cancellation can return Dart's shared root-zone
+    // future. Its continuation needs a real turn as well as a fake frame.
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump(const Duration(milliseconds: 10));
   }
-  expect(completed, isTrue, reason: 'Timed out trying to $stage.');
+  expect(
+    completed,
+    isTrue,
+    reason: 'Timed out trying to $stage. ${describePending?.call() ?? ''}',
+  );
   if (failure case final error?) {
     Error.throwWithStackTrace(error, failureStack!);
   }
@@ -673,6 +686,16 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
   final positions = StreamController<Duration>.broadcast();
   final durations = StreamController<Duration>.broadcast();
   final statuses = StreamController<MemoryAudioDriverStatus>.broadcast();
+  bool disposeCompleted = false;
+
+  bool get hasListeners =>
+      positions.hasListener || durations.hasListener || statuses.hasListener;
+
+  String describeShutdown() =>
+      'Listeners (position/duration/status): ${positions.hasListener}/'
+      '${durations.hasListener}/${statuses.hasListener}; closed: '
+      '${positions.isClosed}/${durations.isClosed}/${statuses.isClosed}; '
+      'driver disposal completed: $disposeCompleted.';
 
   @override
   Stream<Duration> get durationChanges => durations.stream;
@@ -710,6 +733,7 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
     await positions.close();
     await durations.close();
     await statuses.close();
+    disposeCompleted = true;
   }
 }
 

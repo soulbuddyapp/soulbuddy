@@ -104,7 +104,7 @@ jobs:
       - name: Verify capture, memories, and session ownership
         if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
         timeout-minutes: 6
-        run: flutter test --reporter expanded --timeout 2m test/core/playback test/features/record test/features/remember
+        run: flutter test --reporter expanded --timeout 2m test/core/playback test/core/feedback/feedback_sound_output_test.dart test/features/record test/features/remember
 
       - name: Verify prayer recording and playback
         if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}

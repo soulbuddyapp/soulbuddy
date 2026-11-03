@@ -116,16 +116,20 @@ void main() {
     expect(save.hitTestable(), findsOneWidget);
     await tester.tap(save);
     final destination = find.text('saved:recorded-1');
-    for (var attempt = 0;
-        attempt < 60 && (recorded.audio == null || destination.evaluate().isEmpty);
-        attempt++) {
+    for (
+      var attempt = 0;
+      attempt < 60 &&
+          (recorded.audio == null || destination.evaluate().isEmpty);
+      attempt++
+    ) {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump(const Duration(milliseconds: 20));
     }
     expect(
       recorded.audio?.temporaryKey,
       '/private/prayer.m4a',
-      reason: 'Prayer save did not reach the repository. Visible text: '
+      reason:
+          'Prayer save did not reach the repository. Visible text: '
           '${tester.widgetList<Text>(find.byType(Text)).map((text) => text.data).join(' | ')}',
     );
     expect(recorded.purpose, PrayerPurpose.difficultTime);
