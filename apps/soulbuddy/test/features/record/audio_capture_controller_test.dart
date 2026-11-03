@@ -10,8 +10,10 @@ void main() {
   late _FakeElapsedClock clock;
   late _FakeTickerFactory tickers;
   late AudioCaptureController controller;
+  late bool captureReserved;
 
   setUp(() {
+    captureReserved = false;
     recorder = _FakeAudioRecorder();
     clock = _FakeElapsedClock();
     tickers = _FakeTickerFactory();
@@ -19,6 +21,14 @@ void main() {
       recorder: recorder,
       allocateTemporary: () async =>
           const TemporaryAudio(key: 'take-1', locator: '/tmp/take-1.m4a'),
+      beforeCapture: () async {
+        captureReserved = true;
+        recorder.events.add('reserve');
+      },
+      afterCapture: () async {
+        captureReserved = false;
+        recorder.events.add('release');
+      },
       elapsedClock: clock,
       tickerFactory: tickers.call,
     );
@@ -35,6 +45,63 @@ void main() {
     expect(controller.state.failure, AudioCaptureFailure.permissionDenied);
     expect(controller.state.canWriteInstead, isTrue);
     expect(recorder.startCalls, 0);
+    expect(controller.hasPendingRecording, isFalse);
+    expect(captureReserved, isFalse);
+  });
+
+  test('a failed native start is cancelled before playback is released', () async {
+    recorder
+      ..startError = StateError('native start failed after opening microphone')
+      ..cancelGate = Completer<void>();
+
+    final starting = controller.start();
+    await _flushEvents();
+
+    expect(recorder.events, ['reserve', 'start', 'cancel']);
+    expect(recorder.nativeActive, isTrue);
+    expect(controller.hasPendingRecording, isTrue);
+    expect(captureReserved, isTrue);
+
+    recorder.cancelGate!.complete();
+    await starting;
+
+    expect(recorder.nativeActive, isFalse);
+    expect(controller.hasPendingRecording, isFalse);
+    expect(captureReserved, isFalse);
+    expect(controller.state.failure, AudioCaptureFailure.unavailable);
+    expect(recorder.events, ['reserve', 'start', 'cancel', 'release']);
+
+    recorder.startError = null;
+    await controller.start();
+    expect(recorder.startCalls, 2);
+    expect(controller.state.phase, AudioCapturePhase.recording);
+  });
+
+  test('failed start cleanup retains the capture lease until a retry', () async {
+    recorder
+      ..startError = StateError('native start failed after opening microphone')
+      ..cancelError = StateError('native cancellation failed');
+
+    await controller.start();
+
+    expect(controller.state.phase, AudioCapturePhase.failure);
+    expect(controller.state.failure, AudioCaptureFailure.unexpected);
+    expect(controller.hasPendingRecording, isTrue);
+    expect(captureReserved, isTrue);
+    expect(recorder.nativeActive, isTrue);
+    expect(recorder.events, ['reserve', 'start', 'cancel']);
+
+    await controller.start();
+    expect(recorder.startCalls, 1);
+
+    recorder.cancelError = null;
+    await controller.cancel();
+
+    expect(recorder.cancelCalls, 2);
+    expect(recorder.nativeActive, isFalse);
+    expect(controller.hasPendingRecording, isFalse);
+    expect(captureReserved, isFalse);
+    expect(controller.state.phase, AudioCapturePhase.explaining);
   });
 
   test('records, pauses, resumes, and stops into a bounded review', () async {
@@ -185,13 +252,77 @@ void main() {
       await _flushEvents();
 
       final close = controller.close();
+      await _flushEvents();
+      expect(controller.hasPendingRecording, isTrue);
+      expect(captureReserved, isTrue);
+      expect(recorder.cancelCalls, 0);
+      expect(recorder.disposeCalls, 0);
+
       recorder.startGate!.complete();
       await Future.wait([start, close]);
 
       expect(recorder.cancelCalls, 1);
       expect(recorder.disposeCalls, 1);
+      expect(recorder.nativeActive, isFalse);
+      expect(controller.hasPendingRecording, isFalse);
+      expect(captureReserved, isFalse);
+      expect(tickers.latest, isNull);
+      expect(recorder.events, ['reserve', 'start', 'cancel', 'dispose', 'release']);
     },
   );
+
+  test('concurrent closes share native disposal and retain its lease', () async {
+    await controller.start();
+    recorder
+      ..cancelError = StateError('native cancellation failed')
+      ..disposeGate = Completer<void>();
+
+    final firstClose = controller.close();
+    final secondClose = controller.close();
+    expect(identical(firstClose, secondClose), isTrue);
+    await _flushEvents();
+
+    expect(recorder.disposeCalls, 1);
+    expect(recorder.nativeActive, isTrue);
+    expect(controller.hasPendingRecording, isTrue);
+    expect(captureReserved, isTrue);
+    expect(recorder.events, ['reserve', 'start', 'cancel', 'dispose']);
+
+    recorder.disposeGate!.complete();
+    await Future.wait([firstClose, secondClose]);
+
+    expect(recorder.nativeActive, isFalse);
+    expect(controller.hasPendingRecording, isFalse);
+    expect(captureReserved, isFalse);
+    expect(recorder.events.last, 'release');
+    expect(identical(controller.close(), firstClose), isTrue);
+  });
+
+  test('failed native close keeps the lease and retries teardown', () async {
+    await controller.start();
+    recorder
+      ..cancelError = StateError('native cancellation failed')
+      ..disposeError = StateError('native disposal failed');
+
+    await expectLater(controller.close(), throwsStateError);
+
+    expect(controller.hasPendingRecording, isTrue);
+    expect(recorder.nativeActive, isTrue);
+    expect(captureReserved, isTrue);
+    expect(recorder.events, ['reserve', 'start', 'cancel', 'dispose']);
+    await controller.start();
+    expect(recorder.startCalls, 1);
+
+    recorder.disposeError = null;
+    await controller.close();
+
+    expect(recorder.cancelCalls, 2);
+    expect(recorder.disposeCalls, 2);
+    expect(recorder.nativeActive, isFalse);
+    expect(controller.hasPendingRecording, isFalse);
+    expect(captureReserved, isFalse);
+    expect(recorder.events.last, 'release');
+  });
 
   test('close immediately discards an unsaved review take', () async {
     await controller.start();
@@ -200,6 +331,27 @@ void main() {
 
     await controller.close();
 
+    expect(recorder.discardedLocators, ['blob:recording']);
+    expect(recorder.disposeCalls, 1);
+  });
+
+  test('close retains a failed review deletion for a later cleanup retry', () async {
+    await controller.start();
+    await controller.stop();
+    recorder.discardError = StateError('private take deletion failed');
+
+    await expectLater(controller.close(), throwsStateError);
+
+    expect(controller.hasPendingRecording, isTrue);
+    expect(recorder.disposeCalls, 1);
+    expect(recorder.nativeActive, isFalse);
+    expect(captureReserved, isFalse);
+
+    recorder.discardError = null;
+    await controller.close();
+
+    expect(controller.hasPendingRecording, isFalse);
+    expect(recorder.discardCalls, 2);
     expect(recorder.discardedLocators, ['blob:recording']);
     expect(recorder.disposeCalls, 1);
   });
@@ -214,6 +366,7 @@ void main() {
       final draft = controller.takeReview();
       expect(draft?.temporaryKey, 'blob:recording');
       expect(controller.state.phase, AudioCapturePhase.explaining);
+      expect(controller.hasPendingRecording, isFalse);
 
       await controller.close();
 
@@ -238,6 +391,50 @@ void main() {
     expect(recorder.discardedLocators, ['blob:recording', 'blob:recording']);
     expect(controller.state.phase, AudioCapturePhase.explaining);
   });
+
+  test('cancel retries a failed discard without losing the reviewed take', () async {
+    await controller.start();
+    await controller.stop();
+    final review = controller.state.review;
+    recorder.discardError = StateError('private take deletion failed');
+
+    await controller.discard();
+
+    expect(controller.state.phase, AudioCapturePhase.failure);
+    expect(controller.state.review, same(review));
+    expect(controller.hasPendingRecording, isTrue);
+    expect(captureReserved, isFalse);
+    await controller.start();
+    expect(recorder.startCalls, 1);
+
+    recorder.discardError = null;
+    await controller.cancel();
+
+    expect(recorder.discardCalls, 2);
+    expect(recorder.discardedLocators, ['blob:recording']);
+    expect(controller.hasPendingRecording, isFalse);
+    expect(controller.state.phase, AudioCapturePhase.explaining);
+  });
+
+  test('record again can retry deletion after a failed replacement', () async {
+    await controller.start();
+    await controller.stop();
+    recorder.discardError = StateError('private take deletion failed');
+
+    await controller.recordAgain();
+    expect(controller.state.phase, AudioCapturePhase.failure);
+    expect(controller.hasPendingRecording, isTrue);
+    expect(recorder.startCalls, 1);
+
+    recorder.discardError = null;
+    await controller.recordAgain();
+
+    expect(recorder.discardCalls, 2);
+    expect(recorder.startCalls, 2);
+    expect(controller.state.phase, AudioCapturePhase.recording);
+    expect(controller.hasPendingRecording, isTrue);
+    expect(captureReserved, isTrue);
+  });
 }
 
 Future<void> _flushEvents() => Future<void>.delayed(Duration.zero);
@@ -252,9 +449,18 @@ class _FakeAudioRecorder implements AudioRecorderGateway {
   int stopCalls = 0;
   int cancelCalls = 0;
   int disposeCalls = 0;
+  int discardCalls = 0;
+  bool nativeActive = false;
   Completer<void>? startGate;
   Completer<void>? stopGate;
+  Completer<void>? cancelGate;
+  Completer<void>? disposeGate;
+  Object? startError;
   Object? stopError;
+  Object? cancelError;
+  Object? disposeError;
+  Object? discardError;
+  final events = <String>[];
   final amplitudeController = StreamController<double>.broadcast();
   final discardedLocators = <String>[];
 
@@ -273,7 +479,10 @@ class _FakeAudioRecorder implements AudioRecorderGateway {
   @override
   Future<void> start(TemporaryAudio temporary) async {
     startCalls++;
+    events.add('start');
+    nativeActive = true;
     await startGate?.future;
+    if (startError case final error?) throw error;
   }
 
   @override
@@ -287,6 +496,7 @@ class _FakeAudioRecorder implements AudioRecorderGateway {
     stopCalls++;
     await stopGate?.future;
     if (stopError case final error?) throw error;
+    nativeActive = false;
     return const AudioRecorderResult(
       locator: 'blob:recording',
       mimeType: 'audio/mp4',
@@ -294,16 +504,28 @@ class _FakeAudioRecorder implements AudioRecorderGateway {
   }
 
   @override
-  Future<void> cancel() async => cancelCalls++;
+  Future<void> cancel() async {
+    cancelCalls++;
+    events.add('cancel');
+    await cancelGate?.future;
+    if (cancelError case final error?) throw error;
+    nativeActive = false;
+  }
 
   @override
   Future<void> discard(AudioRecorderResult result) async {
+    discardCalls++;
+    if (discardError case final error?) throw error;
     discardedLocators.add(result.locator);
   }
 
   @override
   Future<void> dispose() async {
     disposeCalls++;
+    events.add('dispose');
+    await disposeGate?.future;
+    if (disposeError case final error?) throw error;
+    nativeActive = false;
     await amplitudeController.close();
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -17,13 +18,20 @@ import 'package:soulbuddy/features/commitments/presentation/commitment_journey_s
 import 'package:soulbuddy/features/commitments/presentation/commitment_summary_screen.dart';
 import 'package:soulbuddy/features/commitments/providers/commitment_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store_io.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
+import 'package:soulbuddy/features/record/presentation/record_screen.dart';
+import 'package:soulbuddy/features/record/presentation/voice_notes_field.dart';
 import '../../helpers/powersync_test_database.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
   late AppDatabase database;
-  testWidgets('first journey defers, restores typed answers, and finalizes once', (
+  testWidgets('audio journey restores recordings and finalizes their links exactly once', (
     tester,
   ) async {
     await tester.runAsync(() async {
@@ -41,7 +49,6 @@ void main() {
     for (final channel in [
       'xyz.luan/audioplayers.global',
       'xyz.luan/audioplayers.global/events',
-      'plugin.csdcorp.com/speech_to_text',
       'app.soulbuddy/screen_awake',
     ]) {
       messenger.setMockMethodCallHandler(
@@ -63,44 +70,24 @@ void main() {
       },
     );
 
-    // Real app typography for optional review captures, rather than Ahem blocks.
-    await tester.runAsync(() async {
-      final display = FontLoader('Source Serif 4 Display')
-        ..addFont(
-          rootBundle.load('assets/fonts/SourceSerif4Display-Semibold.ttf'),
-        );
-      await display.load();
-      final body = FontLoader('Review body')
-        ..addFont(
-          Future.value(
-            ByteData.sublistView(
-              await File('C:/Windows/Fonts/segoeui.ttf').readAsBytes(),
-            ),
-          ),
-        );
-      await body.load();
-      final flutterRoot = Platform.environment['FLUTTER_ROOT'] ?? 'C:/flutter';
-      for (final pair in [
-        [
-          'Ahem',
-          '$flutterRoot/bin/cache/artifacts/material_fonts/roboto-regular.ttf',
-        ],
-        [
-          'MaterialIcons',
-          '$flutterRoot/bin/cache/artifacts/material_fonts/materialicons-regular.otf',
-        ],
-      ]) {
-        final loader = FontLoader(pair[0])
-          ..addFont(
-            Future.value(
-              ByteData.sublistView(await File(pair[1]).readAsBytes()),
-            ),
-          );
-        await loader.load();
-      }
-    });
+    final assets = IoAudioAssetStore(
+      applicationSupportDirectory: directory,
+      temporaryDirectory: directory,
+    );
+    var takeNumber = 0;
     final container = ProviderContainer(
       overrides: [
+        audioAssetStoreProvider.overrideWith((ref) async => assets),
+        audioCaptureControllerProvider.overrideWith((ref) async {
+          final controller = AudioCaptureController(
+            recorder: _JourneyRecorder(),
+            allocateTemporary: () => assets.allocateTemporary(
+              takeId: 'journey-take-${takeNumber++}', extension: 'm4a',
+            ),
+          );
+          ref.onDispose(() => unawaited(controller.close()));
+          return controller;
+        }),
         appDatabaseProvider.overrideWith((ref) async => database),
         localIdentityProvider.overrideWith(
           (ref) async => const LocalIdentity(
@@ -141,32 +128,7 @@ void main() {
           key: boundary,
           child: MaterialApp.router(
             debugShowCheckedModeBanner: false,
-            theme: baseTheme.copyWith(
-              filledButtonTheme: FilledButtonThemeData(
-                style: baseTheme.filledButtonTheme.style!.copyWith(
-                  textStyle: WidgetStatePropertyAll(
-                    baseTheme.textTheme.labelLarge!.copyWith(
-                      fontFamily: 'Review body',
-                    ),
-                  ),
-                ),
-              ),
-              outlinedButtonTheme: OutlinedButtonThemeData(
-                style: baseTheme.outlinedButtonTheme.style!.copyWith(
-                  textStyle: WidgetStatePropertyAll(
-                    baseTheme.textTheme.labelLarge!.copyWith(
-                      fontFamily: 'Review body',
-                    ),
-                  ),
-                ),
-              ),
-              textTheme: baseTheme.textTheme
-                  .apply(fontFamily: 'Review body')
-                  .copyWith(
-                    headlineMedium: baseTheme.textTheme.headlineMedium,
-                    titleLarge: baseTheme.textTheme.titleLarge,
-                  ),
-            ),
+            theme: baseTheme,
             routerConfig: router,
           ),
         ),
@@ -212,6 +174,29 @@ void main() {
       await tester.pump();
     }
 
+    Future<void> recordAudio(String field, String title, {bool practice = false}) async {
+      final scope = practice
+          ? find.descendant(of: find.byType(AlertDialog), matching: find.byType(VoiceNotesField))
+          : find.byKey(Key('commitment-record-$field'));
+      final button = find.descendant(
+        of: scope, matching: find.widgetWithText(OutlinedButton, 'Record'),
+      );
+      await tester.ensureVisible(button);
+      await tester.runAsync(() => tester.tap(button));
+      await settleUntil(() => find.text('Start recording').evaluate().isNotEmpty);
+      await tapText('Start recording');
+      await settleUntil(() => find.text('Stop').evaluate().isNotEmpty);
+      await tapText('Stop');
+      await settleUntil(() => find.text('Use recording').evaluate().isNotEmpty);
+      await tapText('Use recording');
+      await settleUntil(() => find.byKey(const Key('encounter-title')).evaluate().isNotEmpty);
+      expect(find.byKey(const Key('encounter-body')), findsNothing);
+      await tester.enterText(find.byKey(const Key('encounter-title')), title);
+      await tapText('Save');
+      await settleUntil(() => find.byType(RecordScreen).evaluate().isEmpty &&
+          find.text('Saving…').evaluate().isEmpty);
+    }
+
     Future<void> capture(String name) async {
       final output = Platform.environment['COMMITMENT_SCREENSHOT_DIR'];
       if (output == null) return;
@@ -243,9 +228,9 @@ void main() {
     await stage('A moment with God');
     await tapText('Continue');
     await stage('What do you need from God?');
-    await enter('Need 1', 'Grace in each conversation');
-    await enter('Need 2', 'Patience with my family');
-    await enter('Need 3', 'Courage to serve');
+    await recordAudio('needs-1', 'Grace in each conversation');
+    await recordAudio('needs-2', 'Patience with my family');
+    await recordAudio('needs-3', 'Courage to serve');
     // Leave immediately: the 350 ms draft debounce has not fired.
     await tapText('Not now');
     await stage('Continue your commitment');
@@ -262,10 +247,15 @@ void main() {
       ),
       isEmpty,
     );
-    expect(
-      await tester.runAsync(() => database.powersync.getNextCrudTransaction()),
-      isNull,
+    final recordedDrafts = await tester.runAsync(
+      () => database.powersync.getAll('SELECT * FROM voice_note_links'),
     );
+    expect(recordedDrafts, hasLength(3));
+    expect(recordedDrafts!.every((row) => row['context_id'] == 'journey:primary'), isTrue);
+    final recordedCrud = await tester.runAsync(() => database.powersync.getCrudBatch());
+    expect(recordedCrud, isNotNull);
+    expect(recordedCrud!.crud.any((entry) => entry.table == 'memory_audio_assets' ||
+        entry.table == 'voice_note_links'), isFalse);
 
     await tapText('Continue your commitment');
     await stage('What do you need from God?');
@@ -274,26 +264,24 @@ void main() {
     expect(find.text('Courage to serve'), findsOneWidget);
     await tapText('Continue');
     await stage('What is your calling?');
-    await enter('Calling', 'Serve my neighbors with patience and hope.');
+    await recordAudio('calling', 'Serve my neighbors');
     await tapText('Continue');
     await stage('Small, faithful choices');
-    await tapText('Write my own');
+    await tapText('Record my own');
     await tester.pumpAndSettle();
-    await enter('Practice', 'Walk with a neighbor and listen.');
+    await enter('Practice title', 'Walk with a neighbor');
+    await recordAudio('practice', 'Listening to my neighbor', practice: true);
     await tapText('Add');
     await tester.pumpAndSettle();
     await tapText('Continue');
     await stage('My declaration');
-    await enter(
-      'Declaration',
-      'I offer my time to God and will serve with patience.',
-    );
+    await recordAudio('declaration', 'A faithful intention');
     await tapText('Continue');
     expect(
       find.text('Review your declaration before continuing.'),
       findsOneWidget,
     );
-    await tapText('These words reflect my intention.');
+    await tapText('This reflects my intention');
     await tapText('Continue');
     await stage('A prayerful beginning');
     await tapText('Peace');
@@ -333,9 +321,19 @@ void main() {
       () => database.powersync.getAll('SELECT * FROM commitment_practices'),
     ))!.single;
     expect(saved['name'], 'Faithful service');
-    expect(saved['calling'], 'Serve my neighbors with patience and hope.');
+    expect(saved['calling'], 'Serve my neighbors');
     expect(saved['guide_id'], 'peace');
-    expect(practice['body'], 'Walk with a neighbor and listen.');
+    expect(practice['body'], 'Walk with a neighbor');
+    final links = (await tester.runAsync(
+      () => database.powersync.getAll('SELECT * FROM voice_note_links'),
+    ))!;
+    expect(links, hasLength(6));
+    expect(links.every((row) => row['context_id'] == saved['id']), isTrue);
+    expect(links.where((row) => row['field_key'] == 'practice:${practice['id']}'), hasLength(1));
+    final audioAssets = await tester.runAsync(
+      () => database.powersync.getAll('SELECT * FROM memory_audio_assets'),
+    );
+    expect(audioAssets, hasLength(6));
     expect(plan['duration_minutes'], 10);
     expect(plan['local_time'], '07:00');
     expect(
@@ -380,4 +378,42 @@ void main() {
     await closing;
     await tester.runAsync(() => directory.delete(recursive: true));
   });
+}
+
+
+class _JourneyRecorder implements AudioRecorderGateway {
+  final _amplitudes = StreamController<double>.broadcast();
+  TemporaryAudio? _take;
+  @override
+  Stream<double> get amplitudes => _amplitudes.stream;
+  @override
+  bool get canPause => true;
+  @override
+  Future<bool> requestPermission() async => true;
+  @override
+  Future<void> start(TemporaryAudio target) async {
+    _take = target;
+    // Audio bytes are a fixture; this integration verifies capture ownership,
+    // local persistence, and context links, not hardware encoding or playback.
+    await File(target.locator).writeAsBytes([1, 2, 3, 4]);
+  }
+  @override
+  Future<AudioRecorderResult> stop() async => AudioRecorderResult(
+    locator: _take!.locator, mimeType: 'audio/mp4',
+  );
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> resume() async {}
+  @override
+  Future<void> cancel() async {
+    final path = _take?.locator;
+    if (path != null && await File(path).exists()) await File(path).delete();
+  }
+  @override
+  Future<void> discard(AudioRecorderResult result) async {
+    if (await File(result.locator).exists()) await File(result.locator).delete();
+  }
+  @override
+  Future<void> dispose() => _amplitudes.close();
 }

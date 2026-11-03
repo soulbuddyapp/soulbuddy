@@ -51,7 +51,6 @@ class EncounterForm extends ConsumerStatefulWidget {
 class _EncounterFormState extends ConsumerState<EncounterForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
-  late final TextEditingController _bodyController;
   late final TextEditingController _dateController;
   var _isAltar = false;
   var _isSaving = false;
@@ -61,14 +60,16 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   late var _memoryType = widget.memoryType;
   String? _saveError;
   var _canceling = false;
+  var _closingCapture = false;
   late MemoryAudioDraft? _audioDraft = widget.audio;
   late final Set<String> _personIds = widget.initialPersonIds.toSet();
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.initialTitle);
-    _bodyController = TextEditingController(text: widget.initialBody);
+    _titleController = TextEditingController(
+      text: _shortTitle(widget.initialTitle ?? ''),
+    );
     final requestedDate = widget.initialDate;
     final date =
         requestedDate != null &&
@@ -82,7 +83,6 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   @override
   void dispose() {
     _titleController.dispose();
-    _bodyController.dispose();
     _dateController.dispose();
     super.dispose();
   }
@@ -100,7 +100,11 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isSaving || !_formKey.currentState!.validate()) return;
+    if (_audioDraft == null) {
+      setState(() => _saveError = 'Record audio first.');
+      return;
+    }
 
     setState(() {
       _isSaving = true;
@@ -109,8 +113,12 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     try {
       await widget.onSave(
         EncounterDraft(
-          title: _titleController.text,
-          body: _bodyController.text,
+          title: _titleController.text.trim().isEmpty
+              ? _defaultTitle
+              : _titleController.text.trim(),
+          // Older callers may supply text. Preserve it without offering a new
+          // long-form editor or inventing a transcript of the recording.
+          body: widget.initialBody ?? '',
           occurredOn: _dateController.text,
           isAltar: _isAltar,
           memoryType: _memoryType,
@@ -123,9 +131,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _saveError = _audioDraft == null
-              ? 'The memory could not be saved. Try again.'
-              : 'The recording is still here. Try saving again or discard it.',
+          () => _saveError = 'Recording kept. Try saving again.',
         );
       }
     } finally {
@@ -165,14 +171,14 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                     Semantics(
                       header: true,
                       child: Text(
-                        'Record ${_memoryTypeLabel(_memoryType)}',
+                        'Keep this recording',
                         style: Theme.of(context).textTheme.headlineMedium,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     if (widget.allowMemoryTypeChoice) ...[
                       Text(
-                        'What kind of memory is this?',
+                        'Memory type',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -199,19 +205,13 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                     ],
                     SwitchListTile(
                       title: const Text('Sensitive'),
-                      subtitle: const Text(
-                        'Hide the excerpt on the Remember list.',
-                      ),
                       value: _sensitive,
                       onChanged: _isSaving
                           ? null
                           : (value) => setState(() => _sensitive = value),
                     ),
                     SwitchListTile(
-                      title: const Text('Include in daily remembrance'),
-                      subtitle: const Text(
-                        'SoulBuddy may bring this back for quiet recall.',
-                      ),
+                      title: const Text('Daily remembrance'),
                       value: _recallEnabled,
                       onChanged: _isSaving
                           ? null
@@ -224,49 +224,13 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       enabled: !_isSaving,
                       maxLength: 120,
                       textCapitalization: TextCapitalization.sentences,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Title'),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Add a short title.';
-                        }
-                        return null;
-                      },
+                      textInputAction: TextInputAction.done,
+                      decoration: InputDecoration(
+                        labelText: 'Title (optional)',
+                        hintText: _defaultTitle,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    if (widget.bodyPrompt case final prompt?) ...[
-                      Card(
-                        color: Theme.of(context).colorScheme.secondaryContainer
-                            .withValues(alpha: 0.55),
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.lightbulb_outline, size: 20),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(child: Text(prompt)),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                    ],
-                    TextFormField(
-                      key: const Key('encounter-body'),
-                      controller: _bodyController,
-                      enabled: !_isSaving,
-                      maxLength: 4000,
-                      minLines: 4,
-                      maxLines: 10,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        labelText:
-                            widget.bodyLabel ?? 'What happened? (optional)',
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: OutlinedButton.icon(
@@ -277,8 +241,8 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                         ),
                         label: Text(
                           _audioDraft == null
-                              ? 'Record what happened'
-                              : 'Replace voice recording',
+                              ? 'Record audio'
+                              : 'Record again',
                         ),
                       ),
                     ),
@@ -286,14 +250,14 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.xs),
                         child: Text(
-                          'Voice recording added',
+                          'Recording · ${_durationLabel(_audioDraft!.duration)}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
                     if (widget.people.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        'Who is this about? (optional)',
+                        'People (optional)',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -344,10 +308,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                           horizontal: AppSpacing.md,
                           vertical: AppSpacing.xs,
                         ),
-                        title: const Text('Keep this as an Altar'),
-                        subtitle: const Text(
-                          'Mark an encounter you want to return to and remember.',
-                        ),
+                        title: const Text('Keep on Altar'),
                         value: _isAltar,
                         onChanged: _isSaving
                             ? null
@@ -360,7 +321,8 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       const SizedBox(height: AppSpacing.md),
                     ],
                     FilledButton(
-                      onPressed: _isSaving ? null : _save,
+                      key: const Key('encounter-save'),
+                      onPressed: _isSaving || _audioDraft == null ? null : _save,
                       child: Text(_isSaving ? 'Saving…' : 'Save'),
                     ),
                   ],
@@ -379,39 +341,56 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
       (_, _) {},
       fireImmediately: true,
     );
+    AudioCaptureController? activeController;
     try {
       final controller = await ref.read(audioCaptureControllerProvider.future);
+      activeController = controller;
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
         useSafeArea: true,
         isScrollControlled: true,
+        isDismissible: false,
+        enableDrag: false,
         builder: (sheetContext) => FractionallySizedBox(
           heightFactor: 0.9,
           child: AudioCapturePanel(
             controller: controller,
+            handlesSystemBack: true,
             enableSoundscape: true,
-            introHeading: 'Record what happened',
-            introDescription: 'Speak freely. You can keep writing too.',
-            alternativeLabel: 'Keep writing',
-            onWriteInstead: () async {
-              await _leaveAudioCapture(controller);
-              if (sheetContext.mounted) Navigator.pop(sheetContext);
-            },
+            introHeading: 'Record a memory',
+            onBack: () => _closeCaptureSheet(controller, sheetContext),
             onContinue: (recording) async {
               final previous = _audioDraft;
-              if (previous != null) {
-                final store = await ref.read(audioAssetStoreProvider.future);
-                await store.discardTemporary(previous.temporaryKey);
+              if (mounted) {
+                setState(() {
+                  _audioDraft = recording;
+                  _saveError = null;
+                });
               }
-              if (mounted) setState(() => _audioDraft = recording);
               if (sheetContext.mounted) Navigator.pop(sheetContext);
+              if (previous != null) {
+                try {
+                  final store = await ref.read(audioAssetStoreProvider.future);
+                  await store.discardTemporary(previous.temporaryKey);
+                } catch (_) {
+                  // Startup cleanup also removes superseded temporary files.
+                }
+              }
             },
           ),
         ),
       );
     } finally {
-      keepAlive.close();
+      try {
+        if (activeController case final controller?) {
+          // A transferred review is already idle. Any other take still belongs
+          // to this sheet and must not keep the microphone alive after it exits.
+          await _discardCapture(controller);
+        }
+      } finally {
+        keepAlive.close();
+      }
     }
   }
 
@@ -420,6 +399,26 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     _canceling = true;
     final recording = _audioDraft;
     if (recording != null) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard recording?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep recording'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true || !mounted) {
+        _canceling = false;
+        return;
+      }
       try {
         final store = await ref.read(audioAssetStoreProvider.future);
         await store.discardTemporary(recording.temporaryKey);
@@ -431,32 +430,76 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     if (mounted) widget.onCancel();
   }
 
-  Future<void> _leaveAudioCapture(AudioCaptureController controller) async {
-    switch (controller.state.phase) {
-      case AudioCapturePhase.review:
-        await controller.discard();
+  String get _defaultTitle {
+    final contextTitle = _shortTitle(widget.initialTitle ?? '');
+    if (contextTitle.isNotEmpty) return contextTitle;
+    final kind = _memoryType == MemoryType.encounter
+        ? 'Voice memory'
+        : _memoryTypeChipLabel(_memoryType);
+    return '$kind · ${_dateController.text}';
+  }
+
+  Future<void> _closeCaptureSheet(
+    AudioCaptureController controller,
+    BuildContext sheetContext,
+  ) async {
+    if (_closingCapture || controller.state.commandInFlight) return;
+    _closingCapture = true;
+    try {
+      if (controller.state.phase == AudioCapturePhase.recording) {
+        await controller.handleInterruption();
+      }
+      if (!sheetContext.mounted) return;
+      if (controller.state.phase == AudioCapturePhase.failure &&
+          controller.state.review == null &&
+          controller.hasPendingRecording) {
         return;
-      case AudioCapturePhase.recording ||
-          AudioCapturePhase.paused ||
-          AudioCapturePhase.failure:
-        await controller.cancel();
-        return;
-      default:
-        return;
+      }
+      if (controller.hasPendingRecording) {
+        final discard = await showDialog<bool>(
+          context: sheetContext,
+          builder: (context) => AlertDialog(
+            title: const Text('Discard recording?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Keep recording'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Discard'),
+              ),
+            ],
+          ),
+        );
+        if (discard != true) return;
+      }
+      await _discardCapture(controller);
+      if (sheetContext.mounted && !controller.hasPendingRecording) {
+        Navigator.pop(sheetContext);
+      }
+    } finally {
+      _closingCapture = false;
     }
   }
-}
 
-String _memoryTypeLabel(MemoryType type) => switch (type) {
-  MemoryType.encounter => 'an encounter',
-  MemoryType.leftBehind => 'What I left behind',
-  _ => type.name[0].toUpperCase() + type.name.substring(1),
-};
+  Future<void> _discardCapture(AudioCaptureController controller) async {
+    await controller.cancel();
+  }
+}
 
 String _memoryTypeChipLabel(MemoryType type) => switch (type) {
   MemoryType.leftBehind => 'Left behind',
   _ => type.name[0].toUpperCase() + type.name.substring(1),
 };
+
+String _shortTitle(String value) {
+  final title = value.trim();
+  return String.fromCharCodes(title.runes.take(120)).trimRight();
+}
+
+String _durationLabel(Duration value) =>
+    '${value.inMinutes}:${(value.inSeconds % 60).toString().padLeft(2, '0')}';
 
 String _dateOnly(DateTime value) {
   final year = value.year.toString().padLeft(4, '0');

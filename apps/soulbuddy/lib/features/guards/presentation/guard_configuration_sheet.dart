@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../goals/domain/goal.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../domain/guard_definition.dart';
 import '../providers/guard_providers.dart';
 
@@ -100,6 +101,7 @@ class GuardConfigurationSheet extends ConsumerWidget {
       useSafeArea: true,
       isScrollControlled: true,
       builder: (context) => _GuardEditor(
+        goalId: goal.id,
         definition: definition,
         configured: selection != null,
         initialNote: selection?.privateNote,
@@ -278,39 +280,21 @@ class _GuardCard extends StatelessWidget {
   }
 }
 
-class _GuardEditor extends StatefulWidget {
+class _GuardEditor extends StatelessWidget {
   const _GuardEditor({
+    required this.goalId,
     required this.definition,
     required this.configured,
     this.initialNote,
   });
 
+  final String goalId;
   final GuardDefinition definition;
   final bool configured;
   final String? initialNote;
 
   @override
-  State<_GuardEditor> createState() => _GuardEditorState();
-}
-
-class _GuardEditorState extends State<_GuardEditor> {
-  late final TextEditingController _noteController;
-
-  @override
-  void initState() {
-    super.initState();
-    _noteController = TextEditingController(text: widget.initialNote);
-  }
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final definition = widget.definition;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -346,18 +330,20 @@ class _GuardEditorState extends State<_GuardEditor> {
                 const SizedBox(height: AppSpacing.sm),
             ],
             const SizedBox(height: AppSpacing.lg),
-            TextField(
-              key: const Key('guard-private-note'),
-              controller: _noteController,
-              maxLength: 1000,
-              minLines: 2,
-              maxLines: 4,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Private note (optional)',
-                hintText: 'What did you configure?',
+            VoiceNotesField(
+              key: const Key('guard-private-recording'),
+              noteContext: (
+                type: 'goal',
+                id: goalId,
+                field: 'guard:${definition.id}',
               ),
+              title: 'Private guard notes',
             ),
+            if (_hasText(initialNote))
+              ExpansionTile(
+                title: const Text('Earlier note'),
+                children: [Text(initialNote!.trim())],
+              ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Marking this configured records your choice only. SoulBuddy does not verify enforcement.',
@@ -369,8 +355,8 @@ class _GuardEditorState extends State<_GuardEditor> {
             FilledButton(
               key: const Key('guard-mark-configured'),
               onPressed: () =>
-                  Navigator.pop(context, _noteController.text.trim()),
-              child: Text(widget.configured ? 'Save' : 'Mark configured'),
+                  Navigator.pop(context, initialNote?.trim() ?? ''),
+              child: Text(configured ? 'Save' : 'Mark configured'),
             ),
           ],
         ),

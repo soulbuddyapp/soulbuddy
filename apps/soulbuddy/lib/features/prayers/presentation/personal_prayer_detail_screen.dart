@@ -9,6 +9,7 @@ import '../providers/personal_prayer_providers.dart';
 import 'prayer_reminder_sheet.dart';
 import 'prayer_session_actions.dart';
 import 'voice_tablet_player.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../domain/voice_tablet.dart';
 
 class PersonalPrayerDetailScreen extends ConsumerWidget {
@@ -56,22 +57,6 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       art: SanctuaryArt.prayer,
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    SelectableText(
-                      value.body,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(height: 1.6),
-                    ),
-                    if (value.action != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Practice',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(value.action!),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
                     VoiceTabletSection(
                       source: VoiceTabletSource.personal(
                         prayerId: value.id,
@@ -86,8 +71,25 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     PrayerSessionActions(prayer: value),
+                    const SizedBox(height: AppSpacing.md),
+                    VoiceNotesField(
+                      noteContext: (type: 'prayer', id: value.id, field: 'reflection'),
+                      title: 'After prayer',
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     PrayerReminderControl(prayer: value, compact: true),
+                    if (!value.isAudio && value.body.trim().isNotEmpty)
+                      ExpansionTile(
+                        title: const Text('Earlier written prayer'),
+                        children: [
+                          SelectableText(value.body),
+                          if (value.action case final action?) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            Text('Practice', style: Theme.of(context).textTheme.labelLarge),
+                            SelectableText(action),
+                          ],
+                        ],
+                      ),
                   ],
                 );
               },

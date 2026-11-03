@@ -59,6 +59,21 @@ final voiceTabletAudioCaptureControllerProvider = FutureProvider.autoDispose
             ? maximumPrayerRefrainDuration
             : maximumMemoryAudioDuration,
       );
-      ref.onDispose(() => unawaited(controller.close()));
+      ref.onDispose(() {
+        unawaited(() async {
+          try {
+            await controller.close();
+          } catch (_) {
+            try {
+              await controller.close();
+            } catch (_) {
+              // The native recorder may still be active. Its capture lease
+              // stays held until shutdown is confirmed, even after disposal.
+            }
+          } finally {
+            controller.dispose();
+          }
+        }());
+      });
       return controller;
     });

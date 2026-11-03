@@ -59,6 +59,7 @@ class RecordPluginAudioRecorder implements AudioRecorderGateway {
   SoulAudioRecordingConfig? _actualConfig;
   String? _startedLocator;
   bool _disposed = false;
+  bool _disposeRequested = false;
 
   @override
   Stream<double> get amplitudes => _amplitudes;
@@ -117,9 +118,10 @@ class RecordPluginAudioRecorder implements AudioRecorderGateway {
   @override
   Future<void> dispose() => _serialize(() async {
     if (_disposed) return;
-    _disposed = true;
+    _disposeRequested = true;
     _driver.setOnConfigChanged(null);
     await _driver.dispose();
+    _disposed = true;
   });
 
   Future<SoulAudioRecordingConfig> _selectConfig() async {
@@ -162,7 +164,9 @@ class RecordPluginAudioRecorder implements AudioRecorderGateway {
   }
 
   void _requireActive() {
-    if (_disposed) throw StateError('The audio recorder is closed.');
+    if (_disposed || _disposeRequested) {
+      throw StateError('The audio recorder is closed.');
+    }
   }
 }
 

@@ -8,7 +8,10 @@ import '../../../core/design/app_spacing.dart';
 import '../../guards/application/guard_recommendations.dart';
 import '../../guards/data/bundled_guard_catalogue.dart';
 import '../../onboarding/presentation/first_prayer_choice_page.dart';
-import '../../onboarding/presentation/first_prayer_speech_page.dart';
+import '../../prayers/presentation/recorded_prayer_capture.dart';
+import '../../record/data/voice_note_repository.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../record/providers/voice_note_providers.dart';
 import '../../scripture/presentation/scripture_picker_sheet.dart';
 import '../application/goal_starter_content.dart';
 import '../domain/goal.dart';
@@ -25,9 +28,21 @@ class FirstGoalScreen extends ConsumerStatefulWidget {
 }
 
 class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
-  _SituationInput? _situationInput;
-  var _writingPrayer = false;
   var _saving = false;
+  var _recordingBusy = false;
+  String? _pendingPrayerId;
+
+  bool get _blocked => _saving || _recordingBusy;
+
+  void _setRecordingBusy(bool busy) {
+    if (mounted) setState(() => _recordingBusy = busy);
+  }
+
+  static const _situationContext = (
+    type: 'goal',
+    id: 'onboarding',
+    field: 'situation',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -46,37 +61,40 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
           ),
         ),
       ),
-      data: (progress) => Scaffold(
-        appBar: AppBar(
-          title: const Text('New Goal'),
-          leading: _canGoBack(progress)
-              ? IconButton(
-                  tooltip: 'Back',
-                  onPressed: _saving ? null : () => _goBack(progress),
-                  icon: const Icon(Icons.arrow_back),
+      data: (progress) => PopScope(
+        canPop: !_blocked,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('New Goal'),
+            leading: _canGoBack(progress)
+                ? IconButton(
+                    tooltip: 'Back',
+                    onPressed: _blocked ? null : () => _goBack(progress),
+                    icon: const Icon(Icons.arrow_back),
+                  )
+                : null,
+            actions: [
+              if (compactTodayAction)
+                IconButton(
+                  tooltip: 'Go to Today',
+                  onPressed: _blocked ? null : () => context.go('/today'),
+                  icon: const Icon(Icons.today_outlined),
                 )
-              : null,
-          actions: [
-            if (compactTodayAction)
-              IconButton(
-                tooltip: 'Go to Today',
-                onPressed: _saving ? null : () => context.go('/today'),
-                icon: const Icon(Icons.today_outlined),
-              )
-            else
-              TextButton(
-                onPressed: _saving ? null : () => context.go('/today'),
-                child: const Text('Go to Today'),
-              ),
-          ],
-        ),
-        body: AnimatedSwitcher(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 180),
-          child: KeyedSubtree(
-            key: ValueKey((progress.stage, _situationInput, _writingPrayer)),
-            child: _page(progress),
+              else
+                TextButton(
+                  onPressed: _blocked ? null : () => context.go('/today'),
+                  child: const Text('Go to Today'),
+                ),
+            ],
+          ),
+          body: AnimatedSwitcher(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            child: KeyedSubtree(
+              key: ValueKey((progress.stage, progress.title == null)),
+              child: _page(progress),
+            ),
           ),
         ),
       ),
@@ -91,6 +109,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         final option = goalStarterOptions.firstWhere(
           (item) => item.label == label,
         );
+        _pendingPrayerId = null;
         unawaited(
           ref
               .read(goalOnboardingControllerProvider.notifier)
@@ -151,6 +170,12 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       initialValue: progress.todayAction,
       hintText: _todayActionHint(progress),
       continueLabel: 'Keep this',
+      enabled: !_blocked,
+      recording: VoiceNotesField(
+        noteContext: (type: 'goal', id: 'onboarding', field: 'action'),
+        title: 'Action notes',
+        onBusyChanged: _setRecordingBusy,
+      ),
       suggestionRequest: GoalActionSuggestionRequest(
         starterKey: progress.starterKey!,
         stopBehaviorKey: progress.stopBehaviorKey,
@@ -174,6 +199,12 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       hintText: 'A door to close, remove, or make harder to reach',
       continueLabel: 'Keep this guard',
       supporting: _GuardSuggestions(behaviorKey: progress.stopBehaviorKey),
+      enabled: !_blocked,
+      recording: VoiceNotesField(
+        noteContext: (type: 'goal', id: 'onboarding', field: 'guard'),
+        title: 'Guard notes',
+        onBusyChanged: _setRecordingBusy,
+      ),
       onContinue: (value) => ref
           .read(goalOnboardingControllerProvider.notifier)
           .setGuardNote(value),
@@ -225,63 +256,66 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
       );
     }
 
-    return switch (_situationInput) {
-      _SituationInput.write => _GoalTextPage(
-        question: 'Why now? What needs to change?',
-        initialValue: progress.currentSituation,
-        hintText: 'A few words are enough',
-        continueLabel: 'Continue',
-        maxLength: 2000,
-        onContinue: (value) => ref
-            .read(goalOnboardingControllerProvider.notifier)
-            .setSituation(situation: value, byVoice: false),
-        onSkip: () => ref
-            .read(goalOnboardingControllerProvider.notifier)
-            .setSituation(situation: null, byVoice: false),
+    final notes = ref.watch(voiceNotesProvider(_situationContext));
+    final recordings = notes.value ?? const <VoiceNoteLink>[];
+    final earlierNote = progress.currentSituation;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Why now? What needs to change?',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              VoiceNotesField(
+                key: const Key('first-goal-situation-recording'),
+                noteContext: _situationContext,
+                title: 'My situation',
+                enabled: !_blocked,
+                onBusyChanged: _setRecordingBusy,
+              ),
+              if (recordings.isEmpty && earlierNote != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                ExpansionTile(
+                  title: const Text('Earlier note'),
+                  children: [Text(earlierNote)],
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              if (recordings.isNotEmpty || earlierNote != null)
+                FilledButton(
+                  key: const Key('first-goal-situation-continue'),
+                  onPressed: _blocked
+                      ? null
+                      : () => ref
+                            .read(goalOnboardingControllerProvider.notifier)
+                            .setSituation(
+                              situation: recordings.isEmpty
+                                  ? earlierNote
+                                  : recordings.first.title,
+                              byVoice: recordings.isNotEmpty ||
+                                  progress.situationByVoice == true,
+                            ),
+                  child: const Text('Continue'),
+                ),
+              TextButton(
+                onPressed: _blocked
+                    ? null
+                    : () => ref
+                          .read(goalOnboardingControllerProvider.notifier)
+                          .setSituation(situation: null, byVoice: false),
+                child: const Text('Not now'),
+              ),
+            ],
+          ),
+        ),
       ),
-      _SituationInput.speak => FirstPrayerSpeechPage(
-        heading: 'Why now? What needs to change?',
-        description: 'Say a few words. You can review them before continuing.',
-        continueLabel: 'Continue',
-        hintText: 'Your words will appear here',
-        fieldKey: const Key('first-goal-spoken-situation'),
-        onContinue: (words) {
-          unawaited(
-            ref
-                .read(goalOnboardingControllerProvider.notifier)
-                .setSituation(situation: words, byVoice: true),
-          );
-        },
-        onWriteInstead: () =>
-            setState(() => _situationInput = _SituationInput.write),
-        onSkip: () {
-          unawaited(
-            ref
-                .read(goalOnboardingControllerProvider.notifier)
-                .setSituation(situation: null, byVoice: false),
-          );
-        },
-      ),
-      null => FirstPrayerChoicePage(
-        question: 'Why now? What needs to change?',
-        choices: const ['Speak', 'Write', 'Not now'],
-        onChoose: (choice) {
-          if (choice == 'Not now') {
-            unawaited(
-              ref
-                  .read(goalOnboardingControllerProvider.notifier)
-                  .setSituation(situation: null, byVoice: false),
-            );
-          } else {
-            setState(
-              () => _situationInput = choice == 'Speak'
-                  ? _SituationInput.speak
-                  : _SituationInput.write,
-            );
-          }
-        },
-      ),
-    };
+    );
   }
 
   String _todayActionHint(GoalOnboardingProgress progress) {
@@ -290,27 +324,6 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
   }
 
   Widget _prayerPage(GoalOnboardingProgress progress) {
-    if (_writingPrayer) {
-      return _GoalTextPage(
-        question: 'Bring this to God.',
-        initialValue: progress.ownPrayerText,
-        hintText: 'Write your prayer in your own words.',
-        continueLabel: 'Keep my words',
-        maxLength: 4000,
-        requireText: true,
-        skipLabel: 'Choose another prayer',
-        onContinue: (value) async {
-          await ref
-              .read(goalOnboardingControllerProvider.notifier)
-              .useOwnWords(value);
-          if (mounted) setState(() => _writingPrayer = false);
-        },
-        onSkip: () async {
-          if (mounted) setState(() => _writingPrayer = false);
-        },
-      );
-    }
-
     final starterKey = progress.starterKey;
     if (starterKey == null) {
       return const _GoalMessage('This Goal needs a starting point.');
@@ -334,7 +347,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Choose a prepared prayer, Scripture, or use your own words.',
+                    'Choose a prayer or Scripture, or record your own prayer.',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -344,7 +357,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (_, _) => const Text(
-                      'Prepared prayers are unavailable just now. Scripture and your own words remain available.',
+                      'Prepared prayers are unavailable just now.',
                     ),
                     data: (items) => Column(
                       children: [
@@ -391,7 +404,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                   ],
                   OutlinedButton.icon(
                     key: const Key('first-goal-scripture'),
-                    onPressed: _saving ? null : _chooseScripture,
+                    onPressed: _blocked ? null : _chooseScripture,
                     icon: const Icon(Icons.menu_book_outlined),
                     label: Text(
                       scriptureReference == null
@@ -402,20 +415,35 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                   const SizedBox(height: AppSpacing.sm),
                   OutlinedButton.icon(
                     key: const Key('first-goal-own-prayer'),
-                    onPressed: () => setState(() => _writingPrayer = true),
-                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: _blocked ? null : () => _recordPrayer(progress),
+                    icon: const Icon(Icons.mic_none),
                     label: Text(
-                      progress.prayerSource ==
-                              GoalOnboardingPrayerSource.ownWords
-                          ? 'Edit my own words'
-                          : 'Use my own words',
+                      _pendingPrayerId != null
+                          ? 'Retry prayer selection'
+                          : progress.prayerSource ==
+                              GoalOnboardingPrayerSource.personalPrayer
+                          ? 'Record another prayer'
+                          : 'Record my prayer',
                     ),
                   ),
+                  if (progress.prayerSource ==
+                      GoalOnboardingPrayerSource.personalPrayer)
+                    const ListTile(
+                      leading: Icon(Icons.check_circle_outline),
+                      title: Text('Your prayer is selected'),
+                    ),
+                  if (progress.prayerSource ==
+                          GoalOnboardingPrayerSource.ownWords &&
+                      progress.ownPrayerText != null)
+                    ExpansionTile(
+                      title: const Text('Earlier prayer'),
+                      children: [Text(progress.ownPrayerText!)],
+                    ),
                   if (progress.hasCompletePrayerSelection) ...[
                     const SizedBox(height: AppSpacing.lg),
                     FilledButton(
                       key: const Key('finish-first-goal'),
-                      onPressed: _saving ? null : _finish,
+                      onPressed: _blocked ? null : _finish,
                       child: Text(_saving ? 'Keeping…' : 'Keep this on Today'),
                     ),
                   ],
@@ -426,6 +454,34 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _recordPrayer(GoalOnboardingProgress progress) async {
+    if (_blocked) return;
+    setState(() => _saving = true);
+    try {
+      if (_pendingPrayerId == null) {
+        final prayer = await showRecordedPrayerCapture(
+          context,
+          title: progress.title ?? 'My prayer',
+          purpose: prayerPurposeForGoalStarter(progress.starterKey!),
+        );
+        if (prayer == null || !mounted) return;
+        _pendingPrayerId = prayer.id;
+      }
+      await ref
+          .read(goalOnboardingControllerProvider.notifier)
+          .choosePersonalPrayer(_pendingPrayerId!);
+      _pendingPrayerId = null;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Prayer could not be selected. Retry.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _chooseScripture() async {
@@ -457,26 +513,15 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
   }
 
   bool _canGoBack(GoalOnboardingProgress progress) {
-    return _situationInput != null ||
-        _writingPrayer ||
-        progress.stage != GoalOnboardingStage.starter;
+    return progress.stage != GoalOnboardingStage.starter;
   }
 
   Future<void> _goBack(GoalOnboardingProgress progress) async {
-    if (progress.stage == GoalOnboardingStage.situation &&
-        _situationInput != null) {
-      setState(() => _situationInput = null);
-      return;
-    }
-    if (progress.stage == GoalOnboardingStage.prayer && _writingPrayer) {
-      setState(() => _writingPrayer = false);
-      return;
-    }
     await ref.read(goalOnboardingControllerProvider.notifier).goBack();
   }
 
   Future<void> _finish() async {
-    if (_saving) return;
+    if (_blocked) return;
     setState(() => _saving = true);
     try {
       await ref.read(goalOnboardingControllerProvider.notifier).finalize();
@@ -494,8 +539,6 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
     }
   }
 }
-
-enum _SituationInput { speak, write }
 
 class _AlcoholSafetyPage extends StatefulWidget {
   const _AlcoholSafetyPage({
@@ -715,11 +758,13 @@ class _GoalTextPage extends StatefulWidget {
     this.continueLabel = 'Continue',
     this.onSkip,
     this.skipLabel = 'Not now',
-    this.maxLength = 1000,
+    this.maxLength = 120,
     this.requireText = false,
     this.supporting,
+    this.recording,
     this.suggestionRequest,
     this.showSuggestionsByDefault = false,
+    this.enabled = true,
   });
 
   final String question;
@@ -732,16 +777,22 @@ class _GoalTextPage extends StatefulWidget {
   final int maxLength;
   final bool requireText;
   final Widget? supporting;
+  final Widget? recording;
   final GoalActionSuggestionRequest? suggestionRequest;
   final bool showSuggestionsByDefault;
+  final bool enabled;
 
   @override
   State<_GoalTextPage> createState() => _GoalTextPageState();
 }
 
 class _GoalTextPageState extends State<_GoalTextPage> {
+  bool get _hasLegacyText => widget.initialValue != null &&
+      (widget.initialValue!.runes.length > widget.maxLength ||
+          widget.initialValue!.contains('\n'));
+
   late final TextEditingController _controller = TextEditingController(
-    text: widget.initialValue ?? '',
+    text: _hasLegacyText ? '' : widget.initialValue ?? '',
   );
   var _working = false;
 
@@ -782,13 +833,25 @@ class _GoalTextPageState extends State<_GoalTextPage> {
             TextField(
               key: const Key('first-goal-text-field'),
               controller: _controller,
+              enabled: widget.enabled && !_working,
               autofocus: true,
               maxLength: widget.maxLength,
-              minLines: widget.maxLength > 120 ? 2 : 1,
-              maxLines: widget.maxLength > 120 ? 5 : 2,
+              maxLines: 1,
               textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(hintText: widget.hintText),
+              decoration: InputDecoration(
+                labelText: 'Short title',
+                hintText: widget.hintText,
+              ),
             ),
+            if (_hasLegacyText)
+              ExpansionTile(
+                title: const Text('Earlier note'),
+                children: [Text(widget.initialValue!)],
+              ),
+            if (widget.recording != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              widget.recording!,
+            ],
             if (widget.suggestionRequest case final request?) ...[
               const SizedBox(height: AppSpacing.sm),
               GoalActionSuggestionPanel(
@@ -808,12 +871,19 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               builder: (context, value, child) {
                 final missingRequiredText =
                     widget.requireText && value.text.trim().isEmpty;
+                final invalidLabel = value.text.trim().runes.length >
+                        widget.maxLength ||
+                    value.text.contains('\n');
                 return FilledButton(
                   key: const Key('first-goal-text-continue'),
-                  onPressed: _working || missingRequiredText
+                  onPressed: !widget.enabled || _working || missingRequiredText || invalidLabel
                       ? null
                       : () => _run(
-                          () => widget.onContinue(_controller.text.trim()),
+                          () => widget.onContinue(
+                            _controller.text.trim().isEmpty && _hasLegacyText
+                                ? widget.initialValue!.trim()
+                                : _controller.text.trim(),
+                          ),
                         ),
                   child: Text(_working ? 'Keeping…' : widget.continueLabel),
                 );
@@ -821,7 +891,7 @@ class _GoalTextPageState extends State<_GoalTextPage> {
             ),
             if (widget.onSkip case final onSkip?)
               TextButton(
-                onPressed: _working ? null : () => _run(onSkip),
+                onPressed: !widget.enabled || _working ? null : () => _run(onSkip),
                 child: Text(widget.skipLabel),
               ),
           ],

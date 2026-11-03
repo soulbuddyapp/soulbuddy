@@ -71,6 +71,11 @@ void main() {
     await tester.tap(find.byKey(const Key('create-circle')));
     await tester.pumpAndSettle();
     expect(find.text('Create a Circle'), findsWidgets);
+    final purpose = tester.widget<TextField>(
+      find.byKey(const Key('circle-description-field')),
+    );
+    expect(purpose.maxLength, 120);
+    expect(purpose.maxLines, 1);
     await tester.enterText(
       find.byKey(const Key('circle-name-field')),
       'Close friends',
@@ -125,6 +130,35 @@ void main() {
       expect(repository.created, isNull);
     },
   );
+
+  testWidgets('saving settings preserves an earlier long purpose', (tester) async {
+    final earlier = List.filled(5, 'We meet to pray and walk together.').join(' ');
+    final repository = _FakeDirectoryRepository([
+      _publicCircle(isOwner: true, description: earlier),
+    ]);
+    await _pumpCircles(
+      tester,
+      repository: repository,
+      initialLocation: '/circles/circle-public-1',
+    );
+    await tester.ensureVisible(find.text('Edit Circle'));
+    await tester.tap(find.text('Edit Circle'));
+    await tester.pumpAndSettle();
+
+    final purpose = tester.widget<TextField>(
+      find.byKey(const Key('circle-description-field')),
+    );
+    expect(purpose.controller?.text, isEmpty);
+    expect(find.text('Earlier purpose'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('circle-name-field')), 'Prayer friends');
+    final save = find.byKey(const Key('confirm-create-circle'));
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    expect(repository.circles.single.name, 'Prayer friends');
+    expect(repository.circles.single.description, earlier);
+  });
 
   testWidgets('publishes an owned draft without undoing moderator delisting', (
     tester,
@@ -321,11 +355,12 @@ Circle _publicCircle({
   bool isOwner = false,
   CircleStatus status = CircleStatus.active,
   bool directoryListed = true,
+  String description = 'Honest accountability and prayer.',
 }) => Circle(
   publicId: 'circle-public-1',
   name: 'Walk together',
   category: CircleCategory.accountability,
-  description: 'Honest accountability and prayer.',
+  description: description,
   visibility: CircleVisibility.public,
   status: status,
   directoryListed: directoryListed,
@@ -490,6 +525,7 @@ class _FakeEncounterRepository implements EncounterRepository {
     String encounterId, {
     required String body,
     required String localDate,
+    String? audioEncounterId,
   }) => throw UnimplementedError();
 
   @override

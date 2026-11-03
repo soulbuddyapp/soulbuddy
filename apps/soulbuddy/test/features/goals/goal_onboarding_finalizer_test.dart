@@ -29,6 +29,7 @@ void main() {
     addTearDown(database.close);
     final progressRepository = PowerSyncGoalOnboardingProgressRepository(
       database: database.powersync,
+      ownerId: 'owner-1',
     );
     const progress = GoalOnboardingProgress(
       stage: GoalOnboardingStage.prayer,
@@ -45,6 +46,24 @@ void main() {
       ownPrayerText: 'Jesus, keep me close to you and help me act faithfully.',
     );
     await progressRepository.save(progress);
+    for (final field in ['situation', 'action', 'guard']) {
+      await database.powersync.execute(
+        'INSERT INTO voice_note_links '
+        '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          'note-$field', 'owner-1', 'goal', 'onboarding', field,
+          'recording-$field', '2026-11-03T00:00:00Z',
+        ],
+      );
+    }
+    await database.powersync.execute(
+      'INSERT INTO voice_note_links '
+      '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ['other-note', 'owner-2', 'goal', 'onboarding', 'situation',
+        'other-recording', '2026-11-03T00:00:00Z'],
+    );
     final finalizer = PowerSyncGoalOnboardingFinalizer(
       database: database.powersync,
       ownerId: 'owner-1',
@@ -58,6 +77,19 @@ void main() {
     expect(result.goalId, isNotEmpty);
     expect(result.createdPersonalPrayerId, isNotNull);
     expect(await progressRepository.load(), isNull);
+    final recordings = await database.powersync.getAll(
+      'SELECT context_id FROM voice_note_links WHERE owner_id = ?',
+      ['owner-1'],
+    );
+    expect(recordings, hasLength(3));
+    expect(recordings.every((row) => row['context_id'] == result.goalId), isTrue);
+    expect(
+      (await database.powersync.get(
+        'SELECT context_id FROM voice_note_links WHERE id = ?',
+        ['other-note'],
+      ))['context_id'],
+      'onboarding',
+    );
     final goals = await database.powersync.getAll('SELECT * FROM goals');
     final revisions = await database.powersync.getAll(
       'SELECT * FROM goal_revisions',
@@ -160,6 +192,7 @@ void main() {
     addTearDown(database.close);
     final progressRepository = PowerSyncGoalOnboardingProgressRepository(
       database: database.powersync,
+      ownerId: 'owner-1',
     );
     const progress = GoalOnboardingProgress(
       stage: GoalOnboardingStage.prayer,
@@ -171,6 +204,13 @@ void main() {
       prayerResourceId: '0198a800-0000-7000-8000-000000009999',
     );
     await progressRepository.save(progress);
+    await database.powersync.execute(
+      'INSERT INTO voice_note_links '
+      '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ['draft-note', 'owner-1', 'goal', 'onboarding', 'situation',
+        'recording', '2026-11-03T00:00:00Z'],
+    );
     final finalizer = PowerSyncGoalOnboardingFinalizer(
       database: database.powersync,
       ownerId: 'owner-1',
@@ -186,5 +226,12 @@ void main() {
       isEmpty,
     );
     expect(await progressRepository.load(), isNotNull);
+    expect(
+      (await database.powersync.get(
+        'SELECT context_id FROM voice_note_links WHERE id = ?',
+        ['draft-note'],
+      ))['context_id'],
+      'onboarding',
+    );
   });
 }

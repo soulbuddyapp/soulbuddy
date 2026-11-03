@@ -39,8 +39,8 @@ void main() {
     await tester.tap(find.text('Jesus'));
     await tester.pumpAndSettle();
     expect(find.text('Add anything?'), findsOneWidget);
-    expect(find.text('Speak'), findsOneWidget);
-    expect(find.text('Write'), findsOneWidget);
+    expect(find.text('Record'), findsOneWidget);
+    expect(find.text('Write'), findsNothing);
     expect(find.text('Not now'), findsOneWidget);
 
     await tester.tap(find.text('Not now'));
@@ -54,7 +54,7 @@ void main() {
     expect(find.text('Choose a prepared prayer'), findsOneWidget);
   });
 
-  testWidgets('written detail is short and optional', (tester) async {
+  testWidgets('optional detail offers a recording without a text form', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -66,10 +66,11 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Write'));
+    await tester.tap(find.text('Record'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('first-prayer-detail')), findsOneWidget);
-    expect(find.text('Use reviewed prayer'), findsOneWidget);
+    expect(find.text('Record your words'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Record'), findsOneWidget);
     expect(find.text('Prepare prayer'), findsNothing);
     expect(find.text('Not now'), findsOneWidget);
   });

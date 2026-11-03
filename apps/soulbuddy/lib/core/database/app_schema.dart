@@ -1,6 +1,26 @@
 import 'package:powersync/powersync.dart';
 
 const appSchema = Schema([
+  // Context links stay with the private recordings on this device.
+  Table.localOnly(
+    'voice_note_links',
+    [
+      Column.text('owner_id'),
+      Column.text('context_type'),
+      Column.text('context_id'),
+      Column.text('field_key'),
+      Column.text('encounter_id'),
+      Column.text('created_at'),
+    ],
+    indexes: [
+      Index('voice_notes_context', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('context_type'),
+        IndexedColumn('context_id'),
+        IndexedColumn('field_key'),
+      ]),
+    ],
+  ),
   Table(
     'encounters',
     [
@@ -51,6 +71,7 @@ const appSchema = Schema([
       Column.text('encounter_id'),
       Column.text('owner_id'),
       Column.text('body'),
+      Column.text('audio_encounter_id'),
       Column.text('local_date'),
       Column.text('created_at'),
       Column.text('device_id'),
@@ -357,6 +378,7 @@ const appSchema = Schema([
       Column.text('prayer_id'),
       Column.text('owner_id'),
       Column.text('body'),
+      Column.text('content_format'),
       Column.text('action'),
       Column.text('created_at'),
       Column.text('device_id'),

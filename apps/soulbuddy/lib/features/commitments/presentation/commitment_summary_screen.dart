@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../../../core/presentation/sanctuary_backdrop.dart';
 import '../../../core/identity/local_identity_providers.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../record/providers/voice_note_providers.dart';
 import '../domain/commitment.dart';
 import '../providers/commitment_providers.dart';
 import '../providers/commitment_reminder_providers.dart';
@@ -73,6 +75,11 @@ class _CommitmentSummaryScreenState
         commitmentRecoveryRepositoryProvider.future,
       );
       if (await recovery.resolve() != widget.commitmentId) return;
+      await (await ref.read(voiceNoteRepositoryProvider.future)).move(
+        type: 'commitment',
+        fromId: 'journey:primary',
+        toId: widget.commitmentId,
+      );
       final identity = await ref.read(localIdentityProvider.future);
       final local = await (await ref.read(
         commitmentReminderDeviceRepositoryProvider.future,
@@ -119,10 +126,9 @@ class _CommitmentSummaryScreenState
     }
   }
 
-  Future<void> _editText(
+  Future<void> _editTitle(
     String title,
     String initial,
-    int limit,
     Future<void> Function(String) save,
   ) async {
     final controller = TextEditingController(text: initial);
@@ -133,9 +139,8 @@ class _CommitmentSummaryScreenState
         content: SingleChildScrollView(
           child: TextField(
             controller: controller,
-            minLines: 4,
-            maxLines: 12,
-            maxLength: limit,
+            maxLines: 1,
+            maxLength: 120,
             autofocus: true,
           ),
         ),
@@ -328,7 +333,7 @@ class _CommitmentSummaryScreenState
         const SizedBox(height: 24),
         Text(c.name, style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 16),
-        Text(c.calling, style: Theme.of(context).textTheme.titleLarge),
+        _recordedSection('calling', 'Calling', c.calling),
         const SizedBox(height: 16),
         if (_error != null)
           Padding(
@@ -419,46 +424,63 @@ class _CommitmentSummaryScreenState
         ExpansionTile(
           title: const Text('My needs'),
           children: [
-            for (final need in [c.keyNeedOne, c.keyNeedTwo, c.keyNeedThree])
-              ListTile(title: Text(need)),
+            for (var index = 0; index < 3; index++)
+              _recordedSection(
+                'needs-${index + 1}',
+                'Need ${index + 1}',
+                [c.keyNeedOne, c.keyNeedTwo, c.keyNeedThree][index],
+              ),
           ],
         ),
         ExpansionTile(
           title: const Text('Daily practices'),
           children: [
             for (final p in d.practices)
-              ListTile(
-                title: Text(p.body),
-                trailing: PopupMenuButton<String>(
-                  tooltip: 'Practice options',
-                  onSelected: (v) async {
-                    if (v == 'edit') {
-                      await _editText(
-                        'Daily practice',
-                        p.body,
-                        1000,
-                        (body) async => (await ref.read(
-                          commitmentRepositoryProvider.future,
-                        )).updatePractice(p.id, body: body),
-                      );
-                    }
-                    if (v == 'remove') {
-                      await _run(
-                        () async => (await ref.read(
-                          commitmentRepositoryProvider.future,
-                        )).archivePractice(p.id),
-                      );
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    if (d.practices.length > 1)
-                      const PopupMenuItem(
-                        value: 'remove',
-                        child: Text('Remove'),
-                      ),
-                  ],
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    title: Text(_shortLabel(p.body)),
+                    trailing: p.body.runes.length > 120 && d.practices.length <= 1
+                        ? null
+                        : PopupMenuButton<String>(
+                      tooltip: 'Practice options',
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          await _editTitle(
+                            'Practice title',
+                            p.body,
+                            (body) async => (await ref.read(
+                              commitmentRepositoryProvider.future,
+                            )).updatePractice(p.id, body: body),
+                          );
+                        }
+                        if (value == 'remove') {
+                          await _run(
+                            () async => (await ref.read(
+                              commitmentRepositoryProvider.future,
+                            )).archivePractice(p.id),
+                          );
+                        }
+                      },
+                      itemBuilder: (_) => [
+                        if (p.body.runes.length <= 120)
+                          const PopupMenuItem(
+                            value: 'edit', child: Text('Edit title'),
+                          ),
+                        if (d.practices.length > 1)
+                          const PopupMenuItem(
+                            value: 'remove', child: Text('Remove'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  _recordedSection(
+                    'practice:${p.id}',
+                    'Practice recording',
+                    p.body.runes.length > 120 ? p.body : '',
+                  ),
+                ],
               ),
           ],
         ),
@@ -466,33 +488,7 @@ class _CommitmentSummaryScreenState
           ExpansionTile(
             title: const Text('My declaration'),
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    SelectableText(d.declaration!.body),
-                    TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () => _editText(
-                              'My declaration',
-                              d.declaration!.body,
-                              4000,
-                              (body) async =>
-                                  (await ref.read(
-                                    commitmentRepositoryProvider.future,
-                                  )).saveDeclaration(
-                                    CommitmentDeclarationDraft(
-                                      commitmentId: c.id,
-                                      body: body,
-                                    ),
-                                  ),
-                            ),
-                      child: const Text('Edit declaration'),
-                    ),
-                  ],
-                ),
-              ),
+              _recordedSection('declaration', 'Declaration', d.declaration!.body),
             ],
           ),
         ListTile(
@@ -506,6 +502,32 @@ class _CommitmentSummaryScreenState
           onTap: () => context.push('/goals/${c.goalId}'),
         ),
       ],
+    );
+  }
+
+  Widget _recordedSection(String field, String title, String legacyText) {
+    final noteContext = (type: 'commitment', id: widget.commitmentId, field: field);
+    final notes = ref.watch(voiceNotesProvider(noteContext));
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          VoiceNotesField(
+            noteContext: noteContext,
+            title: title,
+            enabled: !_busy,
+          ),
+          if (legacyText.isNotEmpty && (notes.value?.isEmpty ?? true))
+            SelectableText(legacyText),
+          if (legacyText.runes.length > 120 &&
+              (notes.value?.isNotEmpty ?? false))
+            ExpansionTile(
+              title: const Text('Earlier text'),
+              children: [SelectableText(legacyText)],
+            ),
+        ],
+      ),
     );
   }
 
@@ -547,3 +569,5 @@ class _CommitmentSummaryScreenState
     ),
   );
 }
+
+String _shortLabel(String value) => String.fromCharCodes(value.trim().runes.take(120));

@@ -4,9 +4,9 @@ import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../altar/presentation/altar_ritual_sheet.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
@@ -77,37 +77,30 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
-              Text(
-                prayer.body,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(height: 1.65),
+              VoiceTabletSection(
+                source: VoiceTabletSource.library(prayerId: prayer.id),
+                title: prayer.title,
+                prayerBody: prayer.body,
+                onKeepOnAltar: (tablet) =>
+                    showAltarRitualSheet(context, ref, tablet: tablet),
               ),
-              if (prayer.action case final action?) ...[
-                const SizedBox(height: AppSpacing.xl),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(
-                      AppSpacing.componentRadius,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Suggested action',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(action),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: AppSpacing.md),
+              VoiceNotesField(
+                noteContext: (type: 'prayer', id: prayer.id, field: 'reflection'),
+                title: 'After prayer',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ExpansionTile(
+                title: const Text('Prayer words'),
+                children: [
+                  SelectableText(prayer.body),
+                  if (prayer.action case final action?) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text('Suggested action', style: Theme.of(context).textTheme.labelLarge),
+                    SelectableText(action),
+                  ],
+                ],
+              ),
               const SizedBox(height: AppSpacing.xl),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -136,14 +129,6 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                     child: const Text('Use today'),
                   ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              VoiceTabletSection(
-                source: VoiceTabletSource.library(prayerId: prayer.id),
-                title: prayer.title,
-                prayerBody: prayer.body,
-                onKeepOnAltar: (tablet) =>
-                    showAltarRitualSheet(context, ref, tablet: tablet),
               ),
             ],
           ),

@@ -71,6 +71,19 @@ it('rejects narration above the provider limit before synthesis', function () {
         ->assertJsonPath('code', 'narration_too_long');
 });
 
+it('uses the original recorded prayer without asking a provider to narrate it', function () {
+    $user = User::factory()->create();
+    [$prayer, $revision] = ownedPrayerRevision($user, '');
+    $revision->forceFill(['content_format' => 'audio'])->save();
+    $this->mock(PrayerNarrationProvider::class)->shouldNotReceive('synthesize');
+
+    $this->actingAs($user)
+        ->postJson('/api/prayer-narrations', narrationPayload($prayer, $revision))
+        ->assertUnprocessable()
+        ->assertJsonPath('code', 'recorded_prayer_has_audio');
+    expect(Storage::disk('local')->allFiles('prayer-narrations'))->toBeEmpty();
+});
+
 it('caches one encrypted narration by exact content and voice configuration', function () {
     $user = User::factory()->create();
     [$prayer, $revision] = ownedPrayerRevision($user, 'Father, teach me to walk faithfully. Amen.');
@@ -194,3 +207,4 @@ function narrationPayload(PersonalPrayer $prayer, PersonalPrayerRevision $revisi
         'consent' => true,
     ];
 }
+

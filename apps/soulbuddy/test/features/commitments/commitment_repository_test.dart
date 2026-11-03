@@ -124,6 +124,15 @@ void main() {
         isNull,
       );
       expect(await db.powersync.getNextCrudTransaction(), isNull);
+      for (final owner in ['alice', 'bob']) {
+        await db.powersync.execute(
+          'INSERT INTO voice_note_links '
+          '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?)',
+          ['$owner-note', owner, 'commitment', 'journey:primary',
+            'practice:draft-0', '$owner-recording', '2026-09-25T00:00:00Z'],
+        );
+      }
       final finalizer = PowerSyncCommitmentFinalizer(
         database: db.powersync,
         ownerId: 'alice',
@@ -141,9 +150,20 @@ void main() {
       );
       expect(await db.powersync.getAll('SELECT * FROM goals'), isEmpty);
       expect((await progressRepo.load()).progress, isNotNull);
+      expect((await db.powersync.get(
+        'SELECT context_id FROM voice_note_links WHERE id = ?', ['alice-note'],
+      ))['context_id'], 'journey:primary');
       final result = await finalizer.finalize(progress);
       final replay = await finalizer.finalize(progress);
       expect(replay.commitmentId, result.commitmentId);
+      final links = await db.powersync.getAll('SELECT * FROM voice_note_links');
+      expect(links, hasLength(2));
+      expect(links.singleWhere((row) => row['owner_id'] == 'alice')['context_id'],
+          result.commitmentId);
+      expect(links.singleWhere((row) => row['owner_id'] == 'alice')['field_key'],
+          'practice:draft-0');
+      expect(links.singleWhere((row) => row['owner_id'] == 'bob')['context_id'],
+          'journey:primary');
       expect((await progressRepo.load()).progress, isNull);
       expect(await practiceRepo.load(), isEmpty);
       expect(await db.powersync.getAll('SELECT * FROM goals'), hasLength(1));
@@ -166,7 +186,10 @@ void main() {
         ownerId: 'alice',
       );
       final details = await repository.watchDetails(result.commitmentId).first;
-      expect(details!.practices.map((p) => p.body), [
+      expect(details!.practices.map((p) => p.id), [
+        for (var i = 0; i < 5; i++) 'draft-$i',
+      ]);
+      expect(details.practices.map((p) => p.body), [
         'Practice 0',
         'Practice 1',
         'Practice 2',
@@ -287,6 +310,22 @@ void main() {
         'updated_at',
       });
       await planPatch.complete();
+      final bobDrafts = PowerSyncCommitmentJourneyPracticeDraftRepository(
+        database: db.powersync, ownerId: 'bob',
+      );
+      await bobDrafts.save([
+        const CommitmentPracticeDraft(
+          id: 'draft-0', category: CommitmentPracticeCategory.joyPleasure,
+          body: 'Another person cannot reuse this identity',
+        ),
+      ]);
+      await expectLater(
+        PowerSyncCommitmentFinalizer(
+          database: db.powersync, ownerId: 'bob', deviceId: 'bob-device',
+        ).finalize(progress),
+        throwsStateError,
+      );
+      expect(await db.powersync.getAll('SELECT * FROM goals'), hasLength(1));
       final recovery = PowerSyncCommitmentFinalizationRecoveryRepository(
         database: db.powersync,
         ownerId: 'alice',

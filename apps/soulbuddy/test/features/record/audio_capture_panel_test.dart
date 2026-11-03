@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
@@ -7,13 +8,17 @@ import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart'
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
 import 'package:soulbuddy/features/record/audio/presentation/audio_capture_panel.dart';
+import 'package:soulbuddy/features/record/audio/application/memory_soundscape_player.dart';
+import 'package:soulbuddy/features/record/audio/domain/memory_soundscape.dart';
 
 void main() {
   late _PanelRecorder recorder;
   late AudioCaptureController controller;
+  late _ReviewPlayer player;
 
   setUp(() {
     recorder = _PanelRecorder();
+    player = _ReviewPlayer();
     controller = AudioCaptureController(
       recorder: recorder,
       allocateTemporary: () async =>
@@ -23,33 +28,29 @@ void main() {
 
   tearDown(() => controller.close());
 
-  testWidgets('explains speaking and keeps Write an equal available path', (
+  testWidgets('opens capture without requesting the microphone or writing', (
     tester,
   ) async {
-    var writeSelected = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: AudioCapturePanel(
             controller: controller,
-            onWriteInstead: () => writeSelected = true,
+            reviewPlayer: player,
             onContinue: (_) {},
           ),
         ),
       ),
     );
 
-    expect(find.text('Speak what you do not want to forget.'), findsOneWidget);
+    expect(find.text('Record a memory'), findsOneWidget);
     expect(find.text('Start recording'), findsOneWidget);
-    expect(find.text('Write instead'), findsOneWidget);
+    expect(find.text('Write instead'), findsNothing);
     expect(find.bySemanticsLabel('Start audio recording'), findsOneWidget);
-    expect(tester.getSize(find.text('Start recording')).height, greaterThan(0));
-
-    await tester.tap(find.text('Write instead'));
-    expect(writeSelected, isTrue);
+    expect(recorder.permissionRequests, 0);
   });
 
-  testWidgets('permission denial stays calm and preserves Write instead', (
+  testWidgets('permission denial offers recovery without a text form', (
     tester,
   ) async {
     recorder.permissionGranted = false;
@@ -58,7 +59,7 @@ void main() {
         home: Scaffold(
           body: AudioCapturePanel(
             controller: controller,
-            onWriteInstead: () {},
+            reviewPlayer: player,
             onContinue: (_) {},
           ),
         ),
@@ -69,8 +70,13 @@ void main() {
     await tester.pump();
 
     expect(find.text('Microphone access was not granted.'), findsOneWidget);
-    expect(find.text('Write instead'), findsOneWidget);
+    expect(find.text('Write instead'), findsNothing);
     expect(find.text('Try microphone again'), findsOneWidget);
+    expect(controller.state.phase, AudioCapturePhase.failure);
+    recorder.permissionGranted = true;
+    await tester.tap(find.text('Try microphone again'));
+    await tester.pump();
+    expect(controller.state.phase, AudioCapturePhase.recording);
   });
 
   testWidgets('accepts focused prayer recording copy without duplicating UI', (
@@ -81,6 +87,7 @@ void main() {
         home: Scaffold(
           body: AudioCapturePanel(
             controller: controller,
+            reviewPlayer: player,
             introHeading: 'Record this prayer',
             introDescription: 'Your recording stays private on this device.',
             startLabel: 'Start prayer recording',
@@ -102,7 +109,7 @@ void main() {
     expect(find.text('Speak what you do not want to forget.'), findsNothing);
   });
 
-  testWidgets('recording controls are truthful and Continue returns the take', (
+  testWidgets('recording controls are truthful and hand off the original audio', (
     tester,
   ) async {
     MemoryAudioDraft? continued;
@@ -111,6 +118,7 @@ void main() {
         home: Scaffold(
           body: AudioCapturePanel(
             controller: controller,
+            reviewPlayer: player,
             onWriteInstead: () {},
             onContinue: (draft) => continued = draft,
           ),
@@ -136,14 +144,14 @@ void main() {
     await tester.tap(find.text('Stop'));
     await tester.pump();
 
-    expect(find.text('Review your recording'), findsOneWidget);
+    expect(find.text('Your recording'), findsOneWidget);
     expect(find.text('Play'), findsOneWidget);
     expect(find.text('Record again'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Use recording'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Continue'));
+    await tester.ensureVisible(find.text('Use recording'));
     await tester.pump();
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.text('Use recording'));
     await tester.pumpAndSettle();
     expect(continued, isNotNull);
     expect(continued!.temporaryKey, '/private/take.m4a');
@@ -165,7 +173,7 @@ void main() {
           home: Scaffold(
             body: AudioCapturePanel(
               controller: controller,
-              onWriteInstead: () {},
+            reviewPlayer: player,
               onContinue: (_) {},
             ),
           ),
@@ -173,14 +181,160 @@ void main() {
       );
 
       expect(find.text('Start recording'), findsOneWidget);
-      expect(find.text('Write instead'), findsOneWidget);
+      expect(find.text('Write instead'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('handoff waits for both preview layers and runs only once', (tester) async {
+    final bed = _ReviewSoundscape();
+    player.stopping = Completer<void>();
+    bed.stopping = Completer<void>();
+    var handedOff = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: AudioCapturePanel(
+        controller: controller,
+        reviewPlayer: player,
+        reviewSoundscapePlayer: bed,
+        onContinue: (_) => handedOff++,
+      ),
+    )));
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.arrow_forward));
+    expect(controller.state.review, isNotNull);
+    expect(handedOff, 0);
+    player.stopping!.complete();
+    await tester.pump();
+    expect(handedOff, 0);
+    bed.stopping!.complete();
+    await tester.pump();
+    expect(handedOff, 1);
+    expect(player.stopCalls, 1);
+    expect(bed.stopCalls, 1);
+  });
+
+  testWidgets('failed preview stop keeps the take available for retry', (tester) async {
+    player.stopError = StateError('output unavailable');
+    MemoryAudioDraft? saved;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: AudioCapturePanel(
+        controller: controller,
+        reviewPlayer: player,
+        onContinue: (take) => saved = take,
+      ),
+    )));
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
+    await tester.pump();
+    expect(saved, isNull);
+    expect(controller.state.review, isNotNull);
+    expect(find.text('Playback could not stop. Try again.'), findsOneWidget);
+    player.stopError = null;
+    await tester.tap(find.text('Use recording'));
+    await tester.pump();
+    expect(saved?.temporaryKey, '/private/take.m4a');
+  });
+
+  testWidgets('system Back waits for both previews before delegating close', (
+    tester,
+  ) async {
+    final bed = _ReviewSoundscape();
+    player.stopping = Completer<void>();
+    bed.stopping = Completer<void>();
+    var closed = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AudioCapturePanel(
+            controller: controller,
+            reviewPlayer: player,
+            reviewSoundscapePlayer: bed,
+            handlesSystemBack: true,
+            onBack: () => closed++,
+            onContinue: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    expect(closed, 0);
+    player.stopping!.complete();
+    await tester.pump();
+    expect(closed, 0);
+    bed.stopping!.complete();
+    await tester.pump();
+    expect(closed, 1);
+    expect(player.stopCalls, 1);
+    expect(bed.stopCalls, 1);
+    expect(controller.hasPendingRecording, isTrue);
+  });
+
+  testWidgets('system Back pauses the microphone before parent confirmation', (
+    tester,
+  ) async {
+    AudioCapturePhase? phaseAtClose;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AudioCapturePanel(
+            controller: controller,
+            reviewPlayer: player,
+            handlesSystemBack: true,
+            onBack: () => phaseAtClose = controller.state.phase,
+            onContinue: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(phaseAtClose, AudioCapturePhase.paused);
+    expect(controller.state.phase, AudioCapturePhase.paused);
+  });
+
+  testWidgets('discard confirmation pauses the microphone until explicit resume', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: AudioCapturePanel(
+        controller: controller,
+        reviewPlayer: player,
+        onContinue: (_) {},
+      ),
+    )));
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Discard'));
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(controller.state.phase, AudioCapturePhase.paused);
+    await tester.tap(find.text('Keep recording'));
+    await tester.pumpAndSettle();
+    expect(controller.state.phase, AudioCapturePhase.paused);
+    expect(find.text('Resume'), findsOneWidget);
+  });
+
 }
 
 class _PanelRecorder implements AudioRecorderGateway {
   bool permissionGranted = true;
+  int permissionRequests = 0;
   final amplitudesController = StreamController<double>.broadcast();
 
   @override
@@ -202,7 +356,10 @@ class _PanelRecorder implements AudioRecorderGateway {
   Future<void> pause() async {}
 
   @override
-  Future<bool> requestPermission() async => permissionGranted;
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return permissionGranted;
+  }
 
   @override
   Future<void> resume() async {}
@@ -215,4 +372,43 @@ class _PanelRecorder implements AudioRecorderGateway {
     locator: '/private/take.m4a',
     mimeType: 'audio/mp4',
   );
+}
+
+
+class _ReviewPlayer implements AudioPlayer {
+  Completer<void>? stopping;
+  Object? stopError;
+  int stopCalls = 0;
+  @override
+  Stream<PlayerState> get onPlayerStateChanged => const Stream.empty();
+  @override
+  Stream<Duration> get onPositionChanged => const Stream.empty();
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+    if (stopping != null) await stopping!.future;
+    if (stopError case final error?) throw error;
+  }
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> dispose() async {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ReviewSoundscape implements MemorySoundscapePlayer {
+  Completer<void>? stopping;
+  int stopCalls = 0;
+  @override
+  Future<void> start(MemorySoundscape soundscape, {required double volume}) async {}
+  @override
+  Future<void> setVolume(double volume) async {}
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+    if (stopping != null) await stopping!.future;
+  }
+  @override
+  Future<void> dispose() async {}
 }

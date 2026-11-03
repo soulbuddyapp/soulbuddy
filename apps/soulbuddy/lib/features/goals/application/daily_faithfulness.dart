@@ -46,8 +46,8 @@ class DailyFaithfulness {
   }) {
     final saving = _pending.then((_) async {
       final trimmed = body.trim();
-      if (trimmed.isEmpty || trimmed.length > 500) {
-        throw ArgumentError('A practice of 1–500 characters is required.');
+      if (trimmed.isEmpty || trimmed.runes.length > 120 || trimmed.contains('\n')) {
+        throw ArgumentError('A single action label of 1–120 characters is required.');
       }
       final active = await goals.watchActive().first;
       Goal? goal;

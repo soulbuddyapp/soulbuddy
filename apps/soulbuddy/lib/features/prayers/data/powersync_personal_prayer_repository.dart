@@ -23,7 +23,7 @@ class PowerSyncPersonalPrayerRepository implements PersonalPrayerRepository {
   final Uuid _uuid;
 
   static const _projection = '''
-    SELECT prayer.*, revision.body, revision.action
+    SELECT prayer.*, revision.body, revision.action, revision.content_format
     FROM personal_prayers AS prayer
     JOIN personal_prayer_revisions AS revision
       ON revision.id = prayer.current_revision_id

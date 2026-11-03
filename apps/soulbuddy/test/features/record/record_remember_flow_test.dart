@@ -3,9 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:soulbuddy/app/app.dart';
-import 'package:soulbuddy/features/onboarding/providers/onboarding_providers.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/features/persons/providers/person_providers.dart';
 import 'package:soulbuddy/features/record/presentation/record_screen.dart';
 import 'package:soulbuddy/features/record/presentation/encounter_form.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
@@ -17,418 +16,340 @@ import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
 import 'package:soulbuddy/features/remember/presentation/remember_screen.dart';
-import 'package:soulbuddy/features/remember/presentation/memory_detail_screen.dart';
 
 import '../../helpers/in_memory_encounter_repository.dart';
+import '../../helpers/audio_player_mocks.dart';
 
 void main() {
-  testWidgets('Record begins with equal Speak and Write paths', (tester) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: const MaterialApp(home: Scaffold(body: RecordScreen())),
-      ),
-    );
-    await _settle(tester);
-
-    expect(find.text('Keep what you do not want to forget.'), findsOneWidget);
-    expect(find.byKey(const Key('record-speak')), findsOneWidget);
-    expect(find.byKey(const Key('record-write')), findsOneWidget);
-    expect(find.text('Encounter'), findsNothing);
-
-    await tester.tap(find.byKey(const Key('record-write')));
-    await _settle(tester);
-    expect(find.text('Encounter'), findsOneWidget);
-    expect(find.textContaining('Coming'), findsNothing);
-  });
-
-  testWidgets(
-    'Speak records, reviews, and saves without requiring typed body',
-    (tester) async {
-      final repository = InMemoryEncounterRepository();
-      final recorder = _RecordFlowRecorder();
-      final controller = AudioCaptureController(
-        recorder: recorder,
-        allocateTemporary: () async =>
-            const TemporaryAudio(key: 'take', locator: '/private/take.m4a'),
-      );
-      addTearDown(() async {
-        await controller.close();
-        await repository.close();
-      });
-      Encounter? openedMemory;
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(installAudioPlayerMocks);
+  for (final mode in RecordStartMode.values) {
+    testWidgets('${mode.name} opens capture without a text form or live mic', (
+      tester,
+    ) async {
+      final fixture = _RecordFixture();
+      addTearDown(fixture.close);
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            encounterRepositoryProvider.overrideWith((ref) async => repository),
-            audioCaptureControllerProvider.overrideWith(
-              (ref) async => controller,
-            ),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: RecordScreen(
-                onMemorySaved: (memory) => openedMemory = memory,
-              ),
-            ),
-          ),
-        ),
+        fixture.wrap(RecordScreen(startMode: mode)),
       );
       await _settle(tester);
 
-      await tester.tap(find.byKey(const Key('record-speak')));
-      await _settle(tester);
-      await tester.tap(find.text('Start recording'));
-      await _settle(tester);
-      await tester.tap(find.text('Stop'));
-      await _settle(tester);
-      await tester.ensureVisible(find.text('Continue'));
-      await tester.tap(find.text('Continue'));
-      await _settle(tester);
+      expect(find.text('Start recording'), findsOneWidget);
+      expect(find.text('Write'), findsNothing);
+      expect(find.text('Write instead'), findsNothing);
+      expect(find.byKey(const Key('encounter-body')), findsNothing);
+      expect(fixture.recorder.permissionRequests, 0);
+    });
+  }
 
-      expect(find.text('What kind of memory is this?'), findsOneWidget);
-      expect(find.widgetWithText(ChoiceChip, 'Promise'), findsOneWidget);
-      final titleField = tester.widget<TextFormField>(
-        find.byKey(const Key('encounter-title')),
-      );
-      expect(titleField.controller!.text, startsWith('Voice memory ·'));
-      await tester.ensureVisible(find.text('Save'));
-      await tester.tap(find.text('Save'));
-      await _settle(tester);
-
-      expect(repository.lastDraft!.audio, isNotNull);
-      expect(repository.lastDraft!.body, isEmpty);
-      expect(openedMemory?.id, isNotEmpty);
-    },
-  );
-
-  testWidgets('failed voice save keeps the take and offers a retry', (
+  testWidgets('records and saves audio without requiring any typing', (
     tester,
   ) async {
-    var attempts = 0;
-    final audio = MemoryAudioDraft(
-      temporaryKey: '/private/take.m4a',
-      mimeType: 'audio/mp4',
-      duration: const Duration(seconds: 2),
-      waveform: const [0.2, 0.8],
-    );
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    Encounter? opened;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: EncounterForm(
-            initialTitle: 'Voice memory · 13 Aug',
-            audio: audio,
-            onCancel: () {},
-            onSave: (_) async {
-              attempts++;
-              throw StateError('disk');
-            },
-          ),
+      fixture.wrap(RecordScreen(onMemorySaved: (value) => opened = value)),
+    );
+    await _settle(tester);
+    await _recordAndContinue(tester);
+
+    expect(find.text('Memory type'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'Promise'), findsOneWidget);
+    expect(find.byKey(const Key('encounter-body')), findsNothing);
+    final title = tester.widget<TextFormField>(
+      find.byKey(const Key('encounter-title')),
+    );
+    expect(title.controller!.text, isEmpty);
+    await _saveForm(tester);
+
+    final draft = fixture.repository.lastDraft!;
+    expect(draft.title, startsWith('Voice memory ·'));
+    expect(draft.body, isEmpty);
+    expect(draft.audio!.temporaryKey, '/private/take.m4a');
+    expect(opened?.id, 'encounter-1');
+  });
+
+  testWidgets('system Back closes capture once without requesting the mic', (
+    tester,
+  ) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    var closed = 0;
+    await tester.pumpWidget(
+      fixture.wrap(RecordScreen(onCancel: () => closed++)),
+    );
+    await _settle(tester);
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(closed, 1);
+    expect(fixture.recorder.permissionRequests, 0);
+  });
+
+  testWidgets('audio capture preserves person, date, title, and privacy', (
+    tester,
+  ) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    await tester.pumpWidget(
+      fixture.wrap(
+        RecordScreen(
+          startMode: RecordStartMode.person,
+          initialPersonIds: const ['person-1'],
+          initialDate: DateTime(2020, 5, 4),
+          initialTitle: 'A prayer for my father',
+          privateReflection: true,
+          onMemorySaved: (_) {},
         ),
       ),
     );
-
-    await tester.ensureVisible(find.text('Save'));
-    await tester.tap(find.text('Save'));
     await _settle(tester);
+    await _recordAndContinue(tester);
 
-    expect(attempts, 1);
     expect(
-      find.text('The recording is still here. Try saving again or discard it.'),
-      findsOneWidget,
+      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Person')).selected,
+      isTrue,
     );
-    await tester.ensureVisible(find.text('Save'));
-    await tester.pump();
-    expect(find.text('Save').hitTestable(), findsOneWidget);
+    // Clearing an optional title still retains a useful context-based title.
+    await tester.enterText(find.byKey(const Key('encounter-title')), '');
+    await _saveForm(tester);
+
+    final draft = fixture.repository.lastDraft!;
+    expect(draft.memoryType, MemoryType.person);
+    expect(draft.personIds, ['person-1']);
+    expect(draft.occurredOn, '2020-05-04');
+    expect(draft.title, 'A prayer for my father');
+    expect(draft.sensitive, isTrue);
+    expect(draft.recallEnabled, isFalse);
   });
 
-  testWidgets('gives an empty Remember screen one quiet incised mark', (
+  testWidgets('guided reflections record immediately and remain private', (
     tester,
   ) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    await tester.pumpWidget(
+      fixture.wrap(
+        RecordScreen(
+          startMode: RecordStartMode.reflection,
+          initialTitle: 'Reflection · Forgiveness',
+          initialBodyPrompt: 'Who is God inviting me to forgive?',
+          privateReflection: true,
+          onMemorySaved: (_) {},
+        ),
+      ),
+    );
+    await _settle(tester);
+    expect(find.text('Record reflection'), findsOneWidget);
+    await _recordAndContinue(tester);
+    await _saveForm(tester);
+    expect(fixture.repository.lastDraft!.title, 'Reflection · Forgiveness');
+    expect(fixture.repository.lastDraft!.sensitive, isTrue);
+    expect(fixture.repository.lastDraft!.recallEnabled, isFalse);
+    expect(fixture.repository.lastDraft!.body, isEmpty);
+  });
+
+  testWidgets('existing body survives without a long-form editor', (
+    tester,
+  ) async {
+    EncounterDraft? saved;
+    final audio = _audioDraft();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: const MaterialApp(home: Scaffold(body: RememberScreen())),
+        child: MaterialApp(
+          home: Scaffold(
+            body: EncounterForm(
+              initialTitle: 'An older memory',
+              initialBody: 'The existing words remain unchanged.',
+              audio: audio,
+              onCancel: () {},
+              onSave: (draft) async => saved = draft,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('encounter-body')), findsNothing);
+    await _saveForm(tester);
+    expect(saved!.body, 'The existing words remain unchanged.');
+    expect(saved!.audio, same(audio));
+  });
+
+  testWidgets('a new memory cannot be saved with only a title', (tester) async {
+    var saves = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: EncounterForm(
+              initialTitle: 'A title alone',
+              onCancel: () {},
+              onSave: (_) async { saves++; },
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('encounter-body')), findsNothing);
+    expect(find.text('Record audio'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('encounter-save'))).onPressed,
+      isNull,
+    );
+    expect(saves, 0);
+  });
+
+  testWidgets('failed save keeps the original take for a successful retry', (
+    tester,
+  ) async {
+    final audio = _audioDraft();
+    final attempts = <MemoryAudioDraft?>[];
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: EncounterForm(
+              audio: audio,
+              onCancel: () {},
+              onSave: (draft) async {
+                attempts.add(draft.audio);
+                if (attempts.length == 1) throw StateError('disk');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await _saveForm(tester);
+    expect(find.text('Recording kept. Try saving again.'), findsOneWidget);
+    await _saveForm(tester);
+    expect(attempts.length, 2);
+    expect(attempts.every((value) => identical(value, audio)), isTrue);
+  });
+
+  testWidgets('storage loading and failure do not release a transferred take', (
+    tester,
+  ) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    final pending = Completer<InMemoryEncounterRepository>();
+    final store = _DiscardTrackingAudioStore();
+    await tester.pumpWidget(
+      fixture.wrap(
+        Consumer(builder: (context, ref, _) {
+          ref.watch(encounterRepositoryProvider);
+          return const RecordScreen();
+        }),
+        loadRepository: () => pending.future,
+        audioStore: store,
       ),
     );
     await _settle(tester);
+    await _recordAndContinue(tester);
+    expect(find.byKey(const Key('encounter-title')), findsOneWidget);
 
-    expect(find.byKey(const Key('remember-living-vine')), findsNothing);
-    expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
-    expect(find.text('We forget quickly'), findsOneWidget);
-    expect(find.byKey(const Key('remember-speak')), findsOneWidget);
-    expect(find.byKey(const Key('remember-write')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(find.text('Discard recording?'), findsOneWidget);
+    await tester.tap(find.text('Keep recording'));
+    await _settle(tester);
+    expect(store.discarded, isEmpty);
+
+    pending.completeError(StateError('storage unavailable'));
+    await _settle(tester);
+    expect(find.byKey(const Key('encounter-title')), findsOneWidget);
+    expect(find.textContaining('Recording ·'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    await tester.tap(find.text('Discard'));
+    await _settle(tester);
+    expect(store.discarded, ['/private/take.m4a']);
+    expect(find.text('Start recording'), findsOneWidget);
   });
 
-  testWidgets('empty Remember action fits above shell navigation', (
+  testWidgets('storage initialization can retry without recording again', (
     tester,
   ) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    var attempts = 0;
+    Encounter? saved;
+    await tester.pumpWidget(
+      fixture.wrap(
+        RecordScreen(onMemorySaved: (memory) => saved = memory),
+        loadRepository: () async {
+          if (++attempts == 1) throw StateError('storage unavailable');
+          return fixture.repository;
+        },
+      ),
+    );
+    await _settle(tester);
+    await _recordAndContinue(tester);
+    await _saveForm(tester);
+    expect(find.text('Recording kept. Try saving again.'), findsOneWidget);
+    expect(saved, isNull);
+    await _saveForm(tester);
+    expect(saved, isNotNull);
+    expect(attempts, 2);
+    expect(fixture.recorder.permissionRequests, 1);
+    expect(fixture.repository.lastDraft!.audio!.temporaryKey, '/private/take.m4a');
+  });
+
+  testWidgets('empty Remember offers one recording action', (tester) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    await tester.pumpWidget(fixture.wrap(const RememberScreen()));
+    await _settle(tester);
+    expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
+    expect(find.byKey(const Key('remember-speak')), findsOneWidget);
+    expect(find.byKey(const Key('remember-write')), findsNothing);
+    expect(find.text('Record'), findsOneWidget);
+  });
+
+  testWidgets('empty Remember recording action fits above shell navigation', (
+    tester,
+  ) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
     await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: MaterialApp(
-          home: Scaffold(
-            body: const RememberScreen(),
-            bottomNavigationBar: NavigationBar(
-              key: const Key('test-shell-navigation'),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.history_outlined),
-                  label: 'Remember',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  label: 'Settings',
-                ),
-              ],
-            ),
-          ),
+      fixture.wrap(
+        const RememberScreen(),
+        navigation: NavigationBar(
+          key: const Key('test-shell-navigation'),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.history), label: 'Remember'),
+            NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+          ],
         ),
       ),
     );
     await _settle(tester);
-
     expect(
-      tester.getBottomLeft(find.byKey(const Key('remember-write'))).dy,
+      tester.getBottomLeft(find.byKey(const Key('remember-speak'))).dy,
       lessThanOrEqualTo(
         tester.getTopLeft(find.byKey(const Key('test-shell-navigation'))).dy,
       ),
     );
-    expect(
-      find.byKey(const Key('remember-write')).hitTestable(),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('remember-speak')).hitTestable(), findsOneWidget);
   });
 
-  testWidgets('records an encounter and shows it in Remember immediately', (
+  testWidgets('audio metadata remains accessible at large text sizes', (
     tester,
   ) async {
-    final repository = InMemoryEncounterRepository(
-      now: () => DateTime.utc(2026, 8, 10, 12),
-    );
-    addTearDown(() async {
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-      await repository.close();
-    });
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          onboardingCompleteProvider.overrideWith((ref) => true),
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: const SoulBuddyApp(),
-      ),
+      fixture.wrap(const RecordScreen(), largeText: true),
     );
     await _settle(tester);
-
-    await tester.tap(find.text('Remember').last);
-    await _settle(tester);
-    await tester.tap(find.byKey(const Key('remember-write')));
-    await _settle(tester);
-    await tester.tap(find.text('Encounter'));
-    await _settle(tester);
-
-    await tester.enterText(
-      find.byKey(const Key('encounter-title')),
-      'A prayer was answered',
-    );
-    await tester.enterText(
-      find.byKey(const Key('encounter-body')),
-      'Help came through a person.',
-    );
-    await tester.ensureVisible(
-      find.widgetWithText(SwitchListTile, 'Keep this as an Altar'),
-    );
-    await tester.tap(
-      find.widgetWithText(SwitchListTile, 'Keep this as an Altar'),
-    );
-    await tester.ensureVisible(find.text('Save'));
-    await tester.pump();
-    await tester.tap(find.text('Save'));
-    await _settle(tester);
-
-    await tester.tap(find.text('Remember').last);
-    await _settle(tester);
-
-    expect(find.text('A prayer was answered'), findsOneWidget);
-    expect(find.text('Help came through a person.'), findsOneWidget);
-    expect(find.text('Altar'), findsOneWidget);
-  });
-
-  testWidgets('keeps guided choices accessible at large text sizes', (
-    tester,
-  ) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light(),
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: const TextScaler.linear(2)),
-            child: child!,
-          ),
-          home: const Scaffold(body: RecordScreen()),
-        ),
-      ),
-    );
-    await _settle(tester);
-
-    await tester.tap(find.byKey(const Key('record-write')));
-    await _settle(tester);
-
-    for (final label in [
-      'Encounter',
-      'Promise',
-      'What I left behind',
-      'Revelation',
-      'Scripture',
-      'Person',
-      'Family',
-      'Lesson',
-      'Testimony',
-    ]) {
-      final target = find.byKey(Key('record-choice-${label.toLowerCase()}'));
-      expect(target, findsOneWidget);
-    }
-
-    await tester.tap(find.text('Encounter'));
-    await _settle(tester);
-
-    expect(find.text('Title'), findsOneWidget);
-    expect(find.text('What happened? (optional)'), findsOneWidget);
-    expect(find.text('Date'), findsOneWidget);
-    expect(
-      find.text('Mark an encounter you want to return to and remember.'),
-      findsOneWidget,
-    );
+    await _recordAndContinue(tester);
+    expect(find.byKey(const Key('encounter-body')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('encounter-title')));
+    expect(find.text('Title (optional)'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('encounter-date')));
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('every Record choice opens a working typed form', (tester) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: const MaterialApp(home: Scaffold(body: RecordScreen())),
-      ),
-    );
-    await _settle(tester);
-
-    for (final label in ['Promise', 'What I left behind', 'Revelation']) {
-      await tester.tap(find.byKey(const Key('record-write')));
-      await _settle(tester);
-      await tester.ensureVisible(find.text(label));
-      await tester.tap(find.text(label));
-      await _settle(tester);
-      expect(find.text('Record $label'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
-      if (label == 'What I left behind') {
-        final sensitive = tester.widget<SwitchListTile>(
-          find.widgetWithText(SwitchListTile, 'Sensitive'),
-        );
-        expect(sensitive.value, isTrue);
-      }
-      await tester.tap(find.text('Remember').first);
-      await _settle(tester);
-    }
-    expect(find.textContaining('Coming'), findsNothing);
-  });
-
-  testWidgets('Sacred Hour remembrance keeps a careful opening prompt', (
-    tester,
-  ) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(
-            body: RecordScreen(
-              startMode: RecordStartMode.write,
-              initialBodyPrompt: 'What may God be teaching me here?',
-            ),
-          ),
-        ),
-      ),
-    );
-    await _settle(tester);
-    await tester.tap(find.text('Encounter'));
-    await _settle(tester);
-
-    expect(find.text('What may God be teaching me here?'), findsOneWidget);
-    expect(find.textContaining('God told me'), findsNothing);
-  });
-
-  testWidgets('guided reflection opens directly as a private blank journal', (
-    tester,
-  ) async {
-    final repository = InMemoryEncounterRepository();
-    addTearDown(repository.close);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(
-            body: RecordScreen(
-              startMode: RecordStartMode.reflection,
-              initialTitle: 'Reflection · Forgiveness',
-              initialBodyPrompt: 'Who is God inviting me to forgive?',
-              privateReflection: true,
-            ),
-          ),
-        ),
-      ),
-    );
-    await _settle(tester);
-
-    expect(find.text('Record an encounter'), findsOneWidget);
-    expect(find.text('Who is God inviting me to forgive?'), findsOneWidget);
-    expect(find.text('Encounter'), findsNothing);
-    expect(
-      tester
-          .widget<TextFormField>(find.byKey(const Key('encounter-body')))
-          .controller!
-          .text,
-      isEmpty,
-    );
-    expect(
-      tester
-          .widget<SwitchListTile>(
-            find.widgetWithText(SwitchListTile, 'Sensitive'),
-          )
-          .value,
-      isTrue,
-    );
   });
 
   testWidgets('Remember filters records and masks sensitive excerpts', (
@@ -477,48 +398,100 @@ void main() {
     expect(find.text('A private freedom'), findsNothing);
   });
 
-  testWidgets('adds dated understanding without rewriting the memory', (
-    tester,
-  ) async {
-    final repository = InMemoryEncounterRepository(
-      now: () => DateTime.utc(2026, 8, 12, 12),
-    );
-    addTearDown(repository.close);
-    final memory = await repository.create(
-      const EncounterDraft(
-        title: 'An encounter to understand',
-        body: 'The original record.',
-        occurredOn: '2026-08-11',
-        isAltar: true,
-        memoryType: MemoryType.revelation,
-      ),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          encounterRepositoryProvider.overrideWith((ref) async => repository),
-        ],
-        child: MaterialApp(home: MemoryDetailScreen(memoryId: memory.id)),
-      ),
-    );
-    await _settle(tester);
-    await tester.enterText(
-      find.byKey(const Key('memory-reflection-body')),
-      'I understand more about patience now.',
-    );
-    final saveReflection = find.byKey(const Key('memory-save-reflection'));
-    await tester.ensureVisible(saveReflection);
-    await tester.pump();
-    await tester.tap(saveReflection);
-    await _settle(tester);
 
-    expect(find.text('I understand more about patience now.'), findsOneWidget);
-    expect(find.text('The original record.'), findsOneWidget);
-  });
+}
+
+MemoryAudioDraft _audioDraft() => MemoryAudioDraft(
+  temporaryKey: '/private/take.m4a',
+  mimeType: 'audio/mp4',
+  duration: const Duration(seconds: 2),
+  waveform: const [0.2, 0.8],
+);
+
+Future<void> _recordAndContinue(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('Start recording'));
+  await tester.tap(find.text('Start recording'));
+  await _settle(tester);
+  await tester.ensureVisible(find.text('Stop'));
+  await tester.tap(find.text('Stop'));
+  await _settle(tester);
+  await tester.ensureVisible(find.text('Use recording'));
+  await tester.tap(find.text('Use recording'));
+  await _settle(tester);
+}
+
+Future<void> _saveForm(WidgetTester tester) async {
+  final save = find.byKey(const Key('encounter-save'));
+  await tester.ensureVisible(save);
+  await tester.pump();
+  await tester.tap(save);
+  await _settle(tester);
+}
+
+class _RecordFixture {
+  final repository = InMemoryEncounterRepository();
+  final recorder = _RecordFlowRecorder();
+  late final controller = AudioCaptureController(
+    recorder: recorder,
+    allocateTemporary: () async =>
+        const TemporaryAudio(key: 'take', locator: '/private/take.m4a'),
+  );
+
+  Widget wrap(
+    Widget child, {
+    Widget? navigation,
+    bool largeText = false,
+    Future<InMemoryEncounterRepository> Function()? loadRepository,
+    AudioAssetStore? audioStore,
+  }) =>
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          encounterRepositoryProvider.overrideWith(
+            (ref) async => loadRepository == null
+                ? repository
+                : await loadRepository(),
+          ),
+          audioCaptureControllerProvider.overrideWith((ref) async => controller),
+          prayerPeopleProvider.overrideWith((ref) => Stream.value(const [])),
+          if (audioStore != null)
+            audioAssetStoreProvider.overrideWith((ref) async => audioStore),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          builder: largeText
+              ? (context, child) => MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: const TextScaler.linear(2),
+                  ),
+                  child: child!,
+                )
+              : null,
+          home: Scaffold(body: child, bottomNavigationBar: navigation),
+        ),
+      );
+
+  Future<void> close() async {
+    await controller.close();
+    await repository.close();
+  }
+}
+
+class _DiscardTrackingAudioStore implements AudioAssetStore {
+  final discarded = <String>[];
+
+  @override
+  Future<void> discardTemporary(String locator) async {
+    discarded.add(locator);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _RecordFlowRecorder implements AudioRecorderGateway {
   final _amplitudes = StreamController<double>.broadcast();
+  int permissionRequests = 0;
 
   @override
   Stream<double> get amplitudes => _amplitudes.stream;
@@ -539,7 +512,10 @@ class _RecordFlowRecorder implements AudioRecorderGateway {
   Future<void> pause() async {}
 
   @override
-  Future<bool> requestPermission() async => true;
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return true;
+  }
 
   @override
   Future<void> resume() async {}

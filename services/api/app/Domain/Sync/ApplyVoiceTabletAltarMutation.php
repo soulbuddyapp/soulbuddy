@@ -24,7 +24,7 @@ final class ApplyVoiceTabletAltarMutation
     }
 
     /** @param Collection<int, array<string, mixed>> $operations */
-    public function validate(User $user, Collection $operations): ?string
+    public function validate(User $user, Collection $operations, ?Collection $personalPrayerOperations = null): ?string
     {
         foreach ($operations as $operation) {
             $error = $this->validateKindAndData($operation);
@@ -33,10 +33,24 @@ final class ApplyVoiceTabletAltarMutation
             }
         }
 
+        // Two prayers must not both claim a new tablet ID while apply() keeps
+        // only the first source. Equivalent retries remain safe to accept.
+        foreach ($operations->where('table', 'voice_tablets')->where('type', 'put')->groupBy('id') as $duplicates) {
+            $expected = Arr::except($duplicates->first()['data'], ['owner_id', 'created_at', 'updated_at']);
+            ksort($expected);
+            foreach ($duplicates as $operation) {
+                $candidate = Arr::except($operation['data'], ['owner_id', 'created_at', 'updated_at']);
+                ksort($candidate);
+                if ($candidate !== $expected) {
+                    return 'conflict';
+                }
+            }
+        }
+
         $pendingTabletIds = $operations->where('table', 'voice_tablets')->where('type', 'put')->pluck('id');
         $pendingAltarItemIds = $operations->where('table', 'altar_items')->where('type', 'put')->pluck('id');
         foreach ($operations as $operation) {
-            $error = $this->validateTarget($user, $operation, $pendingTabletIds, $pendingAltarItemIds);
+            $error = $this->validateTarget($user, $operation, $pendingTabletIds, $pendingAltarItemIds, $personalPrayerOperations ?? collect());
             if ($error !== null) {
                 return $error;
             }
@@ -201,7 +215,7 @@ final class ApplyVoiceTabletAltarMutation
         return false;
     }
 
-    private function validateTarget(User $user, array $operation, Collection $pendingTabletIds, Collection $pendingAltarItemIds): ?string
+    private function validateTarget(User $user, array $operation, Collection $pendingTabletIds, Collection $pendingAltarItemIds, Collection $personalPrayerOperations): ?string
     {
         $modelClass = $this->modelFor($operation['table']);
         $existing = $modelClass::query()->find($operation['id']);
@@ -224,7 +238,7 @@ final class ApplyVoiceTabletAltarMutation
 
         $data = $operation['data'];
         if ($operation['table'] === 'voice_tablets') {
-            return $this->validateVoiceSource($user, $data);
+            return $this->validateVoiceSource($user, $data, $personalPrayerOperations);
         }
         if ($operation['table'] === 'altar_items') {
             return $this->validateAltarTarget($user, $data, $pendingTabletIds);
@@ -235,19 +249,32 @@ final class ApplyVoiceTabletAltarMutation
         return $altarItem || $pendingAltarItemIds->contains($data['altar_item_id']) ? null : 'inaccessible_record';
     }
 
-    private function validateVoiceSource(User $user, array $data): ?string
+    private function validateVoiceSource(User $user, array $data, Collection $pending): ?string
     {
         if ($data['source_type'] === 'library_prayer') {
             return LibraryPrayer::query()->whereKey($data['library_prayer_id'])->whereNotNull('published_at')->whereNull('archived_at')->exists()
                 ? null : 'inaccessible_record';
         }
-        $prayer = PersonalPrayer::query()->whereKey($data['personal_prayer_id'])->where('user_id', $user->id)->whereNull('archived_at')->exists();
-        if (! $prayer) {
+        $prayer = PersonalPrayer::query()->whereKey($data['personal_prayer_id'])->first();
+        if ($prayer !== null && ($prayer->user_id !== $user->id || $prayer->archived_at !== null)) {
             return 'inaccessible_record';
         }
-        $revision = PersonalPrayerRevision::query()->whereKey($data['prayer_revision_id'])->where('prayer_id', $data['personal_prayer_id'])->where('user_id', $user->id)->exists();
+        $pendingPrayer = $pending->where('table', 'personal_prayers')->where('type', 'put')
+            ->contains(fn (array $operation): bool => $operation['id'] === $data['personal_prayer_id']
+                && ($operation['data']['archived_at'] ?? null) === null);
+        if ($prayer === null && ! $pendingPrayer) {
+            return 'inaccessible_record';
+        }
+        $revision = PersonalPrayerRevision::query()->whereKey($data['prayer_revision_id'])->first();
+        if ($revision !== null) {
+            return $revision->prayer_id === $data['personal_prayer_id'] && $revision->user_id === $user->id
+                ? null : 'invalid_revision';
+        }
+        $pendingRevision = $pending->where('table', 'personal_prayer_revisions')->where('type', 'put')
+            ->contains(fn (array $operation): bool => $operation['id'] === $data['prayer_revision_id']
+                && ($operation['data']['prayer_id'] ?? null) === $data['personal_prayer_id']);
 
-        return $revision ? null : 'invalid_revision';
+        return $pendingRevision ? null : 'invalid_revision';
     }
 
     private function validateAltarTarget(User $user, array $data, Collection $pendingTabletIds): ?string
@@ -299,3 +326,4 @@ final class ApplyVoiceTabletAltarMutation
         };
     }
 }
+

@@ -75,6 +75,7 @@ class FormationCompletion {
     required this.videoId,
     required this.completedAt,
     this.reflection,
+    this.reflectionEncounterId,
     this.action,
   });
 
@@ -82,6 +83,7 @@ class FormationCompletion {
   final String videoId;
   final DateTime completedAt;
   final String? reflection;
+  final String? reflectionEncounterId;
   final String? action;
 
   factory FormationCompletion.fromJson(Map<dynamic, dynamic> json) =>
@@ -90,6 +92,7 @@ class FormationCompletion {
         videoId: json['videoId'] as String,
         completedAt: DateTime.parse(json['completedAt'] as String),
         reflection: json['reflection'] as String?,
+        reflectionEncounterId: json['reflectionEncounterId'] as String?,
         action: json['action'] as String?,
       );
 
@@ -97,6 +100,7 @@ class FormationCompletion {
     'day': day,
     'videoId': videoId,
     'completedAt': completedAt.toUtc().toIso8601String(),
+    if (reflectionEncounterId != null) 'reflectionEncounterId': reflectionEncounterId,
     if (reflection != null && reflection!.trim().isNotEmpty)
       'reflection': reflection!.trim(),
     if (action != null && action!.trim().isNotEmpty) 'action': action!.trim(),

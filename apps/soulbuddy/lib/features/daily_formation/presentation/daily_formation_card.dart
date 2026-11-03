@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../application/formation_video_launcher.dart';
 import '../domain/formation_catalog.dart';
 import '../domain/formation_profile.dart';
@@ -125,6 +127,7 @@ class DailyFormationCard extends ConsumerWidget {
     WidgetRef ref,
     FormationVideo video,
   ) async {
+    await ref.read(spiritualSessionControllerProvider).pauseForCapture();
     final opened = await _videoLauncher.open(
       youtubeId: video.youtubeId,
       webUrl: Uri.parse(video.youtubeUrl),
@@ -240,11 +243,11 @@ class DailyFormationCard extends ConsumerWidget {
     FormationVideo video,
   ) async {
     final result =
-        await showModalBottomSheet<({String reflection, String action})>(
+        await showModalBottomSheet<({String? recordingId, String action})>(
           context: context,
           isScrollControlled: true,
           showDragHandle: true,
-          builder: (_) => _CompletionSheet(day: day),
+          builder: (_) => _CompletionSheet(day: day, video: video),
         );
     if (result == null) return;
     await completeDailyFormation(
@@ -253,7 +256,7 @@ class DailyFormationCard extends ConsumerWidget {
         day: day.day,
         videoId: video.id,
         completedAt: DateTime.now(),
-        reflection: result.reflection,
+        reflectionEncounterId: result.recordingId,
         action: result.action,
       ),
     );
@@ -460,64 +463,75 @@ class _SetupCardState extends ConsumerState<_SetupCard> {
 }
 
 class _CompletionSheet extends StatefulWidget {
-  const _CompletionSheet({required this.day});
+  const _CompletionSheet({required this.day, required this.video});
   final FormationDay day;
+  final FormationVideo video;
 
   @override
   State<_CompletionSheet> createState() => _CompletionSheetState();
 }
 
 class _CompletionSheetState extends State<_CompletionSheet> {
-  final _reflection = TextEditingController();
+  String? _recordingId;
+  bool _recordingBusy = false;
   final _action = TextEditingController();
 
   @override
   void dispose() {
-    _reflection.dispose();
     _action.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_recordingBusy,
+    child: Padding(
     padding: EdgeInsets.fromLTRB(
       20,
       0,
       20,
       20 + MediaQuery.viewInsetsOf(context).bottom,
     ),
-    child: Column(
+    child: SingleChildScrollView(child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Carry it into today',
+          'After watching',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 6),
-        Text(widget.day.reflection),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _reflection,
-          maxLines: 2,
-          textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(labelText: 'Reflection'),
+        VoiceNotesField(
+          noteContext: (
+            type: 'formation',
+            id: '${widget.video.id}:day-${widget.day.day}',
+            field: 'reflection',
+          ),
+          title: widget.video.title,
+          onRecorded: (memory) {
+            if (mounted) setState(() => _recordingId = memory.id);
+          },
+          onBusyChanged: (busy) {
+            if (mounted) setState(() => _recordingBusy = busy);
+          },
         ),
         const SizedBox(height: 8),
         TextField(
           controller: _action,
-          maxLines: 2,
-          decoration: InputDecoration(labelText: widget.day.action),
+          maxLength: 80,
+          maxLines: 1,
+          decoration: const InputDecoration(labelText: 'Next step · short title'),
         ),
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: () => Navigator.pop(context, (
-            reflection: _reflection.text,
+          onPressed: _recordingBusy ? null : () => Navigator.pop(context, (
+            recordingId: _recordingId,
             action: _action.text,
           )),
           child: const Text('Complete today'),
         ),
       ],
+    )),
     ),
   );
 }

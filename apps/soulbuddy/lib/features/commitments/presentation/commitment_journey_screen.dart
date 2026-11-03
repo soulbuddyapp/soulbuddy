@@ -2,11 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/presentation/sanctuary_backdrop.dart';
 import '../../../core/presentation/screen_awake.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../record/providers/voice_note_providers.dart';
 import '../application/commitment_journey_flow.dart';
 import '../data/commitment_practice_catalog_repository.dart';
 import '../data/commitment_journey_progress_repository.dart';
@@ -34,11 +35,12 @@ class _CommitmentJourneyScreenState
   final _calling = TextEditingController();
   final _name = TextEditingController();
   final _declaration = TextEditingController();
-  final _speech = SpeechToText();
   final _scroll = ScrollController();
   Timer? _debounce;
   Future<void> _writes = Future.value();
   bool _loading = true, _busy = false, _leaving = false;
+  bool _recordingBusy = false;
+  bool get _blocked => _busy || _recordingBusy;
   bool _loaded = false;
   bool _finalizing = false;
   String? _error;
@@ -162,13 +164,12 @@ class _CommitmentJourneyScreenState
   }
 
   Future<void> _leave() async {
-    if (_busy || _leaving) return;
+    if (_blocked || _leaving) return;
     if (!_loaded) {
       context.go('/goals');
       return;
     }
     _leaving = true;
-    await _speech.stop();
     _progress = _progress.copyWith(deferred: true);
     if (await _save() && mounted) {
       context.go('/goals');
@@ -178,7 +179,7 @@ class _CommitmentJourneyScreenState
   }
 
   Future<void> _advance({bool back = false}) async {
-    if (_busy || !_loaded) return;
+    if (_blocked || !_loaded) return;
     final value = _snapshot();
     if (!back && !commitmentStageValid(value.stage, value, _practices)) {
       setState(
@@ -192,7 +193,6 @@ class _CommitmentJourneyScreenState
       _busy = true;
       _error = null;
     });
-    await _speech.stop();
     if (await _save() && mounted) {
       final index = value.stage.index + (back ? -1 : 1);
       if (index >= 0 && index < CommitmentJourneyStage.summary.index + 1) {
@@ -201,15 +201,6 @@ class _CommitmentJourneyScreenState
           invitationCompleted: true,
           deferred: false,
         );
-        if (_progress.stage == CommitmentJourneyStage.declaration &&
-            _declaration.text.isEmpty) {
-          // The name is optional in the pledge; the commitment title comes later.
-          _declaration.text = buildCommitmentDeclarationDraft(
-            name: 'a child of God',
-            calling: _calling.text,
-            practices: _practices.map((p) => p.body).toList(),
-          );
-        }
         await _save();
         if (mounted && _scroll.hasClients) _scroll.jumpTo(0);
       }
@@ -218,7 +209,11 @@ class _CommitmentJourneyScreenState
   }
 
   Future<void> _finish() async {
-    if (_busy) return;
+    if (_blocked) return;
+    if (!_progress.declarationReviewed) {
+      setState(() => _error = 'Review your declaration before saving.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -244,37 +239,6 @@ class _CommitmentJourneyScreenState
     }
   }
 
-  Future<void> _dictate() async {
-    if (_speech.isListening) {
-      await _speech.stop();
-      if (mounted) setState(() {});
-      return;
-    }
-    final before = _calling.text.trim();
-    if (!await _speech.initialize()) {
-      if (mounted) {
-        setState(() => _error = 'Speech unavailable. Continue writing.');
-      }
-      return;
-    }
-    if (!mounted) return;
-    await _speech.listen(
-      listenOptions: SpeechListenOptions(onDevice: true),
-      onResult: (result) {
-        if (!mounted) return;
-        final text = [
-          before,
-          result.recognizedWords,
-        ].where((v) => v.isNotEmpty).join(' ');
-        _calling.text = String.fromCharCodes(
-          text.runes.take(CommitmentTextLimits.calling),
-        );
-        _changed();
-      },
-    );
-    if (mounted) setState(() {});
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed &&
@@ -282,7 +246,6 @@ class _CommitmentJourneyScreenState
         !_busy &&
         !_leaving &&
         !_finalizing) {
-      unawaited(_speech.stop());
       unawaited(_save());
     }
   }
@@ -292,7 +255,6 @@ class _CommitmentJourneyScreenState
     WidgetsBinding.instance.removeObserver(this);
     if (_loaded && !_busy && !_leaving && !_finalizing) unawaited(_save());
     _debounce?.cancel();
-    unawaited(_speech.stop());
     for (final c in [..._needs, _calling, _name, _declaration]) {
       c.dispose();
     }
@@ -300,29 +262,61 @@ class _CommitmentJourneyScreenState
     super.dispose();
   }
 
-  Widget _field(
-    TextEditingController c,
-    String label,
-    int max, {
-    int lines = 3,
-    bool declaration = false,
-  }) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: TextField(
-      controller: c,
-      minLines: lines,
-      maxLines: lines + 3,
-      maxLength: max,
-      textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(labelText: label, alignLabelWithHint: true),
-      onChanged: (_) {
-        if (declaration || c == _calling || _needs.contains(c)) {
-          _progress = _progress.copyWith(declarationReviewed: false);
-        }
-        _changed();
-      },
-    ),
+  Widget _recordedField(
+    TextEditingController controller,
+    String field,
+    String title,
+  ) {
+    final noteContext = (type: 'commitment', id: 'journey:primary', field: field);
+    final notes = ref.watch(voiceNotesProvider(noteContext));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if ((notes.value?.isEmpty ?? true) && controller.text.isNotEmpty)
+            SelectableText(controller.text),
+          VoiceNotesField(
+            key: ValueKey('commitment-record-$field'),
+            noteContext: noteContext,
+            title: title,
+            enabled: !_blocked,
+            onBusyChanged: _recordingChanged,
+            onRecorded: (memory) {
+              controller.text = memory.title;
+              _progress = _progress.copyWith(declarationReviewed: false);
+              _changed();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _recordingChanged(bool busy) {
+    if (mounted) setState(() => _recordingBusy = busy);
+  }
+
+  Widget _declarationReview() => CheckboxListTile(
+    contentPadding: EdgeInsets.zero,
+    value: _progress.declarationReviewed,
+    title: const Text('This reflects my intention'),
+    onChanged: (value) {
+      _progress = _progress.copyWith(declarationReviewed: value ?? false);
+      _changed();
+    },
   );
+
+  Widget _titleField(TextEditingController controller, String title) => TextField(
+    controller: controller,
+    enabled: !_blocked,
+    maxLines: 1,
+    maxLength: 120,
+    textCapitalization: TextCapitalization.sentences,
+    decoration: InputDecoration(labelText: title),
+    onChanged: (_) => _changed(),
+  );
+
   Widget _heading(String title, [String? text]) => Padding(
     padding: const EdgeInsets.only(bottom: 24),
     child: Column(
@@ -341,6 +335,8 @@ class _CommitmentJourneyScreenState
   );
   Future<void> _ownPractice() async {
     final c = TextEditingController();
+    final practiceId = const Uuid().v7();
+    var recorded = false;
     var category = CommitmentPracticeCategory.joyPleasure;
     final result = await showDialog<CommitmentPracticeDraft>(
       context: context,
@@ -354,10 +350,22 @@ class _CommitmentJourneyScreenState
                 TextField(
                   controller: c,
                   autofocus: true,
-                  maxLength: 1000,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Practice'),
+                  maxLength: 120,
+                  maxLines: 1,
+                  decoration: const InputDecoration(labelText: 'Practice title'),
+                ),
+                VoiceNotesField(
+                  noteContext: (
+                    type: 'commitment',
+                    id: 'journey:primary',
+                    field: 'practice:$practiceId',
+                  ),
+                  title: 'Daily practice',
+                  onBusyChanged: _recordingChanged,
+                  onRecorded: (memory) => update(() {
+                    recorded = true;
+                    if (c.text.trim().isEmpty) c.text = memory.title;
+                  }),
                 ),
                 DropdownButtonFormField<CommitmentPracticeCategory>(
                   initialValue: category,
@@ -381,12 +389,12 @@ class _CommitmentJourneyScreenState
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
+              onPressed: !recorded ? null : () {
                 if (c.text.trim().isNotEmpty) {
                   Navigator.pop(
                     ctx,
                     CommitmentPracticeDraft(
-                      id: const Uuid().v7(),
+                      id: practiceId,
                       category: category,
                       body: c.text.trim(),
                     ),
@@ -418,17 +426,17 @@ class _CommitmentJourneyScreenState
       case CommitmentJourneyStage.quietPlace:
         return _heading(
           'A moment with God',
-          'Find somewhere quiet, if you can. Stand or kneel if you are able. '
-              'Lift your heart to the heavens in prayer. Get your paper or notebook and a pen.',
+          'Find a quiet place',
         );
       case CommitmentJourneyStage.needs:
         return Column(
           children: [
             _heading(
               'What do you need from God?',
-              'Name three needs for a closer, more faithful walk with Him.',
+              'Record three needs',
             ),
-            for (var i = 0; i < 3; i++) _field(_needs[i], 'Need ${i + 1}', 500),
+            for (var i = 0; i < 3; i++)
+              _recordedField(_needs[i], 'needs-${i + 1}', 'Need ${i + 1}'),
           ],
         );
       case CommitmentJourneyStage.calling:
@@ -437,17 +445,9 @@ class _CommitmentJourneyScreenState
           children: [
             _heading(
               'What is your calling?',
-              'What is one thing you believe God has called you to do or become in this world?',
+              'Record your calling',
             ),
-            _field(_calling, 'Calling', 1500, lines: 5),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _dictate,
-                icon: Icon(_speech.isListening ? Icons.stop : Icons.mic_none),
-                label: Text(_speech.isListening ? 'Stop dictation' : 'Speak'),
-              ),
-            ),
+            _recordedField(_calling, 'calling', 'Calling'),
           ],
         );
       case CommitmentJourneyStage.practices:
@@ -456,7 +456,7 @@ class _CommitmentJourneyScreenState
           children: [
             _heading(
               'Small, faithful choices',
-              'What healthy daily activities can help you pursue this calling in a way that glorifies God?',
+              'Choose your daily practices',
             ),
             Text('${_practices.length} of 12 practices'),
             for (final p in _practices)
@@ -476,8 +476,8 @@ class _CommitmentJourneyScreenState
               ),
             OutlinedButton.icon(
               onPressed: _practices.length < 12 ? _ownPractice : null,
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Write my own'),
+              icon: const Icon(Icons.mic_none),
+              label: const Text('Record my own'),
             ),
             for (final category in CommitmentPracticeCategory.values)
               ExpansionTile(
@@ -521,22 +521,8 @@ class _CommitmentJourneyScreenState
         return Column(
           children: [
             _heading('My declaration'),
-            _field(
-              _declaration,
-              'Declaration',
-              4000,
-              lines: 10,
-              declaration: true,
-            ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _progress.declarationReviewed,
-              title: const Text('These words reflect my intention.'),
-              onChanged: (v) {
-                _progress = _progress.copyWith(declarationReviewed: v ?? false);
-                _changed();
-              },
-            ),
+            _recordedField(_declaration, 'declaration', 'Declaration'),
+            _declarationReview(),
           ],
         );
       case CommitmentJourneyStage.guide:
@@ -597,7 +583,7 @@ class _CommitmentJourneyScreenState
         return Column(
           children: [
             _heading('Name your commitment'),
-            _field(_name, 'Commitment name', 120, lines: 1),
+            _titleField(_name, 'Commitment name'),
           ],
         );
       case CommitmentJourneyStage.summary:
@@ -605,29 +591,40 @@ class _CommitmentJourneyScreenState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _heading(_name.text, _calling.text),
-            ..._needs.map(
-              (v) => ListTile(
-                leading: const Icon(Icons.spa_outlined),
-                title: Text(v.text),
-              ),
-            ),
+            _heading(_name.text),
+            _recordedField(_calling, 'calling', 'Calling'),
+            for (var i = 0; i < _needs.length; i++)
+              _recordedField(_needs[i], 'needs-${i + 1}', 'Need ${i + 1}'),
             ExpansionTile(
               title: const Text('Daily practices'),
               initiallyExpanded: true,
-              children: _practices
-                  .map((p) => ListTile(title: Text(p.body)))
-                  .toList(),
+              children: [
+                for (final practice in _practices)
+                  VoiceNotesField(
+                    noteContext: (
+                      type: 'commitment', id: 'journey:primary',
+                      field: 'practice:${practice.id}',
+                    ),
+                    title: _shortLabel(practice.body),
+                    enabled: !_blocked,
+                    onBusyChanged: _recordingChanged,
+                    onRecorded: (_) {
+                      _progress = _progress.copyWith(declarationReviewed: false);
+                      _changed();
+                    },
+                  ),
+              ],
             ),
             ExpansionTile(
               title: const Text('My declaration'),
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(_declaration.text),
+                  child: _recordedField(_declaration, 'declaration', 'Declaration'),
                 ),
               ],
             ),
+            _declarationReview(),
             ListTile(
               leading: const Icon(Icons.schedule),
               title: Text(
@@ -668,7 +665,7 @@ class _CommitmentJourneyScreenState
                       children: [
                         IconButton(
                           tooltip: 'Back',
-                          onPressed: _busy
+                          onPressed: _blocked
                               ? null
                               : () => _progress.stage.index > 0
                                     ? _advance(back: true)
@@ -682,7 +679,7 @@ class _CommitmentJourneyScreenState
                           ),
                         ),
                         TextButton(
-                          onPressed: _busy ? null : _leave,
+                          onPressed: _blocked ? null : _leave,
                           child: const Text('Not now'),
                         ),
                       ],
@@ -724,7 +721,7 @@ class _CommitmentJourneyScreenState
                                     )
                                   else
                                     AbsorbPointer(
-                                      absorbing: _busy,
+                                      absorbing: _blocked,
                                       child: _body(),
                                     ),
                                   if (_loaded &&
@@ -733,14 +730,14 @@ class _CommitmentJourneyScreenState
                                               .invitation) ...[
                                     const SizedBox(height: 28),
                                     FilledButton(
-                                      onPressed: _busy
+                                      onPressed: _blocked
                                           ? null
                                           : _progress.stage ==
                                                 CommitmentJourneyStage.summary
                                           ? _finish
                                           : _advance,
                                       child: Text(
-                                        _busy
+                                        _blocked
                                             ? 'Saving…'
                                             : _progress.stage ==
                                                   CommitmentJourneyStage.summary
@@ -897,3 +894,5 @@ class CommitmentScheduleFields extends StatelessWidget {
     ],
   );
 }
+
+String _shortLabel(String value) => String.fromCharCodes(value.trim().runes.take(120));

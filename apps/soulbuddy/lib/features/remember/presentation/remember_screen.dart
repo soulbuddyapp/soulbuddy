@@ -230,25 +230,10 @@ class _CaptureButtons extends StatelessWidget {
   const _CaptureButtons();
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: FilledButton.icon(
-          key: const Key('remember-speak'),
-          onPressed: () => context.push('/remember/capture?mode=speak'),
-          icon: const Icon(Icons.mic_none),
-          label: const Text('Speak'),
-        ),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      Expanded(
-        child: OutlinedButton.icon(
-          key: const Key('remember-write'),
-          onPressed: () => context.push('/remember/capture?mode=write'),
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Write'),
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => FilledButton.icon(
+    key: const Key('remember-speak'),
+    onPressed: () => context.push('/remember/capture?mode=speak'),
+    icon: const Icon(Icons.mic_none),
+    label: const Text('Record'),
   );
 }

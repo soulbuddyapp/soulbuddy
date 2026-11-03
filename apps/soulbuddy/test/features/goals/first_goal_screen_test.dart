@@ -6,7 +6,11 @@ import 'package:soulbuddy/features/goals/data/goal_onboarding_progress_repositor
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
 import 'package:soulbuddy/features/goals/presentation/first_goal_screen.dart';
+import 'package:soulbuddy/features/goals/providers/goal_onboarding_providers.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
+import 'package:soulbuddy/features/record/data/voice_note_repository.dart';
+import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
 
 void main() {
   testWidgets('stop-control starts with the reviewed behavior choices', (
@@ -231,21 +235,24 @@ void main() {
     tester,
   ) async {
     final repository = _MemoryGoalProgressRepository();
-    await _pump(tester, repository);
+    await _pump(
+      tester,
+      repository,
+      situationRecordings: const [
+        VoiceNoteLink(encounterId: 'morning-recording', title: 'Morning prayer'),
+      ],
+    );
 
     await tester.tap(find.text('Grow closer to God'));
     await tester.pumpAndSettle();
     expect(find.text('Why now? What needs to change?'), findsOneWidget);
 
-    await tester.tap(find.text('Write'));
+    expect(find.byKey(const Key('first-goal-text-field')), findsNothing);
+    expect(find.text('Write'), findsNothing);
+    await tester.tap(find.byKey(const Key('first-goal-situation-continue')));
     await tester.pumpAndSettle();
-    expect(find.text('Why now? What needs to change?'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const Key('first-goal-text-field')),
-      'I rush through every morning.',
-    );
-    await tester.tap(find.byKey(const Key('first-goal-text-continue')));
-    await tester.pumpAndSettle();
+    expect(repository.progress?.currentSituation, 'Morning prayer');
+    expect(repository.progress?.situationByVoice, isTrue);
     await tester.tap(find.text("I'm not sure"));
     await tester.pumpAndSettle();
 
@@ -267,6 +274,32 @@ void main() {
       field.controller?.text,
       'Set aside ten quiet minutes before opening another app',
     );
+    expect(field.maxLength, 120);
+    expect(field.maxLines, 1);
+  });
+
+  testWidgets('new personal prayers use the recorder and legacy words stay readable', (
+    tester,
+  ) async {
+    final repository = _MemoryGoalProgressRepository(
+      const GoalOnboardingProgress(
+        stage: GoalOnboardingStage.prayer,
+        starterKey: GoalStarterKey.direction,
+        title: 'Find direction',
+        agencyChoice: GoalAgencyChoice.notSure,
+        prayerSource: GoalOnboardingPrayerSource.ownWords,
+        ownPrayerText: 'Lord, guide the next step I take.',
+      ),
+    );
+    await _pump(tester, repository);
+
+    expect(find.text('Record my prayer'), findsOneWidget);
+    expect(find.text('Use my own words'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.text('Earlier prayer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lord, guide the next step I take.'), findsOneWidget);
+    expect(repository.progress?.ownPrayerText, 'Lord, guide the next step I take.');
   });
 
   testWidgets('starter remains usable at 200 percent text on a small phone', (
@@ -294,6 +327,7 @@ Future<void> _pump(
   WidgetTester tester,
   GoalOnboardingProgressRepository repository, {
   MediaQueryData? mediaQuery,
+  List<VoiceNoteLink> situationRecordings = const [],
 }) async {
   Widget child = const FirstGoalScreen();
   if (mediaQuery != null) {
@@ -305,6 +339,15 @@ Future<void> _pump(
         goalOnboardingProgressRepositoryProvider.overrideWith(
           (ref) async => repository,
         ),
+        voiceNotesProvider.overrideWith(
+          (ref, noteContext) => Stream.value(
+            noteContext.field == 'situation'
+                ? situationRecordings
+                : const <VoiceNoteLink>[],
+          ),
+        ),
+        memoryAudioForEncounterProvider.overrideWith((ref, id) async => null),
+        firstGoalPrayerOptionsProvider.overrideWith((ref, starter) async => []),
       ],
       child: MaterialApp(theme: AppTheme.light(), home: child),
     ),

@@ -8,15 +8,22 @@ import 'package:soulbuddy/core/playback/spiritual_session.dart';
 import 'package:soulbuddy/core/playback/spiritual_session_controller.dart';
 import 'package:soulbuddy/core/playback/spiritual_session_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
+import 'package:soulbuddy/features/prayers/data/prayer_practice_repository.dart';
 import 'package:soulbuddy/features/prayers/data/voice_tablet_repository.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_player.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_sheet.dart';
 import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
 import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
+import 'package:soulbuddy/features/record/audio/application/memory_soundscape_player.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/data/memory_soundscape_preferences.dart';
 import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
+import 'package:soulbuddy/features/record/audio/domain/memory_soundscape.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 
 void main() {
@@ -78,9 +85,20 @@ void main() {
             (ref) async => coordinator,
           ),
           spiritualSessionControllerProvider.overrideWithValue(sessions),
+          memorySoundscapePreferencesProvider.overrideWithValue(_preferences()),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(player: _Background()),
+          ),
+          prayerPracticeRepositoryProvider.overrideWith(
+            (ref) async => _PracticeRepository(),
+          ),
         ],
         child: MaterialApp(
-          home: Scaffold(body: VoiceTabletPlayer(tablet: _tablet())),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: VoiceTabletPlayer(tablet: _tablet()),
+            ),
+          ),
         ),
       ),
     );
@@ -110,6 +128,7 @@ void main() {
           spiritualSessionControllerProvider.overrideWithValue(
             SpiritualSessionController(),
           ),
+          memorySoundscapePreferencesProvider.overrideWithValue(_preferences()),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -347,6 +366,10 @@ void main() {
           memoryAudioPlaybackCoordinatorProvider.overrideWith(
             (ref) async => coordinator,
           ),
+          memorySoundscapePreferencesProvider.overrideWithValue(_preferences()),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(player: _Background()),
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -371,6 +394,150 @@ void main() {
     await tester.pump();
     expect(prayed, 1);
   });
+
+  testWidgets('prayer mix and completion survive leaving the player', (
+    tester,
+  ) async {
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    final driver = _FakeAudioDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: _FakeAudioStore(),
+      driver: driver,
+    );
+    addTearDown(coordinator.close);
+    final sessions = SpiritualSessionController();
+    final background = _Background();
+    final practice = _PracticeRepository();
+    final preferences = _preferences();
+    await preferences.save(
+      'audio-1',
+      const MemorySoundscapeSettings(
+        soundscape: MemorySoundscape.flowingWater,
+        volume: .15,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => coordinator,
+          ),
+          spiritualSessionControllerProvider.overrideWithValue(sessions),
+          memorySoundscapePreferencesProvider.overrideWithValue(preferences),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(player: background),
+          ),
+          prayerPracticeRepositoryProvider.overrideWith((ref) async => practice),
+          prayerDeviceTimezoneProvider.overrideWithValue(() async => 'Africa/Lagos'),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: ValueListenableBuilder<bool>(
+              valueListenable: visible,
+              builder: (context, show, _) => show
+                  ? SingleChildScrollView(
+                      child: VoiceTabletPlayer(tablet: _tablet()),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text('Listen'));
+    await _settle(tester);
+    expect(background.playing, true);
+    expect(practice.recorded, isEmpty);
+    visible.value = false;
+    await tester.pump();
+
+    driver.positions.add(const Duration(seconds: 8));
+    await tester.pump();
+    expect(sessions.state.position, const Duration(seconds: 8));
+    driver.statuses.add(MemoryAudioDriverStatus.paused);
+    await tester.pump();
+    expect(background.playing, false);
+    expect(sessions.state.status, SpiritualSessionStatus.paused);
+    await sessions.resume();
+    expect(background.playing, true);
+    driver.statuses.add(MemoryAudioDriverStatus.completed);
+    await tester.pump();
+    expect(background.playing, false);
+    expect(sessions.state.session, isNull);
+
+    visible.value = true;
+    await _settle(tester);
+    await tester.tap(find.text('Listen'));
+    await _settle(tester);
+    visible.value = false;
+    await tester.pump();
+    await sessions.complete();
+
+    expect(background.playing, false);
+    expect(practice.recorded.single.id, 'prayer-1');
+    expect(practice.timezone, 'Africa/Lagos');
+    expect(tester.takeException(), isNull);
+  });
+}
+
+MemorySoundscapePreferences _preferences() {
+  final values = <String, String>{};
+  return MemorySoundscapePreferences(
+    read: (key) async => values[key],
+    write: (key, value) async => values[key] = value,
+  );
+}
+
+class _Background implements MemorySoundscapePlayer {
+  bool playing = false;
+
+  @override
+  Future<void> start(MemorySoundscape soundscape, {required double volume}) async {
+    playing = soundscape != MemorySoundscape.quiet;
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
+  Future<void> stop() async => playing = false;
+
+  @override
+  Future<void> dispose() async => playing = false;
+}
+
+class _PracticeRepository implements PrayerPracticeRepository {
+  final recorded = <PrayerReference>[];
+  String? timezone;
+
+  @override
+  Future<PrayerSession> recordSession({
+    required PrayerReference prayer,
+    required String timezone,
+    String? revisionId,
+    String? reminderId,
+    String? occurrenceKey,
+    String? idempotencyKey,
+  }) async {
+    recorded.add(prayer);
+    this.timezone = timezone;
+    return PrayerSession(
+      id: 'session-${recorded.length}',
+      ownerId: 'owner-1',
+      prayer: prayer,
+      prayerRevisionId: revisionId,
+      source: PrayerSessionSource.manual,
+      occurredAt: DateTime.utc(2026, 11, 3),
+      localDate: DateTime(2026, 11, 3),
+      timezone: timezone,
+      deviceId: 'device-1',
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<void> _settle(WidgetTester tester) async {

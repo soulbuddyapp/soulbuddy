@@ -29,6 +29,9 @@ class PrayerNarrationController extends Controller
             ->where('prayer_id', $validated['personal_prayer_id'])
             ->where('user_id', $user->id)
             ->firstOrFail();
+        if ($revision->content_format === 'audio') {
+            return response()->json(['code' => 'recorded_prayer_has_audio'], 422);
+        }
         if (mb_strlen($revision->body) > 2000) {
             return response()->json(['code' => 'narration_too_long'], 422);
         }
@@ -79,3 +82,4 @@ class PrayerNarrationController extends Controller
         ]);
     }
 }
+

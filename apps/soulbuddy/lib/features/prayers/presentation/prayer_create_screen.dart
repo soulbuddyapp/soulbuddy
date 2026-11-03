@@ -4,11 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../editorial/data/editorial_prayer_repository.dart';
-import '../../onboarding/presentation/first_prayer_speech_page.dart';
 import '../domain/library_prayer.dart';
-import '../providers/personal_prayer_providers.dart';
 import '../providers/prayer_providers.dart';
 import 'prayer_library_tile.dart';
+import 'recorded_prayer_capture.dart';
 
 class PrayerCreateScreen extends ConsumerStatefulWidget {
   const PrayerCreateScreen({
@@ -27,49 +26,17 @@ class PrayerCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
-  final _wordsController = TextEditingController();
   PrayerPurpose? _purpose;
-  _OwnWordsMode? _ownWordsMode;
   var _saving = false;
 
   @override
   void initState() {
     super.initState();
     _purpose = widget.initialPurpose;
-    final starter = widget.prayerStarter?.trim();
-    if (starter != null && starter.isNotEmpty) {
-      _wordsController.text = starter;
-      _ownWordsMode = _OwnWordsMode.write;
-    }
-  }
-
-  @override
-  void dispose() {
-    _wordsController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_ownWordsMode == _OwnWordsMode.speak) {
-      return Material(
-        color: Theme.of(context).colorScheme.surface,
-        child: SafeArea(
-          child: FirstPrayerSpeechPage(
-            heading: 'Speak your prayer',
-            description: 'Say your prayer in your own words.',
-            continueLabel: 'Keep my words',
-            hintText: 'Your words will appear here',
-            fieldKey: const Key('prayer-create-spoken-words'),
-            onContinue: _saveOwnWords,
-            onWriteInstead: () =>
-                setState(() => _ownWordsMode = _OwnWordsMode.write),
-            onSkip: () => setState(() => _ownWordsMode = null),
-          ),
-        ),
-      );
-    }
-
     final purpose = _purpose;
     final reviewed = purpose == null
         ? null
@@ -108,7 +75,7 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Choose a reviewed prayer or use your own words.',
+                  'Listen or record',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -142,7 +109,6 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                             ? null
                             : (_) => setState(() {
                                 _purpose = value;
-                                _ownWordsMode = null;
                               }),
                       ),
                   ],
@@ -167,58 +133,12 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: [
-                      OutlinedButton.icon(
-                        key: const Key('prayer-create-write'),
-                        onPressed: _saving
-                            ? null
-                            : () => setState(
-                                () => _ownWordsMode = _OwnWordsMode.write,
-                              ),
-                        icon: const Icon(Icons.edit_outlined),
-                        label: const Text('Write'),
-                      ),
-                      OutlinedButton.icon(
-                        key: const Key('prayer-create-speak'),
-                        onPressed: _saving
-                            ? null
-                            : () => setState(
-                                () => _ownWordsMode = _OwnWordsMode.speak,
-                              ),
-                        icon: const Icon(Icons.mic_none),
-                        label: const Text('Speak'),
-                      ),
-                    ],
+                  FilledButton.icon(
+                    key: const Key('prayer-create-speak'),
+                    onPressed: _saving ? null : _recordPrayer,
+                    icon: const Icon(Icons.mic_none),
+                    label: const Text('Record prayer'),
                   ),
-                  if (_ownWordsMode == _OwnWordsMode.write) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      key: const Key('prayer-create-own-words'),
-                      controller: _wordsController,
-                      autofocus: true,
-                      minLines: 4,
-                      maxLines: 8,
-                      maxLength: 4000,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                        hintText: 'Write your prayer in your own words.',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _wordsController,
-                      builder: (context, value, child) => FilledButton(
-                        key: const Key('prayer-create-save-own-words'),
-                        onPressed: _saving || value.text.trim().isEmpty
-                            ? null
-                            : () => _saveOwnWords(value.text),
-                        child: Text(_saving ? 'Keeping…' : 'Keep my words'),
-                      ),
-                    ),
-                  ],
                 ],
               ],
             ),
@@ -228,33 +148,22 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
     );
   }
 
-  Future<void> _saveOwnWords(String words) async {
+  Future<void> _recordPrayer() async {
     final purpose = _purpose;
-    final body = words.trim();
-    if (purpose == null || body.isEmpty || _saving) return;
+    if (purpose == null || _saving) return;
     setState(() => _saving = true);
     try {
-      final repository = await ref.read(
-        personalPrayerRepositoryProvider.future,
-      );
-      final prayer = await repository.createOwnWords(
+      final prayer = await showRecordedPrayerCapture(
+        context,
         title: 'My prayer · ${prayerPurposeLabel(purpose)}',
-        body: body,
         purpose: purpose,
       );
-      if (mounted) context.go('/prayers/saved/${prayer.id}');
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Your prayer could not be saved just now.'),
-          ),
-        );
-      }
+      if (prayer != null && mounted) context.go('/prayers/saved/${prayer.id}');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
+
 }
 
 class _ReviewedPrayerOptions extends StatelessWidget {
@@ -307,12 +216,6 @@ class _ReviewedPrayerCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.xs),
-              Text(
-                prayer.body,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'Reviewed · SoulBuddy editorial · v${item.editorial.contentVersion}',
@@ -327,5 +230,3 @@ class _ReviewedPrayerCard extends StatelessWidget {
     );
   }
 }
-
-enum _OwnWordsMode { write, speak }

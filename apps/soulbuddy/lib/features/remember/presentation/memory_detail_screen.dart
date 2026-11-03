@@ -7,6 +7,8 @@ import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/domain/encounter.dart';
 import '../../record/providers/encounter_providers.dart';
+import '../../record/presentation/voice_memory_capture.dart';
+import 'memory_reflection_content.dart';
 
 class MemoryDetailScreen extends ConsumerStatefulWidget {
   const MemoryDetailScreen({required this.memoryId, super.key});
@@ -18,16 +20,11 @@ class MemoryDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
-  final _controller = TextEditingController();
+  String? _pendingAudioEncounterId;
+  String? _pendingReflectionMemoryId;
   bool _saving = false;
   bool _updatingAltar = false;
   bool _archiving = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,21 +101,17 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  key: const Key('memory-reflection-body'),
-                  controller: _controller,
-                  minLines: 3,
-                  maxLines: 7,
-                  maxLength: 4000,
-                  decoration: const InputDecoration(
-                    labelText: 'Add what you understand now',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                FilledButton(
+                FilledButton.icon(
                   key: const Key('memory-save-reflection'),
-                  onPressed: _saving ? null : _save,
-                  child: Text(_saving ? 'Saving…' : 'Save reflection'),
+                  onPressed: _saving ? null : () => _recordReflection(memory),
+                  icon: const Icon(Icons.mic_none),
+                  label: Text(
+                    _saving
+                        ? 'Saving…'
+                        : _pendingAudioEncounterId == null
+                        ? 'Record reflection'
+                        : 'Save reflection',
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 reflections.when(
@@ -134,7 +127,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                           reflection.localDate,
                           style: Theme.of(context).textTheme.labelMedium,
                         ),
-                        Text(reflection.body),
+                        MemoryReflectionContent(reflection: reflection),
                         const Divider(height: AppSpacing.lg),
                       ],
                     ],
@@ -148,29 +141,47 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
     );
   }
 
-  Future<void> _save() async {
-    final body = _controller.text.trim();
-    if (body.isEmpty) return;
+  Future<void> _recordReflection(Encounter memory) async {
+    if (_saving) return;
     setState(() => _saving = true);
     try {
       final repository = await ref.read(encounterRepositoryProvider.future);
+      if (!mounted) return;
+      var audioId = _pendingAudioEncounterId;
+      if (audioId == null) {
+        final recorded = await showVoiceMemoryCapture(
+          context,
+          title: 'Reflection · ${memory.title}',
+        );
+        if (recorded == null) return;
+        audioId = recorded.id;
+        _pendingAudioEncounterId = audioId;
+        _pendingReflectionMemoryId = memory.id;
+      }
       final now = DateTime.now();
       final date =
           '${now.year.toString().padLeft(4, '0')}-'
           '${now.month.toString().padLeft(2, '0')}-'
           '${now.day.toString().padLeft(2, '0')}';
+      final parentId = _pendingReflectionMemoryId ?? memory.id;
       await repository.addReflection(
-        widget.memoryId,
-        body: body,
+        parentId,
+        body: '',
         localDate: date,
+        audioEncounterId: audioId,
       );
-      ref.invalidate(memoryReflectionsProvider(widget.memoryId));
-      _controller.clear();
+      _pendingAudioEncounterId = null;
+      _pendingReflectionMemoryId = null;
+      if (mounted) ref.invalidate(memoryReflectionsProvider(parentId));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not save this reflection just now.'),
+          SnackBar(
+            content: Text(
+              _pendingAudioEncounterId == null
+                  ? 'Recording unavailable. Try again.'
+                  : 'Recording kept. Try saving the reflection again.',
+            ),
           ),
         );
       }

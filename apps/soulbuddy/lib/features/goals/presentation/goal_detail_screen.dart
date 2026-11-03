@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../guards/presentation/return_sheet.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../../guards/providers/return_providers.dart';
 import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
@@ -163,19 +164,20 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         ),
                       ],
                     ),
-                    if (_hasText(goal.currentSituation) &&
-                        goal.currentSituation!.trim() != goal.displayTitle) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      const _SectionLabel('What is happening now'),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(goal.currentSituation!.trim()),
-                    ],
-                    if (_hasText(goal.whyItMatters)) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      const _SectionLabel('Why this matters'),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(goal.whyItMatters!.trim()),
-                    ],
+                    const SizedBox(height: AppSpacing.lg),
+                    VoiceNotesField(
+                      noteContext: (type: 'goal', id: goal.id, field: 'notes'),
+                      title: 'Reflections',
+                      includeAllFields: true,
+                    ),
+                    if (_hasText(goal.currentSituation) || _hasText(goal.whyItMatters))
+                      ExpansionTile(
+                        title: const Text('Earlier written notes'),
+                        children: [
+                          if (_hasText(goal.currentSituation)) SelectableText(goal.currentSituation!),
+                          if (_hasText(goal.whyItMatters)) SelectableText(goal.whyItMatters!),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -334,16 +336,6 @@ class _StatusLabel extends StatelessWidget {
   );
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) =>
-      Text(text, style: Theme.of(context).textTheme.labelLarge);
-}
-
 class _GoalUnavailable extends StatelessWidget {
   const _GoalUnavailable({this.onRetry});
 
@@ -419,20 +411,14 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           decoration: const InputDecoration(labelText: 'Goal'),
         ),
         const SizedBox(height: AppSpacing.sm),
-        TextField(
-          controller: _situationController,
-          maxLength: 4000,
-          maxLines: 4,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'What is happening now'),
+        VoiceNotesField(
+          noteContext: (type: 'goal', id: widget.goal.id, field: 'situation'),
+          title: 'What is happening now',
         ),
         const SizedBox(height: AppSpacing.sm),
-        TextField(
-          controller: _whyController,
-          maxLength: 4000,
-          maxLines: 3,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Why this matters'),
+        VoiceNotesField(
+          noteContext: (type: 'goal', id: widget.goal.id, field: 'why'),
+          title: 'Why this matters',
         ),
       ],
     ),

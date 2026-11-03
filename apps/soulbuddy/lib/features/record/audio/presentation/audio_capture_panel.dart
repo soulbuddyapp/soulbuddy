@@ -14,28 +14,36 @@ import '../domain/memory_soundscape.dart';
 class AudioCapturePanel extends StatefulWidget {
   const AudioCapturePanel({
     required this.controller,
-    required this.onWriteInstead,
     required this.onContinue,
+    this.onWriteInstead,
     this.onBack,
+    this.handlesSystemBack = false,
     this.introHeading,
     this.introDescription,
     this.startLabel = 'Start recording',
+    this.continueLabel = 'Use recording',
     this.alternativeLabel = 'Write instead',
     this.introContent,
     this.enableSoundscape = false,
+    this.reviewPlayer,
+    this.reviewSoundscapePlayer,
     super.key,
-  });
+  }) : assert(!handlesSystemBack || onBack != null);
 
   final AudioCaptureController controller;
-  final VoidCallback onWriteInstead;
+  final VoidCallback? onWriteInstead;
   final ValueChanged<RecordedAudioDraft> onContinue;
   final VoidCallback? onBack;
+  final bool handlesSystemBack;
   final String? introHeading;
   final String? introDescription;
   final String startLabel;
+  final String continueLabel;
   final String alternativeLabel;
   final Widget? introContent;
   final bool enableSoundscape;
+  final AudioPlayer? reviewPlayer;
+  final MemorySoundscapePlayer? reviewSoundscapePlayer;
 
   @override
   State<AudioCapturePanel> createState() => _AudioCapturePanelState();
@@ -43,7 +51,7 @@ class AudioCapturePanel extends StatefulWidget {
 
 class _AudioCapturePanelState extends State<AudioCapturePanel>
     with WidgetsBindingObserver {
-  final AudioPlayer _reviewPlayer = AudioPlayer();
+  late final AudioPlayer _reviewPlayer;
   MemorySoundscapePlayer? _reviewSoundscapePlayer;
   StreamSubscription<PlayerState>? _playerStateSubscription;
   StreamSubscription<Duration>? _positionSubscription;
@@ -52,10 +60,13 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
   String? _playbackError;
   var _reviewSoundscape = MemorySoundscape.quiet;
   var _reviewSoundVolume = 0.15;
+  var _reviewCommandInFlight = false;
 
   @override
   void initState() {
     super.initState();
+    _reviewPlayer = widget.reviewPlayer ?? AudioPlayer();
+    _reviewSoundscapePlayer = widget.reviewSoundscapePlayer;
     WidgetsBinding.instance.addObserver(this);
     _playerStateSubscription = _reviewPlayer.onPlayerStateChanged.listen((
       state,
@@ -64,7 +75,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
       if (state == PlayerState.completed ||
           state == PlayerState.stopped ||
           state == PlayerState.paused) {
-        unawaited(_reviewSoundscapePlayer?.stop() ?? Future.value());
+        unawaited(_stopSoundscapeAfterPlayback());
       }
     });
     _positionSubscription = _reviewPlayer.onPositionChanged.listen((position) {
@@ -78,8 +89,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       unawaited(widget.controller.handleInterruption());
-      unawaited(_reviewPlayer.pause());
-      unawaited(_reviewSoundscapePlayer?.stop() ?? Future.value());
+      unawaited(_pauseReviewAfterInterruption());
     }
   }
 
@@ -95,7 +105,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    final content = SafeArea(
       child: AnimatedBuilder(
         animation: widget.controller,
         builder: (context, _) {
@@ -113,9 +123,12 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
-                          onPressed: state.commandInFlight ? null : onBack,
+                          onPressed:
+                              state.commandInFlight || _reviewCommandInFlight
+                              ? null
+                              : () => _handleBack(onBack),
                           icon: const Icon(Icons.arrow_back),
-                          label: const Text('Record'),
+                          label: const Text('Back'),
                         ),
                       ),
                     const SizedBox(height: AppSpacing.md),
@@ -127,12 +140,11 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      _description(
-                        state,
-                        introDescription: widget.introDescription,
-                      ),
-                    ),
+                    if (_description(
+                      state,
+                      introDescription: widget.introDescription,
+                    ) case final description?)
+                      Text(description),
                     if (widget.introContent case final content?) ...[
                       const SizedBox(height: AppSpacing.md),
                       content,
@@ -140,6 +152,10 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                     const SizedBox(height: AppSpacing.lg),
                     if (state.notice case final notice?) ...[
                       _QuietNotice(text: notice),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+                    if (_playbackError case final error?) ...[
+                      _QuietNotice(text: error),
                       const SizedBox(height: AppSpacing.md),
                     ],
                     ..._controls(state),
@@ -151,6 +167,14 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         },
       ),
     );
+    if (!widget.handlesSystemBack) return content;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_handleBack(widget.onBack!));
+      },
+      child: content,
+    );
   }
 
   List<Widget> _controls(AudioCaptureState state) => switch (state.phase) {
@@ -159,14 +183,16 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         semanticLabel: 'Start audio recording',
         label: widget.startLabel,
         icon: Icons.mic_none,
-        onPressed: widget.controller.start,
+        onPressed: _reviewCommandInFlight ? null : widget.controller.start,
       ),
-      const SizedBox(height: AppSpacing.sm),
-      _SecondaryControl(
-        label: widget.alternativeLabel,
-        icon: Icons.edit_outlined,
-        onPressed: widget.onWriteInstead,
-      ),
+      if (widget.onWriteInstead case final writeInstead?) ...[
+        const SizedBox(height: AppSpacing.sm),
+        _SecondaryControl(
+          label: widget.alternativeLabel,
+          icon: Icons.edit_outlined,
+          onPressed: writeInstead,
+        ),
+      ],
     ],
     AudioCapturePhase.requestingPermission => const [
       Center(child: CircularProgressIndicator()),
@@ -198,7 +224,9 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         icon: state.phase == AudioCapturePhase.paused
             ? Icons.mic_none
             : Icons.pause,
-        onPressed: state.phase == AudioCapturePhase.paused
+        onPressed: _reviewCommandInFlight
+            ? null
+            : state.phase == AudioCapturePhase.paused
             ? widget.controller.resume
             : widget.controller.pause,
       ),
@@ -207,37 +235,39 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         semanticLabel: 'Stop and review recording',
         label: 'Stop',
         icon: Icons.stop_rounded,
-        onPressed: widget.controller.stop,
+        onPressed: _reviewCommandInFlight ? null : widget.controller.stop,
       ),
       const SizedBox(height: AppSpacing.sm),
       _SecondaryControl(
         semanticLabel: 'Discard this recording',
         label: 'Discard',
         icon: Icons.delete_outline,
-        onPressed: () => _confirmDiscard(review: false),
+        onPressed: _reviewCommandInFlight ? null : _confirmDiscard,
       ),
     ],
     AudioCapturePhase.stopping || AudioCapturePhase.cancelling => const [
       Center(child: CircularProgressIndicator()),
       SizedBox(height: AppSpacing.sm),
-      Center(child: Text('Keeping the recording private…')),
+      Center(child: Text('Preparing recording…')),
     ],
     AudioCapturePhase.review => _reviewControls(state),
     AudioCapturePhase.failure => [
       _QuietNotice(text: _failureText(state.failure)),
       const SizedBox(height: AppSpacing.md),
-      if (state.canWriteInstead) ...[
+      if (!widget.controller.hasPendingRecording) ...[
         _PrimaryControl(
-          label: widget.alternativeLabel,
-          icon: Icons.edit_outlined,
-          onPressed: widget.onWriteInstead,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _SecondaryControl(
           label: 'Try microphone again',
           icon: Icons.mic_none,
           onPressed: widget.controller.start,
         ),
+        if (widget.onWriteInstead case final writeInstead?) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _SecondaryControl(
+            label: widget.alternativeLabel,
+            icon: Icons.edit_outlined,
+            onPressed: writeInstead,
+          ),
+        ],
       ] else ...[
         _PrimaryControl(
           label: 'Discard recording',
@@ -265,8 +295,10 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
               .clamp(0, review.duration.inMilliseconds)
               .toDouble(),
           max: review.duration.inMilliseconds.toDouble(),
-          onChanged: (value) =>
-              _reviewPlayer.seek(Duration(milliseconds: value.round())),
+          onChanged: _reviewCommandInFlight
+              ? null
+              : (value) =>
+                    _reviewPlayer.seek(Duration(milliseconds: value.round())),
         ),
       ),
       Center(
@@ -278,24 +310,20 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         const SizedBox(height: AppSpacing.md),
         _reviewSoundscapeControls(playing: playing),
       ],
-      if (_playbackError case final error?) ...[
-        const SizedBox(height: AppSpacing.sm),
-        Text(error, textAlign: TextAlign.center),
-      ],
       const SizedBox(height: AppSpacing.md),
       _PrimaryControl(
         label: playing ? 'Pause playback' : 'Play',
         semanticLabel: playing ? 'Pause recording playback' : 'Play recording',
         icon: playing ? Icons.pause : Icons.play_arrow,
-        onPressed: _togglePlayback,
+        onPressed: _reviewCommandInFlight ? null : _togglePlayback,
       ),
       const SizedBox(height: AppSpacing.sm),
       _PrimaryControl(
-        label: 'Continue',
+        label: _reviewCommandInFlight ? 'Preparing…' : widget.continueLabel,
         icon: Icons.arrow_forward,
-        onPressed: () {
-          unawaited(_reviewPlayer.stop());
-          unawaited(_reviewSoundscapePlayer?.stop() ?? Future.value());
+        onPressed: _reviewCommandInFlight ? null : () => _reviewCommand(() async {
+          await _stopReview();
+          if (!mounted) return;
           final transferred = widget.controller.takeReview();
           if (transferred != null) {
             widget.onContinue(
@@ -309,33 +337,33 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
               ),
             );
           }
-        },
+        }, error: 'Playback could not stop. Try again.'),
       ),
       const SizedBox(height: AppSpacing.sm),
       _SecondaryControl(
         label: 'Record again',
         icon: Icons.replay,
-        onPressed: () async {
-          await _reviewPlayer.stop();
-          await _reviewSoundscapePlayer?.stop();
+        onPressed: _reviewCommandInFlight ? null : () => _reviewCommand(() async {
+          await _stopReview();
+          if (!mounted) return;
           await widget.controller.recordAgain();
-        },
+        }, error: 'Playback could not stop. Try again.'),
       ),
       const SizedBox(height: AppSpacing.sm),
       _SecondaryControl(
         semanticLabel: 'Discard this recording',
         label: 'Discard',
         icon: Icons.delete_outline,
-        onPressed: () => _confirmDiscard(review: true),
+        onPressed: _reviewCommandInFlight
+            ? null
+            : _confirmDiscard,
       ),
     ];
   }
 
-  Future<void> _togglePlayback() async {
+  Future<void> _togglePlayback() => _reviewCommand(() async {
     final review = widget.controller.state.review;
     if (review == null) return;
-    setState(() => _playbackError = null);
-    try {
       if (_playerState == PlayerState.playing) {
         await _reviewPlayer.pause();
         await _reviewSoundscapePlayer?.stop();
@@ -351,13 +379,69 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
         );
         await _startReviewSoundscape();
       }
+  }, error: 'Playback unavailable. Your recording is still here.');
+
+  Future<void> _stopReview() async {
+    await Future.wait([
+      _reviewPlayer.stop(),
+      _reviewSoundscapePlayer?.stop() ?? Future<void>.value(),
+    ]);
+  }
+
+  Future<void> _stopSoundscapeAfterPlayback() async {
+    try {
+      await _reviewSoundscapePlayer?.stop();
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _playbackError =
-              'Playback is unavailable. The recording is still here.',
-        );
+        setState(() => _playbackError = 'Playback could not stop. Try again.');
       }
+    }
+  }
+
+  Future<void> _pauseReviewAfterInterruption() async {
+    try {
+      await Future.wait([
+        _reviewPlayer.pause(),
+        _reviewSoundscapePlayer?.stop() ?? Future<void>.value(),
+      ]);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _playbackError = 'Playback could not stop. Try again.');
+      }
+    }
+  }
+
+  Future<void> _handleBack(VoidCallback onBack) => _reviewCommand(() async {
+    if (widget.controller.state.phase == AudioCapturePhase.recording) {
+      await widget.controller.handleInterruption();
+    }
+    if (!mounted) return;
+    if (widget.controller.state.phase == AudioCapturePhase.failure &&
+        widget.controller.state.review == null &&
+        widget.controller.hasPendingRecording) {
+      return;
+    }
+    if (widget.controller.state.review != null) {
+      await _stopReview();
+    }
+    if (mounted) onBack();
+  }, error: 'Playback could not stop. Try again.');
+
+  Future<void> _reviewCommand(
+    Future<void> Function() command, {
+    required String error,
+  }) async {
+    if (_reviewCommandInFlight || !mounted) return;
+    setState(() {
+      _reviewCommandInFlight = true;
+      _playbackError = null;
+    });
+    try {
+      await command();
+    } catch (_) {
+      if (mounted) setState(() => _playbackError = error);
+    } finally {
+      if (mounted) setState(() => _reviewCommandInFlight = false);
     }
   }
 
@@ -373,7 +457,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Add a light background',
+              'Background sound',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: AppSpacing.xs),
@@ -386,7 +470,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                     key: Key('recording-soundscape-${soundscape.name}'),
                     label: Text(soundscape.label),
                     selected: _reviewSoundscape == soundscape,
-                    onSelected: (_) async {
+                    onSelected: _reviewCommandInFlight ? null : (_) async {
                       setState(() => _reviewSoundscape = soundscape);
                       if (!playing || soundscape == MemorySoundscape.quiet) {
                         await _reviewSoundscapePlayer?.stop();
@@ -408,7 +492,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
                   max: 0.35,
                   divisions: 6,
                   label: '${(_reviewSoundVolume * 100).round()}%',
-                  onChanged: (value) {
+                  onChanged: _reviewCommandInFlight ? null : (value) {
                     setState(() => _reviewSoundVolume = value);
                     if (playing) {
                       unawaited(
@@ -432,7 +516,13 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     return player.start(_reviewSoundscape, volume: _reviewSoundVolume);
   }
 
-  Future<void> _confirmDiscard({required bool review}) async {
+  Future<void> _confirmDiscard() => _reviewCommand(() async {
+    if (widget.controller.state.phase == AudioCapturePhase.recording) {
+      await widget.controller.handleInterruption();
+    }
+    if (!mounted || widget.controller.state.phase == AudioCapturePhase.failure) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -453,14 +543,10 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
       ),
     );
     if (confirmed != true || !mounted) return;
-    await _reviewPlayer.stop();
-    await _reviewSoundscapePlayer?.stop();
-    if (review) {
-      await widget.controller.discard();
-    } else {
-      await widget.controller.cancel();
-    }
-  }
+    if (widget.controller.state.review != null) await _stopReview();
+    if (!mounted) return;
+    await widget.controller.cancel();
+  }, error: 'Playback could not stop. Try again.');
 }
 
 class _PrimaryControl extends StatelessWidget {
@@ -580,31 +666,26 @@ String _heading(AudioCaptureState state, {String? introHeading}) =>
     switch (state.phase) {
       AudioCapturePhase.recording => 'Recording',
       AudioCapturePhase.paused => 'Recording paused',
-      AudioCapturePhase.review => 'Review your recording',
-      AudioCapturePhase.failure => 'Speak is unavailable',
-      _ => introHeading ?? 'Speak what you do not want to forget.',
+      AudioCapturePhase.review => 'Your recording',
+      AudioCapturePhase.failure => 'Recording unavailable',
+      _ => introHeading ?? 'Record a memory',
     };
 
-String _description(
+String? _description(
   AudioCaptureState state, {
   String? introDescription,
 }) => switch (state.phase) {
-  AudioCapturePhase.recording =>
-    'Speak at your own pace. This stays on this device.',
-  AudioCapturePhase.paused => 'Nothing is being added until you resume.',
-  AudioCapturePhase.review =>
-    'Listen once, record again, or continue to describe the memory.',
-  AudioCapturePhase.failure => 'You can keep the memory by writing instead.',
-  _ =>
-    introDescription ??
-        'You choose when recording begins. SoulBuddy will not upload your voice.',
+  AudioCapturePhase.recording => 'On this device only',
+  AudioCapturePhase.paused ||
+  AudioCapturePhase.review ||
+  AudioCapturePhase.failure => null,
+  _ => introDescription,
 };
 
 String _failureText(AudioCaptureFailure? failure) => switch (failure) {
   AudioCaptureFailure.permissionDenied => 'Microphone access was not granted.',
   AudioCaptureFailure.unavailable => 'The microphone is unavailable right now.',
-  _ =>
-    'The recording could not be completed. The active take can still be discarded safely.',
+  _ => 'Recording interrupted. Discard to try again.',
 };
 
 String _durationLabel(Duration value) {
