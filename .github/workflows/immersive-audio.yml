@@ -85,7 +85,7 @@ jobs:
             Pop-Location
             git diff --output=audio-formatting.patch -- apps/soulbuddy
             Push-Location apps/soulbuddy
-            flutter analyze --fatal-infos @targets
+            flutter analyze --fatal-infos
             $result = $LASTEXITCODE
             Pop-Location
             if ($result -ne 0) { exit $result }
