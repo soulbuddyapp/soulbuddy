@@ -26,6 +26,15 @@ class PrayerDetailScreen extends ConsumerStatefulWidget {
 
 class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
   var _updatingHelpful = false;
+  var _recordingBusy = false;
+
+  void _back(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/prayers');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +43,12 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
     return prayer.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _DetailUnavailable(
-        onBack: () => context.go('/prayers'),
+        onBack: () => _back(context),
         onRetry: () => retryPrayerDetailProviders(ref, widget.prayerId),
       ),
       data: (value) {
         if (value == null) {
-          return _PrayerMissing(onBack: () => context.go('/prayers'));
+          return _PrayerMissing(onBack: () => _back(context));
         }
         return ScreenAwake(child: _buildPrayer(context, value));
       },
@@ -58,9 +67,9 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
-                  onPressed: () => context.go('/prayers'),
+                  onPressed: _recordingBusy ? null : () => _back(context),
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Prayers'),
+                  label: const Text('Back'),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -81,6 +90,8 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                 source: VoiceTabletSource.library(prayerId: prayer.id),
                 title: prayer.title,
                 prayerBody: prayer.body,
+                enabled: !_recordingBusy,
+                onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
                 onKeepOnAltar: (tablet) =>
                     showAltarRitualSheet(context, ref, tablet: tablet),
               ),
@@ -92,6 +103,8 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                   field: 'reflection',
                 ),
                 title: 'After prayer',
+                enabled: !_recordingBusy,
+                onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
               ),
               const SizedBox(height: AppSpacing.md),
               ExpansionTile(
@@ -203,7 +216,7 @@ class _DetailUnavailable extends StatelessWidget {
       body: 'This prayer could not be opened just now.',
       actions: [
         OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
-        TextButton(onPressed: onBack, child: const Text('Back to Prayers')),
+        TextButton(onPressed: onBack, child: const Text('Back')),
       ],
     );
   }
@@ -219,9 +232,7 @@ class _PrayerMissing extends StatelessWidget {
     return _DetailMessage(
       title: 'Prayer not found',
       body: 'It may no longer be in the library.',
-      actions: [
-        OutlinedButton(onPressed: onBack, child: const Text('Back to Prayers')),
-      ],
+      actions: [OutlinedButton(onPressed: onBack, child: const Text('Back'))],
     );
   }
 }

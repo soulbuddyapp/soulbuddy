@@ -58,6 +58,7 @@ class AudioCaptureController extends ChangeNotifier {
     required Future<TemporaryAudio> Function() allocateTemporary,
     Future<void> Function()? beforeCapture,
     Future<void> Function()? afterCapture,
+    Future<void> Function()? onSilencePaused,
     this.maximumDuration = maximumMemoryAudioDuration,
     AudioElapsedClock? elapsedClock,
     AudioCaptureTickerFactory? tickerFactory,
@@ -65,6 +66,7 @@ class AudioCaptureController extends ChangeNotifier {
        _allocateTemporary = allocateTemporary,
        _beforeCapture = beforeCapture,
        _afterCapture = afterCapture,
+       _onSilencePaused = onSilencePaused,
        _elapsedClock = elapsedClock ?? StopwatchAudioElapsedClock(),
        _tickerFactory = tickerFactory ?? _createTimerTicker {
     if (maximumDuration <= Duration.zero ||
@@ -77,11 +79,15 @@ class AudioCaptureController extends ChangeNotifier {
   static const _tickerInterval = Duration(milliseconds: 200);
   static const _maximumLiveSamples = 180;
   static const _maximumReviewSamples = 64;
+  static const _silenceThreshold = 0.01;
+  static const _silenceDuration = Duration(seconds: 12);
+  static const _maximumSampleGap = Duration(seconds: 2);
 
   final AudioRecorderGateway _recorder;
   final Future<TemporaryAudio> Function() _allocateTemporary;
   final Future<void> Function()? _beforeCapture;
   final Future<void> Function()? _afterCapture;
+  final Future<void> Function()? _onSilencePaused;
   bool _audioLeaseAcquired = false;
   final Duration maximumDuration;
   final AudioElapsedClock _elapsedClock;
@@ -102,6 +108,10 @@ class AudioCaptureController extends ChangeNotifier {
   Future<void>? _activeCommand;
   bool _closed = false;
   bool _recordingSessionActive = false;
+  bool _heardVoice = false;
+  bool _silencePausePending = false;
+  Duration? _quietSince;
+  Duration? _lastSampleAt;
   bool _recorderDisposed = false;
   bool _closeComplete = false;
   Future<void>? _closeFuture;
@@ -149,6 +159,7 @@ class AudioCaptureController extends ChangeNotifier {
         ..reset()
         ..start();
       _allSamples.clear();
+      _resetSilenceDetection();
       _reviewResult = null;
       _ticker?.cancel();
       _ticker = _tickerFactory(_tickerInterval, _onTick);
@@ -196,6 +207,7 @@ class AudioCaptureController extends ChangeNotifier {
       if (_closed) return;
       await _recorder.resume();
       _elapsedClock.start();
+      _resetSilenceDetection();
       _emit(_captureState(AudioCapturePhase.recording));
     } catch (_) {
       _emit(_failureState());
@@ -419,6 +431,52 @@ class AudioCaptureController extends ChangeNotifier {
     final normalized = value.isFinite ? value.clamp(0.0, 1.0).toDouble() : 0.0;
     _allSamples.add(normalized);
     _emit(_captureState(AudioCapturePhase.recording));
+    if (!_recorder.canPause || _silencePausePending) return;
+    final elapsed = _elapsedClock.elapsed;
+    final lastSample = _lastSampleAt;
+    _lastSampleAt = elapsed;
+    if (lastSample != null && elapsed - lastSample > _maximumSampleGap) {
+      _quietSince = null;
+    }
+    if (normalized >= _silenceThreshold) {
+      _heardVoice = true;
+      _quietSince = null;
+      return;
+    }
+    if (!_heardVoice) return;
+    _quietSince ??= elapsed;
+    if (elapsed - _quietSince! >= _silenceDuration) {
+      _silencePausePending = true;
+      unawaited(() async {
+        try {
+          await pause();
+          if (!_closed && _state.phase == AudioCapturePhase.paused) {
+            _emit(
+              AudioCaptureState(
+                phase: AudioCapturePhase.paused,
+                elapsed: _state.elapsed,
+                liveWaveform: _state.liveWaveform,
+                notice: 'Paused after silence',
+              ),
+            );
+            try {
+              await _onSilencePaused?.call();
+            } catch (_) {
+              // Feedback must not change the recorded take or capture state.
+            }
+          }
+        } finally {
+          _silencePausePending = false;
+        }
+      }());
+    }
+  }
+
+  void _resetSilenceDetection() {
+    _heardVoice = false;
+    _quietSince = null;
+    _lastSampleAt = null;
+    _silencePausePending = false;
   }
 
   void _onTick() {
@@ -434,7 +492,7 @@ class AudioCaptureController extends ChangeNotifier {
     phase: phase,
     elapsed: _boundedElapsed(),
     liveWaveform: _liveSamples(),
-    notice: _state.notice,
+    notice: phase == AudioCapturePhase.recording ? null : _state.notice,
   );
 
   AudioCaptureState _failureState({

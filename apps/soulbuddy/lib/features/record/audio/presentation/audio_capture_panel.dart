@@ -27,6 +27,8 @@ class AudioCapturePanel extends StatefulWidget {
     this.enableSoundscape = false,
     this.reviewPlayer,
     this.reviewSoundscapePlayer,
+    this.inline = false,
+    this.onDiscarded,
     super.key,
   }) : assert(!handlesSystemBack || onBack != null);
 
@@ -44,6 +46,8 @@ class AudioCapturePanel extends StatefulWidget {
   final bool enableSoundscape;
   final AudioPlayer? reviewPlayer;
   final MemorySoundscapePlayer? reviewSoundscapePlayer;
+  final bool inline;
+  final VoidCallback? onDiscarded;
 
   @override
   State<AudioCapturePanel> createState() => _AudioCapturePanelState();
@@ -110,6 +114,28 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.inline) {
+      return AnimatedBuilder(
+        animation: widget.controller,
+        builder: (context, _) {
+          final state = widget.controller.state;
+          return AnimatedSize(
+            duration: MediaQuery.of(context).disableAnimations
+                ? Duration.zero
+                : const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (state.notice case final notice?) _QuietNotice(text: notice),
+                if (_playbackError case final error?) _QuietNotice(text: error),
+                ..._controls(state),
+              ],
+            ),
+          );
+        },
+      );
+    }
     final content = SafeArea(
       child: AnimatedBuilder(
         animation: widget.controller,
@@ -279,7 +305,12 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
           label: 'Discard recording',
           semanticLabel: 'Discard this recording',
           icon: Icons.delete_outline,
-          onPressed: widget.controller.cancel,
+          onPressed: () async {
+            await widget.controller.cancel();
+            if (!widget.controller.hasPendingRecording) {
+              widget.onDiscarded?.call();
+            }
+          },
         ),
       ],
     ],
@@ -361,6 +392,25 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
             : () => _reviewCommand(() async {
                 await _stopReview();
                 if (!mounted) return;
+                if (widget.inline) {
+                  final discard = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Discard recording?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Keep'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Discard'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (discard != true || !mounted) return;
+                }
                 await widget.controller.recordAgain();
               }, error: 'Playback could not stop. Try again.'),
       ),
@@ -387,7 +437,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     }
     await _reviewCommand(
       () => player.seek(position),
-      error: 'Playback unavailable. Your recording is still here.',
+      error: 'Playback unavailable. Try again.',
     );
   }
 
@@ -416,7 +466,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
       _requestedPosition = null;
       if (mounted) await _startReviewSoundscape();
     }
-  }, error: 'Playback unavailable. Your recording is still here.');
+  }, error: 'Playback unavailable. Try again.');
 
   Future<void> _stopReview() async {
     await Future.wait<void>([
@@ -596,6 +646,7 @@ class _AudioCapturePanelState extends State<AudioCapturePanel>
     if (widget.controller.state.review != null) await _stopReview();
     if (!mounted) return;
     await widget.controller.cancel();
+    if (!widget.controller.hasPendingRecording) widget.onDiscarded?.call();
   }, error: 'Playback could not stop. Try again.');
 }
 
@@ -677,7 +728,10 @@ class _AudioLevel extends StatelessWidget {
             Expanded(
               child: Align(
                 alignment: Alignment.center,
-                child: Container(
+                child: AnimatedContainer(
+                  duration: MediaQuery.of(context).disableAnimations
+                      ? Duration.zero
+                      : const Duration(milliseconds: 120),
                   margin: const EdgeInsets.symmetric(horizontal: 1),
                   height: 8 + (value * 56),
                   decoration: BoxDecoration(
@@ -700,14 +754,17 @@ class _QuietNotice extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Text(text),
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppSpacing.componentRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Text(text),
+      ),
     ),
   );
 }

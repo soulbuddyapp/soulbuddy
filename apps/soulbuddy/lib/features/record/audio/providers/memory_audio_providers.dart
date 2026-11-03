@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database_provider.dart';
+import '../../../../core/feedback/app_feedback.dart';
+import '../../../../core/feedback/app_feedback_providers.dart';
 import '../../../../core/identity/local_identity_providers.dart';
 import '../../../../core/playback/spiritual_session_providers.dart';
 import '../application/audioplayers_memory_audio_player.dart';
@@ -12,6 +14,8 @@ import '../application/memory_audio_deletion.dart';
 import '../application/memory_audio_player.dart';
 import '../application/memory_soundscape_player.dart';
 import '../application/audio_capture_controller.dart';
+import '../application/microphone_capture_lock.dart';
+import '../application/recording_activity.dart';
 import '../application/record_plugin_driver.dart';
 import '../data/audio_asset_store.dart';
 import '../data/audio_asset_store_factory.dart';
@@ -86,41 +90,73 @@ final memoryAudioDeletionProvider = FutureProvider<MemoryAudioDeletion>((
 });
 
 final audioCaptureControllerProvider =
-    FutureProvider.autoDispose<AudioCaptureController>((ref) async {
-      final assetStore = await ref.watch(audioAssetStoreProvider.future);
-      final recorder = createRecordPluginAudioRecorder(assetStore);
-      final session = ref.watch(spiritualSessionControllerProvider);
-      final captureOwner = Object();
-      final controller = AudioCaptureController(
-        recorder: recorder,
-        beforeCapture: () async {
-          await session.acquireCapture(captureOwner);
-          await pauseAudioForCapture(ref);
-        },
-        afterCapture: () async => session.releaseCapture(captureOwner),
-        allocateTemporary: () => assetStore.allocateTemporary(
-          takeId: const Uuid().v7(),
-          extension: kIsWeb ? 'webm' : 'm4a',
-        ),
-      );
-      ref.onDispose(() {
-        unawaited(() async {
-          try {
-            await controller.close();
-          } catch (_) {
-            try {
-              await controller.close();
-            } catch (_) {
-              // The native recorder may still be active. Its capture lease
-              // stays held until shutdown is confirmed, even after disposal.
-            }
-          } finally {
-            controller.dispose();
-          }
-        }());
-      });
-      return controller;
-    });
+    FutureProvider.autoDispose<AudioCaptureController>(
+      _createCaptureController,
+    );
+
+final microphoneCaptureLockProvider = Provider<MicrophoneCaptureLock>(
+  (ref) => MicrophoneCaptureLock(),
+);
+
+final recordingActivityProvider = Provider<RecordingActivity>(
+  (ref) => RecordingActivity(),
+);
+
+final inlineAudioCaptureControllerProvider = FutureProvider.autoDispose
+    .family<AudioCaptureController, Object>(
+      (ref, key) => _createCaptureController(ref),
+    );
+
+Future<AudioCaptureController> _createCaptureController(Ref ref) async {
+  final assetStore = await ref.watch(audioAssetStoreProvider.future);
+  final recorder = createRecordPluginAudioRecorder(assetStore);
+  final session = ref.watch(spiritualSessionControllerProvider);
+  final captureOwner = Object();
+  final microphoneLock = ref.watch(microphoneCaptureLockProvider);
+  ref.read(appFeedbackPreferencesProvider);
+  final controller = AudioCaptureController(
+    recorder: recorder,
+    beforeCapture: () async {
+      microphoneLock.acquire(captureOwner);
+      await session.acquireCapture(captureOwner);
+      await pauseAudioForCapture(ref);
+    },
+    afterCapture: () async {
+      session.releaseCapture(captureOwner);
+      microphoneLock.release(captureOwner);
+    },
+    onSilencePaused: () => notifySilencePause(ref),
+    allocateTemporary: () => assetStore.allocateTemporary(
+      takeId: const Uuid().v7(),
+      extension: kIsWeb ? 'webm' : 'm4a',
+    ),
+  );
+  ref.onDispose(() {
+    unawaited(() async {
+      try {
+        await controller.close();
+      } catch (_) {
+        try {
+          await controller.close();
+        } catch (_) {
+          // The native recorder may still be active. Its capture lease
+          // stays held until shutdown is confirmed, even after disposal.
+        }
+      } finally {
+        controller.dispose();
+      }
+    }());
+  });
+  return controller;
+}
+
+Future<void> notifySilencePause(Ref ref) async {
+  final preferences = ref.read(appFeedbackPreferencesProvider).value;
+  if (preferences == null) return;
+  await ref
+      .read(appFeedbackServiceProvider)
+      .emit(AppFeedbackIntent.warning, preferences: preferences);
+}
 
 /// Called after microphone permission is granted, before any samples are taken.
 /// A failed handoff prevents capture; it must never record audible app playback.

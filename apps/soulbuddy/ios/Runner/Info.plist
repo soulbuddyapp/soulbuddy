@@ -25,7 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>SoulBuddy uses the microphone only when you choose to speak a prayer detail or record a private memory.</string>
+	<string>Record prayers and reflections with your microphone.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>SoulBuddy turns the short prayer detail you choose to speak into words you can review.</string>
 	<key>UILaunchStoryboardName</key>

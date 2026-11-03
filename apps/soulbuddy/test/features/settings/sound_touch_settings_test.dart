@@ -41,7 +41,7 @@ void main() {
 
     await tester.dragUntilVisible(
       find.text('Privacy policy'),
-      find.byType(Scrollable),
+      find.byType(Scrollable).first,
       const Offset(0, -160),
     );
     await tester.tap(find.text('Privacy policy'));
@@ -75,14 +75,25 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('Sound & touch'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Sound & touch'), findsOneWidget);
     expect(_switch(tester, 'Haptics').value, isTrue);
     expect(_switch(tester, 'In-app sounds').value, isTrue);
     expect(_switch(tester, 'Reduce motion').value, isFalse);
 
+    await tester.ensureVisible(find.text('Haptics'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Haptics'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('In-app sounds'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('In-app sounds'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Reduce motion'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Reduce motion'));
     await tester.pumpAndSettle();
@@ -114,7 +125,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Test feedback'));
+    await tester.scrollUntilVisible(
+      find.text('Test feedback'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Test feedback'));
     await tester.pumpAndSettle();
@@ -163,7 +178,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Test feedback'));
+    await tester.scrollUntilVisible(
+      find.text('Test feedback'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Test feedback').hitTestable(), findsOneWidget);
   });

@@ -320,10 +320,12 @@ class _CommitmentJourneyScreenState
     contentPadding: EdgeInsets.zero,
     value: _progress.declarationReviewed,
     title: const Text('This reflects my intention'),
-    onChanged: (value) {
-      _progress = _progress.copyWith(declarationReviewed: value ?? false);
-      _changed();
-    },
+    onChanged: _blocked
+        ? null
+        : (value) {
+            _progress = _progress.copyWith(declarationReviewed: value ?? false);
+            _changed();
+          },
   );
 
   Widget _titleField(TextEditingController controller, String title) =>
@@ -360,6 +362,7 @@ class _CommitmentJourneyScreenState
     var category = CommitmentPracticeCategory.joyPleasure;
     final result = await showDialog<CommitmentPracticeDraft>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, update) => AlertDialog(
           title: const Text('Daily practice'),
@@ -384,7 +387,10 @@ class _CommitmentJourneyScreenState
                   ),
                   title: 'Daily practice',
                   beforeRecord: _stopInstructionAudio,
-                  onBusyChanged: _recordingChanged,
+                  onBusyChanged: (busy) {
+                    _recordingChanged(busy);
+                    update(() {});
+                  },
                   onRecorded: (memory) => update(() {
                     recorded = true;
                     if (c.text.trim().isEmpty) c.text = memory.title;
@@ -401,18 +407,20 @@ class _CommitmentJourneyScreenState
                         ),
                       )
                       .toList(),
-                  onChanged: (v) => update(() => category = v!),
+                  onChanged: _recordingBusy
+                      ? null
+                      : (v) => update(() => category = v!),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: _recordingBusy ? null : () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: !recorded
+              onPressed: !recorded || _recordingBusy
                   ? null
                   : () {
                       if (c.text.trim().isNotEmpty) {
@@ -613,6 +621,8 @@ class _CommitmentJourneyScreenState
             for (var i = 0; i < _needs.length; i++)
               _recordedField(_needs[i], 'needs-${i + 1}', 'Need ${i + 1}'),
             ExpansionTile(
+              enabled: !_recordingBusy,
+              maintainState: true,
               title: const Text('Daily practices'),
               initiallyExpanded: true,
               children: [
@@ -637,6 +647,8 @@ class _CommitmentJourneyScreenState
               ],
             ),
             ExpansionTile(
+              enabled: !_recordingBusy,
+              maintainState: true,
               title: const Text('My declaration'),
               children: [
                 Padding(
@@ -746,7 +758,7 @@ class _CommitmentJourneyScreenState
                                     )
                                   else
                                     AbsorbPointer(
-                                      absorbing: _blocked,
+                                      absorbing: _busy,
                                       child: _body(),
                                     ),
                                   if (_loaded &&
@@ -762,7 +774,7 @@ class _CommitmentJourneyScreenState
                                           ? _finish
                                           : _advance,
                                       child: Text(
-                                        _blocked
+                                        _busy
                                             ? 'Saving…'
                                             : _progress.stage ==
                                                   CommitmentJourneyStage.summary

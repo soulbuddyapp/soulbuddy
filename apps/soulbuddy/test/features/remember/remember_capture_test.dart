@@ -20,6 +20,75 @@ import '../../helpers/in_memory_encounter_repository.dart';
 import '../../helpers/audio_player_mocks.dart';
 
 void main() {
+  testWidgets(
+    'date label stays separate from the recording summary and field',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: EncounterForm(
+                audio: MemoryAudioDraft(
+                  temporaryKey: '/take',
+                  mimeType: 'audio/mp4',
+                  duration: const Duration(seconds: 85),
+                  waveform: const [0.3],
+                ),
+                onCancel: () {},
+                onSave: (_) async {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.ensureVisible(find.byKey(const Key('encounter-date')));
+      await tester.pump();
+      final summary = tester.getRect(find.textContaining('Recording ·'));
+      final label = tester.getRect(find.text('Date'));
+      final field = tester.getRect(find.byKey(const Key('encounter-date')));
+      expect(label.top, greaterThanOrEqualTo(summary.bottom));
+      expect(label.bottom, lessThanOrEqualTo(field.top));
+    },
+  );
+  testWidgets('date label remains separate at large text sizes', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: EncounterForm(
+              audio: MemoryAudioDraft(
+                temporaryKey: '/take',
+                mimeType: 'audio/mp4',
+                duration: const Duration(seconds: 85),
+                waveform: const [0.3],
+              ),
+              onCancel: () {},
+              onSave: (_) async {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.ensureVisible(find.byKey(const Key('encounter-date')));
+    await tester.pump();
+    expect(
+      tester.getRect(find.text('Date')).bottom,
+      lessThanOrEqualTo(
+        tester.getRect(find.byKey(const Key('encounter-date'))).top,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(installAudioPlayerMocks);
   testWidgets('first memory guidance remains expanded until a memory exists', (
@@ -108,8 +177,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          audioCaptureControllerProvider.overrideWith(
-            (ref) async => controller,
+          inlineAudioCaptureControllerProvider.overrideWith(
+            (ref, key) async => controller,
           ),
         ],
         child: MaterialApp(
@@ -124,9 +193,8 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const Key('encounter-add-audio')));
-    await _settle(tester);
-    await tester.tap(find.text('Start recording'));
+    await tester.tap(find.text('Record audio'));
+    await tester.pump();
     await tester.pump();
     await tester.tap(find.text('Stop'));
     await _settle(tester);

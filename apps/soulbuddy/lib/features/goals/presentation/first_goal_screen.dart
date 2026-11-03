@@ -8,7 +8,8 @@ import '../../../core/design/app_spacing.dart';
 import '../../guards/application/guard_recommendations.dart';
 import '../../guards/data/bundled_guard_catalogue.dart';
 import '../../onboarding/presentation/first_prayer_choice_page.dart';
-import '../../prayers/presentation/recorded_prayer_capture.dart';
+import '../../prayers/providers/recorded_personal_prayer_providers.dart';
+import '../../record/audio/presentation/inline_audio_capture.dart';
 import '../../record/data/voice_note_repository.dart';
 import '../../record/presentation/voice_notes_field.dart';
 import '../../record/providers/voice_note_providers.dart';
@@ -414,18 +415,36 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  OutlinedButton.icon(
+                  InlineAudioCapture(
                     key: const Key('first-goal-own-prayer'),
-                    onPressed: _blocked ? null : () => _recordPrayer(progress),
-                    icon: const Icon(Icons.mic_none),
-                    label: Text(
-                      _pendingPrayerId != null
-                          ? 'Retry prayer selection'
-                          : progress.prayerSource ==
-                                GoalOnboardingPrayerSource.personalPrayer
-                          ? 'Record another prayer'
-                          : 'Record my prayer',
-                    ),
+                    enableSoundscape: true,
+                    enabled: !_saving,
+                    onBusyChanged: _setRecordingBusy,
+                    onDiscarded: () => _pendingPrayerId = null,
+                    label:
+                        progress.prayerSource ==
+                            GoalOnboardingPrayerSource.personalPrayer
+                        ? 'Record another prayer'
+                        : 'Record my prayer',
+                    onSave: (draft) async {
+                      if (_pendingPrayerId == null) {
+                        final repository = await ref.read(
+                          recordedPersonalPrayerRepositoryProvider.future,
+                        );
+                        final prayer = await repository.create(
+                          title: progress.title ?? 'My prayer',
+                          purpose: prayerPurposeForGoalStarter(
+                            progress.starterKey!,
+                          ),
+                          audio: draft,
+                        );
+                        _pendingPrayerId = prayer.id;
+                      }
+                      await ref
+                          .read(goalOnboardingControllerProvider.notifier)
+                          .choosePersonalPrayer(_pendingPrayerId!);
+                      _pendingPrayerId = null;
+                    },
                   ),
                   if (progress.prayerSource ==
                       GoalOnboardingPrayerSource.personalPrayer)
@@ -455,34 +474,6 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _recordPrayer(GoalOnboardingProgress progress) async {
-    if (_blocked) return;
-    setState(() => _saving = true);
-    try {
-      if (_pendingPrayerId == null) {
-        final prayer = await showRecordedPrayerCapture(
-          context,
-          title: progress.title ?? 'My prayer',
-          purpose: prayerPurposeForGoalStarter(progress.starterKey!),
-        );
-        if (prayer == null || !mounted) return;
-        _pendingPrayerId = prayer.id;
-      }
-      await ref
-          .read(goalOnboardingControllerProvider.notifier)
-          .choosePersonalPrayer(_pendingPrayerId!);
-      _pendingPrayerId = null;
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Prayer could not be selected. Retry.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 
   Future<void> _chooseScripture() async {

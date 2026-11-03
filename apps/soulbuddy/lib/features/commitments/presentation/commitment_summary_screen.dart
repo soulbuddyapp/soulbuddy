@@ -62,6 +62,7 @@ class _CommitmentSummaryScreenState
     extends ConsumerState<CommitmentSummaryScreen> {
   String? _error;
   bool _busy = false;
+  bool _recordingBusy = false;
   @override
   void initState() {
     super.initState();
@@ -344,7 +345,9 @@ class _CommitmentSummaryScreenState
             ),
           ),
         FilledButton.icon(
-          onPressed: () => context.push('/commitments/${c.id}/meditate'),
+          onPressed: _recordingBusy
+              ? null
+              : () => context.push('/commitments/${c.id}/meditate'),
           icon: const Icon(Icons.spa_outlined),
           label: const Text('Meditate'),
         ),
@@ -356,7 +359,7 @@ class _CommitmentSummaryScreenState
           subtitle: Text(commitmentGuideLabel(c.guideId)),
           trailing: IconButton(
             tooltip: 'Meditation schedule',
-            onPressed: _busy ? null : () => _schedule(d),
+            onPressed: _busy || _recordingBusy ? null : () => _schedule(d),
             icon: const Icon(Icons.tune),
           ),
         ),
@@ -385,7 +388,7 @@ class _CommitmentSummaryScreenState
                       'What has become clearer? What still needs patience?',
                     ),
                     TextButton(
-                      onPressed: _busy
+                      onPressed: _busy || _recordingBusy
                           ? null
                           : () async {
                               await _setCycle(
@@ -399,7 +402,7 @@ class _CommitmentSummaryScreenState
                       child: const Text('Listening and discernment'),
                     ),
                     TextButton(
-                      onPressed: _busy
+                      onPressed: _busy || _recordingBusy
                           ? null
                           : () => _setCycle(
                               cycle,
@@ -413,8 +416,9 @@ class _CommitmentSummaryScreenState
                           cycle.state ==
                               CommitmentPreparationCycleState.deferred))
                     TextButton(
-                      onPressed: () =>
-                          context.push('/commitments/${c.id}/listen'),
+                      onPressed: _recordingBusy
+                          ? null
+                          : () => context.push('/commitments/${c.id}/listen'),
                       child: const Text('Listening and discernment'),
                     ),
                 ],
@@ -422,6 +426,8 @@ class _CommitmentSummaryScreenState
             ),
           ),
         ExpansionTile(
+          enabled: !_recordingBusy,
+          maintainState: true,
           title: const Text('My needs'),
           children: [
             for (var index = 0; index < 3; index++)
@@ -433,6 +439,8 @@ class _CommitmentSummaryScreenState
           ],
         ),
         ExpansionTile(
+          enabled: !_recordingBusy,
+          maintainState: true,
           title: const Text('Daily practices'),
           children: [
             for (final p in d.practices)
@@ -489,6 +497,8 @@ class _CommitmentSummaryScreenState
         ),
         if (d.declaration != null)
           ExpansionTile(
+            enabled: !_recordingBusy,
+            maintainState: true,
             title: const Text('My declaration'),
             children: [
               _recordedSection(
@@ -501,12 +511,16 @@ class _CommitmentSummaryScreenState
         ListTile(
           title: const Text('A word about readiness'),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/commitments/${c.id}/readiness'),
+          onTap: _recordingBusy
+              ? null
+              : () => context.push('/commitments/${c.id}/readiness'),
         ),
         ListTile(
           title: const Text('Linked goal'),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/goals/${c.goalId}'),
+          onTap: _recordingBusy
+              ? null
+              : () => context.push('/goals/${c.goalId}'),
         ),
       ],
     );
@@ -527,7 +541,8 @@ class _CommitmentSummaryScreenState
           VoiceNotesField(
             noteContext: noteContext,
             title: title,
-            enabled: !_busy,
+            enabled: !_busy && !_recordingBusy,
+            onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
           ),
           if (legacyText.isNotEmpty && (notes.value?.isEmpty ?? true))
             SelectableText(legacyText),
@@ -549,7 +564,7 @@ class _CommitmentSummaryScreenState
       leading: IconButton(
         tooltip: 'Close',
         icon: const Icon(Icons.close),
-        onPressed: () => context.go('/goals'),
+        onPressed: _recordingBusy ? null : () => context.go('/goals'),
       ),
     ),
     body: SanctuaryBackdrop(

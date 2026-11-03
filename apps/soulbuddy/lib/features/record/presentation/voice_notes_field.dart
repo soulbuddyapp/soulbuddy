@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../audio/presentation/audio_playback_control.dart';
+import '../audio/presentation/inline_audio_capture.dart';
+import '../audio/domain/memory_audio.dart';
+import '../domain/encounter_draft.dart';
+import '../providers/encounter_providers.dart';
 import '../audio/providers/memory_audio_providers.dart';
 import '../data/voice_note_repository.dart';
 import '../domain/encounter.dart';
 import '../providers/voice_note_providers.dart';
-import 'voice_memory_capture.dart';
 
 /// Replaces a long-form field with context-linked recordings.
 class VoiceNotesField extends ConsumerStatefulWidget {
@@ -18,6 +21,9 @@ class VoiceNotesField extends ConsumerStatefulWidget {
     this.beforeRecord,
     this.enabled = true,
     this.includeAllFields = false,
+    this.autoStart = false,
+    this.recordLabel = 'Record',
+    this.showTitle = true,
     super.key,
   });
   final VoiceNoteContext noteContext;
@@ -27,70 +33,66 @@ class VoiceNotesField extends ConsumerStatefulWidget {
   final Future<void> Function()? beforeRecord;
   final bool enabled;
   final bool includeAllFields;
+  final bool autoStart;
+  final String recordLabel;
+  final bool showTitle;
 
   @override
   ConsumerState<VoiceNotesField> createState() => _VoiceNotesFieldState();
 }
 
 class _VoiceNotesFieldState extends ConsumerState<VoiceNotesField> {
-  Encounter? _pending;
-  bool _busy = false;
   String? _error;
 
   @override
   void didUpdateWidget(covariant VoiceNotesField oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.noteContext != widget.noteContext) {
-      _pending = null;
       _error = null;
     }
   }
 
-  Future<void> _record() async {
-    if (_busy || !widget.enabled) return;
-    final noteContext = widget.noteContext;
-    final title = widget.title;
-    final beforeRecord = widget.beforeRecord;
-    final onRecorded = widget.onRecorded;
-    final onBusyChanged = widget.onBusyChanged;
-    var memory = _pending;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    onBusyChanged?.call(true);
-    try {
-      await beforeRecord?.call();
-      if (!mounted) return;
-      // Capture the owner-scoped repository before opening the recorder as well
-      // as the context, so a parent change cannot retarget an in-flight save.
-      final repository = await ref.read(voiceNoteRepositoryProvider.future);
-      if (!mounted) return;
-      memory ??= await showVoiceMemoryCapture(context, title: title);
-      if (memory == null) return;
-      await repository.attach(noteContext, memory.id);
-      if (mounted && widget.noteContext == noteContext) {
-        _pending = null;
-        onRecorded?.call(memory);
-      }
-    } catch (_) {
-      if (mounted && widget.noteContext == noteContext) {
-        setState(() {
-          _pending = memory;
-          _error = memory == null
-              ? 'Recording unavailable'
-              : 'Saved in Remember. Retry linking.';
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-      onBusyChanged?.call(false);
+  VoiceNoteContext? _captureContext;
+  ValueChanged<Encounter>? _captureCallback;
+  String? _captureTitle;
+
+  Future<void> _prepare() async {
+    final scope = widget.noteContext;
+    _captureContext = scope;
+    _captureCallback = widget.onRecorded;
+    _captureTitle = widget.title;
+    await widget.beforeRecord?.call();
+    if (!mounted || widget.noteContext != scope) {
+      throw StateError('Recording context changed');
     }
+  }
+
+  Future<void> _save(RecordedAudioDraft draft) async {
+    final scope = _captureContext;
+    if (scope == null) throw StateError('Missing recording context');
+    final repository = await ref.read(encounterRepositoryProvider.future);
+    final now = DateTime.now();
+    final date =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final memory = await repository.create(
+      EncounterDraft(
+        title: String.fromCharCodes(_captureTitle!.runes.take(120)),
+        body: '',
+        occurredOn: date,
+        isAltar: false,
+        sensitive: true,
+        recallEnabled: false,
+        audio: draft,
+        voiceNoteContext: scope,
+      ),
+    );
+    if (mounted && widget.noteContext == scope) _captureCallback?.call(memory);
   }
 
   @override
   Widget build(BuildContext context) {
     final scope = widget.noteContext;
+    final busyChanged = widget.onBusyChanged;
     final notes = ref.watch(
       voiceNotesProvider(
         widget.includeAllFields
@@ -101,7 +103,8 @@ class _VoiceNotesFieldState extends ConsumerState<VoiceNotesField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
+        if (widget.showTitle)
+          Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
         for (final note in notes.value ?? const <VoiceNoteLink>[])
           RecordedMemoryPlayer(
             encounterId: note.encounterId,
@@ -109,19 +112,14 @@ class _VoiceNotesFieldState extends ConsumerState<VoiceNotesField> {
           ),
         if (notes.hasError) const Text('Recordings unavailable'),
         if (_error != null) Text(_error!),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: _busy || !widget.enabled ? null : _record,
-            icon: const Icon(Icons.mic_none),
-            label: Text(
-              _busy
-                  ? 'Saving…'
-                  : _pending == null
-                  ? 'Record'
-                  : 'Retry',
-            ),
-          ),
+        InlineAudioCapture(
+          contextIdentity: scope,
+          autoStart: widget.autoStart,
+          beforeStart: _prepare,
+          onSave: _save,
+          onBusyChanged: busyChanged,
+          enabled: widget.enabled,
+          label: widget.recordLabel,
         ),
       ],
     );

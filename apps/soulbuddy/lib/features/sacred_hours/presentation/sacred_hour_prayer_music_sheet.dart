@@ -11,6 +11,9 @@ class SacredHourPrayerPickerSheet extends StatelessWidget {
     required this.suggestions,
     required this.onChoosePrayer,
     required this.onAddPrayer,
+    this.addPrayerControl,
+    this.enabled = true,
+    this.onClose,
     super.key,
   });
 
@@ -18,6 +21,9 @@ class SacredHourPrayerPickerSheet extends StatelessWidget {
   final List<PrayerDisplay> suggestions;
   final Future<void> Function(PrayerDisplay prayer) onChoosePrayer;
   final ValueChanged<PrayerPurpose> onAddPrayer;
+  final Widget? addPrayerControl;
+  final bool enabled;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -41,16 +47,25 @@ class SacredHourPrayerPickerSheet extends StatelessWidget {
             title: Text(prayer.title),
             subtitle: Text(_purposeLabel(prayer.purpose)),
             trailing: TextButton(
-              onPressed: () => onChoosePrayer(prayer),
+              onPressed: enabled ? () => onChoosePrayer(prayer) : null,
               child: const Text('Choose'),
             ),
           ),
-        TextButton.icon(
-          onPressed: () =>
-              onAddPrayer(SacredHourPrayerSuggestions.primaryPurpose(hour)),
-          icon: const Icon(Icons.add),
-          label: const Text('Add a prayer'),
-        ),
+        addPrayerControl ??
+            TextButton.icon(
+              onPressed: enabled
+                  ? () => onAddPrayer(
+                      SacredHourPrayerSuggestions.primaryPurpose(hour),
+                    )
+                  : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Add a prayer'),
+            ),
+        if (onClose != null)
+          TextButton(
+            onPressed: enabled ? onClose : null,
+            child: const Text('Close'),
+          ),
       ],
     ),
   );

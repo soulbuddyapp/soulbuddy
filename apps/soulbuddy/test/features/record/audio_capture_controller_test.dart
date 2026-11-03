@@ -11,9 +11,11 @@ void main() {
   late _FakeTickerFactory tickers;
   late AudioCaptureController controller;
   late bool captureReserved;
+  late int silenceAlerts;
 
   setUp(() {
     captureReserved = false;
+    silenceAlerts = 0;
     recorder = _FakeAudioRecorder();
     clock = _FakeElapsedClock();
     tickers = _FakeTickerFactory();
@@ -31,10 +33,65 @@ void main() {
       },
       elapsedClock: clock,
       tickerFactory: tickers.call,
+      onSilencePaused: () async {
+        silenceAlerts++;
+      },
     );
   });
 
   tearDown(() async => controller.close());
+
+  test(
+    'sustained silence after speech pauses safely and allows resume',
+    () async {
+      await controller.start();
+      recorder.amplitudeController.add(0.1);
+      await _flushEvents();
+      recorder.amplitudeController.add(0.001);
+      await _flushEvents();
+      for (var second = 0; second < 12; second++) {
+        clock.advance(const Duration(seconds: 1));
+        recorder.amplitudeController.add(0.001);
+        await _flushEvents();
+      }
+      expect(controller.state.phase, AudioCapturePhase.paused);
+      expect(controller.state.notice, 'Paused after silence');
+      expect(silenceAlerts, 1);
+      expect(captureReserved, isTrue);
+      await controller.resume();
+      expect(controller.state.phase, AudioCapturePhase.recording);
+      expect(controller.state.notice, isNull);
+      expect(recorder.pauseCalls, 1);
+    },
+  );
+
+  test(
+    'initial silence and missing samples do not trigger auto pause',
+    () async {
+      await controller.start();
+      recorder.amplitudeController.add(0.001);
+      await _flushEvents();
+      clock.advance(const Duration(seconds: 30));
+      tickers.fire();
+      recorder.amplitudeController.add(0.001);
+      await _flushEvents();
+      expect(controller.state.phase, AudioCapturePhase.recording);
+      expect(recorder.pauseCalls, 0);
+    },
+  );
+
+  test('a gap in amplitude samples is not treated as silence', () async {
+    await controller.start();
+    recorder.amplitudeController.add(0.1);
+    recorder.amplitudeController.add(0.001);
+    await _flushEvents();
+    clock.advance(const Duration(seconds: 20));
+    tickers.fire();
+    recorder.amplitudeController.add(0.001);
+    await _flushEvents();
+    expect(controller.state.phase, AudioCapturePhase.recording);
+    expect(recorder.pauseCalls, 0);
+  });
 
   test('permission denial leaves speaking safely for Write instead', () async {
     recorder.permissionGranted = false;

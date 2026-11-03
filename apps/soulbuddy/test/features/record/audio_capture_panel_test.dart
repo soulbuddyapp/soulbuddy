@@ -29,6 +29,35 @@ void main() {
 
   tearDown(() => controller.close());
 
+  testWidgets('inline capture shows live input without a nested scroll view', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              AudioCapturePanel(
+                controller: controller,
+                inline: true,
+                reviewPlayer: player,
+                onContinue: (_) {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Start recording'));
+    await tester.pump();
+    recorder.amplitudesController.add(0.7);
+    await tester.pump();
+    expect(controller.state.phase, AudioCapturePhase.recording);
+    expect(find.byKey(const Key('audio-live-level')), findsOneWidget);
+    expect(find.byType(SingleChildScrollView), findsNothing);
+    await _cancelCapture(tester, controller);
+  });
+
   testWidgets('opens capture without requesting the microphone or writing', (
     tester,
   ) async {

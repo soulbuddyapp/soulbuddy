@@ -8,12 +8,12 @@ import '../../../core/design/app_spacing.dart';
 class TodayStartGuide extends StatelessWidget {
   const TodayStartGuide({
     required this.onStartGoal,
-    required this.onRecordMemory,
+    required this.recordControl,
     super.key,
   });
 
-  final VoidCallback onStartGoal;
-  final VoidCallback onRecordMemory;
+  final VoidCallback? onStartGoal;
+  final Widget recordControl;
 
   @override
   Widget build(BuildContext context) {
@@ -28,15 +28,6 @@ class TodayStartGuide extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Begin with one thing you want to seek, change, or carry.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            height: 1.35,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: AppSpacing.md),
         FilledButton.icon(
           key: const Key('start-first-goal'),
           onPressed: onStartGoal,
@@ -44,12 +35,7 @@ class TodayStartGuide extends StatelessWidget {
           label: const Text('Start a Goal'),
         ),
         const SizedBox(height: AppSpacing.sm),
-        OutlinedButton.icon(
-          key: const Key('today-record-memory'),
-          onPressed: onRecordMemory,
-          icon: const Icon(Icons.mic_none_outlined),
-          label: const Text('Record something'),
-        ),
+        recordControl,
         const SizedBox(
           key: Key('today-start-guide-end'),
           height: AppSpacing.xs,

@@ -7,7 +7,7 @@ import '../../record/domain/encounter.dart';
 import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/providers/encounter_providers.dart';
-import '../../record/presentation/voice_memory_capture.dart';
+import 'inline_memory_reflection.dart';
 import 'memory_reflection_content.dart';
 import '../domain/daily_memory.dart';
 import '../providers/daily_memory_providers.dart';
@@ -24,9 +24,6 @@ class DailyRemembranceScreen extends ConsumerStatefulWidget {
 
 class _DailyRemembranceScreenState
     extends ConsumerState<DailyRemembranceScreen> {
-  String? _pendingAudioEncounterId;
-  String? _pendingReflectionMemoryId;
-  String? _pendingReflectionDate;
   bool _busy = false;
 
   @override
@@ -112,6 +109,13 @@ class _DailyRemembranceScreenState
                   ),
           ),
           const SizedBox(height: AppSpacing.md),
+          InlineMemoryReflection(
+            key: const Key('daily-memory-save-reflection'),
+            memory: memory,
+            localDate: widget.localDate,
+            onBusyChanged: (busy) => setState(() => _busy = busy),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
@@ -122,15 +126,6 @@ class _DailyRemembranceScreenState
                     ? null
                     : () => _setStatus(daily, DailyMemoryStatus.remembered),
                 child: const Text('Remembered'),
-              ),
-              FilledButton(
-                key: const Key('daily-memory-save-reflection'),
-                onPressed: _busy ? null : () => _saveReflection(daily),
-                child: Text(
-                  _pendingAudioEncounterId == null
-                      ? 'Record reflection'
-                      : 'Save reflection',
-                ),
               ),
               OutlinedButton(
                 key: const Key('daily-memory-pray'),
@@ -158,55 +153,6 @@ class _DailyRemembranceScreenState
         ],
       ),
     );
-  }
-
-  Future<void> _saveReflection(DailyMemory displayed) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      final repository = await ref.read(encounterRepositoryProvider.future);
-      if (!mounted) return;
-      var audioId = _pendingAudioEncounterId;
-      if (audioId == null) {
-        final recorded = await showVoiceMemoryCapture(
-          context,
-          title: 'Reflection · ${displayed.memory.title}',
-          occurredOn: DateTime.tryParse(widget.localDate),
-        );
-        if (recorded == null) return;
-        audioId = recorded.id;
-        _pendingAudioEncounterId = audioId;
-        _pendingReflectionMemoryId = displayed.memory.id;
-        _pendingReflectionDate = widget.localDate;
-      }
-      final parentId = _pendingReflectionMemoryId ?? displayed.memory.id;
-      await repository.addReflection(
-        parentId,
-        body: '',
-        localDate: _pendingReflectionDate ?? widget.localDate,
-        audioEncounterId: audioId,
-      );
-      _pendingAudioEncounterId = null;
-      _pendingReflectionMemoryId = null;
-      _pendingReflectionDate = null;
-      if (mounted) {
-        ref.invalidate(memoryReflectionsProvider(parentId));
-      }
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _pendingAudioEncounterId == null
-                  ? 'Recording unavailable. Try again.'
-                  : 'Recording kept. Try saving the reflection again.',
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   Future<void> _setStatus(

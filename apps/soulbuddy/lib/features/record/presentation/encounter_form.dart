@@ -5,8 +5,7 @@ import '../../../core/design/app_spacing.dart';
 import '../domain/encounter_draft.dart';
 import '../domain/encounter.dart';
 import '../audio/domain/memory_audio.dart';
-import '../audio/application/audio_capture_controller.dart';
-import '../audio/presentation/audio_capture_panel.dart';
+import '../audio/presentation/inline_audio_capture.dart';
 import '../audio/providers/memory_audio_providers.dart';
 import '../../persons/domain/prayer_person.dart';
 
@@ -60,7 +59,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   late var _memoryType = widget.memoryType;
   String? _saveError;
   var _canceling = false;
-  var _closingCapture = false;
+  var _captureBusy = false;
   late MemoryAudioDraft? _audioDraft = widget.audio;
   late final Set<String> _personIds = widget.initialPersonIds.toSet();
 
@@ -229,18 +228,33 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        key: const Key('encounter-add-audio'),
-                        onPressed: _isSaving ? null : _recordWhatHappened,
-                        icon: Icon(
-                          _audioDraft == null ? Icons.mic_none : Icons.mic,
-                        ),
-                        label: Text(
-                          _audioDraft == null ? 'Record audio' : 'Record again',
-                        ),
-                      ),
+                    InlineAudioCapture(
+                      key: const Key('encounter-add-audio'),
+                      enableSoundscape: true,
+                      saveLabel: 'Use recording',
+                      enabled: !_isSaving,
+                      label: _audioDraft == null
+                          ? 'Record audio'
+                          : 'Record again',
+                      onBusyChanged: (busy) =>
+                          setState(() => _captureBusy = busy),
+                      onSave: (recording) async {
+                        final previous = _audioDraft;
+                        setState(() {
+                          _audioDraft = recording;
+                          _saveError = null;
+                        });
+                        if (previous != null) {
+                          try {
+                            final store = await ref.read(
+                              audioAssetStoreProvider.future,
+                            );
+                            await store.discardTemporary(previous.temporaryKey);
+                          } catch (_) {
+                            /* Startup cleanup handles older temporary files. */
+                          }
+                        }
+                      },
                     ),
                     if (_audioDraft != null)
                       Padding(
@@ -279,15 +293,19 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                       ),
                     ],
                     const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      key: const Key('encounter-date'),
-                      controller: _dateController,
-                      readOnly: true,
-                      enabled: !_isSaving,
-                      onTap: _chooseDate,
-                      decoration: const InputDecoration(
-                        labelText: 'Date',
-                        suffixIcon: Icon(Icons.calendar_today_outlined),
+                    Text('Date', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: AppSpacing.xs),
+                    Semantics(
+                      label: 'Date',
+                      child: TextFormField(
+                        key: const Key('encounter-date'),
+                        controller: _dateController,
+                        readOnly: true,
+                        enabled: !_isSaving,
+                        onTap: _chooseDate,
+                        decoration: const InputDecoration(
+                          suffixIcon: Icon(Icons.calendar_today_outlined),
+                        ),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -318,7 +336,8 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                     ],
                     FilledButton(
                       key: const Key('encounter-save'),
-                      onPressed: _isSaving || _audioDraft == null
+                      onPressed:
+                          _isSaving || _captureBusy || _audioDraft == null
                           ? null
                           : _save,
                       child: Text(_isSaving ? 'Saving…' : 'Save'),
@@ -333,67 +352,8 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     );
   }
 
-  Future<void> _recordWhatHappened() async {
-    final keepAlive = ref.listenManual(
-      audioCaptureControllerProvider,
-      (_, _) {},
-      fireImmediately: true,
-    );
-    AudioCaptureController? activeController;
-    try {
-      final controller = await ref.read(audioCaptureControllerProvider.future);
-      activeController = controller;
-      if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        useSafeArea: true,
-        isScrollControlled: true,
-        isDismissible: false,
-        enableDrag: false,
-        builder: (sheetContext) => FractionallySizedBox(
-          heightFactor: 0.9,
-          child: AudioCapturePanel(
-            controller: controller,
-            handlesSystemBack: true,
-            enableSoundscape: true,
-            introHeading: 'Record a memory',
-            onBack: () => _closeCaptureSheet(controller, sheetContext),
-            onContinue: (recording) async {
-              final previous = _audioDraft;
-              if (mounted) {
-                setState(() {
-                  _audioDraft = recording;
-                  _saveError = null;
-                });
-              }
-              if (sheetContext.mounted) Navigator.pop(sheetContext);
-              if (previous != null) {
-                try {
-                  final store = await ref.read(audioAssetStoreProvider.future);
-                  await store.discardTemporary(previous.temporaryKey);
-                } catch (_) {
-                  // Startup cleanup also removes superseded temporary files.
-                }
-              }
-            },
-          ),
-        ),
-      );
-    } finally {
-      try {
-        if (activeController case final controller?) {
-          // A transferred review is already idle. Any other take still belongs
-          // to this sheet and must not keep the microphone alive after it exits.
-          await _discardCapture(controller);
-        }
-      } finally {
-        keepAlive.close();
-      }
-    }
-  }
-
   Future<void> _cancel() async {
-    if (_isSaving || _canceling) return;
+    if (_isSaving || _canceling || _captureBusy) return;
     _canceling = true;
     final recording = _audioDraft;
     if (recording != null) {
@@ -435,54 +395,6 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
         ? 'Voice memory'
         : _memoryTypeChipLabel(_memoryType);
     return '$kind · ${_dateController.text}';
-  }
-
-  Future<void> _closeCaptureSheet(
-    AudioCaptureController controller,
-    BuildContext sheetContext,
-  ) async {
-    if (_closingCapture || controller.state.commandInFlight) return;
-    _closingCapture = true;
-    try {
-      if (controller.state.phase == AudioCapturePhase.recording) {
-        await controller.handleInterruption();
-      }
-      if (!sheetContext.mounted) return;
-      if (controller.state.phase == AudioCapturePhase.failure &&
-          controller.state.review == null &&
-          controller.hasPendingRecording) {
-        return;
-      }
-      if (controller.hasPendingRecording) {
-        final discard = await showDialog<bool>(
-          context: sheetContext,
-          builder: (context) => AlertDialog(
-            title: const Text('Discard recording?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Keep recording'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Discard'),
-              ),
-            ],
-          ),
-        );
-        if (discard != true) return;
-      }
-      await _discardCapture(controller);
-      if (sheetContext.mounted && !controller.hasPendingRecording) {
-        Navigator.pop(sheetContext);
-      }
-    } finally {
-      _closingCapture = false;
-    }
-  }
-
-  Future<void> _discardCapture(AudioCaptureController controller) async {
-    await controller.cancel();
   }
 }
 

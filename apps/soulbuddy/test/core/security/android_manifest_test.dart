@@ -27,7 +27,7 @@ void main() {
     expect(
       infoPlist,
       contains(
-        '<string>SoulBuddy uses the microphone only when you choose to speak a prayer detail or record a private memory.</string>',
+        '<string>Record prayers and reflections with your microphone.</string>',
       ),
     );
     expect(manifest, contains('android.speech.RecognitionService'));

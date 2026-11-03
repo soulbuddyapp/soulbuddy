@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../../core/playback/spiritual_session_providers.dart';
 import '../../record/audio/application/audio_capture_controller.dart';
@@ -44,13 +45,20 @@ final voiceTabletAudioCaptureControllerProvider = FutureProvider.autoDispose
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
       final session = ref.watch(spiritualSessionControllerProvider);
       final captureOwner = Object();
+      final microphoneLock = ref.watch(microphoneCaptureLockProvider);
+      ref.read(appFeedbackPreferencesProvider);
       final controller = AudioCaptureController(
         recorder: createRecordPluginAudioRecorder(assetStore),
         beforeCapture: () async {
+          microphoneLock.acquire(captureOwner);
           await session.acquireCapture(captureOwner);
           await pauseAudioForCapture(ref);
         },
-        afterCapture: () async => session.releaseCapture(captureOwner),
+        afterCapture: () async {
+          session.releaseCapture(captureOwner);
+          microphoneLock.release(captureOwner);
+        },
+        onSilencePaused: () => notifySilencePause(ref),
         allocateTemporary: () => assetStore.allocateTemporary(
           takeId: const Uuid().v7(),
           extension: kIsWeb ? 'webm' : 'm4a',

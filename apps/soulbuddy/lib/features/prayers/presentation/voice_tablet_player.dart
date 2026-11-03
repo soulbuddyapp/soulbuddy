@@ -9,6 +9,7 @@ import '../../../core/playback/spiritual_session_controller.dart';
 import '../../../core/playback/spiritual_session_providers.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../record/audio/application/memory_audio_player.dart';
+import '../../record/audio/application/recording_activity.dart';
 import '../../record/audio/domain/memory_soundscape.dart';
 import '../../record/audio/presentation/soundscape_controls.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
@@ -21,7 +22,7 @@ import '../providers/voice_tablet_providers.dart';
 import 'voice_tablet_sheet.dart';
 import 'meditation_session_sheet.dart';
 
-class VoiceTabletSection extends ConsumerWidget {
+class VoiceTabletSection extends ConsumerStatefulWidget {
   const VoiceTabletSection({
     required this.source,
     required this.title,
@@ -29,6 +30,8 @@ class VoiceTabletSection extends ConsumerWidget {
     this.onKeepOnAltar,
     this.compact = false,
     this.showPrayerActions = true,
+    this.onBusyChanged,
+    this.enabled = true,
     super.key,
   });
 
@@ -38,10 +41,53 @@ class VoiceTabletSection extends ConsumerWidget {
   final FutureOr<void> Function(VoiceTablet)? onKeepOnAltar;
   final bool compact;
   final bool showPrayerActions;
+  final ValueChanged<bool>? onBusyChanged;
+  final bool enabled;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<VoiceTabletSection> createState() => _VoiceTabletSectionState();
+}
+
+class _VoiceTabletSectionState extends ConsumerState<VoiceTabletSection>
+    with AutomaticKeepAliveClientMixin<VoiceTabletSection> {
+  @override
+  bool get wantKeepAlive => true;
+  bool _recording = false;
+  final Object _activityOwner = Object();
+  late final RecordingActivity _activity;
+
+  @override
+  void initState() {
+    super.initState();
+    _activity = ref.read(recordingActivityProvider);
+  }
+
+  @override
+  void dispose() {
+    _activity.end(_activityOwner);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final source = widget.source;
     final tablet = ref.watch(voiceTabletForSourceProvider(source));
+    if (_recording) {
+      return VoiceTabletSheet(
+        inline: true,
+        source: source,
+        title: widget.title,
+        prayerBody: widget.prayerBody,
+        onFinish: (_) {
+          if (mounted) {
+            setState(() => _recording = false);
+            _activity.end(_activityOwner);
+            widget.onBusyChanged?.call(false);
+          }
+        },
+      );
+    }
     return tablet.when(
       loading: () => const SizedBox.shrink(),
       error: (_, _) => OutlinedButton.icon(
@@ -54,20 +100,30 @@ class VoiceTabletSection extends ConsumerWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
               ),
-              onPressed: () => showVoiceTabletSheet(
-                context,
-                source: source,
-                title: title,
-                prayerBody: prayerBody,
-              ),
+              onPressed: !widget.enabled
+                  ? null
+                  : () {
+                      if (!_activity.begin(_activityOwner)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Finish the current recording first.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      setState(() => _recording = true);
+                      widget.onBusyChanged?.call(true);
+                    },
               icon: const Icon(Icons.mic_none),
               label: const Text('Record in my voice'),
             )
           : VoiceTabletPlayer(
               tablet: value,
-              onKeepOnAltar: onKeepOnAltar,
-              compact: compact,
-              showPrayerActions: showPrayerActions,
+              onKeepOnAltar: widget.onKeepOnAltar,
+              compact: widget.compact,
+              showPrayerActions: widget.showPrayerActions,
             ),
     );
   }

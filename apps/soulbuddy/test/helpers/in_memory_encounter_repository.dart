@@ -43,6 +43,14 @@ class InMemoryEncounterRepository implements EncounterRepository {
       recallPaused: draft.recallPaused,
       recallIntervalDays: draft.recallIntervalDays,
     );
+    if (draft.reflectionParentId case final parentId?) {
+      await addReflection(
+        parentId,
+        body: '',
+        localDate: draft.occurredOn,
+        audioEncounterId: id,
+      );
+    }
     _items.insert(0, encounter);
     _emit();
     return encounter;

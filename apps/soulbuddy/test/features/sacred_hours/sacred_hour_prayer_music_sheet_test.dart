@@ -7,6 +7,42 @@ import 'package:soulbuddy/features/sacred_hours/domain/sacred_hour.dart';
 import 'package:soulbuddy/features/sacred_hours/presentation/sacred_hour_prayer_music_sheet.dart';
 
 void main() {
+  testWidgets('prayer creation control stays in the picker while recording', (
+    tester,
+  ) async {
+    var selected = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SacredHourPrayerPickerSheet(
+            hour: _hour(),
+            suggestions: [_prayer('Morning gratitude')],
+            onChoosePrayer: (_) async {
+              selected++;
+            },
+            onAddPrayer: (_) {},
+            enabled: false,
+            addPrayerControl: const Text('Recording prayer'),
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Recording prayer'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Choose'))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Close'))
+          .onPressed,
+      isNull,
+    );
+    expect(selected, 0);
+  });
   testWidgets('chooses a suggested prayer without mixing sound controls', (
     tester,
   ) async {

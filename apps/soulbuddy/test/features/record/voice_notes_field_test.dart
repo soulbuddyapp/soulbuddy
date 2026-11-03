@@ -79,14 +79,7 @@ void main() {
     await tester.tap(find.text('Record'));
     await tester.pump();
     expect(busy, ['first:true']);
-    expect(
-      tester
-          .widget<OutlinedButton>(
-            find.byWidgetPredicate((widget) => widget is OutlinedButton),
-          )
-          .onPressed,
-      isNull,
-    );
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     update(() => noteContext = (type: 'goal', id: 'second', field: 'notes'));
     await tester.pump();

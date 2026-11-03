@@ -34,6 +34,15 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
+              if (context.canPop())
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => context.pop(),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Back'),
+                  ),
+                ),
               const SizedBox(height: AppSpacing.md),
               Semantics(
                 header: true,

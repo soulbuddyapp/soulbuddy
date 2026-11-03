@@ -100,6 +100,8 @@ class GuardConfigurationSheet extends ConsumerWidget {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       builder: (context) => _GuardEditor(
         goalId: goal.id,
         definition: definition,
@@ -280,7 +282,7 @@ class _GuardCard extends StatelessWidget {
   }
 }
 
-class _GuardEditor extends StatelessWidget {
+class _GuardEditor extends StatefulWidget {
   const _GuardEditor({
     required this.goalId,
     required this.definition,
@@ -292,6 +294,13 @@ class _GuardEditor extends StatelessWidget {
   final GuardDefinition definition;
   final bool configured;
   final String? initialNote;
+
+  @override
+  State<_GuardEditor> createState() => _GuardEditorState();
+}
+
+class _GuardEditorState extends State<_GuardEditor> {
+  bool _recordingBusy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -307,26 +316,30 @@ class _GuardEditor extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              definition.title,
+              widget.definition.title,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(definition.description),
+            Text(widget.definition.description),
             const SizedBox(height: AppSpacing.lg),
             Text(
               'Review the steps',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.sm),
-            for (var index = 0; index < definition.steps.length; index++) ...[
+            for (
+              var index = 0;
+              index < widget.definition.steps.length;
+              index++
+            ) ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(width: 28, child: Text('${index + 1}.')),
-                  Expanded(child: Text(definition.steps[index])),
+                  Expanded(child: Text(widget.definition.steps[index])),
                 ],
               ),
-              if (index != definition.steps.length - 1)
+              if (index != widget.definition.steps.length - 1)
                 const SizedBox(height: AppSpacing.sm),
             ],
             const SizedBox(height: AppSpacing.lg),
@@ -334,19 +347,20 @@ class _GuardEditor extends StatelessWidget {
               key: const Key('guard-private-recording'),
               noteContext: (
                 type: 'goal',
-                id: goalId,
-                field: 'guard:${definition.id}',
+                id: widget.goalId,
+                field: 'guard:${widget.definition.id}',
               ),
               title: 'Private guard notes',
+              onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
             ),
-            if (_hasText(initialNote))
+            if (_hasText(widget.initialNote))
               ExpansionTile(
                 title: const Text('Earlier note'),
-                children: [Text(initialNote!.trim())],
+                children: [Text(widget.initialNote!.trim())],
               ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Marking this configured records your choice only. SoulBuddy does not verify enforcement.',
+              'SoulBuddy does not verify enforcement.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -354,9 +368,17 @@ class _GuardEditor extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
               key: const Key('guard-mark-configured'),
-              onPressed: () =>
-                  Navigator.pop(context, initialNote?.trim() ?? ''),
-              child: Text(configured ? 'Save' : 'Mark configured'),
+              onPressed: _recordingBusy
+                  ? null
+                  : () => Navigator.pop(
+                      context,
+                      widget.initialNote?.trim() ?? '',
+                    ),
+              child: Text(widget.configured ? 'Save' : 'Mark configured'),
+            ),
+            TextButton(
+              onPressed: _recordingBusy ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
           ],
         ),

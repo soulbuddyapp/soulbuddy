@@ -246,7 +246,8 @@ class DailyFormationCard extends ConsumerWidget {
         await showModalBottomSheet<({String? recordingId, String action})>(
           context: context,
           isScrollControlled: true,
-          showDragHandle: true,
+          isDismissible: false,
+          enableDrag: false,
           builder: (_) => _CompletionSheet(day: day, video: video),
         );
     if (result == null) return;
@@ -534,6 +535,10 @@ class _CompletionSheetState extends State<_CompletionSheet> {
                       action: _action.text,
                     )),
               child: const Text('Complete today'),
+            ),
+            TextButton(
+              onPressed: _recordingBusy ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
           ],
         ),

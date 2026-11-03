@@ -24,7 +24,6 @@ import 'package:soulbuddy/features/record/audio/application/memory_audio_player.
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store_io.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
-import 'package:soulbuddy/features/record/presentation/record_screen.dart';
 import 'package:soulbuddy/features/record/presentation/voice_notes_field.dart';
 import '../../helpers/audio_player_mocks.dart';
 import '../../helpers/powersync_test_database.dart';
@@ -72,6 +71,18 @@ void main() {
             (ref) async => playback,
           ),
           audioCaptureControllerProvider.overrideWith((ref) async {
+            final controller = AudioCaptureController(
+              recorder: _JourneyRecorder(),
+              allocateTemporary: () => assets.allocateTemporary(
+                takeId: 'journey-take-${takeNumber++}',
+                extension: 'm4a',
+              ),
+            );
+            captureControllers.add(controller);
+            ref.onDispose(() => unawaited(controller.close()));
+            return controller;
+          }),
+          inlineAudioCaptureControllerProvider.overrideWith((ref, key) async {
             final controller = AudioCaptureController(
               recorder: _JourneyRecorder(),
               allocateTemporary: () => assets.allocateTemporary(
@@ -189,6 +200,7 @@ void main() {
       Future<T> waitWithPumps<T>(
         Future<T> operation, {
         required String stage,
+        int maxFrames = 100,
       }) async {
         late T value;
         var completed = false;
@@ -207,7 +219,7 @@ void main() {
             },
           ),
         );
-        for (var frame = 0; frame < 100 && !completed; frame += 1) {
+        for (var frame = 0; frame < maxFrames && !completed; frame += 1) {
           await tester.runAsync(
             () => Future<void>.delayed(const Duration(milliseconds: 20)),
           );
@@ -228,6 +240,7 @@ void main() {
         );
         stdout.writeln('Commitment journey: $heading');
       }
+
       Future<void> enter(String label, String value) async {
         final field = find.byWidgetPredicate(
           (w) => w is TextField && w.decoration?.labelText == label,
@@ -239,7 +252,7 @@ void main() {
 
       Future<void> recordAudio(
         String field,
-        String title, {
+        String _, {
         bool practice = false,
       }) async {
         final scope = practice
@@ -254,26 +267,24 @@ void main() {
         );
         expect(button, findsOneWidget);
         await tapAction(button, 'Record $field');
-        await settleUntil(
-          () => find.text('Start recording').evaluate().isNotEmpty,
+        await settleUntil(() => find.text('Pause').evaluate().isNotEmpty);
+        expect(
+          find.text('Pause').hitTestable(),
+          findsOneWidget,
+          reason:
+              'The active recorder must remain interactive while the form is blocked.',
         );
-        await tapText('Start recording');
-        await settleUntil(() => find.text('Stop').evaluate().isNotEmpty);
+        await tapText('Pause');
+        await settleUntil(() => find.text('Resume').evaluate().isNotEmpty);
+        await tapText('Resume');
         await tapText('Stop');
-        await settleUntil(
-          () => find.text('Use recording').evaluate().isNotEmpty,
-        );
-        await tapText('Use recording');
-        await settleUntil(
-          () => find.byKey(const Key('encounter-title')).evaluate().isNotEmpty,
-        );
-        expect(find.byKey(const Key('encounter-body')), findsNothing);
-        await tester.enterText(find.byKey(const Key('encounter-title')), title);
+        await settleUntil(() => find.text('Save').evaluate().isNotEmpty);
         await tapText('Save');
         await settleUntil(
-          () =>
-              find.byType(RecordScreen).evaluate().isEmpty &&
-              find.text('Saving…').evaluate().isEmpty,
+          () => find
+              .descendant(of: scope, matching: find.text('Record'))
+              .evaluate()
+              .isNotEmpty,
         );
       }
 
@@ -324,7 +335,7 @@ void main() {
         final deferred = await tester.runAsync(() => progressRepo!.load());
         expect(deferred!.progress!.deferred, isTrue);
         expect(deferred.progress!.stage, CommitmentJourneyStage.needs);
-        expect(deferred.progress!.keyNeedThree, 'Courage to serve');
+        expect(deferred.progress!.keyNeedThree, 'Need 3');
         expect(
           await tester.runAsync(
             () => database.powersync.getAll('SELECT * FROM goals'),
@@ -356,11 +367,7 @@ void main() {
 
         await tapText('Continue your commitment');
         await stage('What do you need from God?');
-        const restoredTitles = [
-          'Grace in each conversation',
-          'Patience with my family',
-          'Courage to serve',
-        ];
+        const restoredTitles = ['Need 1', 'Need 2', 'Need 3'];
         Finder restoredRecording(String title) => find.descendant(
           of: find.byWidgetPredicate(
             (widget) => widget is RecordedMemoryPlayer && widget.title == title,
@@ -444,7 +451,7 @@ void main() {
           stage: 'read commitment_practices',
         )).single;
         expect(saved['name'], 'Faithful service');
-        expect(saved['calling'], 'Serve my neighbors');
+        expect(saved['calling'], 'Calling');
         expect(saved['guide_id'], 'peace');
         expect(practice['body'], 'Walk with a neighbor');
         final links = await waitWithPumps(
@@ -523,6 +530,8 @@ void main() {
         await waitWithPumps(
           database.close(),
           stage: 'close the journey database',
+          // PowerSync closes native watchers asynchronously on Windows.
+          maxFrames: 500,
         );
         await waitWithPumps(
           directory.delete(recursive: true),

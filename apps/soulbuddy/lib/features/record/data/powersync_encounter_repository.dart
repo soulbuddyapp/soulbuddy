@@ -60,6 +60,24 @@ class PowerSyncEncounterRepository implements EncounterRepository {
       throw ArgumentError.value(draft.personIds, 'personIds');
     }
 
+    final context = draft.voiceNoteContext;
+    final reflectionParentId = draft.reflectionParentId;
+    if ((context != null || reflectionParentId != null) &&
+        draft.audio == null) {
+      throw ArgumentError('A recording is required');
+    }
+    if (context != null &&
+        [
+          context.type,
+          context.id,
+          context.field,
+        ].any((value) => value.trim().isEmpty || value.length > 160)) {
+      throw ArgumentError('Invalid recording context');
+    }
+    if (reflectionParentId != null && reflectionParentId.trim().isEmpty) {
+      throw ArgumentError('Invalid reflection');
+    }
+
     CommittedAudio? committedAudio;
     if (draft.audio case final audio?) {
       final store = audioAssetStore;
@@ -75,6 +93,13 @@ class PowerSyncEncounterRepository implements EncounterRepository {
 
     try {
       await database.writeTransaction((transaction) async {
+        if (reflectionParentId != null) {
+          final parent = await transaction.getOptional(
+            'SELECT id FROM encounters WHERE id = ? AND owner_id = ? AND archived_at IS NULL',
+            [reflectionParentId, ownerId],
+          );
+          if (parent == null) throw StateError('Memory is not available');
+        }
         for (final personId in personIds) {
           final person = await transaction.getOptional(
             'SELECT id FROM prayer_people WHERE id = ? AND owner_id = ? '
@@ -164,6 +189,35 @@ class PowerSyncEncounterRepository implements EncounterRepository {
               savedAudio.byteSize,
               jsonEncode(savedAudio.waveform),
               savedAudio.createdAt.toIso8601String(),
+            ],
+          );
+        }
+        if (context != null) {
+          await transaction.execute(
+            'INSERT INTO voice_note_links (id, owner_id, context_type, context_id, field_key, encounter_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [
+              _uuid.v7(),
+              ownerId,
+              context.type,
+              context.id,
+              context.field,
+              encounterId,
+              timestamp,
+            ],
+          );
+        }
+        if (reflectionParentId != null) {
+          await transaction.execute(
+            'INSERT INTO memory_reflections (id, encounter_id, owner_id, body, local_date, created_at, device_id, audio_encounter_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+              _uuid.v7(),
+              reflectionParentId,
+              ownerId,
+              '',
+              draft.occurredOn,
+              timestamp,
+              deviceId,
+              encounterId,
             ],
           );
         }

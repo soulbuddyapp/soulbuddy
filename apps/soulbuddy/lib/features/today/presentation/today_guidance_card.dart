@@ -11,10 +11,12 @@ class TodayGuidanceCard extends StatelessWidget {
     super.key,
     required this.guidance,
     required this.onOpen,
+    this.actionControl,
   });
 
   final TodayGuidanceCardValue guidance;
   final VoidCallback onOpen;
+  final Widget? actionControl;
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +51,13 @@ class TodayGuidanceCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.sm),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        key: const Key('today-guidance-action'),
-                        onPressed: onOpen,
-                        child: Text(guidance.actionLabel),
-                      ),
+                      child:
+                          actionControl ??
+                          TextButton(
+                            key: const Key('today-guidance-action'),
+                            onPressed: onOpen,
+                            child: Text(guidance.actionLabel),
+                          ),
                     ),
                   ],
                 ),
@@ -70,8 +74,7 @@ SacredPiece pieceForTodayGuidance(TodayGuidanceKey key) => switch (key) {
   TodayGuidanceKey.duePrayer ||
   TodayGuidanceKey.beginPrayer => SacredPiece.prayer,
   TodayGuidanceKey.dueAltar => SacredPiece.altar,
-  TodayGuidanceKey.dueAction ||
-  TodayGuidanceKey.startGoal => SacredPiece.goal,
+  TodayGuidanceKey.dueAction || TodayGuidanceKey.startGoal => SacredPiece.goal,
   TodayGuidanceKey.dueRemembrance ||
   TodayGuidanceKey.keepMemory => SacredPiece.remember,
   TodayGuidanceKey.circleAccountability => SacredPiece.circle,

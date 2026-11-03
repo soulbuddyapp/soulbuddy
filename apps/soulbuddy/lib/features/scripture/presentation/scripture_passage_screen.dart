@@ -68,9 +68,11 @@ class _ScripturePassageScreenState extends State<ScripturePassageScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: context.pop,
+                      onPressed: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/remember'),
                       icon: const Icon(Icons.arrow_back),
-                      label: const Text('Remember'),
+                      label: const Text('Back'),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),

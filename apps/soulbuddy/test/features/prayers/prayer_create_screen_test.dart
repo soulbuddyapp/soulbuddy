@@ -14,7 +14,7 @@ import 'package:soulbuddy/features/prayers/presentation/prayer_create_screen.dar
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/recorded_personal_prayer_providers.dart';
-import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 import 'package:soulbuddy/features/prayers/data/recorded_personal_prayer_repository.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
@@ -91,26 +91,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('prayer-create-write')), findsNothing);
     await tester.ensureVisible(find.byKey(const Key('prayer-create-speak')));
-    await tester.tap(find.byKey(const Key('prayer-create-speak')));
-    await tester.pumpAndSettle();
-    final fields = tester.widgetList<TextField>(find.byType(TextField));
-    expect(fields, hasLength(1));
-    expect(fields.single.maxLength, 80);
-    expect(fields.single.maxLines, 1);
-    await tester.ensureVisible(find.text('Start recording'));
-    await tester.tap(find.text('Start recording'));
+    await tester.tap(find.text('Record prayer'));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byType(TextField), findsNothing);
     await tester.pump(const Duration(milliseconds: 250));
     final stop = find.text('Stop');
+    expect(
+      stop,
+      findsOneWidget,
+      reason: tester
+          .widgetList<Text>(find.byType(Text))
+          .map((e) => e.data)
+          .join(' | '),
+    );
     await tester.ensureVisible(stop);
     await tester.pump();
     expect(stop.hitTestable(), findsOneWidget);
     await tester.tap(stop);
-    final save = find.text('Save prayer');
+    final save = find.text('Save');
     for (var attempt = 0; attempt < 30 && save.evaluate().isEmpty; attempt++) {
       await tester.pump(const Duration(milliseconds: 20));
     }
     expect(save, findsOneWidget);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(save);
     await tester.pump();
     expect(save.hitTestable(), findsOneWidget);
@@ -180,7 +185,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a failed discard keeps prayer capture open for retry', (
+  testWidgets('a failed discard keeps inline capture open for retry', (
     tester,
   ) async {
     final recorder = _PrayerRecorder()..failCancel = true;
@@ -193,31 +198,26 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('prayer-create-purpose-daily')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('prayer-create-speak')));
-    await tester.tap(find.byKey(const Key('prayer-create-speak')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Start recording'));
-    await tester.tap(find.text('Start recording'));
+    await tester.ensureVisible(find.text('Record prayer'));
+    await tester.tap(find.text('Record prayer'));
     await tester.pump();
-    await tester.ensureVisible(find.text('Back'));
-    await tester.tap(find.text('Back'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Discard'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Discard'));
+    await tester.pump();
+    await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
     expect(recorder.pauseCalls, 1);
-    expect(find.text('Discard recording?'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(recorder.cancelCalls, 1);
     expect(find.text('Discard recording'), findsOneWidget);
-
     recorder.failCancel = false;
     await tester.tap(find.text('Discard recording'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(recorder.cancelCalls, 2);
-    await tester.ensureVisible(find.text('Back'));
-    await tester.tap(find.text('Back'));
-    await tester.pumpAndSettle();
-    expect(find.text('Start recording'), findsNothing);
-    expect(find.byKey(const Key('prayer-create-speak')), findsOneWidget);
+    expect(find.text('Record prayer'), findsOneWidget);
   });
 
   testWidgets(
@@ -280,10 +280,7 @@ Future<void> _pump(
         recordedPersonalPrayerRepositoryProvider.overrideWith(
           (ref) async => recordedRepository ?? _RecordedRepository(),
         ),
-        voiceTabletAudioCaptureControllerProvider.overrideWith((
-          ref,
-          kind,
-        ) async {
+        inlineAudioCaptureControllerProvider.overrideWith((ref, kind) async {
           final controller = AudioCaptureController(
             recorder: recorder ?? _PrayerRecorder(),
             allocateTemporary: () async => const TemporaryAudio(

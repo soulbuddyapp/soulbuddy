@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../record/presentation/voice_notes_field.dart';
+import '../../record/presentation/inline_memory_recorder.dart';
 import '../../record/providers/voice_note_providers.dart';
 import '../application/daily_faithfulness.dart';
 import '../data/goal_repository.dart';
@@ -32,6 +32,8 @@ Future<void> showDailyPracticeSheet(
   context: context,
   useSafeArea: true,
   isScrollControlled: true,
+  isDismissible: false,
+  enableDrag: false,
   builder: (_) => DailyPracticeSheet(
     initial: initial,
     suggestedAction: suggestedAction,
@@ -134,25 +136,14 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
                     ],
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _blocked
-                      ? null
-                      : () {
-                          Navigator.pop(context);
-                          context.push(
-                            Uri(
-                              path: '/remember/capture',
-                              queryParameters: {
-                                'mode': 'reflection',
-                                'source': 'daily-scripture',
-                                'title': 'Evening reflection',
-                                'prompt': _precept.reflection,
-                              },
-                            ).toString(),
-                          );
-                        },
-                  icon: const Icon(Icons.mic_none),
-                  label: const Text('Record reflection'),
+                InlineMemoryRecorder(
+                  label: 'Record reflection',
+                  initialTitle: 'Evening reflection',
+                  privateReflection: true,
+                  enabled: !_blocked,
+                  onBusyChanged: (busy) {
+                    if (mounted) setState(() => _recordingBusy = busy);
+                  },
                 ),
                 const Divider(height: 28),
               ],

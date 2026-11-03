@@ -7,7 +7,8 @@ import '../../editorial/data/editorial_prayer_repository.dart';
 import '../domain/library_prayer.dart';
 import '../providers/prayer_providers.dart';
 import 'prayer_library_tile.dart';
-import 'recorded_prayer_capture.dart';
+import '../../record/audio/presentation/inline_audio_capture.dart';
+import '../providers/recorded_personal_prayer_providers.dart';
 
 class PrayerCreateScreen extends ConsumerStatefulWidget {
   const PrayerCreateScreen({
@@ -60,9 +61,13 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
-                    onPressed: _saving ? null : () => context.go('/prayers'),
+                    onPressed: _saving
+                        ? null
+                        : () => context.canPop()
+                              ? context.pop()
+                              : context.go('/prayers'),
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Prayers'),
+                    label: const Text('Back'),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -125,7 +130,8 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                     error: (_, _) => const Text(
                       'Reviewed prayers are unavailable just now. Your own words remain available.',
                     ),
-                    data: (items) => _ReviewedPrayerOptions(items: items),
+                    data: (items) =>
+                        _ReviewedPrayerOptions(items: items, enabled: !_saving),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
@@ -133,11 +139,24 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  FilledButton.icon(
+                  InlineAudioCapture(
                     key: const Key('prayer-create-speak'),
-                    onPressed: _saving ? null : _recordPrayer,
-                    icon: const Icon(Icons.mic_none),
-                    label: const Text('Record prayer'),
+                    enableSoundscape: true,
+                    label: 'Record prayer',
+                    onBusyChanged: (busy) => setState(() => _saving = busy),
+                    onSave: (draft) async {
+                      final repository = await ref.read(
+                        recordedPersonalPrayerRepositoryProvider.future,
+                      );
+                      final prayer = await repository.create(
+                        title: 'My prayer · ${prayerPurposeLabel(purpose!)}',
+                        purpose: purpose,
+                        audio: draft,
+                      );
+                      if (context.mounted) {
+                        context.go('/prayers/saved/${prayer.id}');
+                      }
+                    },
                   ),
                 ],
               ],
@@ -147,28 +166,13 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
       ),
     );
   }
-
-  Future<void> _recordPrayer() async {
-    final purpose = _purpose;
-    if (purpose == null || _saving) return;
-    setState(() => _saving = true);
-    try {
-      final prayer = await showRecordedPrayerCapture(
-        context,
-        title: 'My prayer · ${prayerPurposeLabel(purpose)}',
-        purpose: purpose,
-      );
-      if (prayer != null && mounted) context.go('/prayers/saved/${prayer.id}');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
 }
 
 class _ReviewedPrayerOptions extends StatelessWidget {
-  const _ReviewedPrayerOptions({required this.items});
+  const _ReviewedPrayerOptions({required this.items, required this.enabled});
 
   final List<EditorialPrayer> items;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +187,7 @@ class _ReviewedPrayerOptions extends StatelessWidget {
         Text('Reviewed prayer', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         for (var index = 0; index < items.length && index < 3; index++) ...[
-          _ReviewedPrayerCard(item: items[index]),
+          _ReviewedPrayerCard(item: items[index], enabled: enabled),
           if (index != items.length - 1 && index != 2)
             const SizedBox(height: AppSpacing.sm),
         ],
@@ -193,9 +197,10 @@ class _ReviewedPrayerOptions extends StatelessWidget {
 }
 
 class _ReviewedPrayerCard extends StatelessWidget {
-  const _ReviewedPrayerCard({required this.item});
+  const _ReviewedPrayerCard({required this.item, required this.enabled});
 
   final EditorialPrayer item;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +209,7 @@ class _ReviewedPrayerCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: Key('prayer-create-reviewed-${prayer.id}'),
-        onTap: () => context.go('/prayers/${prayer.id}'),
+        onTap: enabled ? () => context.go('/prayers/${prayer.id}') : null,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(

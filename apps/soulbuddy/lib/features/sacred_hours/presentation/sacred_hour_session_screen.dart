@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../record/presentation/inline_memory_recorder.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
@@ -14,11 +15,14 @@ import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/domain/prayer_reference.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
+import '../../prayers/providers/recorded_personal_prayer_providers.dart';
+import '../../prayers/domain/personal_prayer.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../prayers/providers/voice_tablet_providers.dart';
 import '../../prayers/domain/voice_tablet.dart';
 import '../../record/audio/application/memory_audio_player.dart';
+import '../../record/audio/presentation/inline_audio_capture.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../application/sacred_hour_prayer_suggestions.dart';
 import '../application/sacred_hour_session_controller.dart';
@@ -34,11 +38,13 @@ class SacredHourSessionScreen extends ConsumerStatefulWidget {
   const SacredHourSessionScreen({
     required this.hourId,
     this.occurrenceKey,
+    this.soundPlayer,
     super.key,
   });
 
   final String hourId;
   final String? occurrenceKey;
+  final MeditationSoundBedPlayer? soundPlayer;
 
   @override
   ConsumerState<SacredHourSessionScreen> createState() =>
@@ -60,7 +66,8 @@ class _SacredHourSessionScreenState
   @override
   void initState() {
     super.initState();
-    _backgroundPlayer = AudioplayersMeditationSoundBedPlayer();
+    _backgroundPlayer =
+        widget.soundPlayer ?? AudioplayersMeditationSoundBedPlayer();
     unawaited(_restoreBackgroundSound());
   }
 
@@ -116,7 +123,7 @@ class _SacredHourSessionScreenState
                 ? null
                 : _togglePrayerPlayback,
             onRecordPrayer: () => _recordPrayer(value),
-            onRemember: (prompt) => _openReflection(value, prompt),
+            beforeReflection: _stopSanctuaryAudio,
             onExit: () => _exit(value),
             onPauseChanged: SacredHourSystemNotification.setPaused,
           ),
@@ -307,29 +314,102 @@ class _SacredHourSessionScreenState
     SacredHour hour,
     List<PrayerDisplay> suggestions,
   ) async {
+    var addingPrayer = false;
+    var recording = false;
+    PersonalPrayer? pendingPrayer;
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
-      builder: (sheetContext) => SacredHourPrayerPickerSheet(
-        hour: hour,
-        suggestions: suggestions,
-        onChoosePrayer: (prayer) async {
-          await ref
-              .read(sacredHourRepositoryProvider.future)
-              .then(
-                (repository) => repository.save(
-                  SacredHourDraft.fromHour(hour, prayer: prayer.reference),
-                  id: hour.id,
-                ),
-              );
-          unawaited(_autoPlayChosenPrayer(prayer.reference));
-          if (sheetContext.mounted) Navigator.pop(sheetContext);
-        },
-        onAddPrayer: (purpose) {
-          Navigator.pop(sheetContext);
-          context.push('/prayers/create?purpose=${purpose.wireValue}');
-        },
+      isDismissible: false,
+      enableDrag: false,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, updateSheet) => PopScope(
+          canPop: !recording,
+          child: SacredHourPrayerPickerSheet(
+            hour: hour,
+            suggestions: suggestions,
+            enabled: !recording,
+            onClose: () => Navigator.pop(sheetContext),
+            onChoosePrayer: (prayer) async {
+              await ref
+                  .read(sacredHourRepositoryProvider.future)
+                  .then(
+                    (repository) => repository.save(
+                      SacredHourDraft.fromHour(hour, prayer: prayer.reference),
+                      id: hour.id,
+                    ),
+                  );
+              unawaited(_autoPlayChosenPrayer(prayer.reference));
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+            },
+            onAddPrayer: (_) => updateSheet(() => addingPrayer = true),
+            addPrayerControl: addingPrayer
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      InlineAudioCapture(
+                        label: 'Record prayer',
+                        draftSavedElsewhere: pendingPrayer != null,
+                        beforeStart: _stopSanctuaryAudio,
+                        onBusyChanged: (busy) {
+                          if (sheetContext.mounted) {
+                            updateSheet(() => recording = busy);
+                          }
+                        },
+                        onDiscarded: () {
+                          if (pendingPrayer != null && mounted) {
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Prayer saved. Try adding it again.',
+                                ),
+                              ),
+                            );
+                          }
+                          pendingPrayer = null;
+                        },
+                        onSave: (audio) async {
+                          final prayer = pendingPrayer ??=
+                              await (await ref.read(
+                                recordedPersonalPrayerRepositoryProvider.future,
+                              )).create(
+                                title: String.fromCharCodes(
+                                  'Prayer · ${hour.name}'.runes.take(120),
+                                ),
+                                purpose:
+                                    SacredHourPrayerSuggestions.primaryPurpose(
+                                      hour,
+                                    ),
+                                audio: audio,
+                              );
+                          if (sheetContext.mounted) updateSheet(() {});
+                          final repository = await ref.read(
+                            sacredHourRepositoryProvider.future,
+                          );
+                          await repository.save(
+                            SacredHourDraft.fromHour(
+                              hour,
+                              prayer: prayer.reference,
+                            ),
+                            id: hour.id,
+                          );
+                          ref.invalidate(personalPrayersProvider);
+                          unawaited(_autoPlayChosenPrayer(prayer.reference));
+                          if (sheetContext.mounted) Navigator.pop(sheetContext);
+                        },
+                      ),
+                      if (!recording)
+                        TextButton(
+                          onPressed: () =>
+                              updateSheet(() => addingPrayer = false),
+                          child: const Text('Cancel'),
+                        ),
+                    ],
+                  )
+                : null,
+          ),
+        ),
       ),
     );
   }
@@ -350,30 +430,17 @@ class _SacredHourSessionScreenState
     );
   }
 
-  void _openReflection(SacredHour hour, String prompt) {
-    unawaited(_stopSanctuaryAudio());
-    final date = MaterialLocalizations.of(
-      context,
-    ).formatShortDate(DateTime.now());
-    context.push(
-      Uri(
-        path: '/remember/capture',
-        queryParameters: {
-          'mode': 'reflection',
-          'source': 'sacred-hour',
-          'title': '$prompt · $date',
-          'prompt': prompt,
-          if (hour.personId != null) 'person': hour.personId,
-        },
-      ).toString(),
-    );
-  }
-
   Future<void> _exit(SacredHour hour) async {
     _controller?.markDismissed();
     await _stopSanctuaryAudio();
     await SacredHourSystemNotification.stop();
-    if (mounted) context.go('/today');
+    if (mounted) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/today');
+      }
+    }
   }
 }
 
@@ -382,7 +449,6 @@ class SacredHourSessionView extends StatefulWidget {
     required this.hour,
     required this.controller,
     required this.onRecordPrayer,
-    required this.onRemember,
     required this.onExit,
     required this.onPrayer,
     required this.onSound,
@@ -393,13 +459,13 @@ class SacredHourSessionView extends StatefulWidget {
     this.prayerTitle,
     this.onPrayerPlayback,
     this.onPauseChanged,
+    this.beforeReflection,
     super.key,
   });
 
   final SacredHour hour;
   final SacredHourSessionController controller;
   final Future<void> Function() onRecordPrayer;
-  final ValueChanged<String> onRemember;
   final VoidCallback onExit;
   final VoidCallback onPrayer;
   final VoidCallback onSound;
@@ -410,6 +476,7 @@ class SacredHourSessionView extends StatefulWidget {
   final String? prayerTitle;
   final VoidCallback? onPrayerPlayback;
   final ValueChanged<bool>? onPauseChanged;
+  final Future<void> Function()? beforeReflection;
 
   @override
   State<SacredHourSessionView> createState() => _SacredHourSessionViewState();
@@ -419,6 +486,8 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
   Timer? _ticker;
   var _saving = false;
   var _promptIndex = 0;
+  String? _reflectionPrompt;
+  bool _recordingBusy = false;
 
   @override
   void initState() {
@@ -443,7 +512,7 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
 
   @override
   Widget build(BuildContext context) => SacredHourSanctuaryScaffold(
-    onExit: widget.onExit,
+    onExit: _recordingBusy ? null : widget.onExit,
     child: AnimatedSwitcher(
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
@@ -491,12 +560,45 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
     );
   }
 
-  Widget _meditationDock(BuildContext context) => SacredHourMeditationControls(
+  Widget _meditationDock(BuildContext context) => Column(
     key: const Key('sacred-hour-meditation-dock'),
-    prompt: _workPrompts[_promptIndex],
-    onReflect: () => widget.onRemember(_workPrompts[_promptIndex]),
-    onAnotherReflection: () =>
-        setState(() => _promptIndex = (_promptIndex + 1) % _workPrompts.length),
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      SacredHourMeditationControls(
+        prompt: _workPrompts[_promptIndex],
+        onReflect: _recordingBusy
+            ? null
+            : () => setState(
+                () => _reflectionPrompt = _workPrompts[_promptIndex],
+              ),
+        onAnotherReflection: _recordingBusy
+            ? null
+            : () => setState(
+                () => _promptIndex = (_promptIndex + 1) % _workPrompts.length,
+              ),
+      ),
+      if (_reflectionPrompt case final prompt?)
+        InlineMemoryRecorder(
+          enableSoundscape: false,
+          label: 'Record reflection',
+          initialTitle:
+              '$prompt · ${MaterialLocalizations.of(context).formatShortDate(DateTime.now())}',
+          initialPersonIds: widget.hour.personId == null
+              ? const []
+              : [widget.hour.personId!],
+          privateReflection: true,
+          beforeStart: widget.beforeReflection,
+          onBusyChanged: (busy) {
+            if (mounted) {
+              setState(() {
+                _recordingBusy = busy;
+                if (!busy) _reflectionPrompt = null;
+              });
+            }
+          },
+        ),
+    ],
   );
 
   Future<void> _recordPrayer() async {

@@ -24,6 +24,7 @@ class GoalDetailScreen extends ConsumerStatefulWidget {
 
 class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   var _working = false;
+  var _recordingBusy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +68,9 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 children: [
                   IconButton(
                     tooltip: 'Back to Goals',
-                    onPressed: _working ? null : () => context.go('/goals'),
+                    onPressed: _working || _recordingBusy
+                        ? null
+                        : () => context.go('/goals'),
                     icon: const Icon(Icons.arrow_back),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -109,15 +112,17 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         if (kingdomComplete)
                           FilledButton.icon(
                             key: const Key('meditate-on-goal'),
-                            onPressed: () =>
-                                context.go('/goals/${goal.id}/meditate'),
+                            onPressed: _recordingBusy
+                                ? null
+                                : () =>
+                                      context.go('/goals/${goal.id}/meditate'),
                             icon: const Icon(Icons.self_improvement),
                             label: const Text('Meditate on this Goal'),
                           ),
                         if (returnRelevant)
                           FilledButton.tonalIcon(
                             key: const Key('goal-return'),
-                            onPressed: _working
+                            onPressed: _working || _recordingBusy
                                 ? null
                                 : () =>
                                       showReturnSheet(context, goalId: goal.id),
@@ -127,14 +132,16 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         if (!kingdomComplete && !returnRelevant)
                           FilledButton.tonalIcon(
                             key: const Key('edit-goal'),
-                            onPressed: _working ? null : () => _edit(goal),
+                            onPressed: _working || _recordingBusy
+                                ? null
+                                : () => _edit(goal),
                             icon: const Icon(Icons.edit_outlined),
                             label: const Text('Edit'),
                           ),
                         PopupMenuButton<_GoalAction>(
                           key: const Key('goal-more-actions'),
                           tooltip: 'More Goal actions',
-                          enabled: !_working,
+                          enabled: !_working && !_recordingBusy,
                           onSelected: (action) => switch (action) {
                             _GoalAction.edit => _edit(goal),
                             _GoalAction.pause => _setStatus(
@@ -169,6 +176,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                       noteContext: (type: 'goal', id: goal.id, field: 'notes'),
                       title: 'Reflections',
                       includeAllFields: true,
+                      onBusyChanged: (busy) =>
+                          setState(() => _recordingBusy = busy),
                     ),
                     if (_hasText(goal.currentSituation) ||
                         _hasText(goal.whyItMatters))
@@ -248,6 +257,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   Future<void> _edit(Goal goal) async {
     final edit = await showDialog<_GoalEdit>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => _EditGoalDialog(goal: goal),
     );
     if (edit == null || !mounted) return;
@@ -377,6 +387,7 @@ class _EditGoalDialog extends StatefulWidget {
 }
 
 class _EditGoalDialogState extends State<_EditGoalDialog> {
+  bool _recordingBusy = false;
   late final TextEditingController _titleController;
   late final TextEditingController _situationController;
   late final TextEditingController _whyController;
@@ -417,24 +428,28 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
         VoiceNotesField(
           noteContext: (type: 'goal', id: widget.goal.id, field: 'situation'),
           title: 'What is happening now',
+          enabled: !_recordingBusy,
+          onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
         ),
         const SizedBox(height: AppSpacing.sm),
         VoiceNotesField(
           noteContext: (type: 'goal', id: widget.goal.id, field: 'why'),
           title: 'Why this matters',
+          enabled: !_recordingBusy,
+          onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
         ),
       ],
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.pop(context),
+        onPressed: _recordingBusy ? null : () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
       ValueListenableBuilder<TextEditingValue>(
         valueListenable: _titleController,
         builder: (context, value, child) => FilledButton(
           key: const Key('edit-goal-save'),
-          onPressed: value.text.trim().isEmpty ? null : _save,
+          onPressed: value.text.trim().isEmpty || _recordingBusy ? null : _save,
           child: const Text('Save'),
         ),
       ),

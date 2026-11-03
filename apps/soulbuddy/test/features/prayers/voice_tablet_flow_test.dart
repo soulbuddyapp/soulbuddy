@@ -27,6 +27,216 @@ import 'package:soulbuddy/features/record/audio/domain/memory_soundscape.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 
 void main() {
+  testWidgets(
+    'inline prayer recorder can close when storage initialization fails',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            voiceTabletForSourceProvider.overrideWith(
+              (ref, source) => Stream.value(null),
+            ),
+            voiceTabletAudioCaptureControllerProvider.overrideWith(
+              (ref, kind) async => throw StateError('storage unavailable'),
+            ),
+            audioAssetStoreProvider.overrideWith(
+              (ref) async => throw StateError('storage unavailable'),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: VoiceTabletSection(
+                  source: VoiceTabletSourceTest.personal,
+                  title: 'Prayer',
+                  prayerBody: 'A prayer',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record in my voice'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text('Record in my voice'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'inline recorder stays mounted until saved-take cleanup finishes',
+    (tester) async {
+      final stream = StreamController<VoiceTablet?>.broadcast();
+      final gate = Completer<void>();
+      final store = _DelayedCleanupAudioStore(gate);
+      final repository = _EmittingVoiceTabletRepository(stream);
+      final recorder = _CaptureRecorder(['temporary/full.m4a']);
+      final controller = AudioCaptureController(
+        recorder: recorder,
+        allocateTemporary: () async => const TemporaryAudio(
+          key: 'temporary/full.m4a',
+          locator: 'temporary/full.m4a',
+        ),
+      );
+      final busy = <bool>[];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            voiceTabletForSourceProvider.overrideWith((ref, source) async* {
+              yield null;
+              yield* stream.stream;
+            }),
+            voiceTabletAudioCaptureControllerProvider.overrideWith(
+              (ref, kind) async => controller,
+            ),
+            audioAssetStoreProvider.overrideWith((ref) async => store),
+            voiceTabletRepositoryProvider.overrideWith(
+              (ref) async => repository,
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: VoiceTabletSection(
+                  source: VoiceTabletSourceTest.personal,
+                  title: 'Prayer',
+                  prayerBody: 'A prayer',
+                  onBusyChanged: busy.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record in my voice'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('Stop'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Use recording'));
+      await tester.tap(find.text('Use recording'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save without a refrain'));
+      await tester.tap(find.text('Save without a refrain'));
+      await tester.pump();
+      await tester.pump();
+      expect(busy, [true]);
+      expect(find.text('Saving on this device…'), findsOneWidget);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(busy, [true, false]);
+      await tester.pumpWidget(const SizedBox());
+      unawaited(controller.close());
+      unawaited(stream.close());
+    },
+  );
+  testWidgets('inline prayer recording saves without a refrain', (
+    tester,
+  ) async {
+    final recorder = _CaptureRecorder(['temporary/full.m4a']);
+    final store = _CommittingAudioStore();
+    final repository = _VoiceTabletRepository();
+    final controller = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async => const TemporaryAudio(
+        key: 'temporary/full.m4a',
+        locator: 'temporary/full.m4a',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          voiceTabletForSourceProvider.overrideWith(
+            (ref, source) => Stream.value(null),
+          ),
+          voiceTabletAudioCaptureControllerProvider.overrideWith(
+            (ref, kind) async => controller,
+          ),
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          voiceTabletRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: VoiceTabletSection(
+                source: VoiceTabletSourceTest.personal,
+                title: 'Prayer',
+                prayerBody: 'A prayer',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record in my voice'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a short refrain'), findsOneWidget);
+    await tester.ensureVisible(find.text('Save without a refrain'));
+    await tester.tap(find.text('Save without a refrain'));
+    await tester.pumpAndSettle();
+    expect(repository.created, hasLength(1));
+    expect(store.committedTemporaryKeys, ['temporary/full.m4a']);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(controller.close());
+  });
+  testWidgets('recording a prayer starts inline on the first tap', (
+    tester,
+  ) async {
+    final recorder = _CaptureRecorder(['temporary/full.m4a']);
+    final controller = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async => const TemporaryAudio(
+        key: 'temporary/full.m4a',
+        locator: 'temporary/full.m4a',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          voiceTabletForSourceProvider.overrideWith(
+            (ref, source) => Stream.value(null),
+          ),
+          voiceTabletAudioCaptureControllerProvider.overrideWith(
+            (ref, kind) async => controller,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: VoiceTabletSection(
+                source: VoiceTabletSourceTest.personal,
+                title: 'Prayer',
+                prayerBody: 'A prayer',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record in my voice'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    expect(recorder.starts, 1);
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byKey(const Key('audio-live-level')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(controller.close());
+  });
   test('a Voice Tablet track completes the shared playback command', () async {
     final coordinator = MemoryAudioPlaybackCoordinator(
       assetStore: _FakeAudioStore(),
@@ -167,7 +377,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Your prayer is recorded'), findsOneWidget);
+    expect(find.text('Prayer Refrain'), findsOneWidget);
     expect(find.text('Add a short refrain'), findsOneWidget);
     expect(find.text('Save without a refrain'), findsOneWidget);
     expect(find.textContaining('Prayer Refrain'), findsOneWidget);
@@ -743,6 +953,7 @@ class _CaptureRecorder implements AudioRecorderGateway {
   final List<String> results;
   final amplitudesController = StreamController<double>.broadcast();
   final discarded = <String>[];
+  int starts = 0;
 
   @override
   Stream<double> get amplitudes => amplitudesController.stream;
@@ -771,7 +982,9 @@ class _CaptureRecorder implements AudioRecorderGateway {
   Future<void> resume() async {}
 
   @override
-  Future<void> start(TemporaryAudio temporary) async {}
+  Future<void> start(TemporaryAudio temporary) async {
+    starts++;
+  }
 
   @override
   Future<AudioRecorderResult> stop() async =>
@@ -801,6 +1014,27 @@ class _CommittingAudioStore extends _FakeAudioStore {
   @override
   Future<void> delete(String storageKey) async {
     deletedStorageKeys.add(storageKey);
+  }
+}
+
+class _DelayedCleanupAudioStore extends _CommittingAudioStore {
+  _DelayedCleanupAudioStore(this.gate);
+  final Completer<void> gate;
+  @override
+  Future<void> discardTemporary(String locator) async {
+    await gate.future;
+    await super.discardTemporary(locator);
+  }
+}
+
+class _EmittingVoiceTabletRepository extends _VoiceTabletRepository {
+  _EmittingVoiceTabletRepository(this.stream);
+  final StreamController<VoiceTablet?> stream;
+  @override
+  Future<VoiceTablet> create(VoiceTabletCreateRequest request) async {
+    final tablet = await super.create(request);
+    stream.add(tablet);
+    return tablet;
   }
 }
 
