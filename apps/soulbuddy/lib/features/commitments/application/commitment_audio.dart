@@ -48,6 +48,7 @@ class CommitmentAudio extends ChangeNotifier {
   Future<void> _commands = Future.value();
   int _epoch = 0;
   bool _disposed = false;
+  bool _notificationScheduled = false;
   bool _sourceReady = false;
   Future<void> Function()? _restart;
   bool playing = false;
@@ -73,7 +74,14 @@ class CommitmentAudio extends ChangeNotifier {
     );
   }
   void _notify() {
-    if (!_disposed) notifyListeners();
+    if (_disposed || _notificationScheduled) return;
+    // A reader can pause and stop this shared player while Flutter unmounts
+    // its old guide. Notify the new reader after that synchronous teardown.
+    _notificationScheduled = true;
+    scheduleMicrotask(() {
+      _notificationScheduled = false;
+      if (!_disposed) notifyListeners();
+    });
   }
 
   Future<void> _enqueue(Future<void> Function() action) {

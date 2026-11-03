@@ -4,44 +4,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/feedback/feedback_sound_output.dart';
 
 void main() {
-  test('failed start cancels completion before disposing exactly once', () async {
-    final output = _Output();
-    final startError = StateError('feedback asset could not be prepared');
-    output.disposeError = StateError('secondary disposal failure');
+  test(
+    'failed start cancels completion before disposing exactly once',
+    () async {
+      final output = _Output();
+      final startError = StateError('feedback asset could not be prepared');
+      output.disposeError = StateError('secondary disposal failure');
 
-    await expectLater(
-      playFeedbackOutput(
+      await expectLater(
+        playFeedbackOutput(
+          completed: output.completed.stream,
+          start: () async => throw startError,
+          dispose: output.dispose,
+        ),
+        throwsA(same(startError)),
+      );
+
+      expect(output.disposals, 1);
+      expect(output.subscribedAtDisposal, isFalse);
+      expect(output.completed.isClosed, isTrue);
+    },
+  );
+
+  test(
+    'completion during start waits for preparation before disposal',
+    () async {
+      final output = _Output();
+      final started = Completer<void>();
+      final result = playFeedbackOutput(
         completed: output.completed.stream,
-        start: () async => throw startError,
+        start: () {
+          output.completed.add(null);
+          return started.future;
+        },
         dispose: output.dispose,
-      ),
-      throwsA(same(startError)),
-    );
+      );
 
-    expect(output.disposals, 1);
-    expect(output.subscribedAtDisposal, isFalse);
-    expect(output.completed.isClosed, isTrue);
-  });
+      expect(output.disposals, 0);
+      started.complete();
+      await result;
 
-  test('completion during start waits for preparation before disposal', () async {
-    final output = _Output();
-    final started = Completer<void>();
-    final result = playFeedbackOutput(
-      completed: output.completed.stream,
-      start: () {
-        output.completed.add(null);
-        return started.future;
-      },
-      dispose: output.dispose,
-    );
-
-    expect(output.disposals, 0);
-    started.complete();
-    await result;
-
-    expect(output.disposals, 1);
-    expect(output.subscribedAtDisposal, isFalse);
-  });
+      expect(output.disposals, 1);
+      expect(output.subscribedAtDisposal, isFalse);
+    },
+  );
 
   test('a playback stream failure reaches the caller after cleanup', () async {
     final output = _Output();

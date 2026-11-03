@@ -4,7 +4,10 @@ import 'package:audioplayers/audioplayers.dart';
 
 import 'app_feedback.dart';
 
-Future<void> playFeedbackAsset(AppFeedbackSound sound, {AudioContext? context}) {
+Future<void> playFeedbackAsset(
+  AppFeedbackSound sound, {
+  AudioContext? context,
+}) {
   final player = AudioPlayer();
   return playFeedbackOutput(
     completed: player.onPlayerComplete,
@@ -46,10 +49,12 @@ Future<void> playFeedbackOutput({
       (_) => finish(),
       onError: (Object error, StackTrace stack) =>
           finish(AsyncError(error, stack)),
-      onDone: () => finish(AsyncError(
-        StateError('Feedback ended without a completion event'),
-        StackTrace.current,
-      )),
+      onDone: () => finish(
+        AsyncError(
+          StateError('Feedback ended without a completion event'),
+          StackTrace.current,
+        ),
+      ),
     );
     await start();
     failure = await end.future;
