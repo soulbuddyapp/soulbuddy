@@ -198,11 +198,15 @@ jobs:
           coverage: none
           tools: composer:v2
       - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Initialize the isolated Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
       - name: Migrate legacy rows and exercise the rollback guards
         env:
           DB_PORT: ${{ job.services.mariadb.ports['3306'] }}
-        run: php artisan test tests/Release/AudioMetadataUpgradeTest.php
+        run: php artisan test --display-warnings --fail-on-warning tests/Release/AudioMetadataUpgradeTest.php
       - name: Verify recorded prayer and reflection mutations on MariaDB
         env:
           DB_PORT: ${{ job.services.mariadb.ports['3306'] }}
-        run: php artisan test tests/Feature/Sync/RecordedPrayerMutationTest.php tests/Feature/Sync/AudioReflectionMutationTest.php
+        run: php artisan test --display-warnings --fail-on-warning tests/Feature/Sync/RecordedPrayerMutationTest.php tests/Feature/Sync/AudioReflectionMutationTest.php
