@@ -63,7 +63,20 @@ class PowerSyncCommitmentFinalizer implements CommitmentFinalizer {
         [ownerId],
       );
       validatePracticeCount(rows.length);
-      final practices = rows.map(CommitmentPracticeDraft.fromRow).toList();
+      final draftPrefix = '$ownerId:';
+      final practices = rows.map((row) {
+        final storedId = row['id'] as String;
+        if (!storedId.startsWith(draftPrefix) ||
+            storedId.length == draftPrefix.length) {
+          throw StateError('Invalid practice draft identity');
+        }
+        // Local draft rows are namespaced by owner. Audio fields and finalized
+        // practice IDs use the original identity exposed by the draft repo.
+        return CommitmentPracticeDraft.fromRow({
+          ...row,
+          'id': storedId.substring(draftPrefix.length),
+        });
+      }).toList();
       for (final practice in practices) {
         text('practice', practice.body);
         final existingPractice = await tx.getOptional(

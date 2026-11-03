@@ -49,28 +49,34 @@ void main() {
     },
   );
 
-  test('recording handoff waits for native instruction audio to stop', () async {
-    final native = _Native()..stopping = Completer<void>();
-    final audio = CommitmentAudio(player: native);
-    var canRecord = false;
-    final stopping = audio.stopForRecording().then((_) => canRecord = true);
-    await Future<void>.delayed(Duration.zero);
-    expect(canRecord, isFalse);
-    native.stopping!.complete();
-    await stopping;
-    expect(canRecord, isTrue);
-    audio.dispose();
-  });
+  test(
+    'recording handoff waits for native instruction audio to stop',
+    () async {
+      final native = _Native()..stopping = Completer<void>();
+      final audio = CommitmentAudio(player: native);
+      var canRecord = false;
+      final stopping = audio.stopForRecording().then((_) => canRecord = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(canRecord, isFalse);
+      native.stopping!.complete();
+      await stopping;
+      expect(canRecord, isTrue);
+      audio.dispose();
+    },
+  );
 
-  test('failed instruction stop blocks recording and remains retryable', () async {
-    final native = _Native()..stopError = StateError('output unavailable');
-    final audio = CommitmentAudio(player: native);
-    await expectLater(audio.stopForRecording(), throwsStateError);
-    expect(audio.unavailable, isTrue);
-    native.stopError = null;
-    await audio.stopForRecording();
-    audio.dispose();
-  });
+  test(
+    'failed instruction stop blocks recording and remains retryable',
+    () async {
+      final native = _Native()..stopError = StateError('output unavailable');
+      final audio = CommitmentAudio(player: native);
+      await expectLater(audio.stopForRecording(), throwsStateError);
+      expect(audio.unavailable, isTrue);
+      native.stopError = null;
+      await audio.stopForRecording();
+      audio.dispose();
+    },
+  );
 }
 
 class _Native implements AudioPlayer {
@@ -88,6 +94,7 @@ class _Native implements AudioPlayer {
     if (stopError case final error?) throw error;
     await stopping?.future;
   }
+
   @override
   Future<void> pause() async {}
   @override

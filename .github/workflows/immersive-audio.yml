@@ -99,6 +99,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Verify capture, memories, prayers, and session ownership
+        timeout-minutes: 8
         run: flutter test --timeout 2m test/core/playback test/features/record test/features/remember test/features/prayers test/features/daily_formation test/features/guards/guard_configuration_sheet_test.dart test/features/circles/circles_flow_test.dart test/features/circles/legacy_circle_migration_service_test.dart test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
 
   laravel-audio:

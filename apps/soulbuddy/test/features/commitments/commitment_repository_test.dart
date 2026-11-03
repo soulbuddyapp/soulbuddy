@@ -206,6 +206,10 @@ void main() {
       expect(details!.practices.map((p) => p.id), [
         for (var i = 0; i < 5; i++) 'draft-$i',
       ]);
+      expect(
+        links.singleWhere((row) => row['owner_id'] == 'alice')['field_key'],
+        'practice:${details.practices.first.id}',
+      );
       expect(details.practices.map((p) => p.body), [
         'Practice 0',
         'Practice 1',

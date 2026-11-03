@@ -188,8 +188,9 @@ void main() {
             : find.byKey(Key('commitment-record-$field'));
         final button = find.descendant(
           of: scope,
-          matching: find.widgetWithText(OutlinedButton, 'Record'),
+          matching: find.text('Record'),
         );
+        expect(button, findsOneWidget);
         await tester.ensureVisible(button);
         await tester.runAsync(() => tester.tap(button));
         await settleUntil(
