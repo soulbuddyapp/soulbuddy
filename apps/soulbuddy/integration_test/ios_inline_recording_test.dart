@@ -30,10 +30,12 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: InlineAudioCapture(
-              onSave: (_) async {
-                saved = true;
-              },
+            body: SafeArea(
+              child: InlineAudioCapture(
+                onSave: (_) async {
+                  saved = true;
+                },
+              ),
             ),
           ),
         ),
