@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../record/presentation/voice_notes_field.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../record/presentation/inline_memory_recorder.dart';
 import '../../record/providers/voice_note_providers.dart';
 import '../application/daily_faithfulness.dart';
@@ -192,7 +193,7 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
                       : () => setState(() => _action.text = suggestion),
                 ),
               const SizedBox(height: 12),
-              TextField(
+              SayableField(
                 controller: _action,
                 enabled: !_blocked && _savedAction == null,
                 maxLength: 120,
@@ -339,3 +340,10 @@ class _DailyPracticeSheetState extends ConsumerState<DailyPracticeSheet> {
     }
   }
 }
+
+/// Shown when the field's limit cut a dictated commitment short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.

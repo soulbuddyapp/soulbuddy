@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
@@ -18,6 +19,7 @@ import 'package:soulbuddy/features/remember/presentation/remember_screen.dart';
 
 import '../../helpers/in_memory_encounter_repository.dart';
 import '../../helpers/audio_player_mocks.dart';
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets(
@@ -215,7 +217,10 @@ void main() {
     final store = _DiscardTrackingAudioStore();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [audioAssetStoreProvider.overrideWith((ref) async => store)],
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: EncounterForm(
@@ -247,7 +252,10 @@ void main() {
     var cancelled = false;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [audioAssetStoreProvider.overrideWith((ref) async => store)],
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: EncounterForm(
@@ -280,7 +288,10 @@ void main() {
     var cancelled = false;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [audioAssetStoreProvider.overrideWith((ref) async => store)],
+        overrides: [
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: EncounterForm(
@@ -378,7 +389,7 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: RecordScreen(
-              startMode: RecordStartMode.write,
+              startMode: RecordStartMode.speak,
               onMemorySaved: (memory) => opened = memory,
             ),
           ),
@@ -428,7 +439,7 @@ void main() {
         child: const MaterialApp(
           home: Scaffold(
             body: RecordScreen(
-              startMode: RecordStartMode.write,
+              startMode: RecordStartMode.reflection,
               initialBodyPrompt: prompt,
               privateReflection: true,
             ),

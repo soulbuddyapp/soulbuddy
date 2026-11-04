@@ -63,6 +63,9 @@ flutter pub get
 flutter build apk --release --no-pub --target-platform android-arm64 \
   --dart-define=SOULBUDDY_API_URL=http://127.0.0.1:9 \
   --dart-define=SOULBUDDY_POWERSYNC_URL=
+# Verify the recognition-session gate used by the bundled Android plugin.
+(cd third_party/speech_to_text && dart test/android_stop_contract.dart)
+(cd android && ./gradlew --no-daemon :speech_to_text:testDebugUnitTest)
 apk=build/app/outputs/flutter-apk/app-release.apk
 sdk_root=${ANDROID_SDK_ROOT:-${ANDROID_HOME:?Android SDK is required}}
 build_tools=$(find "$sdk_root/build-tools" -type f -name apksigner -printf '%h\n' | sort -V | tail -1)

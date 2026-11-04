@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../goals/domain/goal.dart';
 import '../../record/presentation/voice_notes_field.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../domain/guard_definition.dart';
 import '../providers/guard_providers.dart';
 
@@ -301,6 +302,13 @@ class _GuardEditor extends StatefulWidget {
 
 class _GuardEditorState extends State<_GuardEditor> {
   bool _recordingBusy = false;
+  late final _note = TextEditingController(text: widget.initialNote ?? '');
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -353,11 +361,20 @@ class _GuardEditorState extends State<_GuardEditor> {
               title: 'Private guard notes',
               onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
             ),
-            if (_hasText(widget.initialNote))
-              ExpansionTile(
-                title: const Text('Earlier note'),
-                children: [Text(widget.initialNote!.trim())],
+            ExpansionTile(
+              title: Text(
+                _hasText(widget.initialNote) ? 'Earlier note' : 'Write note',
               ),
+              children: [
+                SayableField(
+                  controller: _note,
+                  enabled: !_recordingBusy,
+                  labelText: 'Private note',
+                  maxLines: 4,
+                  maxLength: 4000,
+                ),
+              ],
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'SoulBuddy does not verify enforcement.',
@@ -370,10 +387,7 @@ class _GuardEditorState extends State<_GuardEditor> {
               key: const Key('guard-mark-configured'),
               onPressed: _recordingBusy
                   ? null
-                  : () => Navigator.pop(
-                      context,
-                      widget.initialNote?.trim() ?? '',
-                    ),
+                  : () => Navigator.pop(context, _note.text.trim()),
               child: Text(widget.configured ? 'Save' : 'Mark configured'),
             ),
             TextButton(
@@ -407,6 +421,13 @@ class _Unavailable extends StatelessWidget {
     ),
   );
 }
+
+/// Shown when the field's limit cut a dictated note short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
 
 GoalGuardSelection? _selectionFor(
   List<GoalGuardSelection> selections,

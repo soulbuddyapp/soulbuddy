@@ -16,6 +16,7 @@ import '../../prayers/application/meditation_sound_preferences.dart';
 import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
 import '../../record/presentation/voice_notes_field.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../data/goal_meditation_repository.dart';
 import '../domain/goal_meditation_plan.dart';
 import '../domain/goal_scripture_response.dart';
@@ -728,11 +729,18 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
           if (mounted) setState(() => _recordingBusy = busy);
         },
       ),
-      if (_notes.text.isNotEmpty)
-        ExpansionTile(
-          title: const Text('Earlier written draft'),
-          children: [SelectableText(_notes.text)],
-        ),
+      ExpansionTile(
+        title: const Text('Write reflection'),
+        children: [
+          SayableField(
+            controller: _notes,
+            enabled: !_recordingBusy && !_saving,
+            labelText: 'Reflection',
+            maxLines: 6,
+            maxLength: 4000,
+          ),
+        ],
+      ),
       const SizedBox(height: AppSpacing.lg),
       FilledButton.icon(
         key: const Key('finish-goal-meditation'),

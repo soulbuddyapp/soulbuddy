@@ -23,7 +23,7 @@ jobs:
       (github.event.pull_request.head.repo.full_name == github.repository &&
        github.head_ref == 'feat/immersive-audio')
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     env:
       SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:

@@ -256,6 +256,64 @@ it('accepts a daily reminder and manual exact-revision session', function () {
         ->and(PrayerSession::first()->prayer_revision_id)->toBe($revisionId);
 });
 
+it('accepts a daily reminder that omits the optional schedule keys', function () {
+    $user = User::factory()->create();
+    [$prayerId] = seedPracticePrayer($user, '031');
+    $reminderId = '0198aa00-0000-7000-8000-000000000031';
+
+    // A daily reminder carries no once_at, weekdays_mask, or archived_at.
+    // The device sends only the keys its schedule needs, and an omitted key
+    // must not be read as if it were present.
+    $data = reminderData($prayerId);
+    unset($data['once_at'], $data['weekdays_mask'], $data['archived_at']);
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [
+            practiceOperation(
+                '0198aa00-0000-7000-8000-000000000032',
+                'prayer_reminders',
+                $reminderId,
+                $data,
+            ),
+        ],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 1)
+        ->assertJsonPath('rejected', 0);
+
+    expect(PrayerReminder::find($reminderId))->not->toBeNull()
+        ->and(PrayerReminder::find($reminderId)->once_at)->toBeNull()
+        ->and(PrayerReminder::find($reminderId)->weekdays_mask)->toBeNull()
+        ->and(PrayerReminder::find($reminderId)->archived_at)->toBeNull();
+});
+
+it('treats a repeated reminder without optional keys as the same record', function () {
+    $user = User::factory()->create();
+    [$prayerId] = seedPracticePrayer($user, '033');
+    $reminderId = '0198aa00-0000-7000-8000-000000000033';
+    $data = reminderData($prayerId);
+    unset($data['once_at'], $data['weekdays_mask'], $data['archived_at']);
+    $operation = practiceOperation(
+        '0198aa00-0000-7000-8000-000000000034',
+        'prayer_reminders',
+        $reminderId,
+        $data,
+    );
+
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [$operation],
+    ])->assertOk()->assertJsonPath('accepted', 1);
+
+    // The replay must match the stored row rather than read a missing key.
+    $this->actingAs($user)->postJson('/api/sync/mutations', [
+        'operations' => [$operation],
+    ])->assertOk()
+        ->assertJsonPath('accepted', 1)
+        ->assertJsonPath('rejected', 0)
+        ->assertJsonPath('duplicates', 1);
+
+    expect(PrayerReminder::query()->count())->toBe(1);
+});
+
 it('rejects reuse of a reminder id with different schedule content', function () {
     $user = User::factory()->create();
     [$prayerId] = seedPracticePrayer($user, '014');

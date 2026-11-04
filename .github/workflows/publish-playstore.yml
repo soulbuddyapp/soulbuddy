@@ -109,8 +109,17 @@ jobs:
               raise SystemExit('The bundled Scripture database has an unexpected schema.')
           PY
 
+      - name: Verify production sync configuration
+        env:
+          SOULBUDDY_POWERSYNC_URL: ${{ vars.SOULBUDDY_POWERSYNC_URL }}
+        run: |
+          python -m unittest discover -s ../../scripts/release -p 'test_validate_play_config.py'
+          python ../../scripts/release/validate_play_config.py
+
       - name: Build signed Android App Bundle
         id: build
+        env:
+          SOULBUDDY_POWERSYNC_URL: ${{ vars.SOULBUDDY_POWERSYNC_URL }}
         run: |
           versionName="${GITHUB_REF_NAME#v}"
           if [[ ! "$versionName" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
@@ -118,7 +127,7 @@ jobs:
             exit 1
           fi
           buildNumber=$((1000 + GITHUB_RUN_NUMBER))
-          flutter build appbundle --release --no-pub --build-name "$versionName" --build-number "$buildNumber"
+          flutter build appbundle --release --no-pub --build-name "$versionName" --build-number "$buildNumber" --dart-define="SOULBUDDY_POWERSYNC_URL=$SOULBUDDY_POWERSYNC_URL"
           echo "version_name=$versionName" >> "$GITHUB_OUTPUT"
 
       - name: Upload Android App Bundle artifact

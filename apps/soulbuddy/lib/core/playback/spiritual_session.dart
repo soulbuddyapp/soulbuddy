@@ -24,6 +24,9 @@ class SpiritualSession {
     required this.onComplete,
     required this.onClose,
     this.onStart,
+    this.onSeek,
+    this.supportsSystemPlayback = false,
+    this.showCompletion = true,
     this.completionLabel = 'Complete',
   });
 
@@ -32,6 +35,9 @@ class SpiritualSession {
   final String title;
   final String route;
   final bool canPause;
+  final bool supportsSystemPlayback;
+  final bool showCompletion;
+  final Future<void> Function(Duration)? onSeek;
   final String completionLabel;
 
   /// Starts both playback layers after the previous session has closed.

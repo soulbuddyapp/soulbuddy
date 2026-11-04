@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
 import 'package:soulbuddy/features/goals/data/goal_onboarding_progress_repository.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/domain/goal_onboarding_progress.dart';
@@ -13,6 +14,47 @@ import 'package:soulbuddy/features/record/data/voice_note_repository.dart';
 import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
 
 void main() {
+  testWidgets('a written situation advances without recording', (tester) async {
+    final repository = _MemoryGoalProgressRepository();
+    await _pump(tester, repository);
+    await tester.tap(find.text('Grow closer to God'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Write situation'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'I want time for prayer.');
+    await tester.pump();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(repository.progress?.currentSituation, 'I want time for prayer.');
+    expect(repository.progress?.situationByVoice, isFalse);
+  });
+
+  testWidgets('a written prayer can be selected without recording', (
+    tester,
+  ) async {
+    final repository = _MemoryGoalProgressRepository(
+      const GoalOnboardingProgress(
+        stage: GoalOnboardingStage.prayer,
+        starterKey: GoalStarterKey.direction,
+        title: 'Find direction',
+        agencyChoice: GoalAgencyChoice.notSure,
+      ),
+    );
+    await _pump(tester, repository);
+    await tester.ensureVisible(find.text('Write prayer'));
+    await tester.tap(find.text('Write prayer'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Guide my next step.');
+    await tester.pump();
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(repository.progress?.ownPrayerText, 'Guide my next step.');
+    expect(
+      repository.progress?.prayerSource,
+      GoalOnboardingPrayerSource.ownWords,
+    );
+  });
   testWidgets('stop-control starts with the reviewed behavior choices', (
     tester,
   ) async {
@@ -270,11 +312,11 @@ void main() {
       find.text('Set aside ten quiet minutes before opening another app'),
     );
     await tester.pump();
-    final field = tester.widget<TextField>(
+    final field = tester.widget<SayableField>(
       find.byKey(const Key('first-goal-text-field')),
     );
     expect(
-      field.controller?.text,
+      field.controller.text,
       'Set aside ten quiet minutes before opening another app',
     );
     expect(field.maxLength, 120);

@@ -8,8 +8,12 @@ on:
       - 'infra/powersync/**'
       - 'apps/soulbuddy/lib/**'
       - 'apps/soulbuddy/test/**'
+      - 'apps/soulbuddy/android/**'
+      - 'apps/soulbuddy/third_party/**'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
+      - 'scripts/release/**'
+      - '.github/workflows/publish-playstore.yml'
       - 'services/api/**'
   push:
     branches: [main]
@@ -18,8 +22,12 @@ on:
       - 'infra/powersync/**'
       - 'apps/soulbuddy/lib/**'
       - 'apps/soulbuddy/test/**'
+      - 'apps/soulbuddy/android/**'
+      - 'apps/soulbuddy/third_party/**'
       - 'apps/soulbuddy/pubspec.yaml'
       - 'apps/soulbuddy/pubspec.lock'
+      - 'scripts/release/**'
+      - '.github/workflows/publish-playstore.yml'
       - 'services/api/**'
   workflow_dispatch:
 
@@ -31,6 +39,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-config:
+    name: Play sync configuration checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s scripts/release -p 'test_validate_play_config.py'
+
   flutter-audio:
     name: Flutter recording and playback
     runs-on: windows-latest
@@ -80,10 +95,13 @@ jobs:
           $targets = @($changed | Where-Object { $_.EndsWith('.dart') } | ForEach-Object { $_.Substring('apps/soulbuddy/'.Length) })
           if ($targets.Count -gt 0) {
             Push-Location apps/soulbuddy
-            dart format @targets
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            for ($offset = 0; $offset -lt $targets.Count; $offset += 25) {
+              $end = [Math]::Min($offset + 24, $targets.Count - 1)
+              $batch = $targets[$offset..$end]
+              dart format --output=none --set-exit-if-changed @batch
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
             Pop-Location
-            git diff --output=audio-formatting.patch -- apps/soulbuddy
             Push-Location apps/soulbuddy
             flutter analyze --fatal-infos
             $result = $LASTEXITCODE
@@ -91,15 +109,6 @@ jobs:
             if ($result -ne 0) { exit $result }
           }
           git diff --check $base HEAD
-
-      - name: Save Dart formatting suggestions
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: audio-formatting-${{ github.run_id }}
-          path: audio-formatting.patch
-          retention-days: 3
-          if-no-files-found: ignore
 
       # Keep failures independent so a hung recorder cannot hide prayer or
       # formation results. All three steps still gate the job.
@@ -116,7 +125,7 @@ jobs:
       - name: Verify recording after formation and in linked activities
         if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
         timeout-minutes: 6
-        run: flutter test --reporter expanded --timeout 2m test/features/daily_formation test/features/guards/guard_configuration_sheet_test.dart test/features/circles/circles_flow_test.dart test/features/circles/legacy_circle_migration_service_test.dart test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
+        run: flutter test --reporter expanded --timeout 2m test/core/speech test/features/sacred_hours test/features/daily_formation test/features/guards/guard_configuration_sheet_test.dart test/features/circles/circles_flow_test.dart test/features/circles/legacy_circle_migration_service_test.dart test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
 
   laravel-audio:
     name: Laravel audio metadata and sync
@@ -153,7 +162,54 @@ jobs:
 
       - name: Verify sync ownership, rollback, and narration boundaries
         if: success() || steps.php-style.outcome == 'failure'
-        run: php artisan test tests/Feature/Sync tests/Feature/PrayerNarration tests/Architecture/SyntheticSpiritualContentTest.php
+        run: php artisan test tests/Feature/Sync tests/Feature/PrayerNarration tests/Architecture/SyntheticSpiritualContentTest.php tests/Architecture/PowerSyncMigrationIsolationTest.php
+
+  mysql-owner-projection:
+    name: Rehearse MySQL owner projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 33307
+      DB_USERNAME: root
+      DB_PASSWORD: ci-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Start isolated MySQL with replication prerequisites
+        run: |
+          docker run -d --name owner-projection-db -e MYSQL_ROOT_PASSWORD=ci-only -e MYSQL_ROOT_HOST=% -p 127.0.0.1:33307:3306 mysql:8.0 --server-id=42 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON --binlog-format=ROW --binlog-row-image=FULL
+          for attempt in $(seq 1 60); do
+            if docker exec owner-projection-db mysqladmin ping -h 127.0.0.1 -uroot -pci-only --silent; then break; fi
+            if [ "$attempt" -eq 60 ]; then docker logs owner-projection-db; exit 1; fi
+            sleep 2
+          done
+          docker exec owner-projection-db mysql -uroot -pci-only -e 'CREATE DATABASE soulbuddy_owner_test_valid; CREATE DATABASE soulbuddy_owner_test_invalid;'
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+      - name: Verify backfill, ownership and rollback guard
+        env:
+          DB_DATABASE: soulbuddy_owner_test_valid
+        run: php tests/Release/PowerSyncOwnerProjectionRehearsal.php
+      - name: Verify invalid owners fail before schema changes
+        env:
+          DB_DATABASE: soulbuddy_owner_test_invalid
+        run: php tests/Release/PowerSyncOwnerProjectionRehearsal.php invalid-owner
 
   mariadb-upgrade:
     name: Rehearse audio upgrade on MariaDB

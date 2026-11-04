@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/onboarding/presentation/first_prayer_screen.dart';
 import 'package:soulbuddy/features/onboarding/providers/first_prayer_providers.dart';
 import 'package:soulbuddy/features/onboarding/domain/first_prayer_progress.dart';
@@ -12,6 +13,8 @@ import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers
 import '../../helpers/fake_inline_recorder.dart';
 import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
 import 'package:soulbuddy/features/record/data/voice_note_repository.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('legacy prayer detail records on its current step', (
@@ -129,6 +132,10 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        // The written detail page now offers the microphone, which resolves
+        // availability on mount. Answering here rather than through the plugin
+        // leaves the page as it was: writable, with speech unavailable.
+        overrides: [speechRecognizerProvider.overrideWithValue(NoSpeech())],
         child: MaterialApp(
           theme: AppTheme.light(),
           home: const FirstPrayerScreen.preview(

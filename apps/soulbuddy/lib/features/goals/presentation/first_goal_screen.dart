@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
+import '../../../core/speech/optional_writing.dart';
 import '../../guards/application/guard_recommendations.dart';
 import '../../guards/data/bundled_guard_catalogue.dart';
 import '../../onboarding/presentation/first_prayer_choice_page.dart';
@@ -32,6 +34,17 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
   var _saving = false;
   var _recordingBusy = false;
   String? _pendingPrayerId;
+  final _situationWords = TextEditingController();
+  final _prayerWords = TextEditingController();
+  bool _situationInitialized = false;
+  bool _prayerInitialized = false;
+
+  @override
+  void dispose() {
+    _situationWords.dispose();
+    _prayerWords.dispose();
+    super.dispose();
+  }
 
   bool get _blocked => _saving || _recordingBusy;
 
@@ -260,6 +273,10 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
     final notes = ref.watch(voiceNotesProvider(_situationContext));
     final recordings = notes.value ?? const <VoiceNoteLink>[];
     final earlierNote = progress.currentSituation;
+    if (!_situationInitialized) {
+      _situationWords.text = earlierNote ?? '';
+      _situationInitialized = true;
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Center(
@@ -279,6 +296,14 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                 title: 'My situation',
                 enabled: !_blocked,
                 onBusyChanged: _setRecordingBusy,
+              ),
+              OptionalWriting(
+                controller: _situationWords,
+                label: 'Situation',
+                enabled: !_blocked,
+                onSave: (words) => ref
+                    .read(goalOnboardingControllerProvider.notifier)
+                    .setSituation(situation: words, byVoice: false),
               ),
               if (recordings.isEmpty && earlierNote != null) ...[
                 const SizedBox(height: AppSpacing.md),
@@ -326,6 +351,10 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
   }
 
   Widget _prayerPage(GoalOnboardingProgress progress) {
+    if (!_prayerInitialized) {
+      _prayerWords.text = progress.ownPrayerText ?? '';
+      _prayerInitialized = true;
+    }
     final starterKey = progress.starterKey;
     if (starterKey == null) {
       return const _GoalMessage('This Goal needs a starting point.');
@@ -419,6 +448,7 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                     key: const Key('first-goal-own-prayer'),
                     enableSoundscape: true,
                     enabled: !_saving,
+                    draftSavedElsewhere: _pendingPrayerId != null,
                     onBusyChanged: _setRecordingBusy,
                     onDiscarded: () => _pendingPrayerId = null,
                     label:
@@ -438,13 +468,22 @@ class _FirstGoalScreenState extends ConsumerState<FirstGoalScreen> {
                           ),
                           audio: draft,
                         );
-                        _pendingPrayerId = prayer.id;
+                        if (!mounted) return;
+                        setState(() => _pendingPrayerId = prayer.id);
                       }
                       await ref
                           .read(goalOnboardingControllerProvider.notifier)
                           .choosePersonalPrayer(_pendingPrayerId!);
                       _pendingPrayerId = null;
                     },
+                  ),
+                  OptionalWriting(
+                    controller: _prayerWords,
+                    label: 'Prayer',
+                    enabled: !_blocked,
+                    onSave: (words) => ref
+                        .read(goalOnboardingControllerProvider.notifier)
+                        .useOwnWords(words),
                   ),
                   if (progress.prayerSource ==
                       GoalOnboardingPrayerSource.personalPrayer)
@@ -821,7 +860,11 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               widget.supporting!,
             ],
             const SizedBox(height: AppSpacing.lg),
-            TextField(
+            // One field for every question this flow asks in a person's own
+            // words — the Goal title, the door to close, today's action, the
+            // situation, and the prayer — so all of them can be spoken from
+            // this single component rather than being expanded into six.
+            SayableField(
               key: const Key('first-goal-text-field'),
               controller: _controller,
               enabled: widget.enabled && !_working,
@@ -832,6 +875,9 @@ class _GoalTextPageState extends State<_GoalTextPage> {
               decoration: InputDecoration(
                 labelText: 'Short title',
                 hintText: widget.hintText,
+              ),
+              onTruncated: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text(_limitReachedNotice)),
               ),
             ),
             if (_hasLegacyText)
@@ -940,3 +986,11 @@ class _GoalMessage extends StatelessWidget {
     ),
   );
 }
+
+/// Shown when the field's limit cut a dictated answer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

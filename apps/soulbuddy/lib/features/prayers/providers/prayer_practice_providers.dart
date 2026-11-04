@@ -13,6 +13,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../application/prayer_occurrence_calculator.dart';
 import '../application/prayer_audio_environment.dart';
+import '../application/prayer_narration_eligibility.dart';
 import '../application/prayer_audio_environment_factory.dart';
 import '../application/prayer_narration_player.dart';
 import '../application/prayer_narration_playback_policy.dart';
@@ -188,6 +189,97 @@ final playReminderNarrationProvider =
             .play(Uint8List.fromList(cached));
       };
     });
+
+/// Plays a reminder's prayer, obtaining the narration first when this device
+/// has not cached it yet.
+///
+/// The request is made only for the exact immutable revision the card is
+/// already showing, and only after the person has accepted the disclosure.
+/// The returned audio is cached privately on this device for offline replay and
+/// is never handed to the system notification. A request already in flight for
+/// the same revision is joined rather than repeated, so one tap cannot produce
+/// two requests.
+final prepareAndPlayReminderNarrationProvider =
+    Provider<
+      Future<void> Function(
+        DuePrayerOccurrence, {
+        required bool consentAccepted,
+      })
+    >((ref) {
+      final inFlight = <String, Future<void>>{};
+      return (occurrence, {required consentAccepted}) async {
+        final revisionId = occurrence.prayerRevisionId;
+        if (!canObtainPrayerNarration(
+          personalPrayerId: occurrence.reminder.personalPrayerId,
+          prayerRevisionId: revisionId,
+          prayerBody: occurrence.prayerBody,
+        )) {
+          throw const PrayerNarrationException('narration_unavailable');
+        }
+        if (_cachedNarrationReady(occurrence)) {
+          // Already cached for this exact revision: play it, never re-request.
+          await ref.read(playReminderNarrationProvider)(
+            occurrence,
+            explicit: true,
+          );
+          return;
+        }
+        if (!consentAccepted) {
+          throw const PrayerNarrationException('consent_required');
+        }
+        final pending = inFlight[revisionId];
+        if (pending != null) {
+          await pending;
+          return;
+        }
+        final request = _obtainNarrationAndPlay(ref, occurrence);
+        inFlight[revisionId] = request;
+        try {
+          await request;
+        } finally {
+          // Release the slot whether the request succeeded or failed, so a
+          // later tap can try again.
+          inFlight.remove(revisionId);
+        }
+      };
+    });
+
+bool _cachedNarrationReady(DuePrayerOccurrence occurrence) {
+  final device = occurrence.device;
+  return device.narrationRevisionId == occurrence.prayerRevisionId &&
+      device.narrationContentType == 'audio/mpeg' &&
+      (device.narrationBytes?.isNotEmpty ?? false);
+}
+
+/// Requests narration for one exact revision, caches it privately on this
+/// device, then plays it. Preparing on demand never opts the reminder into
+/// autoplay and never records a prayer session.
+Future<void> _obtainNarrationAndPlay(
+  Ref ref,
+  DuePrayerOccurrence occurrence,
+) async {
+  final revisionId = occurrence.prayerRevisionId;
+  final narration = await ref.read(preparePersonalPrayerNarrationProvider)(
+    personalPrayerId: occurrence.reminder.personalPrayerId,
+    revisionId: revisionId,
+    consent: true,
+  );
+  if (narration.revisionId != revisionId ||
+      narration.contentType != 'audio/mpeg' ||
+      narration.bytes.isEmpty) {
+    throw const PrayerNarrationException('narration_unavailable');
+  }
+  final repository = await ref.read(prayerPracticeRepositoryProvider.future);
+  await repository.saveNarrationPreference(
+    reminderId: occurrence.reminder.id,
+    consentAccepted: true,
+    autoplayWhenOpened: false,
+    revisionId: revisionId,
+    bytes: narration.bytes,
+    contentType: narration.contentType,
+  );
+  await ref.read(prayerNarrationPlayerProvider).play(narration.bytes);
+}
 
 final prayerDeviceTimezoneProvider = Provider<Future<String> Function()>(
   (ref) =>

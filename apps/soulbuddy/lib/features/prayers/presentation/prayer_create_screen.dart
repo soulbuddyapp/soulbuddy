@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../editorial/data/editorial_prayer_repository.dart';
 import '../domain/library_prayer.dart';
 import '../providers/prayer_providers.dart';
+import '../providers/personal_prayer_providers.dart';
 import 'prayer_library_tile.dart';
 import '../../record/audio/presentation/inline_audio_capture.dart';
 import '../providers/recorded_personal_prayer_providers.dart';
@@ -27,8 +29,15 @@ class PrayerCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
+  late final _words = TextEditingController(text: widget.prayerStarter ?? '');
   PrayerPurpose? _purpose;
   var _saving = false;
+
+  @override
+  void dispose() {
+    _words.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -158,6 +167,27 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
                       }
                     },
                   ),
+                  ExpansionTile(
+                    title: const Text('Write prayer'),
+                    children: [
+                      SayableField(
+                        controller: _words,
+                        enabled: !_saving,
+                        labelText: 'Prayer',
+                        maxLines: 8,
+                        maxLength: 4000,
+                      ),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _words,
+                        builder: (context, value, _) => FilledButton(
+                          onPressed: _saving || value.text.trim().isEmpty
+                              ? null
+                              : _saveWords,
+                          child: const Text('Save prayer'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -165,6 +195,34 @@ class _PrayerCreateScreenState extends ConsumerState<PrayerCreateScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveWords() async {
+    final purpose = _purpose;
+    final body = _words.text.trim();
+    if (purpose == null || body.isEmpty || _saving) return;
+    setState(() => _saving = true);
+    try {
+      final repository = await ref.read(
+        personalPrayerRepositoryProvider.future,
+      );
+      final prayer = await repository.createOwnWords(
+        title: 'My prayer · ${prayerPurposeLabel(purpose)}',
+        body: body,
+        purpose: purpose,
+      );
+      if (mounted) context.go('/prayers/saved/${prayer.id}');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Prayer could not be saved. Try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 

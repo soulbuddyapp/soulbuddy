@@ -26,26 +26,49 @@ void main() {
     expect(infoPlist, contains('<key>NSMicrophoneUsageDescription</key>'));
     expect(
       infoPlist,
-      contains(
-        '<string>Record prayers and reflections with your microphone.</string>',
-      ),
+      contains('<string>Record prayers and reflections.</string>'),
     );
     expect(manifest, contains('android.speech.RecognitionService'));
     expect(
       infoPlist,
       contains('<key>NSSpeechRecognitionUsageDescription</key>'),
     );
+
+    for (final entry in const {
+      'NSMicrophoneUsageDescription': 'Record prayers and reflections.',
+      'NSSpeechRecognitionUsageDescription': 'Dictate prayers and reflections.',
+    }.entries) {
+      expect(
+        // The plist is read as bytes, so its CRLF endings are part of the text
+        // a match has to allow for.
+        RegExp(
+          '<key>${entry.key}</key>\\s*<string>${RegExp.escape(entry.value)}</string>',
+        ).hasMatch(infoPlist),
+        isTrue,
+        reason: 'the prompt for ${entry.key} must carry this exact sentence',
+      );
+    }
   });
 
-  test('guided speech never starts browser speech recognition', () {
-    final source = File(
-      'lib/features/onboarding/presentation/first_prayer_speech_page.dart',
-    ).readAsStringSync();
+  test('no surface can start browser speech recognition', () {
+    // The guard moved with the code it protected. `kIsWeb` now refuses inside
+    // PluginSpeechRecognizer, before the plugin is reached at all, and
+    // `plugin_speech_recognizer_test.dart` proves that behaviourally by
+    // asserting no channel call is made. What a seam's own test cannot know is
+    // who reaches for speech, so this asserts the guarantee cannot be read past:
+    // a screen holding the plugin itself would never meet the guard, which is
+    // why the check is on the importers rather than on one file's text.
+    final importers = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .where(
+          (file) => file.readAsStringSync().contains('package:speech_to_text/'),
+        )
+        // Windows separators, so the expectation is the same path everywhere.
+        .map((file) => file.path.replaceAll('\\', '/'))
+        .toList();
 
-    expect(source, contains('if (kIsWeb)'));
-    expect(
-      source.indexOf('if (kIsWeb)'),
-      lessThan(source.indexOf('_speech.initialize')),
-    );
+    expect(importers, ['lib/core/speech/plugin_speech_recognizer.dart']);
   });
 }

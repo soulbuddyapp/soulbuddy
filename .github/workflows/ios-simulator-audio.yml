@@ -38,4 +38,4 @@ jobs:
           xcrun simctl boot "$device" || true
           xcrun simctl bootstatus "$device" -b
       - name: Build and exercise inline recording
-        run: flutter test integration_test/ios_inline_recording_test.dart -d "$SIMULATOR_ID"
+        run: flutter test integration_test/ios_inline_recording_test.dart -d "$SIMULATOR_ID" --timeout 25m

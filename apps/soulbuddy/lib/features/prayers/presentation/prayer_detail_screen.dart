@@ -10,6 +10,7 @@ import '../../record/presentation/voice_notes_field.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
+import '../providers/prayer_release_providers.dart';
 import 'prayer_library_tile.dart';
 import 'use_today_confirmation_sheet.dart';
 import 'voice_tablet_player.dart';
@@ -150,11 +151,32 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                   ),
                 ],
               ),
+              ..._attentionAction(context),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// `Be still before God` appears only where an `affirmation_repetition`
+  /// profile is available for this prayer.
+  List<Widget> _attentionAction(BuildContext context) {
+    final item = ref
+        .watch(prayerReleaseItemContentProvider(widget.prayerId))
+        .value;
+    if (item == null || item.practice == null) return const [];
+
+    return [
+      const SizedBox(height: AppSpacing.lg),
+      FilledButton.tonalIcon(
+        key: const Key('prayer-detail-attention'),
+        onPressed: () =>
+            context.go('/prayers/releases/${item.releaseSlug}/attention'),
+        icon: const Icon(Icons.self_improvement),
+        label: const Text('Be still before God'),
+      ),
+    ];
   }
 
   Future<void> _setHelpful(LibraryPrayer prayer) async {

@@ -211,6 +211,8 @@ Future<void> _listenToAltar(
       title: tablet.title,
       route: '/today?focus=altar',
       canPause: true,
+      supportsSystemPlayback: true,
+      onSeek: coordinator.seek,
       completionLabel: 'I prayed',
       onStart: () async {
         coordinator.addListener(listener);

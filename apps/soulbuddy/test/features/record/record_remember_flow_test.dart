@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/persons/providers/person_providers.dart';
 import 'package:soulbuddy/features/record/presentation/record_screen.dart';
 import 'package:soulbuddy/features/record/presentation/encounter_form.dart';
@@ -19,11 +21,14 @@ import 'package:soulbuddy/features/remember/presentation/remember_screen.dart';
 
 import '../../helpers/in_memory_encounter_repository.dart';
 import '../../helpers/audio_player_mocks.dart';
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(installAudioPlayerMocks);
-  for (final mode in RecordStartMode.values) {
+  for (final mode in RecordStartMode.values.where(
+    (mode) => mode != RecordStartMode.write,
+  )) {
     testWidgets('${mode.name} opens capture without a text form or live mic', (
       tester,
     ) async {
@@ -40,6 +45,82 @@ void main() {
     });
   }
 
+  testWidgets(
+    'a write shortcut saves a memory without starting the microphone',
+    (tester) async {
+      final fixture = _RecordFixture();
+      addTearDown(fixture.close);
+      await tester.pumpWidget(
+        fixture.wrap(const RecordScreen(startMode: RecordStartMode.write)),
+      );
+      await _settle(tester);
+      expect(fixture.recorder.permissionRequests, 0);
+      await tester.enterText(
+        find.byKey(const Key('encounter-body')),
+        'A written memory',
+      );
+      await _saveForm(tester);
+      expect(fixture.repository.lastDraft?.body, 'A written memory');
+      expect(fixture.repository.lastDraft?.audio, isNull);
+    },
+  );
+
+  testWidgets('back from the write shortcut leaves the form', (tester) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    var closed = false;
+    await tester.pumpWidget(
+      fixture.wrap(
+        RecordScreen(
+          startMode: RecordStartMode.write,
+          onCancel: () => closed = true,
+        ),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text('Remember'));
+    await _settle(tester);
+    expect(closed, isTrue);
+    expect(find.text('Start recording'), findsNothing);
+  });
+
+  testWidgets('writing cannot cover an active memory recording', (
+    tester,
+  ) async {
+    final fixture = _RecordFixture();
+    addTearDown(fixture.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          encounterRepositoryProvider.overrideWith(
+            (ref) async => fixture.repository,
+          ),
+          inlineAudioCaptureControllerProvider.overrideWith(
+            (ref, key) async => fixture.controller,
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: RememberScreen())),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text('Record'));
+    await _settle(tester);
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Write memory'))
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.text('Stop'));
+    await _settle(tester);
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Write memory'))
+          .onPressed,
+      isNull,
+    );
+  });
+
   testWidgets('records and saves audio without requiring any typing', (
     tester,
   ) async {
@@ -55,10 +136,10 @@ void main() {
     expect(find.text('Memory type'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'Promise'), findsOneWidget);
     expect(find.byKey(const Key('encounter-body')), findsNothing);
-    final title = tester.widget<TextFormField>(
+    final title = tester.widget<SayableField>(
       find.byKey(const Key('encounter-title')),
     );
-    expect(title.controller!.text, isEmpty);
+    expect(title.controller.text, isEmpty);
     await _saveForm(tester);
 
     final draft = fixture.repository.lastDraft!;
@@ -362,7 +443,7 @@ void main() {
     await _recordAndContinue(tester);
     expect(find.byKey(const Key('encounter-body')), findsNothing);
     await tester.ensureVisible(find.byKey(const Key('encounter-title')));
-    expect(find.text('Title (optional)'), findsOneWidget);
+    expect(find.text('Title'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const Key('encounter-date')));
     expect(tester.takeException(), isNull);
   });
@@ -401,12 +482,18 @@ void main() {
     );
     await _settle(tester);
 
+    await tester.scrollUntilVisible(
+      find.text('Private memory'),
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Private memory'), findsOneWidget);
     expect(find.byKey(const Key('remember-living-vine')), findsNothing);
     expect(find.byKey(const Key('remember-incised-mark')), findsOneWidget);
     expect(find.byKey(const Key('promise-paired-slab-mark')), findsOneWidget);
     expect(find.text('A sensitive detail'), findsNothing);
     expect(find.text('A private freedom'), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('remember-search')));
     await tester.enterText(find.byKey(const Key('remember-search')), 'promise');
     await _settle(tester);
     expect(find.text('A promise to remember'), findsOneWidget);
@@ -471,6 +558,7 @@ class _RecordFixture {
   }) => ProviderScope(
     retry: (_, _) => null,
     overrides: [
+      speechRecognizerProvider.overrideWithValue(NoSpeech()),
       encounterRepositoryProvider.overrideWith(
         (ref) async =>
             loadRepository == null ? repository : await loadRepository(),

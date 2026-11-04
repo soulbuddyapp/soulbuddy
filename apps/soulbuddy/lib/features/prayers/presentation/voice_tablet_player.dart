@@ -579,7 +579,10 @@ class _PlaybackControlsState extends ConsumerState<_PlaybackControls>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) return;
+    if (state == AppLifecycleState.resumed ||
+        ref.read(systemPlaybackAvailableProvider)) {
+      return;
+    }
     if (widget.spiritualSession.state.session?.id ==
         'prayer:${widget.audio.id}') {
       unawaited(widget.spiritualSession.pause().catchError((Object _) {}));
@@ -791,6 +794,8 @@ class _PlaybackControlsState extends ConsumerState<_PlaybackControls>
         title: widget.title,
         route: widget.route,
         canPause: true,
+        supportsSystemPlayback: true,
+        onSeek: coordinator.seek,
         completionLabel: 'I prayed',
         onStart: () async {
           coordinator.addListener(sessionListener);

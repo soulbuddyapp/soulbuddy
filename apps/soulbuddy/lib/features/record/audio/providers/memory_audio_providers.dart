@@ -51,7 +51,9 @@ final memoryAudioPlaybackCoordinatorProvider =
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
       final coordinator = MemoryAudioPlaybackCoordinator(
         assetStore: assetStore,
-        driver: AudioplayersMemoryAudioPlayerDriver(),
+        driver: AudioplayersMemoryAudioPlayerDriver(
+          setFocus: ref.read(systemAudioFocusProvider),
+        ),
       );
       ref.onDispose(() => unawaited(coordinator.close()));
       return coordinator;

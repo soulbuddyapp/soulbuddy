@@ -59,7 +59,8 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
+    if (state != AppLifecycleState.resumed &&
+        !ref.read(systemPlaybackAvailableProvider)) {
       unawaited(_pauseForInterruption());
     }
   }
@@ -478,6 +479,8 @@ class _AudioPlaybackControlState extends ConsumerState<AudioPlaybackControl>
         title: widget.label,
         route: widget.sessionRoute ?? '/remember/${audio.encounterId}',
         canPause: true,
+        supportsSystemPlayback: true,
+        onSeek: coordinator.seek,
         completionLabel: onComplete == null ? 'Close' : 'Complete',
         onStart: () async {
           coordinator.addListener(sessionListener);

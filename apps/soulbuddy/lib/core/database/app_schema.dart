@@ -309,6 +309,141 @@ const appSchema = Schema([
     Column.integer('content_version'),
     Column.text('archived_at'),
   ]),
+  // Release discovery metadata, mirrored from the authenticated API so a
+  // published collection can be presented offline.
+  Table.localOnly(
+    'prayer_release_cache',
+    [
+      Column.text('slug'),
+      Column.text('title'),
+      Column.text('discovery_label'),
+      Column.text('discovery_detail'),
+      Column.text('published_at'),
+      Column.text('added_at'),
+      Column.text('refreshed_at'),
+    ],
+    indexes: [
+      Index('prayer_release_cache_added', [IndexedColumn('added_at')]),
+    ],
+  ),
+  // Ordered item metadata. Bodies live in the content cache below and are only
+  // written after a deliberate add.
+  Table.localOnly(
+    'prayer_release_item_cache',
+    [
+      Column.text('release_id'),
+      Column.text('release_slug'),
+      Column.integer('sort_order'),
+      Column.text('item_id'),
+      Column.text('kind'),
+      Column.text('library_prayer_id'),
+      Column.text('title'),
+      Column.integer('has_attention_practice'),
+      Column.integer('narration_available'),
+    ],
+    indexes: [
+      Index('prayer_release_item_cache_order', [
+        IndexedColumn('release_slug'),
+        IndexedColumn('sort_order'),
+      ]),
+      Index('prayer_release_item_cache_prayer', [
+        IndexedColumn('library_prayer_id'),
+      ]),
+    ],
+  ),
+  // The last successful preference response, so the weekly setting can be
+  // shown without a network round trip.
+  Table.localOnly('prayer_release_preference_cache', [
+    Column.integer('weekly_enabled'),
+    Column.integer('notification_enabled'),
+    Column.text('time_zone'),
+    Column.text('refreshed_at'),
+  ]),
+  // One row per added collection. This mirrors the account's server-side
+  // downloads: the server owns the add, so the local row is a cache written
+  // under this account's owner id and never uploaded as a sync mutation.
+  Table.localOnly(
+    'prayer_release_downloads',
+    [
+      Column.text('owner_id'),
+      Column.text('release_id'),
+      Column.text('release_slug'),
+      Column.text('downloaded_at'),
+    ],
+    indexes: [
+      Index('prayer_release_downloads_owner', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('release_id'),
+      ]),
+      Index('prayer_release_downloads_slug', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('release_slug'),
+      ]),
+    ],
+  ),
+  // The exact release wording, stored verbatim so an added collection works
+  // offline before the canonical catalog sync arrives.
+  Table.localOnly(
+    'prayer_release_item_content',
+    [
+      Column.text('owner_id'),
+      Column.text('release_id'),
+      Column.text('release_slug'),
+      Column.text('item_id'),
+      Column.integer('sort_order'),
+      Column.text('kind'),
+      Column.text('library_prayer_id'),
+      Column.text('title'),
+      Column.text('body'),
+      Column.text('grounding'),
+      Column.text('language_style'),
+      Column.text('purpose'),
+      Column.text('action'),
+      Column.text('content_sha256'),
+      Column.text('practice_mode'),
+      Column.text('practice_steps_json'),
+      Column.text('cached_at'),
+    ],
+    indexes: [
+      Index('prayer_release_item_content_owner', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('release_slug'),
+        IndexedColumn('sort_order'),
+      ]),
+      Index('prayer_release_item_content_prayer', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('library_prayer_id'),
+      ]),
+    ],
+  ),
+  // A counted prayer session, recorded once and never rewritten.
+  Table(
+    'affirmation_prayer_sessions',
+    [
+      Column.text('owner_id'),
+      Column.text('release_item_id'),
+      Column.text('local_date'),
+      Column.text('started_at'),
+      Column.text('ended_at'),
+      Column.text('outcome'),
+      Column.integer('step_one_count'),
+      Column.integer('step_two_count'),
+      Column.text('sound_key'),
+      Column.text('narration_speed'),
+      Column.text('created_at'),
+      Column.text('updated_at'),
+    ],
+    indexes: [
+      Index('affirmation_prayer_sessions_owner', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('release_item_id'),
+      ]),
+      Index('affirmation_prayer_sessions_date', [
+        IndexedColumn('owner_id'),
+        IndexedColumn('local_date'),
+      ]),
+    ],
+  ),
   Table.localOnly(
     'prayer_generation_requests',
     [

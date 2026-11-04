@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../guards/presentation/return_sheet.dart';
 import '../../record/presentation/voice_notes_field.dart';
 import '../../guards/providers/return_providers.dart';
@@ -438,6 +439,28 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           enabled: !_recordingBusy,
           onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
         ),
+        ExpansionTile(
+          title: const Text('Write instead'),
+          children: [
+            SayableField(
+              controller: _situationController,
+              enabled: !_recordingBusy,
+              maxLength: 4000,
+              maxLines: 4,
+              labelText: 'What is happening now',
+              onTruncated: _reportTruncation,
+            ),
+            SayableField(
+              controller: _whyController,
+              enabled: !_recordingBusy,
+              maxLength: 4000,
+              maxLines: 3,
+              labelText: 'Why this matters',
+              showUnavailableNotice: false,
+              onTruncated: _reportTruncation,
+            ),
+          ],
+        ),
       ],
     ),
     actions: [
@@ -455,6 +478,19 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
       ),
     ],
   );
+
+  /// Reports a limit that cut a dictated account short.
+  ///
+  /// The messenger this reaches is the app's own, above the route holding this
+  /// dialog, so the notice does not depend on the dialog outliving it. A dialog
+  /// dismissed between the cut and the notice is a real possibility, and the
+  /// notice still has to reach someone.
+  void _reportTruncation() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(_limitReachedNotice)));
+  }
 
   void _save() {
     final title = _titleController.text.trim();
@@ -481,6 +517,14 @@ class _GoalEdit {
   final String? currentSituation;
   final String? whyItMatters;
 }
+
+/// Shown when a field's limit cut a dictated account short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';
 
 bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
 

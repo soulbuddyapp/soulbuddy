@@ -195,3 +195,10 @@ String _label(MemoryType type) => switch (type) {
   MemoryType.leftBehind => 'What I left behind',
   _ => type.name[0].toUpperCase() + type.name.substring(1),
 };
+
+/// Shown when the field's limit cut a dictated reflection short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.

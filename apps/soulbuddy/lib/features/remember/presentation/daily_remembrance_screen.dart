@@ -187,6 +187,13 @@ class _DailyRemembranceScreenState
   }
 }
 
+/// Shown when the field's limit cut a dictated reflection short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+
 String _prompt(MemoryType type) => switch (type) {
   MemoryType.promise => 'Remember the promise you made before God.',
   MemoryType.leftBehind => 'Remember what you left behind for God’s love.',

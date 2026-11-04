@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../prayers/domain/today_prayer.dart';
 import '../providers/goal_providers.dart';
 
@@ -137,21 +138,45 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
     super.dispose();
   }
 
+  /// Reports a limit that cut a dictated answer short.
+  ///
+  /// The messenger rather than the card that opened this dialog: the dialog may
+  /// be gone by the time the notice shows, and the card's state may have been
+  /// dismissed out from under it.
+  void _reportTruncation() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(_limitReachedNotice)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _controller.text.trim();
     return AlertDialog(
       title: const Text('Name this Goal'),
-      content: TextField(
-        key: const Key('migration-goal-title'),
-        controller: _controller,
-        autofocus: true,
-        maxLength: 120,
-        textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
-          labelText: 'What are you seeking help with?',
-        ),
-        onChanged: (_) => setState(() {}),
+      // Held in a min-size column so the field takes the dialog's height rather
+      // than filling whatever the dialog is allowed.
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SayableField(
+            key: const Key('migration-goal-title'),
+            controller: _controller,
+            autofocus: true,
+            maxLength: 120,
+            textCapitalization: TextCapitalization.sentences,
+            labelText: 'What are you seeking help with?',
+            // Keep is gated on the title read here in build, and a field's own
+            // callback fires for typing alone. Without this the button would
+            // stay disabled while dictated words sat plainly in the field.
+            onChanged: (_) => setState(() {}),
+            // A cut is said rather than left to look like a whole answer. This
+            // dialog has no message line of its own, so it goes to the SnackBar
+            // the card already reports through.
+            onTruncated: _reportTruncation,
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -167,3 +192,11 @@ class _GoalNameDialogState extends State<_GoalNameDialog> {
     );
   }
 }
+
+/// Shown when the field's limit cut a dictated answer short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

@@ -388,7 +388,7 @@ void main() {
         await recordAudio('calling', 'Serve my neighbors');
         await tapText('Continue');
         await stage('Small, faithful choices');
-        await tapText('Record my own');
+        await tapText('Add practice');
         await settleUntil(() => find.byType(AlertDialog).evaluate().isNotEmpty);
         await enter('Practice title', 'Walk with a neighbor');
         await recordAudio(

@@ -137,6 +137,10 @@ class SpiritualSessionController extends ChangeNotifier {
     }
   });
 
+  Future<void> seek(Duration position) => _run(() async {
+    if (!isCapturing) await _state.session?.onSeek?.call(position);
+  });
+
   void updateProgress({
     required Duration position,
     required Duration duration,

@@ -43,6 +43,10 @@ function companionConnection(User $user, array $attributes = []): string
         'chat_id' => (string) random_int(100000, 999999),
         'username' => 'beloved',
         'daily_enabled' => true,
+        'formation_enabled' => true,
+        'prayer_enabled' => true,
+        'sacred_hour_enabled' => true,
+        'care_enabled' => true,
         'created_at' => now(),
         'updated_at' => now(),
     ], $attributes));
@@ -79,6 +83,7 @@ it('sends one weekly prayer prompt for an unattended person', function () {
     $this->travelTo(now()->setDate(2026, 10, 4)->setTime(8, 0)->utc());
     config()->set('services.telegram.bot_token', 'bot-token');
     Http::fake(['api.telegram.org/*' => Http::response(['ok' => true])]);
+    $this->travelTo(now()->setDate(2026, 10, 4)->setTime(8, 0)->utc());
     $user = companionUser();
     $connectionId = companionConnection($user);
     PrayerPerson::query()->create([

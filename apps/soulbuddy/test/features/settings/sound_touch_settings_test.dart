@@ -44,6 +44,7 @@ void main() {
       find.byType(Scrollable).first,
       const Offset(0, -160),
     );
+    await _show(tester, find.text('Privacy policy'));
     await tester.tap(find.text('Privacy policy'));
     await tester.pumpAndSettle();
 
@@ -186,6 +187,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Test feedback').hitTestable(), findsOneWidget);
   });
+}
+
+Future<void> _show(WidgetTester tester, Finder target) async {
+  for (var attempt = 0; attempt < 12; attempt++) {
+    if (target.hitTestable().evaluate().isNotEmpty) return;
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -220));
+    await tester.pumpAndSettle();
+  }
+  expect(target.hitTestable(), findsOneWidget);
 }
 
 Switch _switch(WidgetTester tester, String title) {

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.6+15
+version: 1.2.1+17
 
 environment:
   sdk: ^3.9.2
@@ -49,13 +49,18 @@ dependencies:
   timezone: 0.10.1
   flutter_timezone: 5.1.0
   audioplayers: 6.7.1
+  flutter_tts: ^4.2.3
+  share_plus: ^10.1.4
   # 7.x requires Dart 3.12; 6.2.1 is the newest Dart 3.9-compatible release.
   record: 6.2.1
-  speech_to_text: 7.4.0
+  speech_to_text:
+    path: third_party/speech_to_text
   # 2.7+ requires Dart 3.10; 2.6.7+1 is the newest Dart 3.9 release.
   idb_shim: 2.6.7+1
   firebase_core: ^4.15.0
   firebase_messaging: ^16.7.0
+  audio_service: 0.18.19
+  audio_session: 0.2.4
 
 dev_dependencies:
   fake_async: ^1.3.3
@@ -103,6 +108,7 @@ flutter:
     - assets/audio/feedback/
     - assets/audio/meditation/
     - assets/audio/sacred_hours/
+    - assets/audio/worship/
     - assets/audio/commitments/
     - assets/content/commitment_practices.json
 

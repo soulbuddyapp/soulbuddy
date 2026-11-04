@@ -137,15 +137,16 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                             : Icons.pause,
                       ),
                     ),
-                  IconButton(
-                    key: const Key('spiritual-session-complete'),
-                    tooltip: session.completionLabel,
-                    onPressed: () => unawaited(
-                      controller.complete().catchError((Object _) {}),
+                  if (session.showCompletion)
+                    IconButton(
+                      key: const Key('spiritual-session-complete'),
+                      tooltip: session.completionLabel,
+                      onPressed: () => unawaited(
+                        controller.complete().catchError((Object _) {}),
+                      ),
+                      color: scheme.onSurface,
+                      icon: const Icon(Icons.check_circle_outline),
                     ),
-                    color: scheme.onSurface,
-                    icon: const Icon(Icons.check_circle_outline),
-                  ),
                   IconButton(
                     key: const Key('spiritual-session-close'),
                     tooltip: 'Close player',

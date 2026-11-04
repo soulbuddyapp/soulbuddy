@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/editorial/data/editorial_prayer_repository.dart';
 import 'package:soulbuddy/features/editorial/domain/editorial_item.dart';
 import 'package:soulbuddy/features/prayers/data/personal_prayer_repository.dart';
@@ -22,6 +23,8 @@ import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
 
 import '../../helpers/audio_player_mocks.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   setUp(installAudioPlayerMocks);
@@ -301,6 +304,9 @@ Future<void> _pump(
           onGenerationProviderRead();
           throw StateError('Generation must not be read by the new flow.');
         }),
+        // The own-words field now offers the microphone, which resolves
+        // availability when it appears.
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp.router(
         routerConfig: router,

@@ -23,7 +23,7 @@ import '../../persons/domain/prayer_person.dart';
 
 enum _RecordView { capture, form }
 
-// Keep legacy route values so old links continue into audio capture.
+// Keep legacy route values so old links continue to their intended task.
 enum RecordStartMode { choices, speak, write, reflection, person }
 
 class RecordScreen extends ConsumerStatefulWidget {
@@ -55,7 +55,9 @@ class RecordScreen extends ConsumerStatefulWidget {
 }
 
 class _RecordScreenState extends ConsumerState<RecordScreen> {
-  var _view = _RecordView.capture;
+  late var _view = widget.startMode == RecordStartMode.write
+      ? _RecordView.form
+      : _RecordView.capture;
   late final _memoryType = widget.startMode == RecordStartMode.person
       ? MemoryType.person
       : MemoryType.encounter;
@@ -68,14 +70,18 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         ? ref.watch(prayerPeopleProvider).value ?? const <PrayerPerson>[]
         : const <PrayerPerson>[];
     // Keep the recorder alive while the reviewed draft belongs to the form.
-    final audioController = ref.watch(audioCaptureControllerProvider);
-    final panelHandlesBack = audioController.when(
-      data: (_) => true,
-      loading: () => false,
-      error: (_, _) => false,
-    );
+    final audioController = _view == _RecordView.capture || _audioDraft != null
+        ? ref.watch(audioCaptureControllerProvider)
+        : null;
+    final panelHandlesBack =
+        audioController?.when(
+          data: (_) => true,
+          loading: () => false,
+          error: (_, _) => false,
+        ) ??
+        false;
     void leaveCapture() {
-      final controller = audioController.value;
+      final controller = audioController?.value;
       if (controller != null) {
         unawaited(_leaveCapture(controller));
       } else {
@@ -93,6 +99,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
             _audioDraft != null ||
             widget.startMode == RecordStartMode.person,
         initialTitle: widget.initialTitle,
+        bodyPrompt: widget.initialBodyPrompt,
+        initialWriting: widget.startMode == RecordStartMode.write,
         initialDate: widget.initialDate,
         audio: _audioDraft,
         people: people,
@@ -107,7 +115,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop && !panelHandlesBack) leaveCapture();
         },
-        child: audioController.when(
+        child: audioController!.when(
           data: (controller) => AudioCapturePanel(
             controller: controller,
             handlesSystemBack: true,
@@ -245,6 +253,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   void _cancelForm() {
     // The form discards its transferred temporary draft before returning.
     if (!mounted) return;
+    if (widget.startMode == RecordStartMode.write && _audioDraft == null) {
+      _exit();
+      return;
+    }
     setState(() {
       _audioDraft = null;
       _view = _RecordView.capture;

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
 import '../../../core/playback/spiritual_session_providers.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../../record/presentation/voice_notes_field.dart';
 import '../application/formation_video_launcher.dart';
 import '../domain/formation_catalog.dart';
@@ -243,7 +244,9 @@ class DailyFormationCard extends ConsumerWidget {
     FormationVideo video,
   ) async {
     final result =
-        await showModalBottomSheet<({String? recordingId, String action})>(
+        await showModalBottomSheet<
+          ({String? recordingId, String action, String reflection})
+        >(
           context: context,
           isScrollControlled: true,
           isDismissible: false,
@@ -258,6 +261,7 @@ class DailyFormationCard extends ConsumerWidget {
         videoId: video.id,
         completedAt: DateTime.now(),
         reflectionEncounterId: result.recordingId,
+        reflection: result.reflection,
         action: result.action,
       ),
     );
@@ -476,10 +480,12 @@ class _CompletionSheetState extends State<_CompletionSheet> {
   String? _recordingId;
   bool _recordingBusy = false;
   final _action = TextEditingController();
+  final _reflection = TextEditingController();
 
   @override
   void dispose() {
     _action.dispose();
+    _reflection.dispose();
     super.dispose();
   }
 
@@ -518,8 +524,21 @@ class _CompletionSheetState extends State<_CompletionSheet> {
               },
             ),
             const SizedBox(height: 8),
-            TextField(
+            ExpansionTile(
+              title: const Text('Write reflection'),
+              children: [
+                SayableField(
+                  controller: _reflection,
+                  enabled: !_recordingBusy,
+                  labelText: 'Reflection',
+                  maxLines: 4,
+                ),
+              ],
+            ),
+            SayableField(
               controller: _action,
+              enabled: !_recordingBusy,
+              showUnavailableNotice: false,
               maxLength: 80,
               maxLines: 1,
               decoration: const InputDecoration(
@@ -533,6 +552,7 @@ class _CompletionSheetState extends State<_CompletionSheet> {
                   : () => Navigator.pop(context, (
                       recordingId: _recordingId,
                       action: _action.text,
+                      reflection: _reflection.text,
                     )),
               child: const Text('Complete today'),
             ),

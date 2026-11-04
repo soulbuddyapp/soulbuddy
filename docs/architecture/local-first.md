@@ -34,7 +34,7 @@ Structural request failures return 422. Domain rejections such as unsupported ta
 
 Prayer text, Encounter titles/bodies, Scripture selections, Circle messages, Goal notes, and other private formation data must not be written to application logs, analytics payloads, crash breadcrumbs, or generative-AI requests. Runtime generative AI is not a supported destination for spiritual content or private formation context.
 
-Prayer narration is the narrow external-processing exception described below: only the exact immutable saved-prayer revision may be sent, and only after explicit disclosure and consent. User-recorded memory audio remains device-local and is never part of that narration request.
+Prayer narration is the narrow external-processing exception described below: only the exact immutable saved-prayer revision may be sent, and only after explicit disclosure and consent. User-recorded memory audio remains device-local and is never part of that narration request. Dictation is on-device only. When no on-device recogniser exists the field stays editable and speech is unavailable; the app never falls back to a network recogniser, because that would send spoken words off the device.
 
 ## Current development boundary
 

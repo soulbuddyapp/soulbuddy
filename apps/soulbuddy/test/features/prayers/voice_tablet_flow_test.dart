@@ -633,6 +633,7 @@ void main() {
               (ref) async => coordinator,
             ),
             spiritualSessionControllerProvider.overrideWithValue(sessions),
+            systemPlaybackAvailableProvider.overrideWithValue(true),
             memorySoundscapePreferencesProvider.overrideWithValue(preferences),
             memorySoundscapePlaybackProvider.overrideWith(
               (ref) => MemorySoundscapePlaybackCoordinator(player: background),
@@ -663,6 +664,12 @@ void main() {
       await _settle(tester);
       expect(background.playing, true);
       expect(practice.recorded, isEmpty);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(sessions.state.status, SpiritualSessionStatus.playing);
+      expect(background.playing, true);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       visible.value = false;
       await tester.pump();
 

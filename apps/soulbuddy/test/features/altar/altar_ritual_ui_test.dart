@@ -190,6 +190,8 @@ void main() {
     expect(coordinator.state.assetId, 'refrain');
     expect(coordinator.state.status, MemoryAudioPlaybackStatus.playing);
     expect(spiritual.state.session?.kind, SpiritualSessionKind.altar);
+    expect(spiritual.state.session?.supportsSystemPlayback, isTrue);
+    expect(spiritual.state.session?.onSeek, isNotNull);
     await _pumpPlaybackOperation(
       tester,
       spiritual.close(),

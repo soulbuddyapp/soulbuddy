@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 
 class FirstPrayerDetailPage extends StatefulWidget {
   const FirstPrayerDetailPage({
@@ -39,7 +40,9 @@ class _FirstPrayerDetailPageState extends State<FirstPrayerDetailPage> {
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: AppSpacing.lg),
-            TextField(
+            // Said in a person's own words, because that is all this field is
+            // for.
+            SayableField(
               key: const Key('first-prayer-detail'),
               controller: _controller,
               autofocus: true,
@@ -47,9 +50,12 @@ class _FirstPrayerDetailPageState extends State<FirstPrayerDetailPage> {
               minLines: 3,
               maxLines: 5,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                hintText: 'A name, need, or a few words',
-              ),
+              hintText: 'A name, need, or a few words',
+              // A cut is said rather than left to look like a whole answer. The
+              // page has no message line of its own, so it goes to the SnackBar,
+              // which the onboarding screen hosting this page already reports
+              // through.
+              onTruncated: _reportTruncation,
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
@@ -63,4 +69,23 @@ class _FirstPrayerDetailPageState extends State<FirstPrayerDetailPage> {
       ),
     ),
   );
+
+  /// Reports a limit that cut a dictated addition short.
+  ///
+  /// The messenger rather than this page: the page's own state may be gone by
+  /// the time the notice would show, and a step change takes it with it.
+  void _reportTruncation() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text(_limitReachedNotice)));
+  }
 }
+
+/// Shown when the field's limit cut a dictated addition short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

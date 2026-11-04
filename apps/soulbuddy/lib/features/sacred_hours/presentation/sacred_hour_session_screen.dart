@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/practice_audio_scope.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../persons/providers/person_providers.dart';
 import '../../prayers/application/meditation_sound_bed_player.dart';
 import '../../prayers/application/meditation_sound_preferences.dart';
@@ -25,6 +26,8 @@ import '../../record/audio/application/memory_audio_player.dart';
 import '../../record/audio/presentation/inline_audio_capture.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../application/sacred_hour_prayer_suggestions.dart';
+import '../application/sacred_hour_continuity.dart';
+import '../application/sacred_hour_recorded_playback.dart';
 import '../application/sacred_hour_session_controller.dart';
 import '../application/sacred_hour_system_notification.dart';
 import '../domain/sacred_hour.dart';
@@ -54,6 +57,7 @@ class SacredHourSessionScreen extends ConsumerStatefulWidget {
 class _SacredHourSessionScreenState
     extends ConsumerState<SacredHourSessionScreen> {
   SacredHourSessionController? _controller;
+  SacredHourContinuity? _continuity;
   late final MeditationSoundBedPlayer _backgroundPlayer;
   MeditationSoundBed? _backgroundSound;
   double _backgroundVolume = .15;
@@ -61,21 +65,22 @@ class _SacredHourSessionScreenState
   bool _prayerPlaying = false;
   MemoryAudioPlaybackCoordinator? _prayerPlayer;
   PrivateAudioTrack? _selectedPrayerTrack;
-  String? _notificationHourId;
+  SacredHourSoundBedGuard? _soundBedGuard;
 
   @override
   void initState() {
     super.initState();
     _backgroundPlayer =
         widget.soundPlayer ?? AudioplayersMeditationSoundBedPlayer();
+    unawaited(SacredHourSystemNotification.stop());
     unawaited(_restoreBackgroundSound());
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
     _prayerPlayer?.removeListener(_onPrayerPlaybackChanged);
-    unawaited(_stopSanctuaryAudio());
+    _soundBedGuard?.dispose();
+    unawaited(_stopBackgroundSound());
     unawaited(_backgroundPlayer.dispose());
     super.dispose();
   }
@@ -89,10 +94,25 @@ class _SacredHourSessionScreenState
       error: (_, _) => const _Unavailable(),
       data: (value) {
         if (value == null) return const _Unavailable();
-        _controller ??= SacredHourSessionController(
-          prayerMinutes: value.prayerMinutes,
-        );
-        _startNotification(value);
+        if (_controller == null) {
+          final key = (
+            route: _sessionRoute,
+            prayerMinutes: value.prayerMinutes,
+          );
+          var continuity = ref.read(sacredHourContinuityProvider(key));
+          if (continuity.controller.state.phase ==
+              SacredHourSessionPhase.dismissed) {
+            ref.invalidate(sacredHourContinuityProvider(key));
+            continuity = ref.read(sacredHourContinuityProvider(key));
+          }
+          _continuity = continuity;
+          _controller = continuity.controller;
+          if (continuity.track != null) {
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => unawaited(_restoreSelectedPrayer()),
+            );
+          }
+        }
         final personal = ref.watch(personalPrayersProvider).value ?? const [];
         final library =
             ref
@@ -101,7 +121,7 @@ class _SacredHourSessionScreenState
             const [];
         return PracticeAudioScope(
           onVisibilityChanged: (visible) {
-            if (!visible) unawaited(_stopSanctuaryAudio());
+            if (!visible) unawaited(_stopBackgroundSound());
           },
           child: SacredHourSessionView(
             hour: value,
@@ -125,33 +145,18 @@ class _SacredHourSessionScreenState
             onRecordPrayer: () => _recordPrayer(value),
             beforeReflection: _stopSanctuaryAudio,
             onExit: () => _exit(value),
-            onPauseChanged: SacredHourSystemNotification.setPaused,
           ),
         );
       },
     );
   }
 
-  void _startNotification(SacredHour hour) {
-    if (_notificationHourId == hour.id) return;
-    _notificationHourId = hour.id;
-    final startedAt =
-        _dueAt(hour.id, widget.occurrenceKey) ?? DateTime.now().toUtc();
-    unawaited(
-      SacredHourSystemNotification.start(
-        title: hour.name,
-        startedAt: startedAt,
-        duration: Duration(minutes: hour.durationMinutes),
-        route: Uri(
-          pathSegments: ['sacred-hours', hour.id],
-          queryParameters: {
-            if (widget.occurrenceKey != null)
-              'occurrence': widget.occurrenceKey!,
-          },
-        ).toString(),
-      ),
-    );
-  }
+  String get _sessionRoute => Uri(
+    pathSegments: ['', 'sacred-hours', widget.hourId],
+    queryParameters: {
+      if (widget.occurrenceKey != null) 'occurrence': widget.occurrenceKey!,
+    },
+  ).toString();
 
   Future<void> _recordPrayer(SacredHour hour) async {
     final prayer = hour.prayer;
@@ -245,7 +250,11 @@ class _SacredHourSessionScreenState
       _soundPlaying ? _stopBackgroundSound() : _startBackgroundSound();
 
   Future<void> _stopSanctuaryAudio() async {
-    await _prayerPlayer?.stop();
+    final spiritual = ref.read(spiritualSessionControllerProvider);
+    if (spiritual.state.session?.id.startsWith('sacred-hour:$_sessionRoute:') ??
+        false) {
+      await spiritual.close();
+    }
     await _stopBackgroundSound();
   }
 
@@ -261,14 +270,56 @@ class _SacredHourSessionScreenState
     });
   }
 
+  void _attachPrayerPlayer(
+    MemoryAudioPlaybackCoordinator player,
+    PrivateAudioTrack track,
+  ) {
+    _prayerPlayer?.removeListener(_onPrayerPlaybackChanged);
+    _soundBedGuard?.dispose();
+    _selectedPrayerTrack = track;
+    _prayerPlayer = player..addListener(_onPrayerPlaybackChanged);
+    _soundBedGuard = SacredHourSoundBedGuard(
+      player,
+      track.id,
+      _stopBackgroundSound,
+    );
+  }
+
+  Future<void> _restoreSelectedPrayer() async {
+    final track = _continuity?.track;
+    if (track == null || !mounted) return;
+    final player = await ref.read(
+      memoryAudioPlaybackCoordinatorProvider.future,
+    );
+    if (!mounted ||
+        !identical(_continuity?.track, track) ||
+        _selectedPrayerTrack != null) {
+      return;
+    }
+    _attachPrayerPlayer(player, track);
+    _onPrayerPlaybackChanged();
+  }
+
   Future<void> _togglePrayerPlayback() async {
     final player = _prayerPlayer;
     final track = _selectedPrayerTrack;
     if (player == null || track == null) return;
+    final spiritual = ref.read(spiritualSessionControllerProvider);
+    final sessionId = 'sacred-hour:$_sessionRoute:${track.id}';
     if (_prayerPlaying) {
-      await player.pause();
+      if (spiritual.state.session?.id == sessionId) await spiritual.pause();
     } else {
-      await player.playTrack(track);
+      if (spiritual.state.session?.id == sessionId) {
+        await spiritual.resume();
+      } else {
+        await startSacredHourRecordedPlayback(
+          spiritual: spiritual,
+          player: player,
+          track: track,
+          route: _sessionRoute,
+          systemPlaybackAvailable: ref.read(systemPlaybackAvailableProvider),
+        );
+      }
     }
     _onPrayerPlaybackChanged();
   }
@@ -297,16 +348,20 @@ class _SacredHourSessionScreenState
       memoryAudioPlaybackCoordinatorProvider.future,
     );
     if (!mounted) return;
-    if (!identical(_prayerPlayer, player)) {
-      _prayerPlayer?.removeListener(_onPrayerPlaybackChanged);
-      _prayerPlayer = player..addListener(_onPrayerPlaybackChanged);
-    }
-    _selectedPrayerTrack = PrivateAudioTrack(
+    final track = PrivateAudioTrack(
       id: audio.id,
       storageKey: audio.storageKey,
       duration: audio.duration,
     );
-    await player.playTrack(_selectedPrayerTrack!);
+    _attachPrayerPlayer(player, track);
+    _continuity?.track = track;
+    await startSacredHourRecordedPlayback(
+      spiritual: ref.read(spiritualSessionControllerProvider),
+      player: player,
+      track: _selectedPrayerTrack!,
+      route: _sessionRoute,
+      systemPlaybackAvailable: ref.read(systemPlaybackAvailableProvider),
+    );
     _onPrayerPlaybackChanged();
   }
 

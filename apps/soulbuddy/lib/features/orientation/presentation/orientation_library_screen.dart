@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/presentation/sacred_surface.dart';
 import '../domain/orientation_course.dart';
+import '../application/orientation_share_service.dart';
 import '../providers/orientation_providers.dart';
 import 'orientation_reader_screen.dart';
 import 'orientation_path.dart';
@@ -181,6 +182,54 @@ class _LibraryState extends ConsumerState<OrientationLibraryScreen> {
                               ? 'Continue from where you stopped'
                               : 'Listen and read';
                           final seconds = course.duration.inSeconds;
+                          if (saved?.completed == true) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: SacredSurface(
+                                child: Material(
+                                  type: MaterialType.transparency,
+                                  child: InkWell(
+                                    key: Key('orientation-course-${course.id}'),
+                                    onTap: () => _select(course),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              course.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  theme.textTheme.titleMedium,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Listen again',
+                                            style: theme.textTheme.labelLarge
+                                                ?.copyWith(
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
                           return IntrinsicHeight(
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -335,6 +384,67 @@ class _LibraryState extends ConsumerState<OrientationLibraryScreen> {
                     ),
                     if (journey?.complete == true) ...[
                       const SizedBox(height: 16),
+                      Card(
+                        child: ExpansionTile(
+                          key: const Key('orientation-fruitful-prayer'),
+                          leading: const Icon(
+                            Icons.volunteer_activism_outlined,
+                          ),
+                          title: const Text('Prayer for a fruitful life'),
+                          childrenPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            16,
+                          ),
+                          children: const [
+                            Text(
+                              'Father, let the knowledge you have planted in me bear good fruit in my life. Give me grace to live it with faith, humility, love, and service. Amen.',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'Invite a friend',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  OutlinedButton.icon(
+                                    key: const Key('orientation-share-contact'),
+                                    onPressed: () =>
+                                        const OrientationShareService()
+                                            .shareWithContact(),
+                                    icon: const Icon(Icons.person_add_alt_1),
+                                    label: const Text('Share with a contact'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    key: const Key(
+                                      'orientation-share-telegram',
+                                    ),
+                                    onPressed: () =>
+                                        const OrientationShareService()
+                                            .shareThroughTelegram(),
+                                    icon: const Icon(Icons.send_outlined),
+                                    label: const Text('Send through Telegram'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       Card(
                         child: ListTile(
                           key: const Key('kingdom-course-option'),

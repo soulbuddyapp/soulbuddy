@@ -5,9 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/presentation/sanctuary_backdrop.dart';
 import '../../../core/presentation/screen_awake.dart';
+import '../../../core/speech/sayable_field.dart';
+import '../../../core/speech/optional_writing.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../record/presentation/voice_notes_field.dart';
-import '../../record/providers/voice_note_providers.dart';
 import '../application/commitment_audio.dart';
 import '../application/commitment_journey_flow.dart';
 import '../data/commitment_practice_catalog_repository.dart';
@@ -286,14 +287,11 @@ class _CommitmentJourneyScreenState
       id: 'journey:primary',
       field: field,
     );
-    final notes = ref.watch(voiceNotesProvider(noteContext));
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if ((notes.value?.isEmpty ?? true) && controller.text.isNotEmpty)
-            SelectableText(controller.text),
           VoiceNotesField(
             key: ValueKey('commitment-record-$field'),
             noteContext: noteContext,
@@ -302,7 +300,21 @@ class _CommitmentJourneyScreenState
             beforeRecord: _stopInstructionAudio,
             onBusyChanged: _recordingChanged,
             onRecorded: (memory) {
-              controller.text = memory.title;
+              if (controller.text.trim().isEmpty) {
+                controller.text = memory.title;
+              }
+              _progress = _progress.copyWith(declarationReviewed: false);
+              _changed();
+            },
+          ),
+          OptionalWriting(
+            controller: controller,
+            label: title,
+            maxLength: field.startsWith('needs-')
+                ? 500
+                : (field == 'calling' ? 1500 : 4000),
+            enabled: !_blocked,
+            onChanged: (_) {
               _progress = _progress.copyWith(declarationReviewed: false);
               _changed();
             },
@@ -329,7 +341,7 @@ class _CommitmentJourneyScreenState
   );
 
   Widget _titleField(TextEditingController controller, String title) =>
-      TextField(
+      SayableField(
         controller: controller,
         enabled: !_blocked,
         maxLines: 1,
@@ -358,7 +370,6 @@ class _CommitmentJourneyScreenState
   Future<void> _ownPractice() async {
     final c = TextEditingController();
     final practiceId = const Uuid().v7();
-    var recorded = false;
     var category = CommitmentPracticeCategory.joyPleasure;
     final result = await showDialog<CommitmentPracticeDraft>(
       context: context,
@@ -370,11 +381,13 @@ class _CommitmentJourneyScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                SayableField(
                   controller: c,
                   autofocus: true,
+                  enabled: !_recordingBusy,
                   maxLength: 120,
                   maxLines: 1,
+                  onChanged: (_) => update(() {}),
                   decoration: const InputDecoration(
                     labelText: 'Practice title',
                   ),
@@ -392,7 +405,6 @@ class _CommitmentJourneyScreenState
                     update(() {});
                   },
                   onRecorded: (memory) => update(() {
-                    recorded = true;
                     if (c.text.trim().isEmpty) c.text = memory.title;
                   }),
                 ),
@@ -420,7 +432,7 @@ class _CommitmentJourneyScreenState
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: !recorded || _recordingBusy
+              onPressed: c.text.trim().isEmpty || _recordingBusy
                   ? null
                   : () {
                       if (c.text.trim().isNotEmpty) {
@@ -501,7 +513,7 @@ class _CommitmentJourneyScreenState
             OutlinedButton.icon(
               onPressed: _practices.length < 12 ? _ownPractice : null,
               icon: const Icon(Icons.mic_none),
-              label: const Text('Record my own'),
+              label: const Text('Add practice'),
             ),
             for (final category in CommitmentPracticeCategory.values)
               ExpansionTile(

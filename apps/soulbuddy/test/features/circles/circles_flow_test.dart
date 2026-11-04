@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
 import 'package:soulbuddy/features/circles/data/circle_directory_repository.dart';
 import 'package:soulbuddy/features/circles/data/circle_reminder_repository.dart';
 import 'package:soulbuddy/features/circles/data/legacy_circle_migration_repository.dart';
@@ -17,6 +19,8 @@ import 'package:soulbuddy/features/record/data/encounter_repository.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('discovers external Circles and exposes no chat composer', (
@@ -71,7 +75,7 @@ void main() {
     await tester.tap(find.byKey(const Key('create-circle')));
     await tester.pumpAndSettle();
     expect(find.text('Create a Circle'), findsWidgets);
-    final purpose = tester.widget<TextField>(
+    final purpose = tester.widget<SayableField>(
       find.byKey(const Key('circle-description-field')),
     );
     expect(purpose.maxLength, 120);
@@ -150,10 +154,10 @@ void main() {
     await tester.tap(find.text('Edit Circle'));
     await tester.pumpAndSettle();
 
-    final purpose = tester.widget<TextField>(
+    final purpose = tester.widget<SayableField>(
       find.byKey(const Key('circle-description-field')),
     );
-    expect(purpose.controller?.text, isEmpty);
+    expect(purpose.controller.text, isEmpty);
     expect(find.text('Earlier purpose'), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('circle-name-field')),
@@ -345,6 +349,9 @@ Future<void> _pumpCircles(
           (ref) => launcher ?? ((_) async => true),
         ),
         circleReminderRepositoryProvider.overrideWithValue(reminderRepository),
+        // The Circle's purpose now offers the microphone, which resolves
+        // availability when the sheet opens. The name beside it stays a slot.
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),

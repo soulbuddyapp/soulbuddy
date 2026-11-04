@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../domain/library_prayer.dart';
 import '../providers/prayer_providers.dart';
+import '../providers/prayer_release_providers.dart';
 import 'prayer_library_filters.dart';
 import 'prayer_library_intro.dart';
 import 'prayer_library_tile.dart';
+import 'weekly_prayer_release_card.dart';
 
 class PrayersScreen extends ConsumerStatefulWidget {
   const PrayersScreen({super.key});
@@ -76,6 +78,9 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
               PrayerLibraryIntro(
                 onForThisMoment: () => context.go('/prayers/create'),
               ),
+              const SizedBox(height: AppSpacing.md),
+              // One compact discovery row, only when a published release exists.
+              _WeeklyReleaseDiscovery(onOpen: (slug) => _openRelease(slug)),
               const SizedBox(height: AppSpacing.lg),
               Card(
                 child: ExpansionTile(
@@ -148,12 +153,45 @@ class _PrayersScreenState extends ConsumerState<PrayersScreen> {
     });
   }
 
+  void _openRelease(String slug) {
+    context.go('/prayers/releases/$slug');
+  }
+
   String get _filterSummary {
     final labels = <String>[
       if (_grounding != null) prayerGroundingLabel(_grounding!),
       if (_purpose != null) prayerPurposeLabel(_purpose!),
     ];
     return labels.isEmpty ? 'All prayers' : labels.join(' · ');
+  }
+}
+
+/// A single published release, mirrored locally so it can be shown offline.
+class _WeeklyReleaseDiscovery extends ConsumerWidget {
+  const _WeeklyReleaseDiscovery({required this.onOpen});
+
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Refresh discovery on prayer-tab entry; a failure keeps the cached copy.
+    ref.watch(prayerReleaseRefreshProvider);
+    final releases = ref.watch(discoveredPrayerReleasesProvider);
+
+    return releases.when(
+      loading: () => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
+      data: (items) {
+        // A single row only: the most recent release is the one on offer.
+        final release = items.isEmpty ? null : items.first;
+        if (release == null) return const SizedBox.shrink();
+
+        return WeeklyPrayerReleaseCard(
+          release: release,
+          onOpen: () => onOpen(release.slug),
+        );
+      },
+    );
   }
 }
 

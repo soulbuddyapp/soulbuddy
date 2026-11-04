@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/covenant_marks.dart';
@@ -225,10 +226,42 @@ class _EmptyRemember extends StatelessWidget {
   );
 }
 
-class _CaptureButtons extends StatelessWidget {
+class _CaptureButtons extends StatefulWidget {
   const _CaptureButtons();
 
   @override
-  Widget build(BuildContext context) =>
-      const InlineMemoryRecorder(buttonKey: Key('remember-speak'));
+  State<_CaptureButtons> createState() => _CaptureButtonsState();
+}
+
+class _CaptureButtonsState extends State<_CaptureButtons>
+    with AutomaticKeepAliveClientMixin<_CaptureButtons> {
+  bool _recordingBusy = false;
+
+  @override
+  bool get wantKeepAlive => _recordingBusy;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InlineMemoryRecorder(
+          buttonKey: const Key('remember-speak'),
+          onBusyChanged: (busy) {
+            if (mounted) {
+              setState(() => _recordingBusy = busy);
+              updateKeepAlive();
+            }
+          },
+        ),
+        TextButton(
+          onPressed: _recordingBusy
+              ? null
+              : () => context.push('/remember/capture?mode=write'),
+          child: const Text('Write memory'),
+        ),
+      ],
+    );
+  }
 }

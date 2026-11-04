@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/presentation/screen_awake.dart';
 import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
+import 'supporting_reading_chip.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -269,7 +270,18 @@ class _FormationReadingScreenState
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'Further reading: ${reading.supportingReferences.join(' · ')}',
+                  'Further reading',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  key: const Key('formation-further-reading'),
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final label in reading.supportingReferences)
+                      SupportingReadingChip(label: label),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 FilledButton.icon(

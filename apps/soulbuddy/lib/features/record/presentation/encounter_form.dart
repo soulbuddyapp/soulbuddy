@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../domain/encounter_draft.dart';
 import '../domain/encounter.dart';
 import '../audio/domain/memory_audio.dart';
@@ -25,6 +26,7 @@ class EncounterForm extends ConsumerStatefulWidget {
     this.initialBody,
     this.initialSensitive = false,
     this.initialRecallEnabled = true,
+    this.initialWriting = false,
     super.key,
   });
 
@@ -42,6 +44,7 @@ class EncounterForm extends ConsumerStatefulWidget {
   final String? initialBody;
   final bool initialSensitive;
   final bool initialRecallEnabled;
+  final bool initialWriting;
 
   @override
   ConsumerState<EncounterForm> createState() => _EncounterFormState();
@@ -50,6 +53,7 @@ class EncounterForm extends ConsumerStatefulWidget {
 class _EncounterFormState extends ConsumerState<EncounterForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
+  late final TextEditingController _bodyController;
   late final TextEditingController _dateController;
   var _isAltar = false;
   var _isSaving = false;
@@ -69,6 +73,8 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
     _titleController = TextEditingController(
       text: _shortTitle(widget.initialTitle ?? ''),
     );
+    _bodyController = TextEditingController(text: widget.initialBody ?? '');
+    _bodyController.addListener(_bodyChanged);
     final requestedDate = widget.initialDate;
     final date =
         requestedDate != null &&
@@ -82,8 +88,14 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
   @override
   void dispose() {
     _titleController.dispose();
+    _bodyController.removeListener(_bodyChanged);
+    _bodyController.dispose();
     _dateController.dispose();
     super.dispose();
+  }
+
+  void _bodyChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _chooseDate() async {
@@ -100,8 +112,8 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
 
   Future<void> _save() async {
     if (_isSaving || !_formKey.currentState!.validate()) return;
-    if (_audioDraft == null) {
-      setState(() => _saveError = 'Record audio first.');
+    if (_audioDraft == null && _bodyController.text.trim().isEmpty) {
+      setState(() => _saveError = 'Record or write a memory.');
       return;
     }
 
@@ -115,9 +127,7 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
           title: _titleController.text.trim().isEmpty
               ? _defaultTitle
               : _titleController.text.trim(),
-          // Older callers may supply text. Preserve it without offering a new
-          // long-form editor or inventing a transcript of the recording.
-          body: widget.initialBody ?? '',
+          body: _bodyController.text.trim(),
           occurredOn: _dateController.text,
           isAltar: _isAltar,
           memoryType: _memoryType,
@@ -215,10 +225,11 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                           : (value) => setState(() => _recallEnabled = value),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    TextFormField(
+                    SayableField(
                       key: const Key('encounter-title'),
                       controller: _titleController,
-                      enabled: !_isSaving,
+                      labelText: 'Title',
+                      enabled: !_isSaving && !_captureBusy,
                       maxLength: 120,
                       textCapitalization: TextCapitalization.sentences,
                       textInputAction: TextInputAction.done,
@@ -264,6 +275,22 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
+                    ExpansionTile(
+                      title: const Text('Write memory'),
+                      initiallyExpanded: widget.initialWriting,
+                      children: [
+                        SayableField(
+                          key: const Key('encounter-body'),
+                          controller: _bodyController,
+                          enabled: !_isSaving && !_captureBusy,
+                          labelText: widget.bodyLabel ?? 'Memory',
+                          hintText: widget.bodyPrompt,
+                          maxLines: 6,
+                          maxLength: 4000,
+                          showUnavailableNotice: false,
+                        ),
+                      ],
+                    ),
                     if (widget.people.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.md),
                       Text(
@@ -337,7 +364,10 @@ class _EncounterFormState extends ConsumerState<EncounterForm> {
                     FilledButton(
                       key: const Key('encounter-save'),
                       onPressed:
-                          _isSaving || _captureBusy || _audioDraft == null
+                          _isSaving ||
+                              _captureBusy ||
+                              (_audioDraft == null &&
+                                  _bodyController.text.trim().isEmpty)
                           ? null
                           : _save,
                       child: Text(_isSaving ? 'Saving…' : 'Save'),
