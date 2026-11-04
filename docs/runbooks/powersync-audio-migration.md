@@ -1,9 +1,26 @@
 # PowerSync audio migration rehearsal
 
-The existing SoulBuddy production database is MariaDB 10.3 without binary
-logging. PowerSync's MySQL connector requires a supported MySQL source with
-row-based binary logs. Do not point the connector at the existing database or
-replace the production database with the rehearsal instance.
+## Production cutover, 2026-11-04
+
+Production now uses MySQL 8.4.13 and PowerSync 1.27.2 at
+`https://sbuddy.elbiblio.com/powersync/`. The API release is
+`20261104-audio-a1025eb-prepared`. The previous MariaDB database is stale and
+must not be reconnected without preserving and transferring subsequent MySQL
+writes. MySQL and MongoDB have private networks and persistent volumes; never
+remove those volumes as part of routine cleanup.
+
+A write-frozen source dump was restored, both migrations ran, and PowerSync's
+initial replication completed. Two synthetic accounts used the live API to
+upload recorded-prayer metadata and received isolated complete checkpoints;
+the accounts and their tokens were removed afterward. A verified encrypted
+copy of the cutover backup is stored independently on the operator's computer.
+The `soulbuddy-mysql84-backup.timer` runs a verified server-side backup daily.
+The independent copy is a point-in-time backup, not an automatic off-server
+backup of later changes.
+
+The sections below record the state and findings before the cutover. References
+to the old production database, stopped standbys, and unresolved deployment
+gates are historical rather than the current service state.
 
 ## Rehearsal, 2026-11-03
 
