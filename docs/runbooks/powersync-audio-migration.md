@@ -24,10 +24,10 @@ replace the production database with the rehearsal instance.
 
 ## Additional rehearsal, 2026-11-04
 
-- A fresh, restricted production snapshot restored into an isolated MySQL 8
-  instance with all 67 base tables present. Its encrypted independent copy was
-  decrypted and checksum-verified on the operator's computer. Neither copy is
-  a final write-quiesced backup, and the restore did not compare every row.
+- A fresh, restricted production snapshot and its encrypted independent copy
+  were each restored into isolated MySQL instances with all 67 base tables
+  present. The independent copy was decrypted without writing plaintext on the
+  operator's computer. Neither copy is a final write-quiesced backup.
 - A separate MySQL database received only the production schema, followed by
   the candidate audio and owner migrations and synthetic accounts. The full
   candidate sync rules delivered complete, isolated prayer and reflection
@@ -46,6 +46,10 @@ replace the production database with the rehearsal instance.
   The production standby has a matching locked definer prepared, but the
   temporary grant and guaranteed revocation sequence must be rehearsed as part
   of the complete cutover and its failure handling.
+- On an isolated restored snapshot, the temporarily elevated migration account
+  itself rewrote the 33 existing trigger definers and applied both migrations.
+  After its login was locked and privileges reduced, a restricted writer
+  exercised the legacy prayer-vote trigger and owner protections successfully.
 - MySQL 8.0 reached end of life in April 2026. The supported target is MySQL
   8.4.13 LTS: the snapshot restored there, candidate migrations preserved
   fingerprints of the original columns and rows in all 67 tables, and the full
@@ -55,6 +59,12 @@ replace the production database with the rehearsal instance.
 - A temporary public HTTPS proxy on a separate port delivered complete isolated
   checkpoints through Cloudflare and a later update after 132 seconds. This did
   not exercise the production port 443 route, production tokens, or devices.
+- A MySQL 8.4 snapshot with a synthetic later write was exported back to an
+  isolated MariaDB 10.3 instance. Row fingerprints matched in all 67 tables,
+  the synthetic write was present, and all 96 triggers retained their order.
+  A restricted writer exercised the legacy vote and owner protections. This
+  restore used `root@localhost` trigger definers in the isolated copy; a
+  restricted production failback definer still needs end-to-end verification.
 - An empty, persistent MySQL 8.4 standby was provisioned on an internal Docker
   network with no published ports and verified with GTID, ROW and FULL settings.
   Separate application and replication accounts have restricted grants. An
@@ -74,9 +84,16 @@ replace the production database with the rehearsal instance.
   enabled using the working Certbot installation. The server's unrelated global
   Certbot timer still has a version conflict and was not changed.
 - An inactive candidate API release was prepared beside the live release and
-  booted in a network-isolated container with the sync routes present. The live
-  release and database connection remain unchanged. A SoulBuddy scheduler runs
-  every minute and must be quiesced along with all web, queue and other writers.
+  booted in a network-isolated container with all 32 current routes present.
+  Changing a release symlink alone did not update a running bind mount in an
+  isolated test; restarting the container picked up the new target. The live
+  release and database connection remain unchanged.
+- In isolated tests, maintenance mode skipped the current scheduled commands,
+  and read locks across all 67 snapshot tables blocked a writer while a dump
+  succeeded and an unrelated database remained writable. A SoulBuddy scheduler
+  runs every minute; all web, queue, scheduled and other writers must remain
+  fenced until the switch is verified. The production lock and recovery
+  orchestration has not yet been rehearsed end to end.
 
 ## Before any production cutover
 
