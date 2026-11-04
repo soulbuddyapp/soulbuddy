@@ -191,7 +191,7 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Start isolated MySQL with replication prerequisites
         run: |
-          docker run -d --name owner-projection-db -e MYSQL_ROOT_PASSWORD=ci-only -e MYSQL_ROOT_HOST=% -p 127.0.0.1:33307:3306 mysql:8.0 --server-id=42 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON --binlog-format=ROW --binlog-row-image=FULL
+          docker run -d --name owner-projection-db -e MYSQL_ROOT_PASSWORD=ci-only -e MYSQL_ROOT_HOST=% -p 127.0.0.1:33307:3306 mysql:8.4.13 --server-id=42 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON --binlog-format=ROW --binlog-row-image=FULL
           for attempt in $(seq 1 60); do
             if docker exec owner-projection-db mysqladmin ping -h 127.0.0.1 -uroot -pci-only --silent; then break; fi
             if [ "$attempt" -eq 60 ]; then docker logs owner-projection-db; exit 1; fi
