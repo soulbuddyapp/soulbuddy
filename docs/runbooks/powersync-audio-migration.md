@@ -39,6 +39,44 @@ replace the production database with the rehearsal instance.
   `log_bin_trust_function_creators`, and disabled it again after migration.
   Production needs a reviewed migration privilege and durable trigger-definer
   plan; it must account for partially committed DDL on failure.
+- A separate MySQL 8.4 rehearsal kept global trigger trust disabled, granted a
+  migration account temporary elevated privileges, then reduced it to scoped
+  SELECT, UPDATE and TRIGGER privileges and locked its login. A DML-only app
+  account could still write; owner spoofing and public-ID changes were blocked.
+  The production standby has a matching locked definer prepared, but the
+  temporary grant and guaranteed revocation sequence must be rehearsed as part
+  of the complete cutover and its failure handling.
+- MySQL 8.0 reached end of life in April 2026. The supported target is MySQL
+  8.4.13 LTS: the snapshot restored there, candidate migrations preserved
+  fingerprints of the original columns and rows in all 67 tables, and the full
+  candidate rules isolated both synthetic accounts and their live changes using
+  the default MySQL authentication. The restore rehearsal rewrote 33 trigger
+  definers in the isolated copy only.
+- A temporary public HTTPS proxy on a separate port delivered complete isolated
+  checkpoints through Cloudflare and a later update after 132 seconds. This did
+  not exercise the production port 443 route, production tokens, or devices.
+- An empty, persistent MySQL 8.4 standby was provisioned on an internal Docker
+  network with no published ports and verified with GTID, ROW and FULL settings.
+  Separate application and replication accounts have restricted grants. An
+  empty MongoDB 8.0.34 standby was also provisioned with a replica-set keyfile
+  and a storage user limited to its bucket database. Both remain stopped and
+  are not connected to the live application. Their initial memory limits are
+  not a production capacity assessment.
+- The candidate PowerSync configuration was tested with MySQL 8.4 and
+  authenticated MongoDB 8.0.34, including isolated checkpoints and live updates.
+  Two synthetic accounts also obtained installation sessions and sync tokens
+  through the authenticated candidate API, uploaded prayer and reflection
+  metadata, and received isolated checkpoints. An unauthenticated token request
+  and a cross-account mutation were rejected.
+  A stopped Compose cutover profile and an Nginx route candidate are prepared
+  on the server, but no live route or service has been activated.
+- The SoulBuddy origin certificate was renewed and a dedicated renewal timer was
+  enabled using the working Certbot installation. The server's unrelated global
+  Certbot timer still has a version conflict and was not changed.
+- An inactive candidate API release was prepared beside the live release and
+  booted in a network-isolated container with the sync routes present. The live
+  release and database connection remain unchanged. A SoulBuddy scheduler runs
+  every minute and must be quiesced along with all web, queue and other writers.
 
 ## Before any production cutover
 
