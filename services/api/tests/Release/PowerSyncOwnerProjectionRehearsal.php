@@ -1,5 +1,11 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 // Standalone, synthetic MySQL 8 rehearsal. Never run against a real database.
 require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
@@ -8,12 +14,6 @@ set_exception_handler(function (Throwable $error): void {
     fwrite(STDERR, $error->getMessage().PHP_EOL);
     exit(1);
 });
-
-use Illuminate\Contracts\Console\Kernel;
-use Illuminate\Database\QueryException;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 if (! app()->environment('testing') || DB::getDriverName() !== 'mysql'
     || ! preg_match('/^soulbuddy_owner_test_[a-z0-9]+$/', DB::connection()->getDatabaseName())) {
