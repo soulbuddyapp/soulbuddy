@@ -17,7 +17,8 @@ class PlayConfigTest(unittest.TestCase):
                       'https://sync.example.com/path?token=secret',
                       'https://sync.example.invalid', 'https://sync..example.com',
                       'https://sync.example.com\n.attacker.example',
-                      'https://127.0.0.1.', 'https://localhost.'):
+                      'https://127.0.0.1.', 'https://localhost.',
+                      'https://sync.example.com:8443/service'):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     module.validate_endpoint(value)
@@ -25,8 +26,8 @@ class PlayConfigTest(unittest.TestCase):
     def test_accepts_a_configured_https_origin(self):
         self.assertEqual(module.validate_endpoint('https://sync.example.com'),
                          'https://sync.example.com')
-        self.assertEqual(module.validate_endpoint('https://sync.example.com:8443/service'),
-                         'https://sync.example.com:8443/service')
+        self.assertEqual(module.validate_endpoint('https://sync.example.com:8443/service/'),
+                         'https://sync.example.com:8443/service/')
 
 
 if __name__ == '__main__':

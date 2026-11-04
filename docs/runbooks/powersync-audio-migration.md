@@ -22,6 +22,24 @@ replace the production database with the rehearsal instance.
 - The temporary PowerSync, MongoDB and MySQL containers were stopped. Their
   rehearsal database storage was temporary; this is not a production backup.
 
+## Additional rehearsal, 2026-11-04
+
+- A fresh, restricted production snapshot restored into an isolated MySQL 8
+  instance with all 67 base tables present. Its encrypted independent copy was
+  decrypted and checksum-verified on the operator's computer. Neither copy is
+  a final write-quiesced backup, and the restore did not compare every row.
+- A separate MySQL database received only the production schema, followed by
+  the candidate audio and owner migrations and synthetic accounts. The full
+  candidate sync rules delivered complete, isolated prayer and reflection
+  checkpoints to two accounts, and a later reflection reached only its owner.
+  Invalid signatures and audiences were rejected. This did not exercise the
+  production token controller, real devices, uploads, or public TLS.
+- With binary logging enabled, a database-scoped migration account could not
+  create triggers. The disposable rehearsal temporarily enabled
+  `log_bin_trust_function_creators`, and disabled it again after migration.
+  Production needs a reviewed migration privilege and durable trigger-definer
+  plan; it must account for partially committed DDL on failure.
+
 ## Before any production cutover
 
 1. Reconcile the application release with the deployed prayer-release branch;
@@ -59,6 +77,8 @@ test the issuer and service together; do not print or commit signing keys. The
 Play workflow requires the repository variable `SOULBUDDY_POWERSYNC_URL` to be
 set to the verified HTTPS service endpoint and embeds it in the release bundle.
 Endpoint syntax validation is not a service health or isolation check.
+An endpoint with a path must end in `/`: the Flutter SDK resolves sync paths
+relative to the endpoint URI, and a missing slash drops the last path segment.
 
 ## Unresolved release blocker
 
@@ -71,6 +91,5 @@ controls. Its timer is held in the running app process and is not durable across
 process death. Verify playback, capture handoff and notification actions on a
 device.
 
-The combined application merge remains in progress. The candidate has not been
-published, its Play build has no configured PowerSync endpoint, and the new
-system-player implementation has not been installed for physical QA.
+The combined candidate has passed CI but has not been published. The production
+PowerSync endpoint is not configured, and physical audio QA remains in progress.

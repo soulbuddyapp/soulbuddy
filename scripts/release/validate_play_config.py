@@ -33,6 +33,8 @@ def validate_endpoint(value: str) -> str:
     else:
         if not address.is_global:
             raise ValueError('PowerSync requires a public address.')
+    if url.path and not url.path.endswith('/'):
+        raise ValueError('A PowerSync endpoint path must end in a slash.')
     return value
 
 
