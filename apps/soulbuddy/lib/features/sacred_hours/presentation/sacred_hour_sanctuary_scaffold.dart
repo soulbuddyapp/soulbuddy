@@ -12,7 +12,7 @@ class SacredHourSanctuaryScaffold extends StatelessWidget {
   });
 
   final Widget child;
-  final VoidCallback onExit;
+  final VoidCallback? onExit;
 
   @override
   Widget build(BuildContext context) {
@@ -46,10 +46,8 @@ class SacredHourSanctuaryScaffold extends StatelessWidget {
                       key: const Key('sacred-hour-portal'),
                       width: 220,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => const SizedBox(
-                        width: 220,
-                        height: 440,
-                      ),
+                      errorBuilder: (_, _, _) =>
+                          const SizedBox(width: 220, height: 440),
                     ),
                   ),
                 ),
@@ -89,7 +87,12 @@ class SacredHourSanctuaryScaffold extends StatelessWidget {
                       AppSpacing.md,
                       AppSpacing.md,
                     ),
-                    child: child,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(context).height * .72,
+                      ),
+                      child: SingleChildScrollView(child: child),
+                    ),
                   ),
                 ),
               ),

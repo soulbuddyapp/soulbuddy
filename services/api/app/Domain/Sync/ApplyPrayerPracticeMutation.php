@@ -410,12 +410,12 @@ final class ApplyPrayerPracticeMutation
                 'schedule_type' => $data['schedule_type'],
                 'local_time' => $data['local_time'],
                 'timezone' => $data['timezone'],
-                'once_at' => $data['once_at'],
-                'weekdays_mask' => $data['weekdays_mask'],
+                'once_at' => $data['once_at'] ?? null,
+                'weekdays_mask' => $data['weekdays_mask'] ?? null,
                 'enabled' => $data['enabled'],
                 'created_at' => $data['created_at'] ?? now(),
                 'updated_at' => $data['updated_at'] ?? now(),
-                'archived_at' => $data['archived_at'],
+                'archived_at' => $data['archived_at'] ?? null,
             ]);
             $reminders->put($created->id, $created);
         }
@@ -487,10 +487,10 @@ final class ApplyPrayerPracticeMutation
             && $reminder->schedule_type === $data['schedule_type']
             && $reminder->local_time === $data['local_time']
             && $reminder->timezone === $data['timezone']
-            && $this->dateMatches($reminder->once_at, $data['once_at'])
-            && $reminder->weekdays_mask === $data['weekdays_mask']
+            && $this->dateMatches($reminder->once_at, $data['once_at'] ?? null)
+            && $reminder->weekdays_mask === ($data['weekdays_mask'] ?? null)
             && $reminder->enabled === $data['enabled']
-            && $this->dateMatches($reminder->archived_at, $data['archived_at']);
+            && $this->dateMatches($reminder->archived_at, $data['archived_at'] ?? null);
     }
 
     private function dateMatches(mixed $stored, mixed $wireValue): bool

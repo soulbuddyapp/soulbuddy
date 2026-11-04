@@ -57,5 +57,22 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perHour(90)->by('goal-action-suggestion:ip-hour:'.$request->ip()),
             ];
         });
+        // Adding is deliberately explicit and rare; an add is idempotent anyway.
+        RateLimiter::for('prayer-release-adds', function (Request $request): array {
+            $userKey = (string) ($request->user()?->public_id ?? 'guest');
+
+            return [
+                Limit::perHour(20)->by('prayer-release-add:user-hour:'.$userKey),
+                Limit::perHour(60)->by('prayer-release-add:ip-hour:'.$request->ip()),
+            ];
+        });
+        RateLimiter::for('prayer-release-preferences', function (Request $request): array {
+            $userKey = (string) ($request->user()?->public_id ?? 'guest');
+
+            return [
+                Limit::perHour(30)->by('prayer-release-preference:user-hour:'.$userKey),
+                Limit::perHour(90)->by('prayer-release-preference:ip-hour:'.$request->ip()),
+            ];
+        });
     }
 }

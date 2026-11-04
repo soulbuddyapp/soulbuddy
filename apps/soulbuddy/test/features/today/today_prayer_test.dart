@@ -8,6 +8,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/core/presentation/covenant_slabs.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 import 'package:soulbuddy/features/goals/providers/goal_today_providers.dart';
 import 'package:soulbuddy/features/prayers/data/prayer_practice_repository.dart';
@@ -29,11 +33,97 @@ import 'package:soulbuddy/features/scripture/providers/daily_scripture_providers
 import '../../helpers/in_memory_prayer_repository.dart';
 
 final _dailyScripture = DailyScripture.fromJson({
-  ...(jsonDecode(File('assets/content/daily_scriptures.json').readAsStringSync()) as List).first as Map<String, dynamic>,
+  ...(jsonDecode(
+                File('assets/content/daily_scriptures.json').readAsStringSync(),
+              )
+              as List)
+          .first
+      as Map<String, dynamic>,
   'date': '2026-09-11',
 });
 
+class _TodayRecorder implements AudioRecorderGateway {
+  bool started = false;
+  @override
+  Stream<double> get amplitudes => const Stream.empty();
+  @override
+  bool get canPause => true;
+  @override
+  Future<bool> requestPermission() async => true;
+  @override
+  Future<void> start(TemporaryAudio temporary) async {
+    started = true;
+  }
+
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> resume() async {}
+  @override
+  Future<AudioRecorderResult> stop() async =>
+      const AudioRecorderResult(locator: '/take', mimeType: 'audio/mp4');
+  @override
+  Future<void> cancel() async {}
+  @override
+  Future<void> discard(AudioRecorderResult result) async {}
+  @override
+  Future<void> dispose() async {}
+}
+
 void main() {
+  testWidgets('Reflect opens preparation before starting the microphone', (
+    tester,
+  ) async {
+    final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
+    final recorder = _TodayRecorder();
+    final audio = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async =>
+          const TemporaryAudio(key: 'take', locator: '/take'),
+    );
+    addTearDown(repository.close);
+    addTearDown(audio.close);
+    await _pumpToday(tester, repository: repository, audioController: audio);
+    await tester.ensureVisible(find.text('Reflect'));
+    await tester.tap(find.text('Reflect'));
+    await tester.pump();
+    expect(recorder.started, isFalse);
+    expect(find.text('Record reflection'), findsOneWidget);
+    await tester.ensureVisible(find.text('Record reflection'));
+    await tester.tap(find.text('Record reflection'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(recorder.started, isTrue);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 600));
+    await tester.pump();
+    await tester.tap(find.text('Daily scripture'), warnIfMissed: false);
+    await tester.pump();
+    expect(find.text('Daily scripture destination'), findsNothing);
+    await audio.cancel();
+  });
+
+  testWidgets('home prayer and scripture shortcuts return to Today', (
+    tester,
+  ) async {
+    final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
+    addTearDown(repository.close);
+    await _pumpToday(tester, repository: repository);
+    await tester.ensureVisible(find.text('Quiet prayer'));
+    await tester.tap(find.text('Quiet prayer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Quiet prayer destination'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Quiet prayer'), findsOneWidget);
+    await tester.ensureVisible(find.text('Scripture'));
+    await tester.tap(find.text('Scripture'));
+    await tester.pumpAndSettle();
+    expect(find.text('Daily scripture destination'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Quiet prayer'), findsOneWidget);
+  });
+
   test('Today date and prayer providers are autoDispose', () {
     expect(todayPrayerDateProvider.isAutoDispose, isTrue);
     expect(todayPrayerProvider.isAutoDispose, isTrue);
@@ -52,10 +142,6 @@ void main() {
     expect(find.byKey(const Key('today-covenant-slabs')), findsOneWidget);
     expect(find.byType(CovenantSlabs), findsOneWidget);
     expect(find.text('What would you like help with?'), findsOneWidget);
-    expect(
-      find.text('Begin with one thing you want to seek, change, or carry.'),
-      findsOneWidget,
-    );
     expect(find.text('Start a Goal'), findsOneWidget);
     expect(find.text('Choose a prayer'), findsNothing);
     expect(find.text('Record something'), findsOneWidget);
@@ -131,18 +217,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('guided start opens Remember from its secondary action', (
+  testWidgets('guided start records inline from its secondary action', (
     tester,
   ) async {
     final repository = InMemoryPrayerRepository(prayers: const [_prayer]);
+    final recorder = _TodayRecorder();
+    final audio = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async =>
+          const TemporaryAudio(key: 'take', locator: '/take'),
+    );
     addTearDown(repository.close);
-    await _pumpToday(tester, repository: repository);
+    addTearDown(audio.close);
+    await _pumpToday(tester, repository: repository, audioController: audio);
 
     await _scrollTo(tester, const Key('today-record-memory'));
     await tester.tap(find.byKey(const Key('today-record-memory')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Remember destination'), findsOneWidget);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(recorder.started, isTrue);
+    expect(find.byKey(const Key('audio-live-level')), findsOneWidget);
+    expect(find.text('Remember destination'), findsNothing);
+    await audio.cancel();
   });
 
   testWidgets('an existing prayer suppresses the first Goal prompt', (
@@ -182,7 +278,11 @@ void main() {
     expect(find.text('0 of 2 practices completed'), findsOneWidget);
     await _scrollTo(tester, const Key('today-action-done'));
     expect(find.text('Practical action'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text(_prayerAction), 180, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text(_prayerAction),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text(_prayerAction), findsOneWidget);
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
     await _scrollTo(tester, const Key('today-action-done'));
@@ -211,7 +311,11 @@ void main() {
     expect(repository.completedTodayPrayerId, _prayer.id);
     expect(repository.completedTodayValue, isTrue);
     expect(find.byType(Checkbox), findsNothing);
-    await tester.scrollUntilVisible(find.text(_prayerAction), 180, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text(_prayerAction),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text(_prayerAction), findsOneWidget);
     _expectNoGamification(tester);
   });
@@ -248,8 +352,11 @@ void main() {
       ),
     );
     expect(find.text('1 of 2 practices completed'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('${_prayer.title} · Prayed'), 180,
-      scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text('${_prayer.title} · Prayed'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('${_prayer.title} · Prayed'), findsOneWidget);
   });
 
@@ -336,7 +443,11 @@ void main() {
     repository.release();
     await tester.pumpAndSettle();
     expect(find.byType(Checkbox), findsNothing);
-    await tester.scrollUntilVisible(find.text(_prayerAction), 180, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+      find.text(_prayerAction),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text(_prayerAction), findsOneWidget);
     expect(
       tester
@@ -654,6 +765,7 @@ Future<void> _pumpToday(
   Stream<int>? resumeStream,
   TextScaler textScaler = TextScaler.noScaling,
   bool includeShellNavigation = false,
+  AudioCaptureController? audioController,
 }) async {
   final resolvedPracticeRepository =
       practiceRepository ?? _TodayPracticeRepository();
@@ -686,14 +798,29 @@ Future<void> _pumpToday(
       ),
       GoRoute(
         path: '/prayers',
-        builder: (context, state) => const Scaffold(
-          body: Center(child: Text('Prayer library destination')),
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(),
+          body: const Center(child: Text('Prayer library destination')),
         ),
       ),
       GoRoute(
         path: '/remember/capture',
         builder: (context, state) =>
             const Scaffold(body: Center(child: Text('Remember destination'))),
+      ),
+      GoRoute(
+        path: '/scripture/daily',
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(),
+          body: const Text('Daily scripture destination'),
+        ),
+      ),
+      GoRoute(
+        path: '/prayer/quiet',
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(),
+          body: const Text('Quiet prayer destination'),
+        ),
       ),
       GoRoute(
         path: '/welcome/goal',
@@ -707,6 +834,10 @@ Future<void> _pumpToday(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (audioController != null)
+          inlineAudioCaptureControllerProvider.overrideWith(
+            (ref, key) async => audioController,
+          ),
         dailyScriptureProvider.overrideWith((_) async => _dailyScripture),
         personalPrayersProvider.overrideWith(
           (ref) => Stream.value(const <PersonalPrayer>[]),

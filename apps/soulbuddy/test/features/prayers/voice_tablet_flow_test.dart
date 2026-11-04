@@ -8,18 +8,235 @@ import 'package:soulbuddy/core/playback/spiritual_session.dart';
 import 'package:soulbuddy/core/playback/spiritual_session_controller.dart';
 import 'package:soulbuddy/core/playback/spiritual_session_providers.dart';
 import 'package:soulbuddy/features/prayers/domain/voice_tablet.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_reference.dart';
+import 'package:soulbuddy/features/prayers/domain/prayer_session.dart';
+import 'package:soulbuddy/features/prayers/data/prayer_practice_repository.dart';
 import 'package:soulbuddy/features/prayers/data/voice_tablet_repository.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_player.dart';
 import 'package:soulbuddy/features/prayers/presentation/voice_tablet_sheet.dart';
 import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
 import 'package:soulbuddy/features/record/audio/application/audio_recorder.dart';
 import 'package:soulbuddy/features/record/audio/application/memory_audio_player.dart';
+import 'package:soulbuddy/features/record/audio/application/memory_soundscape_player.dart';
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/data/memory_soundscape_preferences.dart';
 import 'package:soulbuddy/features/record/audio/domain/memory_audio.dart';
+import 'package:soulbuddy/features/record/audio/domain/memory_soundscape.dart';
 import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
 
 void main() {
+  testWidgets(
+    'inline prayer recorder can close when storage initialization fails',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            voiceTabletForSourceProvider.overrideWith(
+              (ref, source) => Stream.value(null),
+            ),
+            voiceTabletAudioCaptureControllerProvider.overrideWith(
+              (ref, kind) async => throw StateError('storage unavailable'),
+            ),
+            audioAssetStoreProvider.overrideWith(
+              (ref) async => throw StateError('storage unavailable'),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: VoiceTabletSection(
+                  source: VoiceTabletSourceTest.personal,
+                  title: 'Prayer',
+                  prayerBody: 'A prayer',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record in my voice'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text('Record in my voice'), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'inline recorder stays mounted until saved-take cleanup finishes',
+    (tester) async {
+      final stream = StreamController<VoiceTablet?>.broadcast();
+      final gate = Completer<void>();
+      final store = _DelayedCleanupAudioStore(gate);
+      final repository = _EmittingVoiceTabletRepository(stream);
+      final recorder = _CaptureRecorder(['temporary/full.m4a']);
+      final controller = AudioCaptureController(
+        recorder: recorder,
+        allocateTemporary: () async => const TemporaryAudio(
+          key: 'temporary/full.m4a',
+          locator: 'temporary/full.m4a',
+        ),
+      );
+      final busy = <bool>[];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            voiceTabletForSourceProvider.overrideWith((ref, source) async* {
+              yield null;
+              yield* stream.stream;
+            }),
+            voiceTabletAudioCaptureControllerProvider.overrideWith(
+              (ref, kind) async => controller,
+            ),
+            audioAssetStoreProvider.overrideWith((ref) async => store),
+            voiceTabletRepositoryProvider.overrideWith(
+              (ref) async => repository,
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: VoiceTabletSection(
+                  source: VoiceTabletSourceTest.personal,
+                  title: 'Prayer',
+                  prayerBody: 'A prayer',
+                  onBusyChanged: busy.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record in my voice'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('Stop'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Use recording'));
+      await tester.tap(find.text('Use recording'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save without a refrain'));
+      await tester.tap(find.text('Save without a refrain'));
+      await tester.pump();
+      await tester.pump();
+      expect(busy, [true]);
+      expect(find.text('Saving on this device…'), findsOneWidget);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(busy, [true, false]);
+      await tester.pumpWidget(const SizedBox());
+      unawaited(controller.close());
+      unawaited(stream.close());
+    },
+  );
+  testWidgets('inline prayer recording saves without a refrain', (
+    tester,
+  ) async {
+    final recorder = _CaptureRecorder(['temporary/full.m4a']);
+    final store = _CommittingAudioStore();
+    final repository = _VoiceTabletRepository();
+    final controller = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async => const TemporaryAudio(
+        key: 'temporary/full.m4a',
+        locator: 'temporary/full.m4a',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          voiceTabletForSourceProvider.overrideWith(
+            (ref, source) => Stream.value(null),
+          ),
+          voiceTabletAudioCaptureControllerProvider.overrideWith(
+            (ref, kind) async => controller,
+          ),
+          audioAssetStoreProvider.overrideWith((ref) async => store),
+          voiceTabletRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: VoiceTabletSection(
+                source: VoiceTabletSourceTest.personal,
+                title: 'Prayer',
+                prayerBody: 'A prayer',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record in my voice'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a short refrain'), findsOneWidget);
+    await tester.ensureVisible(find.text('Save without a refrain'));
+    await tester.tap(find.text('Save without a refrain'));
+    await tester.pumpAndSettle();
+    expect(repository.created, hasLength(1));
+    expect(store.committedTemporaryKeys, ['temporary/full.m4a']);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(controller.close());
+  });
+  testWidgets('recording a prayer starts inline on the first tap', (
+    tester,
+  ) async {
+    final recorder = _CaptureRecorder(['temporary/full.m4a']);
+    final controller = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async => const TemporaryAudio(
+        key: 'temporary/full.m4a',
+        locator: 'temporary/full.m4a',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          voiceTabletForSourceProvider.overrideWith(
+            (ref, source) => Stream.value(null),
+          ),
+          voiceTabletAudioCaptureControllerProvider.overrideWith(
+            (ref, kind) async => controller,
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: VoiceTabletSection(
+                source: VoiceTabletSourceTest.personal,
+                title: 'Prayer',
+                prayerBody: 'A prayer',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Record in my voice'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    expect(recorder.starts, 1);
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byKey(const Key('audio-live-level')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    unawaited(controller.close());
+  });
   test('a Voice Tablet track completes the shared playback command', () async {
     final coordinator = MemoryAudioPlaybackCoordinator(
       assetStore: _FakeAudioStore(),
@@ -78,9 +295,20 @@ void main() {
             (ref) async => coordinator,
           ),
           spiritualSessionControllerProvider.overrideWithValue(sessions),
+          memorySoundscapePreferencesProvider.overrideWithValue(_preferences()),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(player: _Background()),
+          ),
+          prayerPracticeRepositoryProvider.overrideWith(
+            (ref) async => _PracticeRepository(),
+          ),
         ],
         child: MaterialApp(
-          home: Scaffold(body: VoiceTabletPlayer(tablet: _tablet())),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: VoiceTabletPlayer(tablet: _tablet()),
+            ),
+          ),
         ),
       ),
     );
@@ -110,6 +338,7 @@ void main() {
           spiritualSessionControllerProvider.overrideWithValue(
             SpiritualSessionController(),
           ),
+          memorySoundscapePreferencesProvider.overrideWithValue(_preferences()),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -148,7 +377,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Your prayer is recorded'), findsOneWidget);
+    expect(find.text('Prayer Refrain'), findsOneWidget);
     expect(find.text('Add a short refrain'), findsOneWidget);
     expect(find.text('Save without a refrain'), findsOneWidget);
     expect(find.textContaining('Prayer Refrain'), findsOneWidget);
@@ -197,7 +426,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Stop'));
       await _settle(tester);
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('Use recording'));
       await _settle(tester);
 
       expect(recorder.discarded, isEmpty);
@@ -253,7 +482,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Stop'));
       await _settle(tester);
-      await tester.tap(find.text('Continue'));
+      await tester.tap(find.text('Use recording'));
       await _settle(tester);
       await tester.tap(find.text('Save without a refrain'));
       await _settle(tester);
@@ -316,8 +545,8 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Stop'));
     await _settle(tester);
-    await tester.ensureVisible(find.text('Continue'));
-    await tester.tap(find.text('Continue'));
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
     await _settle(tester);
     await tester.tap(find.text('Save without a refrain'));
     await _settle(tester);
@@ -347,6 +576,10 @@ void main() {
           memoryAudioPlaybackCoordinatorProvider.overrideWith(
             (ref) async => coordinator,
           ),
+          memorySoundscapePreferencesProvider.overrideWithValue(_preferences()),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) => MemorySoundscapePlaybackCoordinator(player: _Background()),
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -371,6 +604,223 @@ void main() {
     await tester.pump();
     expect(prayed, 1);
   });
+
+  testWidgets(
+    'prayer mix and completion survive leaving the player',
+    (tester) async {
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      final driver = _FakeAudioDriver();
+      final coordinator = MemoryAudioPlaybackCoordinator(
+        assetStore: _FakeAudioStore(),
+        driver: driver,
+      );
+      final sessions = SpiritualSessionController();
+      final background = _Background();
+      final practice = _PracticeRepository();
+      final preferences = _preferences();
+      await preferences.save(
+        'audio-1',
+        const MemorySoundscapeSettings(
+          soundscape: MemorySoundscape.flowingWater,
+          volume: .15,
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            memoryAudioPlaybackCoordinatorProvider.overrideWith(
+              (ref) async => coordinator,
+            ),
+            spiritualSessionControllerProvider.overrideWithValue(sessions),
+            systemPlaybackAvailableProvider.overrideWithValue(true),
+            memorySoundscapePreferencesProvider.overrideWithValue(preferences),
+            memorySoundscapePlaybackProvider.overrideWith(
+              (ref) => MemorySoundscapePlaybackCoordinator(player: background),
+            ),
+            prayerPracticeRepositoryProvider.overrideWith(
+              (ref) async => practice,
+            ),
+            prayerDeviceTimezoneProvider.overrideWithValue(
+              () async => 'Africa/Lagos',
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ValueListenableBuilder<bool>(
+                valueListenable: visible,
+                builder: (context, show, _) => show
+                    ? SingleChildScrollView(
+                        child: VoiceTabletPlayer(tablet: _tablet()),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await _settle(tester);
+      await tester.tap(find.text('Listen'));
+      await _settle(tester);
+      expect(background.playing, true);
+      expect(practice.recorded, isEmpty);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(sessions.state.status, SpiritualSessionStatus.playing);
+      expect(background.playing, true);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      visible.value = false;
+      await tester.pump();
+
+      driver.positions.add(const Duration(seconds: 8));
+      await tester.pump();
+      expect(sessions.state.position, const Duration(seconds: 8));
+      driver.statuses.add(MemoryAudioDriverStatus.paused);
+      await tester.pump();
+      expect(background.playing, false);
+      expect(sessions.state.status, SpiritualSessionStatus.paused);
+      await _pumpPlaybackOperation(
+        tester,
+        sessions.resume(),
+        stage: 'resume prayer with its background after focus loss',
+      );
+      expect(background.playing, true);
+      driver.statuses.add(MemoryAudioDriverStatus.completed);
+      await tester.pump();
+      expect(background.playing, false);
+      expect(sessions.state.session, isNull);
+
+      visible.value = true;
+      await _settle(tester);
+      await tester.tap(find.text('Listen'));
+      await _settle(tester);
+      visible.value = false;
+      await tester.pump();
+      await _pumpPlaybackOperation(
+        tester,
+        sessions.complete(),
+        stage: 'record prayer completion after leaving its player',
+      );
+
+      expect(background.playing, false);
+      expect(practice.recorded.single.id, 'prayer-1');
+      expect(practice.timezone, 'Africa/Lagos');
+      expect(tester.takeException(), isNull);
+
+      // Close while the widget test still pumps its fake-async zone. A registered
+      // teardown runs afterward and cannot drain these queued player operations.
+      await _pumpPlaybackOperation(
+        tester,
+        coordinator.close(),
+        stage: 'dispose prayer playback after navigation',
+        describePending: driver.describeShutdown,
+      );
+      expect(driver.disposeCompleted, isTrue);
+      expect(driver.hasListeners, isFalse);
+      sessions.dispose();
+      coordinator.dispose();
+    },
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+}
+
+Future<void> _pumpPlaybackOperation(
+  WidgetTester tester,
+  Future<void> operation, {
+  required String stage,
+  String Function()? describePending,
+}) async {
+  var completed = false;
+  Object? failure;
+  StackTrace? failureStack;
+  unawaited(
+    operation.then<void>(
+      (_) {
+        completed = true;
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        failure = error;
+        failureStack = stackTrace;
+        completed = true;
+      },
+    ),
+  );
+  for (var frame = 0; frame < 20 && !completed; frame += 1) {
+    // Broadcast subscription cancellation can return Dart's shared root-zone
+    // future. Its continuation needs a real turn as well as a fake frame.
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  expect(
+    completed,
+    isTrue,
+    reason: 'Timed out trying to $stage. ${describePending?.call() ?? ''}',
+  );
+  if (failure case final error?) {
+    Error.throwWithStackTrace(error, failureStack!);
+  }
+}
+
+MemorySoundscapePreferences _preferences() {
+  final values = <String, String>{};
+  return MemorySoundscapePreferences(
+    read: (key) async => values[key],
+    write: (key, value) async => values[key] = value,
+  );
+}
+
+class _Background implements MemorySoundscapePlayer {
+  bool playing = false;
+
+  @override
+  Future<void> start(
+    MemorySoundscape soundscape, {
+    required double volume,
+  }) async {
+    playing = soundscape != MemorySoundscape.quiet;
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {}
+
+  @override
+  Future<void> stop() async => playing = false;
+
+  @override
+  Future<void> dispose() async => playing = false;
+}
+
+class _PracticeRepository implements PrayerPracticeRepository {
+  final recorded = <PrayerReference>[];
+  String? timezone;
+
+  @override
+  Future<PrayerSession> recordSession({
+    required PrayerReference prayer,
+    required String timezone,
+    String? revisionId,
+    String? reminderId,
+    String? occurrenceKey,
+    String? idempotencyKey,
+  }) async {
+    recorded.add(prayer);
+    this.timezone = timezone;
+    return PrayerSession(
+      id: 'session-${recorded.length}',
+      ownerId: 'owner-1',
+      prayer: prayer,
+      prayerRevisionId: revisionId,
+      source: PrayerSessionSource.manual,
+      occurredAt: DateTime.utc(2026, 11, 3),
+      localDate: DateTime(2026, 11, 3),
+      timezone: timezone,
+      deviceId: 'device-1',
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<void> _settle(WidgetTester tester) async {
@@ -453,6 +903,16 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
   final positions = StreamController<Duration>.broadcast();
   final durations = StreamController<Duration>.broadcast();
   final statuses = StreamController<MemoryAudioDriverStatus>.broadcast();
+  bool disposeCompleted = false;
+
+  bool get hasListeners =>
+      positions.hasListener || durations.hasListener || statuses.hasListener;
+
+  String describeShutdown() =>
+      'Listeners (position/duration/status): ${positions.hasListener}/'
+      '${durations.hasListener}/${statuses.hasListener}; closed: '
+      '${positions.isClosed}/${durations.isClosed}/${statuses.isClosed}; '
+      'driver disposal completed: $disposeCompleted.';
 
   @override
   Stream<Duration> get durationChanges => durations.stream;
@@ -490,6 +950,7 @@ class _FakeAudioDriver implements MemoryAudioPlayerDriver {
     await positions.close();
     await durations.close();
     await statuses.close();
+    disposeCompleted = true;
   }
 }
 
@@ -499,6 +960,7 @@ class _CaptureRecorder implements AudioRecorderGateway {
   final List<String> results;
   final amplitudesController = StreamController<double>.broadcast();
   final discarded = <String>[];
+  int starts = 0;
 
   @override
   Stream<double> get amplitudes => amplitudesController.stream;
@@ -527,7 +989,9 @@ class _CaptureRecorder implements AudioRecorderGateway {
   Future<void> resume() async {}
 
   @override
-  Future<void> start(TemporaryAudio temporary) async {}
+  Future<void> start(TemporaryAudio temporary) async {
+    starts++;
+  }
 
   @override
   Future<AudioRecorderResult> stop() async =>
@@ -557,6 +1021,27 @@ class _CommittingAudioStore extends _FakeAudioStore {
   @override
   Future<void> delete(String storageKey) async {
     deletedStorageKeys.add(storageKey);
+  }
+}
+
+class _DelayedCleanupAudioStore extends _CommittingAudioStore {
+  _DelayedCleanupAudioStore(this.gate);
+  final Completer<void> gate;
+  @override
+  Future<void> discardTemporary(String locator) async {
+    await gate.future;
+    await super.discardTemporary(locator);
+  }
+}
+
+class _EmittingVoiceTabletRepository extends _VoiceTabletRepository {
+  _EmittingVoiceTabletRepository(this.stream);
+  final StreamController<VoiceTablet?> stream;
+  @override
+  Future<VoiceTablet> create(VoiceTabletCreateRequest request) async {
+    final tablet = await super.create(request);
+    stream.add(tablet);
+    return tablet;
   }
 }
 

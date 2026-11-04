@@ -7,6 +7,8 @@ import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/domain/encounter.dart';
 import '../../record/providers/encounter_providers.dart';
+import 'inline_memory_reflection.dart';
+import 'memory_reflection_content.dart';
 
 class MemoryDetailScreen extends ConsumerStatefulWidget {
   const MemoryDetailScreen({required this.memoryId, super.key});
@@ -18,16 +20,9 @@ class MemoryDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
-  final _controller = TextEditingController();
   bool _saving = false;
   bool _updatingAltar = false;
   bool _archiving = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +64,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   child: SwitchListTile.adaptive(
                     key: const Key('memory-altar-status'),
                     value: memory.isAltar,
-                    onChanged: _updatingAltar
+                    onChanged: _updatingAltar || _saving
                         ? null
                         : (value) => _setAltar(value),
                     secondary: const Icon(Icons.local_fire_department_outlined),
@@ -85,7 +80,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     key: const Key('archive-memory'),
-                    onPressed: _archiving ? null : _confirmArchive,
+                    onPressed: _archiving || _saving ? null : _confirmArchive,
                     icon: const Icon(Icons.archive_outlined),
                     label: Text(_archiving ? 'Archiving…' : 'Archive Memory'),
                   ),
@@ -104,21 +99,11 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                TextField(
-                  key: const Key('memory-reflection-body'),
-                  controller: _controller,
-                  minLines: 3,
-                  maxLines: 7,
-                  maxLength: 4000,
-                  decoration: const InputDecoration(
-                    labelText: 'Add what you understand now',
-                    alignLabelWithHint: true,
-                  ),
-                ),
-                FilledButton(
+                InlineMemoryReflection(
                   key: const Key('memory-save-reflection'),
-                  onPressed: _saving ? null : _save,
-                  child: Text(_saving ? 'Saving…' : 'Save reflection'),
+                  memory: memory,
+                  localDate: DateTime.now().toIso8601String().substring(0, 10),
+                  onBusyChanged: (busy) => setState(() => _saving = busy),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 reflections.when(
@@ -134,7 +119,7 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
                           reflection.localDate,
                           style: Theme.of(context).textTheme.labelMedium,
                         ),
-                        Text(reflection.body),
+                        MemoryReflectionContent(reflection: reflection),
                         const Divider(height: AppSpacing.lg),
                       ],
                     ],
@@ -146,37 +131,6 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
         },
       ),
     );
-  }
-
-  Future<void> _save() async {
-    final body = _controller.text.trim();
-    if (body.isEmpty) return;
-    setState(() => _saving = true);
-    try {
-      final repository = await ref.read(encounterRepositoryProvider.future);
-      final now = DateTime.now();
-      final date =
-          '${now.year.toString().padLeft(4, '0')}-'
-          '${now.month.toString().padLeft(2, '0')}-'
-          '${now.day.toString().padLeft(2, '0')}';
-      await repository.addReflection(
-        widget.memoryId,
-        body: body,
-        localDate: date,
-      );
-      ref.invalidate(memoryReflectionsProvider(widget.memoryId));
-      _controller.clear();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not save this reflection just now.'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 
   Future<void> _setAltar(bool value) async {
@@ -241,3 +195,10 @@ String _label(MemoryType type) => switch (type) {
   MemoryType.leftBehind => 'What I left behind',
   _ => type.name[0].toUpperCase() + type.name.substring(1),
 };
+
+/// Shown when the field's limit cut a dictated reflection short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.

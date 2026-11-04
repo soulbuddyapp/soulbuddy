@@ -32,6 +32,8 @@ class SacredHourSystemNotification {
       await _channel.invokeMethod<void>(method, args);
     } on PlatformException {
       // The practice remains available when Android notifications are disabled.
+    } on MissingPluginException {
+      // Other platforms do not provide the Android service.
     }
   }
 }

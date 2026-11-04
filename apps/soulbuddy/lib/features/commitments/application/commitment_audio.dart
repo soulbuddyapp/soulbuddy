@@ -48,6 +48,7 @@ class CommitmentAudio extends ChangeNotifier {
   Future<void> _commands = Future.value();
   int _epoch = 0;
   bool _disposed = false;
+  bool _notificationScheduled = false;
   bool _sourceReady = false;
   Future<void> Function()? _restart;
   bool playing = false;
@@ -73,7 +74,14 @@ class CommitmentAudio extends ChangeNotifier {
     );
   }
   void _notify() {
-    if (!_disposed) notifyListeners();
+    if (_disposed || _notificationScheduled) return;
+    // A reader can pause and stop this shared player while Flutter unmounts
+    // its old guide. Notify the new reader after that synchronous teardown.
+    _notificationScheduled = true;
+    scheduleMicrotask(() {
+      _notificationScheduled = false;
+      if (!_disposed) notifyListeners();
+    });
   }
 
   Future<void> _enqueue(Future<void> Function() action) {
@@ -202,15 +210,26 @@ class CommitmentAudio extends ChangeNotifier {
   Future<void> setVolume(double value) =>
       _enqueue(() => _player.setVolume(value.clamp(0.0, 1.0)));
 
-  Future<void> stop() {
+  Future<void> stop() => _stop();
+
+  /// Recording must wait for confirmed silence, including queued preparation.
+  /// Ordinary playback errors remain recoverable in the reading surface.
+  Future<void> stopForRecording() => _stop(requireNativeStop: true);
+
+  Future<void> _stop({bool requireNativeStop = false}) async {
     ++_epoch;
     _restart = null;
     _sourceReady = false;
     playing = false;
     _notify();
-    return _enqueue(() async {
+    var stopped = false;
+    await _enqueue(() async {
       await _player.stop();
+      stopped = true;
     });
+    if (requireNativeStop && !stopped) {
+      throw StateError('Instruction audio could not stop');
+    }
   }
 
   @override

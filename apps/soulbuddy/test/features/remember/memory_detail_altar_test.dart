@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
 import 'package:soulbuddy/features/remember/presentation/memory_detail_screen.dart';
 
 import '../../helpers/in_memory_encounter_repository.dart';
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('saved Memory shows and can change its Altar state', (
@@ -25,6 +27,9 @@ void main() {
       ProviderScope(
         overrides: [
           encounterRepositoryProvider.overrideWith((ref) async => repository),
+          // The reflection field now offers the microphone, which resolves
+          // availability on mount.
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
         ],
         child: MaterialApp(home: MemoryDetailScreen(memoryId: memory.id)),
       ),

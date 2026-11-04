@@ -11,8 +11,8 @@ class SacredHourMeditationControls extends StatelessWidget {
   });
 
   final String prompt;
-  final VoidCallback onReflect;
-  final VoidCallback onAnotherReflection;
+  final VoidCallback? onReflect;
+  final VoidCallback? onAnotherReflection;
 
   @override
   Widget build(BuildContext context) => Column(

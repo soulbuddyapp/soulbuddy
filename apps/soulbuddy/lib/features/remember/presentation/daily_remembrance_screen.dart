@@ -7,6 +7,8 @@ import '../../record/domain/encounter.dart';
 import '../../record/audio/presentation/audio_playback_control.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
 import '../../record/providers/encounter_providers.dart';
+import 'inline_memory_reflection.dart';
+import 'memory_reflection_content.dart';
 import '../domain/daily_memory.dart';
 import '../providers/daily_memory_providers.dart';
 
@@ -22,14 +24,7 @@ class DailyRemembranceScreen extends ConsumerStatefulWidget {
 
 class _DailyRemembranceScreenState
     extends ConsumerState<DailyRemembranceScreen> {
-  final _reflectionController = TextEditingController();
   bool _busy = false;
-
-  @override
-  void dispose() {
-    _reflectionController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,24 +102,20 @@ class _DailyRemembranceScreenState
                       const SizedBox(height: AppSpacing.sm),
                       for (final item in items.take(3)) ...[
                         Text(item.localDate),
-                        Text(item.body),
+                        MemoryReflectionContent(reflection: item),
                         const Divider(),
                       ],
                     ],
                   ),
           ),
           const SizedBox(height: AppSpacing.md),
-          TextField(
-            key: const Key('daily-memory-reflection'),
-            controller: _reflectionController,
-            minLines: 2,
-            maxLines: 6,
-            maxLength: 4000,
-            decoration: const InputDecoration(
-              labelText: 'What do you understand now?',
-              alignLabelWithHint: true,
-            ),
+          InlineMemoryReflection(
+            key: const Key('daily-memory-save-reflection'),
+            memory: memory,
+            localDate: widget.localDate,
+            onBusyChanged: (busy) => setState(() => _busy = busy),
           ),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
@@ -135,11 +126,6 @@ class _DailyRemembranceScreenState
                     ? null
                     : () => _setStatus(daily, DailyMemoryStatus.remembered),
                 child: const Text('Remembered'),
-              ),
-              FilledButton(
-                key: const Key('daily-memory-save-reflection'),
-                onPressed: _busy ? null : () => _saveReflection(daily),
-                child: const Text('Add what I understand now'),
               ),
               OutlinedButton(
                 key: const Key('daily-memory-pray'),
@@ -167,24 +153,6 @@ class _DailyRemembranceScreenState
         ],
       ),
     );
-  }
-
-  Future<void> _saveReflection(DailyMemory displayed) async {
-    final body = _reflectionController.text.trim();
-    if (body.isEmpty) return;
-    setState(() => _busy = true);
-    try {
-      final repository = await ref.read(encounterRepositoryProvider.future);
-      await repository.addReflection(
-        displayed.memory.id,
-        body: body,
-        localDate: widget.localDate,
-      );
-      ref.invalidate(memoryReflectionsProvider(displayed.memory.id));
-      _reflectionController.clear();
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
   }
 
   Future<void> _setStatus(
@@ -218,6 +186,13 @@ class _DailyRemembranceScreenState
     }
   }
 }
+
+/// Shown when the field's limit cut a dictated reflection short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
 
 String _prompt(MemoryType type) => switch (type) {
   MemoryType.promise => 'Remember the promise you made before God.',

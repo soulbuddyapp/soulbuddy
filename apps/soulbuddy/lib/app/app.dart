@@ -50,6 +50,7 @@ class SoulBuddyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final audioSession = ref.watch(spiritualSessionControllerProvider);
     ref.watch(prayerReminderCoordinatorProvider);
     ref.watch(altarReminderCoordinatorProvider);
     ref.watch(personPrayerReminderCoordinatorProvider);
@@ -145,13 +146,17 @@ class SoulBuddyApp extends ConsumerWidget {
                       child: SafeArea(
                         top: false,
                         child: ListenableBuilder(
-                          listenable: appRouter.routerDelegate,
+                          listenable: Listenable.merge([
+                            appRouter.routerDelegate,
+                            audioSession,
+                          ]),
                           builder: (context, _) {
                             final uri = appRouter
                                 .routerDelegate
                                 .currentConfiguration
                                 .uri;
-                            if (AppOverlayVisibility.hideGlobalOverlays(uri)) {
+                            if (audioSession.isCapturing ||
+                                AppOverlayVisibility.hideGlobalOverlays(uri)) {
                               return const SizedBox.shrink();
                             }
                             return Column(

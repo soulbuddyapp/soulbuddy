@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
+import 'package:soulbuddy/core/speech/sayable_field.dart';
 import 'package:soulbuddy/features/circles/data/circle_directory_repository.dart';
 import 'package:soulbuddy/features/circles/data/circle_reminder_repository.dart';
 import 'package:soulbuddy/features/circles/data/legacy_circle_migration_repository.dart';
@@ -17,6 +19,8 @@ import 'package:soulbuddy/features/record/data/encounter_repository.dart';
 import 'package:soulbuddy/features/record/domain/encounter.dart';
 import 'package:soulbuddy/features/record/domain/encounter_draft.dart';
 import 'package:soulbuddy/features/record/providers/encounter_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('discovers external Circles and exposes no chat composer', (
@@ -71,6 +75,11 @@ void main() {
     await tester.tap(find.byKey(const Key('create-circle')));
     await tester.pumpAndSettle();
     expect(find.text('Create a Circle'), findsWidgets);
+    final purpose = tester.widget<SayableField>(
+      find.byKey(const Key('circle-description-field')),
+    );
+    expect(purpose.maxLength, 120);
+    expect(purpose.maxLines, 1);
     await tester.enterText(
       find.byKey(const Key('circle-name-field')),
       'Close friends',
@@ -125,6 +134,43 @@ void main() {
       expect(repository.created, isNull);
     },
   );
+
+  testWidgets('saving settings preserves an earlier long purpose', (
+    tester,
+  ) async {
+    final earlier = List.filled(
+      5,
+      'We meet to pray and walk together.',
+    ).join(' ');
+    final repository = _FakeDirectoryRepository([
+      _publicCircle(isOwner: true, description: earlier),
+    ]);
+    await _pumpCircles(
+      tester,
+      repository: repository,
+      initialLocation: '/circles/circle-public-1',
+    );
+    await tester.ensureVisible(find.text('Edit Circle'));
+    await tester.tap(find.text('Edit Circle'));
+    await tester.pumpAndSettle();
+
+    final purpose = tester.widget<SayableField>(
+      find.byKey(const Key('circle-description-field')),
+    );
+    expect(purpose.controller.text, isEmpty);
+    expect(find.text('Earlier purpose'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('circle-name-field')),
+      'Prayer friends',
+    );
+    final save = find.byKey(const Key('confirm-create-circle'));
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    expect(repository.circles.single.name, 'Prayer friends');
+    expect(repository.circles.single.description, earlier);
+  });
 
   testWidgets('publishes an owned draft without undoing moderator delisting', (
     tester,
@@ -303,6 +349,9 @@ Future<void> _pumpCircles(
           (ref) => launcher ?? ((_) async => true),
         ),
         circleReminderRepositoryProvider.overrideWithValue(reminderRepository),
+        // The Circle's purpose now offers the microphone, which resolves
+        // availability when the sheet opens. The name beside it stays a slot.
+        speechRecognizerProvider.overrideWithValue(NoSpeech()),
       ],
       child: MaterialApp.router(
         theme: AppTheme.light(),
@@ -321,11 +370,12 @@ Circle _publicCircle({
   bool isOwner = false,
   CircleStatus status = CircleStatus.active,
   bool directoryListed = true,
+  String description = 'Honest accountability and prayer.',
 }) => Circle(
   publicId: 'circle-public-1',
   name: 'Walk together',
   category: CircleCategory.accountability,
-  description: 'Honest accountability and prayer.',
+  description: description,
   visibility: CircleVisibility.public,
   status: status,
   directoryListed: directoryListed,
@@ -490,6 +540,7 @@ class _FakeEncounterRepository implements EncounterRepository {
     String encounterId, {
     required String body,
     required String localDate,
+    String? audioEncounterId,
   }) => throw UnimplementedError();
 
   @override

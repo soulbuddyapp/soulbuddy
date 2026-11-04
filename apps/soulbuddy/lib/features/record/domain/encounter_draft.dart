@@ -14,6 +14,8 @@ class EncounterDraft {
     this.recallIntervalDays = 7,
     this.audio,
     this.personIds = const [],
+    this.voiceNoteContext,
+    this.reflectionParentId,
   });
 
   final String title;
@@ -27,4 +29,6 @@ class EncounterDraft {
   final int recallIntervalDays;
   final MemoryAudioDraft? audio;
   final List<String> personIds;
+  final ({String type, String id, String field})? voiceNoteContext;
+  final String? reflectionParentId;
 }

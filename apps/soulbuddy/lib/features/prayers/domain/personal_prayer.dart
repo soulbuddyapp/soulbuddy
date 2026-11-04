@@ -1,6 +1,19 @@
 import 'library_prayer.dart';
 import 'prayer_reference.dart';
 
+enum PersonalPrayerContentFormat {
+  text,
+  audio;
+
+  static PersonalPrayerContentFormat fromWire(String? value) => switch (value) {
+    null || 'text' => PersonalPrayerContentFormat.text,
+    'audio' => PersonalPrayerContentFormat.audio,
+    _ => throw FormatException(
+      'Unknown personal prayer content format: $value',
+    ),
+  };
+}
+
 class PersonalPrayer implements PrayerDisplay {
   const PersonalPrayer({
     required this.id,
@@ -14,6 +27,7 @@ class PersonalPrayer implements PrayerDisplay {
     required this.body,
     required this.createdAt,
     required this.updatedAt,
+    this.contentFormat = PersonalPrayerContentFormat.text,
     this.action,
     this.archivedAt,
   });
@@ -30,6 +44,8 @@ class PersonalPrayer implements PrayerDisplay {
   @override
   final PrayerPurpose purpose;
   final String currentRevisionId;
+  final PersonalPrayerContentFormat contentFormat;
+  bool get isAudio => contentFormat == PersonalPrayerContentFormat.audio;
   @override
   final String body;
   @override
@@ -57,6 +73,9 @@ class PersonalPrayer implements PrayerDisplay {
       grounding: PrayerGrounding.fromWire(row['grounding'] as String),
       purpose: PrayerPurpose.fromWire(row['purpose'] as String),
       currentRevisionId: row['current_revision_id'] as String,
+      contentFormat: PersonalPrayerContentFormat.fromWire(
+        row['content_format'] as String?,
+      ),
       body: row['body'] as String,
       action: row['action'] as String?,
       createdAt: DateTime.parse(row['created_at'] as String),

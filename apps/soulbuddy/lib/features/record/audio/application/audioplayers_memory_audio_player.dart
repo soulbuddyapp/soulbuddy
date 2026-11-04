@@ -6,10 +6,16 @@ import '../data/audio_asset_store.dart';
 import 'memory_audio_player.dart';
 
 class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
-  AudioplayersMemoryAudioPlayerDriver({AudioPlayer Function()? playerFactory})
-    : _playerFactory = playerFactory ?? AudioPlayer.new;
+  AudioplayersMemoryAudioPlayerDriver({
+    AudioPlayer Function()? playerFactory,
+    Future<bool> Function(bool)? setFocus,
+  }) : _playerFactory = playerFactory ?? AudioPlayer.new,
+       _setFocus = setFocus;
 
   final AudioPlayer Function() _playerFactory;
+  final Future<bool> Function(bool)? _setFocus;
+  Future<void> _focusTail = Future.value();
+  int _focusEpoch = 0;
   final Map<String, AudioPlayer> _players = {};
   final Map<String, List<StreamSubscription<Object?>>> _subscriptions = {};
   final StreamController<Duration> _durations =
@@ -38,7 +44,10 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
     try {
       // Keep the prepared source attached after completion so the same memory
       // can be replayed without reopening its private bytes.
-      await prepareVoicePlaybackPlayer(player);
+      await prepareVoicePlaybackPlayer(
+        player,
+        externalFocus: _setFocus != null,
+      );
       await _setSource(player, source);
     } catch (_) {
       await player.dispose();
@@ -54,6 +63,9 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
       }),
       player.onPlayerStateChanged.listen((value) {
         if (_currentAssetId == assetId) {
+          if (value == PlayerState.completed || value == PlayerState.stopped) {
+            unawaited(_releaseFocus().catchError((Object _) {}));
+          }
           _statuses.add(_status(value));
         }
       }),
@@ -81,7 +93,13 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
       player = _players[assetId]!;
     }
     _currentAssetId = assetId;
-    await player.resume();
+    await _acquireFocus();
+    try {
+      await player.resume();
+    } catch (_) {
+      await _releaseFocus();
+      rethrow;
+    }
   }
 
   Future<void> _setSource(AudioPlayer player, AudioPlaybackSource source) =>
@@ -94,19 +112,34 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
       });
 
   @override
-  Future<void> pause() async => _current?.pause();
+  Future<void> pause() async {
+    await _current?.pause();
+    await _releaseFocus();
+  }
 
   @override
-  Future<void> resume() async => _current?.resume();
+  Future<void> resume() async {
+    await _acquireFocus();
+    try {
+      await _current?.resume();
+    } catch (_) {
+      await _releaseFocus();
+      rethrow;
+    }
+  }
 
   @override
   Future<void> seek(Duration position) async => _current?.seek(position);
 
   @override
-  Future<void> stop() async => _current?.stop();
+  Future<void> stop() async {
+    await _current?.stop();
+    await _releaseFocus();
+  }
 
   @override
   Future<void> dispose() async {
+    await _releaseFocus();
     for (final subscriptions in _subscriptions.values) {
       for (final subscription in subscriptions) {
         await subscription.cancel();
@@ -121,16 +154,45 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
     await _durations.close();
     await _statuses.close();
   }
+
+  Future<void> _acquireFocus() {
+    if (_setFocus == null) return Future.value();
+    final epoch = ++_focusEpoch;
+    return _queueFocus(() async {
+      if (epoch == _focusEpoch && !await _setFocus(true)) {
+        throw StateError('Audio focus unavailable.');
+      }
+    });
+  }
+
+  Future<void> _releaseFocus() {
+    if (_setFocus == null) return Future.value();
+    final epoch = _focusEpoch;
+    return _queueFocus(() async {
+      if (epoch == _focusEpoch) await _setFocus(false);
+    });
+  }
+
+  Future<void> _queueFocus(Future<void> Function() action) {
+    final operation = _focusTail.then((_) => action());
+    _focusTail = operation.catchError((Object _) {});
+    return operation;
+  }
 }
 
-Future<void> prepareVoicePlaybackPlayer(AudioPlayer player) async {
+Future<void> prepareVoicePlaybackPlayer(
+  AudioPlayer player, {
+  bool externalFocus = false,
+}) async {
   await player.setPlayerMode(PlayerMode.mediaPlayer);
   await player.setAudioContext(
     AudioContext(
-      android: const AudioContextAndroid(
+      android: AudioContextAndroid(
         contentType: AndroidContentType.speech,
         usageType: AndroidUsageType.media,
-        audioFocus: AndroidAudioFocus.gain,
+        audioFocus: externalFocus
+            ? AndroidAudioFocus.none
+            : AndroidAudioFocus.gain,
       ),
       iOS: AudioContextIOS(category: AVAudioSessionCategory.playback),
     ),

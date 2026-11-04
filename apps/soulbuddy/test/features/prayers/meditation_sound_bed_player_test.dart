@@ -16,11 +16,13 @@ void main() {
         volume: .18,
       );
       await audio.preparing.future;
-      await player.stop();
+      final stopping = player.stop();
       audio.ready.complete();
       await starting;
+      await stopping;
       expect(audio.playing, false);
       expect(audio.playCalls, 0);
+      expect(audio.context?.android.audioFocus, AndroidAudioFocus.none);
     },
   );
 }
@@ -30,6 +32,13 @@ class _Audio implements AudioPlayer {
   final ready = Completer<void>();
   bool playing = false;
   int playCalls = 0;
+  AudioContext? context;
+
+  @override
+  Future<void> setPlayerMode(PlayerMode mode) async {}
+
+  @override
+  Future<void> setAudioContext(AudioContext value) async => context = value;
 
   @override
   Future<void> stop() async => playing = false;

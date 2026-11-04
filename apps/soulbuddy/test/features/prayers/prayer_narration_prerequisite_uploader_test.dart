@@ -10,6 +10,38 @@ import 'package:soulbuddy/features/prayers/data/prayer_narration_prerequisite_up
 import '../../helpers/powersync_test_database.dart';
 
 void main() {
+  test('recorded prayer cannot enter the text narration upload path', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'soulbuddy-recorded-prayer-upload-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final database = await openTestDatabase('${directory.path}/soulbuddy.db');
+    addTearDown(database.close);
+    await _seedPrayer(database.powersync);
+    await database.powersync.execute(
+      "UPDATE personal_prayer_revisions SET content_format = 'audio', "
+      "body = '' WHERE id = ?",
+      [_revisionId],
+    );
+    var requests = 0;
+    final uploader = PrayerNarrationPrerequisiteUploader(
+      database: database.powersync,
+      apiBaseUri: Uri.parse('https://sbuddy.elbiblio.com'),
+      installationId: 'device-1',
+      accessToken: () async => 'token',
+      client: MockClient((_) async {
+        requests++;
+        return http.Response('{}', 500);
+      }),
+    );
+
+    await expectLater(
+      uploader.upload(personalPrayerId: _prayerId, revisionId: _revisionId),
+      throwsA(isA<Exception>()),
+    );
+    expect(requests, 0);
+  });
+
   test(
     'uploads only the selected prayer and exact immutable revision',
     () async {

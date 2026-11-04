@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/goals/data/goal_meditation_repository.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/domain/goal_meditation_plan.dart';
@@ -9,6 +10,9 @@ import 'package:soulbuddy/features/goals/providers/goal_meditation_providers.dar
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 import 'package:soulbuddy/features/kingdom/providers/kingdom_course_providers.dart';
 import 'package:soulbuddy/features/prayers/application/meditation_sound_preferences.dart';
+import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('a saved meditation time begins without repeating setup', (
@@ -40,11 +44,13 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          voiceNotesProvider.overrideWith((ref, context) => Stream.value([])),
           kingdomMeditationReadyProvider.overrideWith((ref) async => true),
           goalProvider(goalId).overrideWith((ref) => Stream.value(goal)),
           goalMeditationPlanProvider(goalId).overrideWith((ref) async => plan),
           goalMeditationEntriesProvider(goalId).overrideWith((ref) async => []),
           goalMeditationRepositoryProvider.overrideWithValue(repository),
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
           meditationSoundPreferencesProvider.overrideWithValue(
             MeditationSoundPreferencesRepository(
               read: (_) async => null,

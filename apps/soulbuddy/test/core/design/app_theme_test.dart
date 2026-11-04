@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/design/app_colors.dart';
 import 'package:soulbuddy/core/design/covenant_grace_tokens.dart';
 
 void main() {
+  test('subtle outlines use the intended light and dark design tokens', () {
+    expect(AppTheme.light().colorScheme.outlineVariant, AppColors.outline);
+    expect(AppTheme.dark().colorScheme.outlineVariant, AppColors.darkOutline);
+  });
   test('provides distinct complete light and dark themes', () {
     final light = AppTheme.light();
     final dark = AppTheme.dark();

@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import '../../../core/presentation/screen_awake.dart';
 import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
+import 'supporting_reading_chip.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../prayers/presentation/inline_spiritual_response_editor.dart';
 import '../../prayers/application/meditation_sound_bed_player.dart';
 import '../../prayers/application/meditation_sound_preferences.dart';
 import '../../prayers/domain/meditation_session.dart';
@@ -39,6 +42,9 @@ class _FormationReadingScreenState
   MeditationSoundBed? _sound;
   double _volume = 0.15;
   bool _completing = false;
+  bool _recordingBusy = false;
+  bool _prayerEditor = false;
+  bool _goalEditor = false;
   String? _passageReadingId;
   Future<ScripturePassage>? _passageFuture;
 
@@ -100,7 +106,7 @@ class _FormationReadingScreenState
         actions: [
           IconButton(
             tooltip: 'All readings',
-            onPressed: () => _showReadings(completed),
+            onPressed: _recordingBusy ? null : () => _showReadings(completed),
             icon: const Icon(Icons.list_alt_outlined),
           ),
         ],
@@ -168,25 +174,42 @@ class _FormationReadingScreenState
                   reading.meditation,
                   Icons.edit_note,
                   'Save a private reflection',
-                  () {
-                    final uri = Uri(
-                      path: '/remember/capture',
-                      queryParameters: {
-                        'mode': 'reflection',
-                        'source': 'formation',
-                        'title': 'Reflection · ${reading.theme}',
-                        'prompt': reading.meditation,
-                      },
-                    );
-                    context.go(uri.toString());
-                  },
+                  () {},
+                  actionControl: VoiceNotesField(
+                    key: ValueKey('formation-reflection-${reading.id}'),
+                    noteContext: (
+                      type: 'formation',
+                      id: reading.id,
+                      field: 'reflection',
+                    ),
+                    title: 'Reflection · ${reading.theme}',
+                    recordLabel: 'Save a private reflection',
+                    showTitle: false,
+                    beforeRecord: () async {
+                      _soundVisible = false;
+                      _soundRevision++;
+                      await _soundPlayer.stop();
+                    },
+                    onBusyChanged: (busy) {
+                      if (mounted) {
+                        setState(() => _recordingBusy = busy);
+                        if (!busy && TickerMode.of(context)) {
+                          _soundVisible = true;
+                          unawaited(_playSelectedSound());
+                        }
+                      }
+                    },
+                  ),
                   controls: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      MeditationSoundPicker(
-                        selected: _sound,
-                        onSelected: _setSound,
-                        onPreview: _previewSound,
+                      IgnorePointer(
+                        ignoring: _recordingBusy,
+                        child: MeditationSoundPicker(
+                          selected: _sound,
+                          onSelected: _setSound,
+                          onPreview: _previewSound,
+                        ),
                       ),
                       if (_sound != null)
                         Slider(
@@ -196,11 +219,13 @@ class _FormationReadingScreenState
                           max: 0.3,
                           divisions: 5,
                           label: '${(_volume * 100).round()}%',
-                          onChanged: (value) {
-                            setState(() => _volume = value);
-                            unawaited(_soundPlayer.setVolume(value));
-                            unawaited(_saveSound());
-                          },
+                          onChanged: _recordingBusy
+                              ? null
+                              : (value) {
+                                  setState(() => _volume = value);
+                                  unawaited(_soundPlayer.setVolume(value));
+                                  unawaited(_saveSound());
+                                },
                         ),
                     ],
                   ),
@@ -211,17 +236,18 @@ class _FormationReadingScreenState
                   reading.prayer,
                   Icons.volunteer_activism_outlined,
                   'Save as a prayer',
-                  () {
-                    final uri = Uri(
-                      path: '/prayers/create',
-                      queryParameters: {
-                        'context': '${reading.theme} · ${reading.reference}',
-                        'starter': reading.prayer,
-                        'purpose': 'guidance',
-                      },
-                    );
-                    context.go(uri.toString());
-                  },
+                  () => setState(() => _prayerEditor = true),
+                  actionControl: _prayerEditor
+                      ? InlineSpiritualResponseEditor(
+                          key: ValueKey('prayer-${reading.id}'),
+                          title: 'Prayer · ${reading.theme}',
+                          initialText: reading.prayer,
+                          editorKey: const Key('formation-prayer-editor'),
+                          prayer: true,
+                          enabled: !_recordingBusy,
+                          onCancel: () => setState(() => _prayerEditor = false),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 _responseCard(
@@ -229,16 +255,38 @@ class _FormationReadingScreenState
                   reading.practice,
                   Icons.spa_outlined,
                   'Turn this into a Goal',
-                  () => context.push('/welcome/goal'),
+                  () => setState(() => _goalEditor = true),
+                  actionControl: _goalEditor
+                      ? InlineSpiritualResponseEditor(
+                          key: ValueKey('goal-${reading.id}'),
+                          title: reading.theme,
+                          initialText: reading.practice,
+                          editorKey: const Key('formation-goal-editor'),
+                          prayer: false,
+                          enabled: !_recordingBusy,
+                          onCancel: () => setState(() => _goalEditor = false),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'Further reading: ${reading.supportingReferences.join(' · ')}',
+                  'Further reading',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Wrap(
+                  key: const Key('formation-further-reading'),
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [
+                    for (final label in reading.supportingReferences)
+                      SupportingReadingChip(label: label),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 FilledButton.icon(
                   key: const Key('complete-formation-reading'),
-                  onPressed: _completing
+                  onPressed: _completing || _recordingBusy
                       ? null
                       : () => _complete(reading, index),
                   icon: Icon(
@@ -254,14 +302,16 @@ class _FormationReadingScreenState
                 Row(
                   children: [
                     TextButton(
-                      onPressed: index > 0
+                      onPressed: index > 0 && !_recordingBusy
                           ? () => _open(formationReadings[index - 1])
                           : null,
                       child: const Text('Previous'),
                     ),
                     const Spacer(),
                     TextButton(
-                      onPressed: index + 1 < formationReadings.length
+                      onPressed:
+                          index + 1 < formationReadings.length &&
+                              !_recordingBusy
                           ? () => _open(formationReadings[index + 1])
                           : null,
                       child: const Text('Next'),
@@ -283,6 +333,7 @@ class _FormationReadingScreenState
     String action,
     VoidCallback onPressed, {
     Widget? controls,
+    Widget? actionControl,
   }) => Card(
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -296,11 +347,14 @@ class _FormationReadingScreenState
             const SizedBox(height: AppSpacing.sm),
             controls,
           ],
-          TextButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon),
-            label: Text(action),
-          ),
+          if (actionControl != null)
+            actionControl
+          else
+            TextButton.icon(
+              onPressed: _recordingBusy ? null : onPressed,
+              icon: Icon(icon),
+              label: Text(action),
+            ),
         ],
       ),
     ),
@@ -406,7 +460,7 @@ class _FormationReadingScreenState
   }
 
   void _open(FormationReading reading) =>
-      context.go('/prayers/meditation/${reading.id}');
+      context.pushReplacement('/prayers/meditation/${reading.id}');
 
   void _showReadings(Set<String> completed) => showModalBottomSheet<void>(
     context: context,

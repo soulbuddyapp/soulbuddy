@@ -303,6 +303,13 @@ class PowerSyncGoalOnboardingFinalizer implements GoalOnboardingFinalizer {
           break;
       }
 
+      // Move draft recordings with the same transaction that creates the goal.
+      // A failed save leaves their original context available for retry.
+      await transaction.execute(
+        'UPDATE voice_note_links SET context_id = ? '
+        'WHERE owner_id = ? AND context_type = ? AND context_id = ?',
+        [goalId, normalizedOwnerId, 'goal', 'onboarding'],
+      );
       await transaction.execute(
         'DELETE FROM goal_onboarding_progress WHERE id = ?',
         ['current'],

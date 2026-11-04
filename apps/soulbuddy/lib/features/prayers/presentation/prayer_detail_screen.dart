@@ -4,12 +4,13 @@ import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/design/app_colors.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../altar/presentation/altar_ritual_sheet.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../domain/library_prayer.dart';
 import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
+import '../providers/prayer_release_providers.dart';
 import 'prayer_library_tile.dart';
 import 'use_today_confirmation_sheet.dart';
 import 'voice_tablet_player.dart';
@@ -26,6 +27,15 @@ class PrayerDetailScreen extends ConsumerStatefulWidget {
 
 class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
   var _updatingHelpful = false;
+  var _recordingBusy = false;
+
+  void _back(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/prayers');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,12 +44,12 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
     return prayer.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => _DetailUnavailable(
-        onBack: () => context.go('/prayers'),
+        onBack: () => _back(context),
         onRetry: () => retryPrayerDetailProviders(ref, widget.prayerId),
       ),
       data: (value) {
         if (value == null) {
-          return _PrayerMissing(onBack: () => context.go('/prayers'));
+          return _PrayerMissing(onBack: () => _back(context));
         }
         return ScreenAwake(child: _buildPrayer(context, value));
       },
@@ -58,9 +68,9 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
-                  onPressed: () => context.go('/prayers'),
+                  onPressed: _recordingBusy ? null : () => _back(context),
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Prayers'),
+                  label: const Text('Back'),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -77,37 +87,41 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.xl),
-              Text(
-                prayer.body,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(height: 1.65),
+              VoiceTabletSection(
+                source: VoiceTabletSource.library(prayerId: prayer.id),
+                title: prayer.title,
+                prayerBody: prayer.body,
+                enabled: !_recordingBusy,
+                onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
+                onKeepOnAltar: (tablet) =>
+                    showAltarRitualSheet(context, ref, tablet: tablet),
               ),
-              if (prayer.action case final action?) ...[
-                const SizedBox(height: AppSpacing.xl),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(
-                      AppSpacing.componentRadius,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Suggested action',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(action),
-                      ],
-                    ),
-                  ),
+              const SizedBox(height: AppSpacing.md),
+              VoiceNotesField(
+                noteContext: (
+                  type: 'prayer',
+                  id: prayer.id,
+                  field: 'reflection',
                 ),
-              ],
+                title: 'After prayer',
+                enabled: !_recordingBusy,
+                onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ExpansionTile(
+                title: const Text('Prayer words'),
+                children: [
+                  SelectableText(prayer.body),
+                  if (prayer.action case final action?) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Suggested action',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    SelectableText(action),
+                  ],
+                ],
+              ),
               const SizedBox(height: AppSpacing.xl),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -137,19 +151,32 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.lg),
-              VoiceTabletSection(
-                source: VoiceTabletSource.library(prayerId: prayer.id),
-                title: prayer.title,
-                prayerBody: prayer.body,
-                onKeepOnAltar: (tablet) =>
-                    showAltarRitualSheet(context, ref, tablet: tablet),
-              ),
+              ..._attentionAction(context),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// `Be still before God` appears only where an `affirmation_repetition`
+  /// profile is available for this prayer.
+  List<Widget> _attentionAction(BuildContext context) {
+    final item = ref
+        .watch(prayerReleaseItemContentProvider(widget.prayerId))
+        .value;
+    if (item == null || item.practice == null) return const [];
+
+    return [
+      const SizedBox(height: AppSpacing.lg),
+      FilledButton.tonalIcon(
+        key: const Key('prayer-detail-attention'),
+        onPressed: () =>
+            context.go('/prayers/releases/${item.releaseSlug}/attention'),
+        icon: const Icon(Icons.self_improvement),
+        label: const Text('Be still before God'),
+      ),
+    ];
   }
 
   Future<void> _setHelpful(LibraryPrayer prayer) async {
@@ -211,7 +238,7 @@ class _DetailUnavailable extends StatelessWidget {
       body: 'This prayer could not be opened just now.',
       actions: [
         OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
-        TextButton(onPressed: onBack, child: const Text('Back to Prayers')),
+        TextButton(onPressed: onBack, child: const Text('Back')),
       ],
     );
   }
@@ -227,9 +254,7 @@ class _PrayerMissing extends StatelessWidget {
     return _DetailMessage(
       title: 'Prayer not found',
       body: 'It may no longer be in the library.',
-      actions: [
-        OutlinedButton(onPressed: onBack, child: const Text('Back to Prayers')),
-      ],
+      actions: [OutlinedButton(onPressed: onBack, child: const Text('Back'))],
     );
   }
 }

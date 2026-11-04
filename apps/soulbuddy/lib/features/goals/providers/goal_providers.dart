@@ -54,8 +54,10 @@ final prayerLinkedToGoalProvider = StreamProvider.autoDispose
 final goalOnboardingProgressRepositoryProvider =
     FutureProvider<GoalOnboardingProgressRepository>((ref) async {
       final database = await ref.watch(appDatabaseProvider.future);
+      final identity = await ref.watch(localIdentityProvider.future);
       return PowerSyncGoalOnboardingProgressRepository(
         database: database.powersync,
+        ownerId: identity.ownerId,
       );
     });
 

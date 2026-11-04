@@ -39,16 +39,18 @@ class CommitmentAudioReader extends StatefulWidget {
   const CommitmentAudioReader({
     required this.assetId,
     this.fallback = '',
+    this.audio,
     super.key,
   });
   final String assetId;
   final String fallback;
+  final CommitmentAudio? audio;
   @override
   State<CommitmentAudioReader> createState() => _CommitmentAudioReaderState();
 }
 
 class _CommitmentAudioReaderState extends State<CommitmentAudioReader> {
-  final audio = CommitmentAudio();
+  late final audio = widget.audio ?? CommitmentAudio();
   late Future<CommitmentAudioAsset> _asset;
   @override
   void initState() {
@@ -67,7 +69,11 @@ class _CommitmentAudioReaderState extends State<CommitmentAudioReader> {
 
   @override
   void dispose() {
-    audio.dispose();
+    if (widget.audio == null) {
+      audio.dispose();
+    } else {
+      unawaited(audio.stop());
+    }
     super.dispose();
   }
 

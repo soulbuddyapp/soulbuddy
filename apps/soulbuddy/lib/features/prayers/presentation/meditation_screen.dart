@@ -27,9 +27,10 @@ class MeditationScreen extends ConsumerWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
-                  onPressed: () => context.go('/prayers'),
+                  onPressed: () =>
+                      context.canPop() ? context.pop() : context.go('/prayers'),
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Prayers'),
+                  label: const Text('Back'),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

@@ -63,9 +63,29 @@ class PowerSyncCommitmentFinalizer implements CommitmentFinalizer {
         [ownerId],
       );
       validatePracticeCount(rows.length);
-      final practices = rows.map(CommitmentPracticeDraft.fromRow).toList();
+      final draftPrefix = '$ownerId:';
+      final practices = rows.map((row) {
+        final storedId = row['id'] as String;
+        if (!storedId.startsWith(draftPrefix) ||
+            storedId.length == draftPrefix.length) {
+          throw StateError('Invalid practice draft identity');
+        }
+        // Local draft rows are namespaced by owner. Audio fields and finalized
+        // practice IDs use the original identity exposed by the draft repo.
+        return CommitmentPracticeDraft.fromRow({
+          ...row,
+          'id': storedId.substring(draftPrefix.length),
+        });
+      }).toList();
       for (final practice in practices) {
         text('practice', practice.body);
+        final existingPractice = await tx.getOptional(
+          'SELECT id FROM commitment_practices WHERE id = ?',
+          [practice.id],
+        );
+        if (existingPractice != null) {
+          throw StateError('Practice identity is already in use');
+        }
         if (practice.source == CommitmentPracticeSource.reviewedSuggestion &&
             (practice.suggestionId == null || practice.suggestionId!.isEmpty)) {
           throw ArgumentError('Invalid practice');
@@ -182,7 +202,8 @@ class PowerSyncCommitmentFinalizer implements CommitmentFinalizer {
         await insert(
           'commitment_practices',
           CommitmentPractice(
-            id: _uuid.v7(),
+            // Keep the draft identity so its private audio links remain valid.
+            id: p.id,
             ownerId: ownerId,
             commitmentId: commitmentId,
             goalActionId: actions[i],
@@ -269,6 +290,11 @@ class PowerSyncCommitmentFinalizer implements CommitmentFinalizer {
       await tx.execute(
         "DELETE FROM commitment_personal_prayer_narration_cache WHERE owner_id=? AND commitment_id='draft'",
         [ownerId],
+      );
+      await tx.execute(
+        'UPDATE voice_note_links SET context_id = ? '
+        'WHERE owner_id = ? AND context_type = ? AND context_id = ?',
+        [commitmentId, ownerId, 'commitment', 'journey:primary'],
       );
       await tx.execute(
         'DELETE FROM commitment_journey_progress WHERE owner_id=?',

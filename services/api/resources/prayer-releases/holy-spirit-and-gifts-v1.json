@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "slug": "holy-spirit-and-gifts-v1",
+  "title": "Holy Spirit & gifts for service",
+  "discovery_label": "New prayer collection",
+  "discovery_detail": "Prayer for the Holy Spirit, humble faith, wisdom, courage, and loving service.",
+  "preparation_text": "Come before God without striving to prove yourself. Ask first for the Holy Spirit, receive your dependence on God with humility, and offer your gifts for love and service.",
+  "items": [
+    {
+      "sort_order": 0,
+      "kind": "prayer",
+      "purpose": "daily",
+      "grounding": "general_christian",
+      "language_style": "christian",
+      "action": null,
+      "title": "Affirmative prayer for the Holy Spirit",
+      "body": "Father, above every lesser gift, I ask for the Holy Spirit. Let Your Spirit dwell in me, teach me, sanctify me, and lead me in the way of Jesus Christ. I may be young or unqualified, yet Your Spirit equips and grows every believer who receives You with an obedient heart. Grow in me knowledge of You, faith in Your majestic sovereignty, and humility to remember that without You I am dust. Guard me from every action, doubt, thought, and sin that grieves Your Spirit. Make me ready to love, serve, and bear good fruit. In Jesus’ name, Amen.",
+      "content_sha256": "02f29bf28002f88c271a2e5940077415de2c98e4a04e8ceecbf941bc064e3bb5",
+      "practice": null
+    },
+    {
+      "sort_order": 1,
+      "kind": "prayer",
+      "purpose": "guidance",
+      "grounding": "general_christian",
+      "language_style": "christian",
+      "action": null,
+      "title": "Affirmative prayer for wisdom and discernment",
+      "body": "Holy Spirit, give me wisdom, understanding, counsel, knowledge, courage, reverence, and holy awe. Free my judgment from pride, fear, and selfish desire. Let truth become clear through prayer, Scripture, wise counsel, and the peace of a humble heart. Where I do not yet understand, make me patient. Where You call me to act, make me faithful. Let every gift become service, never self-display. Amen.",
+      "content_sha256": "e344f88c4865e97e55f1123a091de1155cd67760244f657f5148687aea7bb721",
+      "practice": null
+    },
+    {
+      "sort_order": 2,
+      "kind": "prayer",
+      "purpose": "daily",
+      "grounding": "general_christian",
+      "language_style": "christian",
+      "action": null,
+      "title": "Affirmative prayer for faith, courage, and service",
+      "body": "Lord Jesus, make me available to the work of Your kingdom. Increase my faith where I shrink back, strengthen me where I am weak, and fill my hands with mercy for those You place before me. If You give wisdom, healing, encouragement, discernment, or courage, let me carry it with gratitude and humility. I belong to You; make my life a faithful answer to Your love. Amen.",
+      "content_sha256": "7b8ad581b825e439b226bc59d7e0ca7ebb17c96f3a03071e5be472b598d8e478",
+      "practice": null
+    },
+    {
+      "sort_order": 3,
+      "kind": "meditation_prayer",
+      "purpose": "guidance",
+      "grounding": "general_christian",
+      "language_style": "christian",
+      "action": null,
+      "title": "Prayer of attention: receive the Holy Spirit",
+      "body": "Holy Spirit, dwell in me and guide me in the way of Jesus Christ (x10)\nGod’s grace is sufficient; I receive wisdom, courage, humility, and love to serve (x10)\nI reject every thought, action, doubt, and sin that displeases the Holy Spirit (x10)",
+      "content_sha256": "133856675f1bb59be0ea8b7284995dc5677a41312219f4e375f50514720f4a57",
+      "practice": {
+        "mode": "affirmation_repetition",
+        "steps": [
+          {
+            "phrase": "Holy Spirit, dwell in me and guide me in the way of Jesus Christ",
+            "target_count": 10,
+            "source_line": "Holy Spirit, dwell in me and guide me in the way of Jesus Christ (x10)"
+          },
+          {
+            "phrase": "God’s grace is sufficient; I receive wisdom, courage, humility, and love to serve",
+            "target_count": 10,
+            "source_line": "God’s grace is sufficient; I receive wisdom, courage, humility, and love to serve (x10)"
+          },
+          {
+            "phrase": "I reject every thought, action, doubt, and sin that displeases the Holy Spirit",
+            "target_count": 10,
+            "source_line": "I reject every thought, action, doubt, and sin that displeases the Holy Spirit (x10)"
+          }
+        ]
+      }
+    }
+  ]
+}

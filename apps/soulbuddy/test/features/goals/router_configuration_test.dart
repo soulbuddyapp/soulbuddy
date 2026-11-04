@@ -8,6 +8,42 @@ import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import '../../helpers/in_memory_prayer_repository.dart';
 
 void main() {
+  testWidgets('pushed prayer shortcut returns to Today in the actual shell', (
+    tester,
+  ) async {
+    final repository = InMemoryPrayerRepository(prayers: const []);
+    addTearDown(repository.close);
+    addTearDown(() => appRouter.go('/today'));
+    appRouter.go('/today');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          prayerRepositoryProvider.overrideWith((ref) async => repository),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light(),
+          routerConfig: appRouter,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    appRouter.push('/prayers');
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Prayers'), findsWidgets);
+    expect(find.text('Back'), findsOneWidget);
+    await tester.tap(find.text('Back'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(appRouter.routeInformationProvider.value.uri.path, '/today');
+    appRouter.push('/prayers/missing-prayer');
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Prayer not found'), findsOneWidget);
+    await tester.tap(find.text('Back'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(appRouter.routeInformationProvider.value.uri.path, '/today');
+  });
   test('Goals shell constructs with prayer resources preserved', () {
     expect(appRouter, isNotNull);
   });

@@ -11,7 +11,11 @@ The repository contains:
 
 SoulBuddy helps a person choose and pursue a Goal, respond through Today, record meaningful Encounters, remember what matters, and use prayer and Scripture as resources around that path. Spiritual copy shipped by the app is limited to Scripture with provenance, deliberately reviewed editorial content, or the person's own words. Runtime generative prayer writing is retired and no LLM credential is required or supported for prayer creation.
 
-The current prayer flow offers deterministic reviewed prayers or **Write/Speak your own words**. Reviewed prayer assets use stable IDs plus local editorial metadata for provenance, review state, version, publication, archival state, and tags. Historical local generation-request rows remain readable only so older unfinished/accepted content can be recovered safely; new requests cannot be created, queued, dispatched, or retried.
+Choose a reviewed prayer, or **record a prayer in your own voice**. Record and Remember open on the recorder. After a prayer or formation video, the Record action keeps the reflection with that activity. New long-form contributions are recordings; short names and titles are typed. Existing written prayers and memories remain readable.
+
+Play a recorded prayer or memory on its own, or add Stillness or Flowing water and adjust the background volume. Starting the microphone pauses both layers. Recordings stay on the device that captured them; account sync does not back up the audio. See [immersive audio](docs/immersive-audio.md) for supported flows and recovery behavior.
+
+Reviewed prayers retain stable IDs and editorial provenance. Historical generation requests remain read-only for recovery; new ones cannot be created, queued, dispatched, or retried.
 
 SoulBuddy treats prayer and practice as aids to formation, not a way to earn grace or measure holiness. Product decisions should help a person respond to grace, form character, bear outward fruit, and remember what God has done. The app does not turn those aims into a spiritual score, streak, leaderboard, or extra dashboard.
 
@@ -29,7 +33,7 @@ The proposed extension connecting courses to Goal actions, reviewed prayers, Sac
 powershell -ExecutionPolicy Bypass -File tool/prepare_rsvce.ps1
 ```
 
-The source defaults to `C:\dev\catholicdaily-flutter\assets\rsvce.db`. Use `-Source <path>` to select another local copy. The generated asset is ignored by Git. Preparation validates the source, preserves its 73 books and 36,083 verses, and normalizes the derived database to UTF-8 so the same indexed asset works in browser SQLite/WASM.
+The app includes `apps/soulbuddy/assets/scripture/rsvce.db`. To rebuild that asset, the preparation script defaults to `C:\dev\catholicdaily-flutter\assets\rsvce.db`. Use `-Source <path>` to select another local copy. Preparation validates the source, preserves its 73 books and 36,083 verses, and normalizes the derived database to UTF-8 so the same indexed asset works in browser SQLite/WASM.
 
 ## Run Flutter
 
@@ -44,11 +48,15 @@ No API, PowerSync service, or AI provider is required for local recording, Goals
 
 When sync is configured, private records such as Goals, Encounters, personal prayers, prayer revisions, votes, Today selections, and supported practice records use the authenticated Laravel/PowerSync boundary. Reviewed/published bundled editorial prayer wording remains authoritative for its stable IDs: an unprovenanced server row with the same ID cannot silently replace reviewed wording. Canonical-only and legacy library rows remain available through normal library reads.
 
-The Flutter build reads `SOULBUDDY_API_URL` and `SOULBUDDY_POWERSYNC_URL` at compile time. Empty values keep startup in local-only mode. There are no prayer-generation provider, model, prompt, or disclosure dart-defines.
+The Flutter build reads `SOULBUDDY_API_URL` and `SOULBUDDY_POWERSYNC_URL` at compile time. A debug build without either URL runs locally. Release builds default the API URL to `https://sbuddy.elbiblio.com`; private sync also requires a configured PowerSync URL. There are no prayer-generation provider, model, prompt, or disclosure dart-defines.
+
+**Every build must pass both defines.** A build without them runs normally and silently disables every server-backed capability: saved records never upload, prayer-release notices are never recorded, and nothing warns you. `AppConfig.missingConfiguration()` names the absent values, and a debug build prints them at startup, but that is a safety net rather than the mechanism — pass the defines.
+
+`SOULBUDDY_API_URL` alone is enough for saved records to reach Laravel, because uploads are ordinary authenticated posts and need nothing from a sync service. `SOULBUDDY_POWERSYNC_URL` additionally serves records *down* to a device. Without a sync service no user activity has ever reached the server, which is why `formation_activity_events` and `sync_operations` are empty in production.
 
 Saved personal prayers can have once, daily, or selected-day reminders at a local wall time. Reminder schedules and quiet prayer-session records sync privately, while notification enablement remains device-specific. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload.
 
-A saved personal prayer may also use opt-in Deepgram Aura narration. Narration is separate from prayer authorship: only the exact immutable saved-prayer revision is sent after explicit disclosure and consent, encrypted narration audio is cached privately, system notifications never play it, and playback itself never records a prayer session.
+An existing written personal-prayer revision may use opt-in Deepgram Aura narration. Only its exact saved text is sent after explicit disclosure and consent, and the narration is cached privately. A recorded prayer plays the person's original audio; its title is never used to synthesize a replacement. System notifications never play narration, and listening alone does not record a prayer session.
 
 ## Run Laravel
 

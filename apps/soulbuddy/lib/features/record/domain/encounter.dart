@@ -65,6 +65,7 @@ class MemoryReflection {
     required this.localDate,
     required this.createdAt,
     required this.deviceId,
+    this.audioEncounterId,
   });
 
   final String id;
@@ -74,4 +75,5 @@ class MemoryReflection {
   final String localDate;
   final DateTime createdAt;
   final String deviceId;
+  final String? audioEncounterId;
 }

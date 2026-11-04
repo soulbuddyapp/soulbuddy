@@ -14,6 +14,8 @@ import '../../prayers/application/meditation_sound_bed_player.dart';
 import '../../prayers/application/meditation_sound_preferences.dart';
 import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../prayers/presentation/inline_spiritual_response_editor.dart';
 import '../domain/daily_scripture.dart';
 import '../providers/daily_scripture_providers.dart';
 
@@ -33,6 +35,8 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
   bool _visible = false;
   int _revision = 0;
   String? _audioError;
+  bool _recordingBusy = false;
+  bool _prayerEditor = false;
 
   @override
   void dispose() {
@@ -105,6 +109,7 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
   }
 
   void _open(Uri uri) {
+    if (_recordingBusy) return;
     _visibility(false);
     context.push(uri.toString());
   }
@@ -189,7 +194,13 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
               const SizedBox(height: 10),
               Text(scripture.reflection, style: theme.textTheme.bodyLarge),
               const SizedBox(height: 16),
-              MeditationSoundPicker(selected: _sound, onSelected: _chooseSound),
+              IgnorePointer(
+                ignoring: _recordingBusy,
+                child: MeditationSoundPicker(
+                  selected: _sound,
+                  onSelected: _chooseSound,
+                ),
+              ),
               if (_sound != null)
                 Slider(
                   value: _volume,
@@ -197,10 +208,12 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
                   max: .3,
                   divisions: 5,
                   label: '${(_volume * 100).round()}%',
-                  onChanged: (value) {
-                    setState(() => _volume = value);
-                    unawaited(_player.setVolume(value));
-                  },
+                  onChanged: _recordingBusy
+                      ? null
+                      : (value) {
+                          setState(() => _volume = value);
+                          unawaited(_player.setVolume(value));
+                        },
                   onChangeEnd: (_) => unawaited(_saveSound()),
                 ),
               if (_audioError != null)
@@ -208,20 +221,30 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
                   _audioError!,
                   style: TextStyle(color: theme.colorScheme.error),
                 ),
-              TextButton.icon(
-                onPressed: () => _open(
-                  Uri(
-                    path: '/remember/capture',
-                    queryParameters: {
-                      'mode': 'reflection',
-                      'source': 'daily-scripture',
-                      'title': 'Reflection · ${scripture.reference}',
-                      'prompt': scripture.reflection,
-                    },
-                  ),
+              VoiceNotesField(
+                key: ValueKey('scripture-reflection-${scripture.date}'),
+                noteContext: (
+                  type: 'daily_scripture',
+                  id: scripture.date,
+                  field: 'reflection',
                 ),
-                icon: const Icon(Icons.edit_note),
-                label: const Text('Reflect'),
+                title: 'Reflection · ${scripture.reference}',
+                recordLabel: 'Record reflection',
+                showTitle: false,
+                beforeRecord: () async {
+                  _visible = false;
+                  _revision++;
+                  await _player.stop();
+                },
+                onBusyChanged: (busy) {
+                  if (mounted) {
+                    setState(() => _recordingBusy = busy);
+                    if (!busy && TickerMode.of(context)) {
+                      _visible = true;
+                      unawaited(_play());
+                    }
+                  }
+                },
               ),
               const Divider(height: 32),
               Text('Prayer', style: theme.textTheme.titleLarge),
@@ -230,20 +253,24 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
                 scripture.prayer,
                 style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
               ),
-              TextButton.icon(
-                onPressed: () => _open(
-                  Uri(
-                    path: '/prayers/create',
-                    queryParameters: {
-                      'context': '${scripture.theme} · ${scripture.reference}',
-                      'starter': scripture.prayer,
-                      'purpose': 'guidance',
-                    },
-                  ),
+              if (_prayerEditor)
+                InlineSpiritualResponseEditor(
+                  key: ValueKey('scripture-prayer-${scripture.date}'),
+                  editorKey: const Key('scripture-prayer-editor'),
+                  title: 'Prayer · ${scripture.theme}',
+                  initialText: scripture.prayer,
+                  prayer: true,
+                  enabled: !_recordingBusy,
+                  onCancel: () => setState(() => _prayerEditor = false),
+                )
+              else
+                TextButton.icon(
+                  onPressed: _recordingBusy
+                      ? null
+                      : () => setState(() => _prayerEditor = true),
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                  label: const Text('Personal prayer'),
                 ),
-                icon: const Icon(Icons.volunteer_activism_outlined),
-                label: const Text('Personal prayer'),
-              ),
               TextButton.icon(
                 onPressed: () => _open(
                   Uri(
@@ -267,13 +294,15 @@ class _DailyScriptureScreenState extends ConsumerState<DailyScriptureScreen> {
               Text(scripture.practice, style: theme.textTheme.bodyLarge),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () => showDailyPracticeSheet(
-                  context,
-                  initial: scripture.precept == 'guard-the-gate'
-                      ? SpiritualPrecept.guardTheGate
-                      : SpiritualPrecept.strengthForToday,
-                  suggestedAction: scripture.practice,
-                ),
+                onPressed: _recordingBusy
+                    ? null
+                    : () => showDailyPracticeSheet(
+                        context,
+                        initial: scripture.precept == 'guard-the-gate'
+                            ? SpiritualPrecept.guardTheGate
+                            : SpiritualPrecept.strengthForToday,
+                        suggestedAction: scripture.practice,
+                      ),
                 icon: const Icon(Icons.spa_outlined),
                 label: const Text('Daily practice'),
               ),

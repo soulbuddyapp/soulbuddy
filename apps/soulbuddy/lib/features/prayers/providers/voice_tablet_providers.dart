@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/identity/local_identity_providers.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../record/audio/application/audio_capture_controller.dart';
 import '../../record/audio/application/record_plugin_driver.dart';
 import '../../record/audio/domain/memory_audio.dart';
@@ -41,8 +43,22 @@ final voiceTabletProvider = StreamProvider.autoDispose
 final voiceTabletAudioCaptureControllerProvider = FutureProvider.autoDispose
     .family<AudioCaptureController, VoiceTabletAudioKind>((ref, kind) async {
       final assetStore = await ref.watch(audioAssetStoreProvider.future);
+      final session = ref.watch(spiritualSessionControllerProvider);
+      final captureOwner = Object();
+      final microphoneLock = ref.watch(microphoneCaptureLockProvider);
+      ref.read(appFeedbackPreferencesProvider);
       final controller = AudioCaptureController(
         recorder: createRecordPluginAudioRecorder(assetStore),
+        beforeCapture: () async {
+          microphoneLock.acquire(captureOwner);
+          await session.acquireCapture(captureOwner);
+          await pauseAudioForCapture(ref);
+        },
+        afterCapture: () async {
+          session.releaseCapture(captureOwner);
+          microphoneLock.release(captureOwner);
+        },
+        onSilencePaused: () => notifySilencePause(ref),
         allocateTemporary: () => assetStore.allocateTemporary(
           takeId: const Uuid().v7(),
           extension: kIsWeb ? 'webm' : 'm4a',
@@ -51,6 +67,21 @@ final voiceTabletAudioCaptureControllerProvider = FutureProvider.autoDispose
             ? maximumPrayerRefrainDuration
             : maximumMemoryAudioDuration,
       );
-      ref.onDispose(() => unawaited(controller.close()));
+      ref.onDispose(() {
+        unawaited(() async {
+          try {
+            await controller.close();
+          } catch (_) {
+            try {
+              await controller.close();
+            } catch (_) {
+              // The native recorder may still be active. Its capture lease
+              // stays held until shutdown is confirmed, even after disposal.
+            }
+          } finally {
+            controller.dispose();
+          }
+        }());
+      });
       return controller;
     });

@@ -139,6 +139,7 @@ class _FakeEncounterRepository implements EncounterRepository {
     String encounterId, {
     required String body,
     required String localDate,
+    String? audioEncounterId,
   }) => throw UnimplementedError();
 
   @override

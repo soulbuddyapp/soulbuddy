@@ -13,6 +13,7 @@ import '../../prayers/application/meditation_sound_preferences.dart';
 import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/domain/prayer_narration.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
+import '../../record/presentation/inline_memory_recorder.dart';
 import '../application/commitment_audio.dart';
 import '../application/commitment_meditation_session_controller.dart';
 import '../data/commitment_repository.dart';
@@ -189,9 +190,6 @@ class _SessionHostState extends ConsumerState<_SessionHost> {
       guideAsset: _asset,
       initialSoundPreference: _soundPreference,
       onExit: _exit,
-      onRecordMemory: () => context.push(
-        commitmentMemoryUri(_controller.terminalDraft!.localDate).toString(),
-      ),
       onSoundSelected: (sound) => ref
           .read(meditationSoundPreferencesProvider)
           .save(
@@ -244,7 +242,6 @@ class CommitmentSessionView extends StatefulWidget {
     required this.details,
     required this.controller,
     required this.onExit,
-    required this.onRecordMemory,
     this.guideAsset,
     this.onSoundSelected,
     this.initialSoundPreference,
@@ -254,7 +251,6 @@ class CommitmentSessionView extends StatefulWidget {
   final CommitmentMeditationSessionController controller;
   final CommitmentAudioAsset? guideAsset;
   final VoidCallback onExit;
-  final VoidCallback onRecordMemory;
   final Future<void> Function(MeditationSoundBed?)? onSoundSelected;
   final MeditationSoundPreferences? initialSoundPreference;
   @override
@@ -267,6 +263,7 @@ class _CommitmentSessionViewState extends State<CommitmentSessionView> {
   String? _soundError;
   bool _framePending = false;
   bool _soundChosen = false;
+  bool _recordingBusy = false;
   @override
   void initState() {
     super.initState();
@@ -313,6 +310,7 @@ class _CommitmentSessionViewState extends State<CommitmentSessionView> {
   }
 
   Future<void> _exit() async {
+    if (_recordingBusy) return;
     await session.pauseForInterruption();
     if (mounted) widget.onExit();
   }
@@ -718,15 +716,21 @@ class _CommitmentSessionViewState extends State<CommitmentSessionView> {
       _button('Retry saving', () => unawaited(session.retrySave())),
       _space(),
     ],
-    _button(
-      'Record a memory',
-      session.saved
-          ? () async {
-              await session.pauseForInterruption();
-              if (mounted) widget.onRecordMemory();
-            }
-          : null,
+    InlineMemoryRecorder(
+      label: 'Record a memory',
+      enabled: session.saved,
+      initialDate: DateTime.tryParse(session.terminalDraft?.localDate ?? ''),
+      initialTitle: 'Time with God · ${session.terminalDraft?.localDate ?? ''}',
+      privateReflection: true,
+      enableSoundscape: false,
+      beforeStart: session.pauseForInterruption,
+      onBusyChanged: (busy) {
+        if (mounted) setState(() => _recordingBusy = busy);
+      },
     ),
-    TextButton(onPressed: _exit, child: const Text('End')),
+    TextButton(
+      onPressed: _recordingBusy ? null : _exit,
+      child: const Text('End'),
+    ),
   ];
 }

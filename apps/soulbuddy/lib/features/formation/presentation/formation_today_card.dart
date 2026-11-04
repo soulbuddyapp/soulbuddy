@@ -65,7 +65,7 @@ class FormationTodayCard extends ConsumerWidget {
             piece: SacredPiece.scripture,
             orientationCompleted: null,
             action: 'Begin meditation',
-            onPressed: () => context.go('/prayers/meditation'),
+            onPressed: () => context.push('/prayers/meditation'),
           ),
           data: (progress) {
             final next = progress.next(formationReadings);
@@ -83,7 +83,7 @@ class FormationTodayCard extends ConsumerWidget {
               piece: SacredPiece.scripture,
               orientationCompleted: null,
               action: completed == 0 ? 'Begin meditation' : 'Continue reading',
-              onPressed: () => context.go('/prayers/meditation/${next.id}'),
+              onPressed: () => context.push('/prayers/meditation/${next.id}'),
             );
           },
         );

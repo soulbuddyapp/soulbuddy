@@ -32,6 +32,7 @@ import '../../prayers/providers/personal_prayer_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
 import '../../remember/presentation/daily_remembrance_card.dart';
 import '../../remember/providers/daily_memory_providers.dart';
+import '../../record/presentation/inline_memory_recorder.dart';
 import '../../sacred_hours/application/sacred_hour_today_window.dart';
 import '../../sacred_hours/domain/sacred_hour.dart';
 import '../../sacred_hours/presentation/sacred_hour_today_card.dart';
@@ -55,6 +56,8 @@ class TodayScreen extends ConsumerStatefulWidget {
 class _TodayScreenState extends ConsumerState<TodayScreen> {
   var _updatingAction = false;
   var _recordingPrayer = false;
+  var _recordingMemory = false;
+  var _quickReflection = false;
   final _dismissedCompletions = <String>{};
   final _completionTimes = <String, DateTime>{};
   final _altarKey = GlobalKey();
@@ -162,8 +165,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 ).textTheme.labelSmall?.copyWith(letterSpacing: 1.7),
               ),
               const SizedBox(height: 24),
-              const FormationTodayCard(),
-              const DailyScriptureCard(),
+              IgnorePointer(
+                ignoring: _recordingMemory,
+                child: const FormationTodayCard(),
+              ),
+              IgnorePointer(
+                ignoring: _recordingMemory,
+                child: const DailyScriptureCard(),
+              ),
               const SizedBox(height: 22),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -181,7 +190,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         child: SanctuaryPracticeTile(
                           art: SanctuaryArt.prayer,
                           title: 'Quiet prayer',
-                          onTap: () => context.go('/prayers'),
+                          onTap: () {
+                            if (!_recordingMemory) {
+                              context.push('/prayer/quiet');
+                            }
+                          },
                         ),
                       ),
                       SizedBox(
@@ -189,7 +202,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         child: SanctuaryPracticeTile(
                           art: SanctuaryArt.scripture,
                           title: 'Scripture',
-                          onTap: () => context.go('/prayers/meditation'),
+                          onTap: () {
+                            if (!_recordingMemory) {
+                              context.push('/scripture/daily');
+                            }
+                          },
                         ),
                       ),
                       SizedBox(
@@ -197,13 +214,44 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         child: SanctuaryPracticeTile(
                           art: SanctuaryArt.renewal,
                           title: 'Reflect',
-                          onTap: () => context.go('/remember/capture'),
+                          onTap: () {
+                            if (!_recordingMemory) {
+                              setState(() => _quickReflection = true);
+                            }
+                          },
                         ),
                       ),
                     ],
                   );
                 },
               ),
+              if (_quickReflection) ...[
+                const SizedBox(height: AppSpacing.md),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InlineMemoryRecorder(
+                      label: 'Record reflection',
+                      initialTitle: 'Reflection',
+                      privateReflection: true,
+                      onBusyChanged: (busy) {
+                        if (mounted) {
+                          setState(() {
+                            _recordingMemory = busy;
+                            if (!busy) _quickReflection = false;
+                          });
+                        }
+                      },
+                    ),
+                    if (!_recordingMemory)
+                      TextButton(
+                        onPressed: () =>
+                            setState(() => _quickReflection = false),
+                        child: const Text('Cancel'),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 26),
               Text('Today', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 12),
@@ -228,51 +276,84 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ? const SizedBox.shrink()
                     : TodayGuidanceCard(
                         guidance: value,
-                        onOpen: () => context.go(value.route),
+                        onOpen: () {
+                          if (_recordingMemory) return;
+                          if (value.route == '/persons/new' ||
+                              value.route == '/welcome/goal') {
+                            context.push(value.route);
+                          } else {
+                            context.go(value.route);
+                          }
+                        },
+                        actionControl: value.route == '/remember/capture'
+                            ? InlineMemoryRecorder(
+                                buttonKey: const Key('today-guidance-action'),
+                                label: value.actionLabel,
+                                enabled: !_recordingMemory,
+                                onBusyChanged: (busy) {
+                                  if (mounted) {
+                                    setState(() => _recordingMemory = busy);
+                                  }
+                                },
+                              )
+                            : null,
                       ),
               ),
-              const _SacredHourTodaySection(),
+              IgnorePointer(
+                ignoring: _recordingMemory,
+                child: const _SacredHourTodaySection(),
+              ),
               const SizedBox(height: AppSpacing.md),
               if (goalSnapshot != null) ...[
                 if (goalSnapshot.sections.isNotEmpty)
-                  GoalTodaySections(
-                    snapshot: goalSnapshot,
-                    excludedGoalIds: {
-                      for (final section in goalSnapshot.sections)
-                        if (section.goal.starterKey ==
-                            GoalStarterKey.closerToGod)
-                          section.goal.id,
-                    },
-                    onCompleteAction: (item) =>
-                        _completeGoalAction(goalSnapshot, item),
-                    onOpenResource: _openGoalResource,
-                    onCompleteResource: _completeGoalResource,
+                  IgnorePointer(
+                    ignoring: _recordingMemory,
+                    child: GoalTodaySections(
+                      snapshot: goalSnapshot,
+                      excludedGoalIds: {
+                        for (final section in goalSnapshot.sections)
+                          if (section.goal.starterKey ==
+                              GoalStarterKey.closerToGod)
+                            section.goal.id,
+                      },
+                      onCompleteAction: (item) =>
+                          _completeGoalAction(goalSnapshot, item),
+                      onOpenResource: _openGoalResource,
+                      onCompleteResource: _completeGoalResource,
+                    ),
                   )
                 else if (goalSnapshot.activeGoalCount > 0)
-                  const _NoGoalAttention(),
+                  IgnorePointer(
+                    ignoring: _recordingMemory,
+                    child: const _NoGoalAttention(),
+                  ),
                 if (goalSnapshot
                     .resources
                     .dueRemindersOutsideActiveGoals
                     .isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.md),
-                  PrayerReminderCard(
-                    key: ValueKey(
-                      goalSnapshot
+                  IgnorePointer(
+                    ignoring: _recordingMemory,
+                    child: PrayerReminderCard(
+                      key: ValueKey(
+                        goalSnapshot
+                            .resources
+                            .dueRemindersOutsideActiveGoals
+                            .first
+                            .occurrenceKey,
+                      ),
+                      occurrence: goalSnapshot
                           .resources
                           .dueRemindersOutsideActiveGoals
-                          .first
-                          .occurrenceKey,
+                          .first,
+                      dueCount: goalSnapshot
+                          .resources
+                          .dueRemindersOutsideActiveGoals
+                          .length,
+                      reduceMotion:
+                          MediaQuery.maybeOf(context)?.disableAnimations ??
+                          false,
                     ),
-                    occurrence: goalSnapshot
-                        .resources
-                        .dueRemindersOutsideActiveGoals
-                        .first,
-                    dueCount: goalSnapshot
-                        .resources
-                        .dueRemindersOutsideActiveGoals
-                        .length,
-                    reduceMotion:
-                        MediaQuery.maybeOf(context)?.disableAnimations ?? false,
                   ),
                 ],
                 if (goalSnapshot.sections.isNotEmpty ||
@@ -283,19 +364,37 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                         .isNotEmpty)
                   const SizedBox(height: AppSpacing.md),
               ],
-              KeyedSubtree(key: _altarKey, child: const AltarTodaySection()),
+              KeyedSubtree(
+                key: _altarKey,
+                child: IgnorePointer(
+                  ignoring: _recordingMemory,
+                  child: const AltarTodaySection(),
+                ),
+              ),
               SizedBox(height: showStartGuide ? AppSpacing.sm : AppSpacing.md),
               if (showStartGuide)
                 TodayStartGuide(
-                  onStartGoal: () => context.push('/welcome/goal'),
-                  onRecordMemory: () => context.go('/remember/capture'),
+                  onStartGoal: _recordingMemory
+                      ? null
+                      : () => context.push('/welcome/goal'),
+                  recordControl: InlineMemoryRecorder(
+                    buttonKey: const Key('today-record-memory'),
+                    label: 'Record something',
+                    enabled: !_recordingMemory,
+                    onBusyChanged: (busy) {
+                      if (mounted) setState(() => _recordingMemory = busy);
+                    },
+                  ),
                 ),
               if (showLegacyPrayer) ...[
                 if (showStartGuide) const SizedBox(height: AppSpacing.md),
-                _legacyTodayContent(
-                  todayPrayer: todayPrayer,
-                  dailyPractices: dailyPractices,
-                  goalSnapshot: goalSnapshot,
+                IgnorePointer(
+                  ignoring: _recordingMemory,
+                  child: _legacyTodayContent(
+                    todayPrayer: todayPrayer,
+                    dailyPractices: dailyPractices,
+                    goalSnapshot: goalSnapshot,
+                  ),
                 ),
               ],
               if (showDailyMemory) ...[
@@ -310,15 +409,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     ),
                   ),
                   data: (daily) => daily == null
-                      ? Align(
-                          alignment: Alignment.centerLeft,
-                          child: OutlinedButton(
-                            key: const Key('record-something-to-remember'),
-                            onPressed: () => context.go('/remember/capture'),
-                            child: const Text('Record something to remember'),
-                          ),
+                      ? InlineMemoryRecorder(
+                          buttonKey: const Key('record-something-to-remember'),
+                          label: 'Record something to remember',
+                          enabled: !_recordingMemory,
+                          onBusyChanged: (busy) {
+                            if (mounted) {
+                              setState(() => _recordingMemory = busy);
+                            }
+                          },
                         )
-                      : DailyRemembranceCard(dailyMemory: daily),
+                      : IgnorePointer(
+                          ignoring: _recordingMemory,
+                          child: DailyRemembranceCard(dailyMemory: daily),
+                        ),
                 ),
               ],
             ],
@@ -463,17 +567,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     GoalTodayResourceItem item,
     GoalTodayResourceHandle? handle,
   ) async {
-    if (!mounted) return;
+    if (!mounted || _recordingMemory) return;
     switch (handle) {
       case GoalTodayReminderHandle(:final occurrence):
-        context.go('/prayers/saved/${occurrence.reminder.personalPrayerId}');
+        context.push('/prayers/saved/${occurrence.reminder.personalPrayerId}');
       case GoalTodayLinkedPrayerHandle(:final prayer):
         _openPrayerReference(prayer);
       case GoalTodayLegacyPrayerHandle(:final today):
         _openPrayerReference(today.prayer.reference);
       case GoalTodayScriptureHandle(:final link):
         final book = Uri.encodeComponent(link.book!);
-        context.go('/remember/scripture/$book/${link.chapter}');
+        context.push('/remember/scripture/$book/${link.chapter}');
       case null:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('This resource could not be opened.')),
@@ -482,11 +586,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   }
 
   void _openPrayerReference(PrayerReference prayer) {
+    if (_recordingMemory) return;
     final route = switch (prayer.source) {
       PrayerSource.personal => '/prayers/saved/${prayer.id}',
       PrayerSource.library => '/prayers/${prayer.id}',
     };
-    context.go(route);
+    context.push(route);
   }
 
   Future<void> _completeGoalResource(

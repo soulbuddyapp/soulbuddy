@@ -11,11 +11,15 @@ class ScripturePassageScreen extends StatefulWidget {
   const ScripturePassageScreen({
     required this.book,
     required this.chapter,
+    this.firstVerse,
+    this.lastVerse,
     super.key,
   });
 
   final String book;
   final int chapter;
+  final int? firstVerse;
+  final int? lastVerse;
 
   @override
   State<ScripturePassageScreen> createState() => _ScripturePassageScreenState();
@@ -57,6 +61,8 @@ class _ScripturePassageScreenState extends State<ScripturePassageScreen> {
         }
 
         final passage = snapshot.requireData;
+        final first = widget.firstVerse;
+        final last = widget.lastVerse ?? first;
         return SafeArea(
           child: Align(
             alignment: Alignment.topCenter,
@@ -68,9 +74,11 @@ class _ScripturePassageScreenState extends State<ScripturePassageScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: context.pop,
+                      onPressed: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/remember'),
                       icon: const Icon(Icons.arrow_back),
-                      label: const Text('Remember'),
+                      label: const Text('Back'),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -113,7 +121,18 @@ class _ScripturePassageScreenState extends State<ScripturePassageScreen> {
                                     TextSpan(text: verse.text),
                                   ],
                                 ),
-                                style: Theme.of(context).textTheme.bodyLarge,
+                                style: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      backgroundColor:
+                                          first != null &&
+                                              last != null &&
+                                              verse.number >= first &&
+                                              verse.number <= last
+                                          ? AppColors.accent.withValues(
+                                              alpha: .13,
+                                            )
+                                          : null,
+                                    ),
                               ),
                             ),
                         ],

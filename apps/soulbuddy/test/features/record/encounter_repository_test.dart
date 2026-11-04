@@ -180,6 +180,101 @@ void main() {
     },
   );
 
+  test('context and reflection audio are saved atomically', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/atomic.db',
+    );
+    addTearDown(database.close);
+    final assets = _FakeAudioAssetStore();
+    final repository = PowerSyncEncounterRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+      deviceId: 'device-1',
+      audioAssetStore: assets,
+    );
+    final parent = await repository.create(
+      const EncounterDraft(
+        title: 'Memory',
+        body: '',
+        occurredOn: '2026-08-13',
+        isAltar: false,
+      ),
+    );
+    EncounterDraft draft({
+      String? reflectionParent,
+      ({String type, String id, String field})? context,
+    }) => EncounterDraft(
+      title: 'Recording',
+      body: '',
+      occurredOn: '2026-08-13',
+      isAltar: false,
+      audio: MemoryAudioDraft(
+        temporaryKey: '/take',
+        mimeType: 'audio/mp4',
+        duration: const Duration(seconds: 3),
+        waveform: const [0.3],
+      ),
+      reflectionParentId: reflectionParent,
+      voiceNoteContext: context,
+    );
+    final note = await repository.create(
+      draft(context: (type: 'prayer', id: 'p1', field: 'response')),
+    );
+    final reflection = await repository.create(
+      draft(reflectionParent: parent.id),
+    );
+    final links = await database.powersync.getAll(
+      'SELECT * FROM voice_note_links',
+    );
+    final reflections = await database.powersync.getAll(
+      'SELECT * FROM memory_reflections',
+    );
+    expect(links.single['encounter_id'], note.id);
+    expect(reflections.single['encounter_id'], parent.id);
+    expect(reflections.single['audio_encounter_id'], reflection.id);
+    await expectLater(
+      repository.create(draft(reflectionParent: 'missing')),
+      throwsStateError,
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM encounters'),
+      hasLength(3),
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM memory_audio_assets'),
+      hasLength(2),
+    );
+    expect(assets.deletedKeys, [assets.committedKeys.last]);
+    expect(assets.discardedLocators, hasLength(2));
+    await database.powersync.execute('''
+      CREATE TEMP TRIGGER fail_link INSTEAD OF INSERT ON voice_note_links
+      BEGIN SELECT RAISE(ABORT, 'injected link failure'); END
+    ''');
+    await expectLater(
+      repository.create(
+        draft(context: (type: 'prayer', id: 'p2', field: 'response')),
+      ),
+      throwsA(anything),
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM encounters'),
+      hasLength(3),
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM memory_audio_assets'),
+      hasLength(2),
+    );
+    expect(
+      await database.powersync.getAll('SELECT id FROM voice_note_links'),
+      hasLength(1),
+    );
+    expect(assets.deletedKeys, [
+      assets.committedKeys[2],
+      assets.committedKeys[3],
+    ]);
+    expect(assets.discardedLocators, hasLength(2));
+  });
+
   test('failed durable import leaves no user-visible memory', () async {
     final database = await openTestDatabase(
       '${temporaryDirectory.path}/soulbuddy.db',
@@ -339,6 +434,99 @@ void main() {
       expect(reflections.single.localDate, '2026-08-12');
       final original = await repository.watchAll().first;
       expect(original.single.body, 'The original understanding.');
+    },
+  );
+
+  test(
+    'audio reflections keep an explicit link and preserve the original',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      final repository = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+        audioAssetStore: _FakeAudioAssetStore(),
+      );
+      final original = await repository.create(
+        const EncounterDraft(
+          title: 'A lesson to revisit',
+          body: 'The original understanding.',
+          occurredOn: '2026-08-11',
+          isAltar: false,
+        ),
+      );
+      final recording = await repository.create(_audioDraft());
+
+      await repository.addReflection(
+        original.id,
+        body: '',
+        localDate: '2026-08-12',
+        audioEncounterId: recording.id,
+      );
+
+      final reflections = await repository.watchReflections(original.id).first;
+      expect(reflections.single.body, isEmpty);
+      expect(reflections.single.audioEncounterId, recording.id);
+      final memories = await repository.watchAll().first;
+      expect(
+        memories.singleWhere((item) => item.id == original.id).body,
+        'The original understanding.',
+      );
+      final row = await database.powersync.get(
+        'SELECT audio_encounter_id FROM memory_reflections WHERE encounter_id = ?',
+        [original.id],
+      );
+      expect(row['audio_encounter_id'], recording.id);
+    },
+  );
+
+  test(
+    'audio reflections reject missing, unrecorded, and foreign targets',
+    () async {
+      final database = await openTestDatabase(
+        '${temporaryDirectory.path}/soulbuddy.db',
+      );
+      addTearDown(database.close);
+      final repository = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-1',
+        deviceId: 'device-1',
+      );
+      final parent = await repository.create(
+        const EncounterDraft(
+          title: 'Original',
+          body: 'Existing text.',
+          occurredOn: '2026-08-11',
+          isAltar: false,
+        ),
+      );
+      final anotherOwner = PowerSyncEncounterRepository(
+        database: database.powersync,
+        ownerId: 'owner-2',
+        deviceId: 'device-2',
+        audioAssetStore: _FakeAudioAssetStore(),
+      );
+      final foreign = await anotherOwner.create(_audioDraft());
+
+      for (final target in ['missing-audio', parent.id, foreign.id]) {
+        await expectLater(
+          repository.addReflection(
+            parent.id,
+            body: '',
+            localDate: '2026-08-12',
+            audioEncounterId: target,
+          ),
+          throwsA(isA<StateError>()),
+        );
+      }
+      await expectLater(
+        repository.addReflection(parent.id, body: '', localDate: '2026-08-12'),
+        throwsArgumentError,
+      );
+      expect(await repository.watchReflections(parent.id).first, isEmpty);
     },
   );
 }

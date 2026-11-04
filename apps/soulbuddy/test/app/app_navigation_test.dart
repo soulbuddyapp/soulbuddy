@@ -99,8 +99,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('For this moment'), findsOneWidget);
+    expect(find.text('What are you praying about?'), findsOneWidget);
     expect(
-      find.text('Choose a reviewed prayer or use your own words.'),
+      find.byKey(const Key('prayer-create-purpose-daily')),
       findsOneWidget,
     );
   });

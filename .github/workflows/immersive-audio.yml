@@ -1,0 +1,268 @@
+name: Immersive audio
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/immersive-audio.yml'
+      - 'infra/powersync/**'
+      - 'apps/soulbuddy/lib/**'
+      - 'apps/soulbuddy/test/**'
+      - 'apps/soulbuddy/android/**'
+      - 'apps/soulbuddy/third_party/**'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+      - 'scripts/release/**'
+      - '.github/workflows/publish-playstore.yml'
+      - 'services/api/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/immersive-audio.yml'
+      - 'infra/powersync/**'
+      - 'apps/soulbuddy/lib/**'
+      - 'apps/soulbuddy/test/**'
+      - 'apps/soulbuddy/android/**'
+      - 'apps/soulbuddy/third_party/**'
+      - 'apps/soulbuddy/pubspec.yaml'
+      - 'apps/soulbuddy/pubspec.lock'
+      - 'scripts/release/**'
+      - '.github/workflows/publish-playstore.yml'
+      - 'services/api/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: immersive-audio-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-config:
+    name: Play sync configuration checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s scripts/release -p 'test_validate_play_config.py'
+
+  flutter-audio:
+    name: Flutter recording and playback
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/soulbuddy
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Flutter 3.35.7
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Prepare ignored Scripture test asset
+        run: |
+          # Focused tests supply their own Scripture data. The ignored
+          # production database must still have a path in Flutter's bundle.
+          New-Item -ItemType Directory -Force assets/scripture | Out-Null
+          if (-not (Test-Path assets/scripture/rsvce.db)) {
+            New-Item -ItemType File assets/scripture/rsvce.db | Out-Null
+          }
+
+      - name: Analyze changed Dart sources
+        id: analyze_audio
+        working-directory: .
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          $base = $env:BASE_SHA
+          if ($base -notmatch '^[0-9a-f]{40}$' -or $base -eq ('0' * 40)) {
+            $base = git merge-base HEAD origin/main
+          }
+          $changed = @(git diff --name-only --diff-filter=ACMR $base HEAD -- apps/soulbuddy/lib apps/soulbuddy/test)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $targets = @($changed | Where-Object { $_.EndsWith('.dart') } | ForEach-Object { $_.Substring('apps/soulbuddy/'.Length) })
+          if ($targets.Count -gt 0) {
+            Push-Location apps/soulbuddy
+            for ($offset = 0; $offset -lt $targets.Count; $offset += 25) {
+              $end = [Math]::Min($offset + 24, $targets.Count - 1)
+              $batch = $targets[$offset..$end]
+              dart format --output=none --set-exit-if-changed @batch
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+            Pop-Location
+            Push-Location apps/soulbuddy
+            flutter analyze --fatal-infos
+            $result = $LASTEXITCODE
+            Pop-Location
+            if ($result -ne 0) { exit $result }
+          }
+          git diff --check $base HEAD
+
+      # Keep failures independent so a hung recorder cannot hide prayer or
+      # formation results. All three steps still gate the job.
+      - name: Verify capture, memories, and session ownership
+        if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
+        timeout-minutes: 6
+        run: flutter test --reporter expanded --timeout 2m test/core/playback test/core/feedback/feedback_sound_output_test.dart test/features/record test/features/remember
+
+      - name: Verify prayer recording and playback
+        if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
+        timeout-minutes: 6
+        run: flutter test --reporter expanded --timeout 2m test/features/prayers
+
+      - name: Verify recording after formation and in linked activities
+        if: ${{ !cancelled() && steps.analyze_audio.outcome == 'success' }}
+        timeout-minutes: 6
+        run: flutter test --reporter expanded --timeout 2m test/core/speech test/features/sacred_hours test/features/daily_formation test/features/guards/guard_configuration_sheet_test.dart test/features/circles/circles_flow_test.dart test/features/circles/legacy_circle_migration_service_test.dart test/features/altar/altar_ritual_ui_test.dart test/features/altar/altar_memory_today_card_test.dart
+
+  laravel-audio:
+    name: Laravel audio metadata and sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Laravel dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Laravel test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      - name: Check audio metadata PHP style
+        id: php-style
+        run: ./vendor/bin/pint --test app/Domain/Sync/ApplySyncMutation.php app/Domain/Sync/ApplyPersonalPrayerMutation.php app/Domain/Sync/ApplyVoiceTabletAltarMutation.php app/Http/Controllers/Api/PrayerNarrationController.php database/migrations/2026_11_03_000000_add_audio_authoring_metadata.php tests/Feature/Sync/RecordedPrayerMutationTest.php tests/Feature/Sync/AudioReflectionMutationTest.php tests/Feature/PrayerNarration/PrayerNarrationTest.php
+
+      - name: Verify sync ownership, rollback, and narration boundaries
+        if: success() || steps.php-style.outcome == 'failure'
+        run: php artisan test tests/Feature/Sync tests/Feature/PrayerNarration tests/Architecture/SyntheticSpiritualContentTest.php tests/Architecture/PowerSyncMigrationIsolationTest.php
+
+  mysql-owner-projection:
+    name: Rehearse MySQL owner projection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 33307
+      DB_USERNAME: root
+      DB_PASSWORD: ci-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Start isolated MySQL with replication prerequisites
+        run: |
+          docker run -d --name owner-projection-db -e MYSQL_ROOT_PASSWORD=ci-only -e MYSQL_ROOT_HOST=% -p 127.0.0.1:33307:3306 mysql:8.4.13 --server-id=42 --log-bin=mysql-bin --gtid-mode=ON --enforce-gtid-consistency=ON --binlog-format=ROW --binlog-row-image=FULL
+          for attempt in $(seq 1 60); do
+            if docker exec owner-projection-db mysqladmin ping -h 127.0.0.1 -uroot -pci-only --silent; then break; fi
+            if [ "$attempt" -eq 60 ]; then docker logs owner-projection-db; exit 1; fi
+            sleep 2
+          done
+          docker exec owner-projection-db mysql -uroot -pci-only -e 'CREATE DATABASE soulbuddy_owner_test_valid; CREATE DATABASE soulbuddy_owner_test_invalid;'
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+      - name: Verify backfill, ownership and rollback guard
+        env:
+          DB_DATABASE: soulbuddy_owner_test_valid
+        run: php tests/Release/PowerSyncOwnerProjectionRehearsal.php
+      - name: Verify invalid owners fail before schema changes
+        env:
+          DB_DATABASE: soulbuddy_owner_test_invalid
+        run: php tests/Release/PowerSyncOwnerProjectionRehearsal.php invalid-owner
+
+  mariadb-upgrade:
+    name: Rehearse audio upgrade on MariaDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_RANDOM_ROOT_PASSWORD: '1'
+          MARIADB_DATABASE: soulbuddy_audio_rehearsal
+          MARIADB_USER: rehearsal
+          MARIADB_PASSWORD: ci-only
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=15
+    defaults:
+      run:
+        working-directory: services/api
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mariadb
+      DB_DATABASE: soulbuddy_audio_rehearsal
+      DB_HOST: 127.0.0.1
+      DB_USERNAME: rehearsal
+      DB_PASSWORD: ci-only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check the private projection comparison against synthetic exports
+        working-directory: .
+        run: |
+          python -m pip install "PyYAML==6.0.3"
+          python -m unittest discover -s infra/powersync -p 'test_audio_projection.py'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Initialize the isolated Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+      - name: Migrate legacy rows and exercise the rollback guards
+        env:
+          DB_PORT: ${{ job.services.mariadb.ports['3306'] }}
+        run: php artisan test --display-warnings --fail-on-warning tests/Release/AudioMetadataUpgradeTest.php
+      - name: Verify recorded prayer and reflection mutations on MariaDB
+        env:
+          DB_PORT: ${{ job.services.mariadb.ports['3306'] }}
+        run: php artisan test --display-warnings --fail-on-warning tests/Feature/Sync/RecordedPrayerMutationTest.php tests/Feature/Sync/AudioReflectionMutationTest.php

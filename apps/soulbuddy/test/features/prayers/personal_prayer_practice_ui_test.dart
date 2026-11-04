@@ -14,6 +14,7 @@ import 'package:soulbuddy/features/prayers/presentation/personal_prayer_detail_s
 import 'package:soulbuddy/features/prayers/providers/personal_prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_practice_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
 
 void main() {
   for (final size in [const Size(390, 844), const Size(1024, 768)]) {
@@ -358,6 +359,7 @@ Widget _app(
   );
   return ProviderScope(
     overrides: [
+      voiceNotesProvider.overrideWith((ref, context) => Stream.value([])),
       personalPrayerProvider(
         prayer.id,
       ).overrideWith((ref) => Stream.value(prayer)),

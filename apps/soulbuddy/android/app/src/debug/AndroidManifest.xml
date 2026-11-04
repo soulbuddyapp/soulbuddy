@@ -4,4 +4,13 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Development builds may be pointed at a local API over plain HTTP with
+         `adb reverse`. Release builds only ever address the HTTPS boundary, and
+         this file is not part of them.
+    -->
+    <application
+        android:usesCleartextTraffic="true"
+        tools:replace="android:usesCleartextTraffic"
+        xmlns:tools="http://schemas.android.com/tools" />
 </manifest>

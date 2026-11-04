@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/presentation/sacred_surface.dart';
+import '../core/playback/spiritual_session_providers.dart';
 import '../core/presentation/sanctuary_backdrop.dart';
 import '../core/presentation/screen_awake.dart';
 import '../core/design/app_spacing.dart';
@@ -29,10 +30,14 @@ import '../features/persons/presentation/persons_screen.dart';
 import '../features/prayers/presentation/personal_prayer_detail_screen.dart';
 import '../features/prayers/domain/library_prayer.dart';
 import '../features/prayers/presentation/meditation_screen.dart';
+import '../features/prayers/presentation/attention_prayer_route.dart';
 import '../features/prayers/presentation/prayer_create_screen.dart';
 import '../features/prayers/presentation/prayer_detail_screen.dart';
+import '../features/prayers/presentation/prayer_release_detail_screen.dart';
 import '../features/prayers/presentation/prayers_screen.dart';
+import '../features/prayers/presentation/quiet_prayer_screen.dart';
 import '../features/record/presentation/record_screen.dart';
+import '../features/record/audio/providers/memory_audio_providers.dart';
 import '../features/remember/presentation/daily_remembrance_screen.dart';
 import '../features/remember/presentation/memory_detail_screen.dart';
 import '../features/remember/presentation/remember_screen.dart';
@@ -50,6 +55,10 @@ import '../features/settings/presentation/audio_credits_screen.dart';
 final GoRouter appRouter = GoRouter(
   initialLocation: '/today',
   routes: [
+    GoRoute(
+      path: '/prayer/quiet',
+      builder: (_, _) => const QuietPrayerScreen(),
+    ),
     GoRoute(
       path: '/welcome/commitment',
       builder: (_, _) => const CommitmentJourneyScreen(),
@@ -219,6 +228,20 @@ final GoRouter appRouter = GoRouter(
                   ),
                 ),
                 GoRoute(
+                  path: 'releases/:slug',
+                  builder: (context, state) => PrayerReleaseDetailScreen(
+                    slug: state.pathParameters['slug']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'attention',
+                      builder: (context, state) => AttentionPrayerRoute(
+                        slug: state.pathParameters['slug']!,
+                      ),
+                    ),
+                  ],
+                ),
+                GoRoute(
                   path: ':prayerId',
                   builder: (context, state) => PrayerDetailScreen(
                     prayerId: state.pathParameters['prayerId']!,
@@ -328,6 +351,12 @@ final GoRouter appRouter = GoRouter(
                     child: ScripturePassageScreen(
                       book: state.pathParameters['book']!,
                       chapter: int.parse(state.pathParameters['chapter']!),
+                      firstVerse: int.tryParse(
+                        state.uri.queryParameters['firstVerse'] ?? '',
+                      ),
+                      lastVerse: int.tryParse(
+                        state.uri.queryParameters['lastVerse'] ?? '',
+                      ),
                     ),
                   ),
                 ),
@@ -375,7 +404,14 @@ class _SoulBuddyShell extends ConsumerWidget {
 
   final StatefulNavigationShell navigationShell;
 
-  void _selectDestination(WidgetRef ref, int index) {
+  void _selectDestination(BuildContext context, WidgetRef ref, int index) {
+    if (ref.read(recordingActivityProvider).active ||
+        ref.read(spiritualSessionControllerProvider).isCapturing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Save or discard the recording.')),
+      );
+      return;
+    }
     if (index != navigationShell.currentIndex) {
       final preferences =
           ref.read(appFeedbackPreferencesProvider).value ??
@@ -404,7 +440,7 @@ class _SoulBuddyShell extends ConsumerWidget {
                   extended: constraints.maxWidth >= 1080,
                   selectedIndex: navigationShell.currentIndex,
                   onDestinationSelected: (index) =>
-                      _selectDestination(ref, index),
+                      _selectDestination(context, ref, index),
                   groupAlignment: -0.75,
                   destinations: [
                     for (final destination in _destinations)
@@ -435,7 +471,6 @@ class _SoulBuddyShell extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
               child: SacredSurface(
-                marble: true,
                 child: MediaQuery.withClampedTextScaling(
                   maxScaleFactor: 1.15,
                   child: NavigationBar(
@@ -446,7 +481,7 @@ class _SoulBuddyShell extends ConsumerWidget {
                     ).colorScheme.primary.withValues(alpha: 0.12),
                     selectedIndex: navigationShell.currentIndex,
                     onDestinationSelected: (index) =>
-                        _selectDestination(ref, index),
+                        _selectDestination(context, ref, index),
                     destinations: [
                       for (final destination in _destinations)
                         NavigationDestination(

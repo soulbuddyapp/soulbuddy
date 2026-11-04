@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/design/app_spacing.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../data/circle_directory_repository.dart';
 import '../domain/circle.dart';
 import '../providers/circle_providers.dart';
@@ -22,7 +23,7 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
     text: widget.initialCircle?.name ?? '',
   );
   late final _descriptionController = TextEditingController(
-    text: widget.initialCircle?.description ?? '',
+    text: _legacyPurpose == null ? widget.initialCircle?.description ?? '' : '',
   );
   late final _linkController = TextEditingController(
     text: widget.initialCircle?.openUri?.toString() ?? '',
@@ -37,6 +38,14 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
   var _saving = false;
 
   bool get _editing => widget.initialCircle != null;
+
+  String? get _legacyPurpose {
+    final description = widget.initialCircle?.description;
+    if (description == null) return null;
+    return description.runes.length > 120 || description.contains('\n')
+        ? description
+        : null;
+  }
 
   @override
   void dispose() {
@@ -81,18 +90,27 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
                 decoration: const InputDecoration(labelText: 'Circle name'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              TextField(
+              // The purpose invites a sentence, so it can be spoken. The name
+              // beside it does not: speaking a name aloud is worse than typing
+              // it, so it stays a bare field. Category, Visibility and the
+              // group link are all choices or a slot.
+              SayableField(
                 key: const Key('circle-description-field'),
                 controller: _descriptionController,
                 enabled: !_saving,
-                maxLength: 280,
-                minLines: 2,
-                maxLines: 4,
+                maxLength: 120,
+                maxLines: 1,
                 decoration: const InputDecoration(
-                  labelText: 'Purpose',
-                  hintText: 'What are people walking together for?',
+                  labelText: 'Purpose · short label',
+                  hintText: 'For example: Morning prayer',
                 ),
+                onTruncated: () => setState(() => _error = _limitReachedNotice),
               ),
+              if (_legacyPurpose case final previous?)
+                ExpansionTile(
+                  title: const Text('Earlier purpose'),
+                  children: [Text(previous)],
+                ),
               const SizedBox(height: AppSpacing.md),
               DropdownButtonFormField<CircleCategory>(
                 key: const Key('circle-category-field'),
@@ -187,10 +205,19 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
   Future<void> _save() async {
     if (_saving) return;
     final name = _nameController.text.trim();
-    final description = _descriptionController.text.trim();
+    final purposeLabel = _descriptionController.text.trim();
+    final description = purposeLabel.isEmpty && _legacyPurpose != null
+        ? _legacyPurpose!.trim()
+        : purposeLabel;
     final link = Uri.tryParse(_linkController.text.trim());
     if (name.isEmpty || description.isEmpty) {
       setState(() => _error = 'Add a name and purpose for this Circle.');
+      return;
+    }
+    if (purposeLabel.runes.length > 120 || purposeLabel.contains('\n')) {
+      setState(
+        () => _error = 'Use one short purpose label, up to 120 characters.',
+      );
       return;
     }
     if (link == null || !_provider.allows(link)) {
@@ -246,3 +273,11 @@ class _CreateCircleSheetState extends ConsumerState<CreateCircleSheet> {
     }
   }
 }
+
+/// Shown when the field's limit cut a dictated purpose short.
+///
+/// The app's own wording for the same event, reused rather than reworded:
+/// `commitment_journey_screen` already tells someone their answer reached the
+/// limit when it does. A second phrasing of the same fact would be the small
+/// inconsistency the design asked to avoid.
+const String _limitReachedNotice = 'Your answer reached the limit.';

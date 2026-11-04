@@ -8,12 +8,14 @@ class PowerSyncGoalOnboardingProgressRepository
     implements GoalOnboardingProgressRepository {
   PowerSyncGoalOnboardingProgressRepository({
     required this.database,
+    required this.ownerId,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
   static const _rowId = 'current';
 
   final PowerSyncDatabase database;
+  final String ownerId;
   final DateTime Function() _now;
 
   @override
@@ -103,51 +105,69 @@ class PowerSyncGoalOnboardingProgressRepository
       );
     }
 
-    await database.execute(
-      '''
-      INSERT OR REPLACE INTO goal_onboarding_progress(
-        id, stage, starter_key, stop_behavior_key, alcohol_safety_choice,
-        alcohol_care_acknowledged, title, current_situation,
-        situation_by_voice, agency_choice, today_action, guard_note,
-        accountability_choice, prayer_source, prayer_resource_id,
-        scripture_translation, scripture_book, scripture_chapter,
-        scripture_first_verse, scripture_last_verse, own_prayer_text,
-        created_goal_id, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ''',
-      [
-        _rowId,
-        progress.stage.name,
-        progress.starterKey?.wireValue,
-        progress.stopBehaviorKey?.wireValue,
-        progress.alcoholSafetyChoice?.wireValue,
-        _boolValue(progress.alcoholCareAcknowledged),
-        progress.title,
-        progress.currentSituation,
-        _boolValue(progress.situationByVoice),
-        progress.agencyChoice?.wireValue,
-        progress.todayAction,
-        progress.guardNote,
-        progress.accountabilityChoice?.wireValue,
-        progress.prayerSource?.wireValue,
-        progress.prayerResourceId,
-        progress.scriptureTranslation,
-        progress.scriptureBook,
-        progress.scriptureChapter,
-        progress.scriptureFirstVerse,
-        progress.scriptureLastVerse,
-        progress.ownPrayerText,
-        progress.createdGoalId,
-        _now().toUtc().toIso8601String(),
-      ],
-    );
+    await database.writeTransaction((transaction) async {
+      if (progress.stage == GoalOnboardingStage.starter) {
+        // A fresh journey must not reuse an earlier goal's recordings. The
+        // private memories remain in Remember; only the draft links reset.
+        await transaction.execute(
+          'DELETE FROM voice_note_links WHERE owner_id = ? '
+          "AND context_type = 'goal' AND context_id = 'onboarding'",
+          [ownerId],
+        );
+      }
+      await transaction.execute(
+        '''
+        INSERT OR REPLACE INTO goal_onboarding_progress(
+          id, stage, starter_key, stop_behavior_key, alcohol_safety_choice,
+          alcohol_care_acknowledged, title, current_situation,
+          situation_by_voice, agency_choice, today_action, guard_note,
+          accountability_choice, prayer_source, prayer_resource_id,
+          scripture_translation, scripture_book, scripture_chapter,
+          scripture_first_verse, scripture_last_verse, own_prayer_text,
+          created_goal_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+          _rowId,
+          progress.stage.name,
+          progress.starterKey?.wireValue,
+          progress.stopBehaviorKey?.wireValue,
+          progress.alcoholSafetyChoice?.wireValue,
+          _boolValue(progress.alcoholCareAcknowledged),
+          progress.title,
+          progress.currentSituation,
+          _boolValue(progress.situationByVoice),
+          progress.agencyChoice?.wireValue,
+          progress.todayAction,
+          progress.guardNote,
+          progress.accountabilityChoice?.wireValue,
+          progress.prayerSource?.wireValue,
+          progress.prayerResourceId,
+          progress.scriptureTranslation,
+          progress.scriptureBook,
+          progress.scriptureChapter,
+          progress.scriptureFirstVerse,
+          progress.scriptureLastVerse,
+          progress.ownPrayerText,
+          progress.createdGoalId,
+          _now().toUtc().toIso8601String(),
+        ],
+      );
+    });
   }
 
   @override
-  Future<void> clear() => database.execute(
-    'DELETE FROM goal_onboarding_progress WHERE id = ?',
-    [_rowId],
-  );
+  Future<void> clear() => database.writeTransaction((transaction) async {
+    await transaction.execute(
+      'DELETE FROM goal_onboarding_progress WHERE id = ?',
+      [_rowId],
+    );
+    await transaction.execute(
+      'DELETE FROM voice_note_links WHERE owner_id = ? '
+      "AND context_type = 'goal' AND context_id = 'onboarding'",
+      [ownerId],
+    );
+  });
 }
 
 T? _requiredNullableEnum<T>(

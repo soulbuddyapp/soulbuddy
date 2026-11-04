@@ -1,8 +1,14 @@
 import 'voice_tablet.dart';
+import 'worship_sound_bed.dart';
 
 enum MeditationSoundCategory { quiet, motivational }
 
-enum MeditationSoundBed {
+/// The short, seamless beds shared by every surface that offers a background
+/// sound.
+///
+/// Worship arrangements are deliberately not values of this enum. They are a
+/// separate type, so `MeditationSoundPicker` cannot offer one even by accident.
+enum MeditationSoundBed implements PrayerSoundBed {
   stillness(label: 'Stillness', assetPath: 'audio/meditation/stillness.mp3'),
   flowingWater(
     label: 'Flowing water',
@@ -67,9 +73,16 @@ enum MeditationSoundBed {
     this.preferredVolume = 0.15,
   });
 
+  /// The enum's own name, which is what a saved preference stores.
+  @override
+  String get key => name;
+
+  @override
   final String label;
+  @override
   final String assetPath;
   final MeditationSoundCategory category;
+  @override
   final double preferredVolume;
 }
 

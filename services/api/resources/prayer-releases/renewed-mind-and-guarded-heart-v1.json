@@ -1,0 +1,84 @@
+{
+    "schema_version": 1,
+    "slug": "renewed-mind-and-guarded-heart-v1",
+    "title": "Renewed mind & guarded heart",
+    "discovery_label": "This week’s prayer",
+    "discovery_detail": "Prayer and meditation for purity, discipline, and a renewed mind.",
+    "preparation_text": "Before you Pray - Preparation for a graceful prayer\nBegin with the sign of the cross. Before petitioning God, clear your mind of all inclinations, occasions or taint of sin. Check if you have any subconscious desires of occasions of sin -  seeds sown through what you saw, what you said, what you touched, or an unlawful desire already planted in your heart; if you have such, determine now that God help you get rid of it; and decide how many times you should say the prayers during your day to stay on guard. Don’t pray carelessly, kneel or stand or vocalize to mean what you say, whatever works best for you.",
+    "items": [
+        {
+            "sort_order": 0,
+            "kind": "prayer",
+            "purpose": "daily",
+            "grounding": "general_christian",
+            "language_style": "christian",
+            "action": null,
+            "title": "Daily Prayer Against Temptations",
+            "body": "+\nJesus humbled himself unto death, even death on a Cross\nMay I not regress in my transformation journey to be as Christ\n\nI acknowledge that no good intention comes from my flesh, and it is the Spirit in me that speaks good for my soul. And it’s the spirit of sonship of the same Great and Mighty God; the child spirit of the Alpha and the Omega, the Beginning and the End, the Elohim, the ElShaddai, the King of Kings and the Lord of Lords. The same God who humbled himself and took human form for my sake.\n\nThrough the grace and mercy of God, may my mind be healed and my soul sanctified. Heal my mind dear Lord and restore and renew my spiritual vitality today: a heart awake to Your presence, a will ready to obey, and attention available for Your love and to Love.\n\nI reject all thoughts that distract me from Your presence and any selfish desires that objectify others or myself. I reject all selfish attitudes and pleasure that obstruct your presence and perfect will in my life. Let the strength recovered from wasteful wrongdoing become patience, honest work, prayer and generosity. May your goodness and love flow in me and through me without restraint. Help me to guard my mind this day with discipline and to remember that your presence is greater than any other treasure. Protect me from the lures of the world and its devices. Create in me a pure heart and renew a right spirit within me. May your Spirit dear Lord make me whole. Amen.",
+            "content_sha256": "0f9f7371a49ade69793551e30583f1863036fc21ced7eb3c745ef23a5ae90305",
+            "practice": null
+        },
+        {
+            "sort_order": 1,
+            "kind": "meditation_prayer",
+            "purpose": "guidance",
+            "grounding": "general_christian",
+            "language_style": "christian",
+            "action": null,
+            "title": "Brief Meditation",
+            "body": "The Holy Spirit is our greatest gift for transformation. Listen silently in your heart now for good inspirations for your day (not of ego, but of true humble service).\n\nDear Holy Spirit, help me heed inspirations of discipline or warnings and bear fruits in the good inspirations you have given or will give me today. Amen.",
+            "content_sha256": "881b779a3e179950e79e2fc5b8abc5f1605164a3e622e528ea762a47f43a3113",
+            "practice": null
+        },
+        {
+            "sort_order": 2,
+            "kind": "prayer",
+            "purpose": "daily",
+            "grounding": "general_christian",
+            "language_style": "christian",
+            "action": null,
+            "title": "Affirmative Prayer to resist occasions of Sin",
+            "body": "+\nI hereby give myself to God and immerse my will in God’s will, that my purpose may be illuminated; that my will may be fully aligned with God’s will; and that my mind may be sanctified in the perfect will of God.\nMay God free and shield me from all distractions that hold me back from growing in my mission/assignment in this world. Amen",
+            "content_sha256": "a0790131987bba725465b84d736832dc9ae1199fbc849af40eb9dec597a284ec",
+            "practice": null
+        },
+        {
+            "sort_order": 3,
+            "kind": "meditation_prayer",
+            "purpose": "guidance",
+            "grounding": "general_christian",
+            "language_style": "christian",
+            "action": null,
+            "title": "New Adam repetitions",
+            "body": "Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x50)\nIn moments that distract me from your perfect will, let Satan be rebuked o Lord (x10)",
+            "content_sha256": "cf00f39b28e2cb4dd06b5b9611b3f383818646d74da62297a0749569dd6430d3",
+            "practice": {
+                "mode": "affirmation_repetition",
+                "steps": [
+                    {
+                        "phrase": "Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus",
+                        "target_count": 50,
+                        "source_line": "Dear Lord, renew my mind and heart and make me a new Adam in Christ Jesus (x50)"
+                    },
+                    {
+                        "phrase": "In moments that distract me from your perfect will, let Satan be rebuked o Lord",
+                        "target_count": 10,
+                        "source_line": "In moments that distract me from your perfect will, let Satan be rebuked o Lord (x10)"
+                    }
+                ]
+            }
+        },
+        {
+            "sort_order": 4,
+            "kind": "prayer",
+            "purpose": "daily",
+            "grounding": "general_christian",
+            "language_style": "christian",
+            "action": null,
+            "title": "Daily Prayer to join our hearts to the heart of Jesus",
+            "body": "Heavenly Father, Your Word says that out of the abundance of the heart, the mouth speaks. Purify the heart from which my words and actions flow. Remove bitterness, pride, laziness, lust and all forms of licentiousness from my life. Fill me deeply with your Love, that I may truly be a light wherever I go. Sanctify my mind that I may recognize your daily presence in thanksgiving. Grant me your passion so that I may have great strength and courage to carry out Your will. Give me your peace and serenity that I may stand resolute in temptations/trials. I renounce all works of evil today. In moments of distraction or boredom, fill me with your Word. Where I have sinned, lead me to repentance, confession and healing. Do not let shame lead me to excuses or keep me from abiding in You.\n\nJesus my Redeemer, order my steps in your words.\nMay all my steps, words and works today, be to the glory of Your name.\n\nAmen.",
+            "content_sha256": "c039951fb757b75282ef3d09e576847544fae6fa4826868d69d935338cfc50dd",
+            "practice": null
+        }
+    ]
+}

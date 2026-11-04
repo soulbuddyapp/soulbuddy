@@ -10,6 +10,9 @@ import '../../../core/feedback/app_feedback.dart';
 import '../../../core/feedback/app_feedback_preferences.dart';
 import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/feedback/app_feedback_service.dart';
+import '../application/prayer_narration_eligibility.dart';
+import '../application/prayer_narration_fallback_policy.dart';
+import '../application/prayer_narration_player.dart';
 import '../application/prayer_reminder_scheduler.dart';
 import '../domain/prayer_reminder.dart';
 import '../providers/prayer_practice_providers.dart';
@@ -89,6 +92,8 @@ class PrayerReminderCard extends ConsumerStatefulWidget {
 class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
   bool _busy = false;
   bool _showMore = false;
+  bool _reading = false;
+  bool _preparingNarration = false;
 
   @override
   Widget build(BuildContext context) {
@@ -148,8 +153,11 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
                             children: [
                               Text(
                                 widget.occurrence.prayerTitle,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                                key: const Key('prayer-reminder-title'),
+                                maxLines: _reading ? null : 2,
+                                overflow: _reading
+                                    ? TextOverflow.clip
+                                    : TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               Text(
@@ -182,6 +190,19 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
                       ],
                     ),
                     const SizedBox(height: AppSpacing.sm),
+                    if (_hasPrayerText) ...[
+                      _readControl(context),
+                      _PrayerTextBody(
+                        body: widget.occurrence.prayerBody,
+                        expanded: _reading,
+                        // The card already threads reduceMotion through its
+                        // entrance; the body opens the same way.
+                        duration: widget.reduceMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 200),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
                     Wrap(
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
@@ -193,10 +214,21 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
                           icon: const Icon(Icons.open_in_new, size: 18),
                           label: const Text('Open prayer'),
                         ),
-                        if (_narrationReady)
+                        if (_narrationObtainable)
                           _compactAction(
-                            label: 'Play prayer',
+                            label: _preparingNarration
+                                ? 'Preparing prayer'
+                                : 'Play prayer',
                             icon: Icons.play_arrow,
+                            leading: _preparingNarration
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : null,
+                            disabled: _preparingNarration,
                             onPressed: _playNarration,
                           ),
                         _compactAction(
@@ -234,15 +266,44 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
         (device.narrationBytes?.isNotEmpty ?? false);
   }
 
+  /// Device speech keeps the prayer available even when a private natural-voice
+  /// cache cannot be made for this revision.
+  bool get _narrationObtainable => _hasPrayerText;
+
+  bool get _hasPrayerText => widget.occurrence.prayerBody.trim().isNotEmpty;
+
+  Widget _readControl(BuildContext context) => Semantics(
+    button: true,
+    expanded: _reading,
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        key: const Key('prayer-reminder-read'),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        onPressed: _toggleReading,
+        icon: Icon(_reading ? Icons.expand_less : Icons.expand_more, size: 18),
+        label: Text(_reading ? 'Show less' : 'Read in full'),
+      ),
+    ),
+  );
+
+  void _toggleReading() => setState(() => _reading = !_reading);
+
   Widget _compactAction({
     required String label,
     required IconData icon,
     PrayerReminderAction? action,
     VoidCallback? onPressed,
+    Widget? leading,
+    bool disabled = false,
   }) => OutlinedButton.icon(
     style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
-    onPressed: _busy ? null : onPressed ?? () => _perform(action!),
-    icon: Icon(icon, size: 18),
+    onPressed: _busy || disabled ? null : onPressed ?? () => _perform(action!),
+    icon: leading ?? Icon(icon, size: 18),
     label: Text(label),
   );
 
@@ -316,35 +377,36 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
   }
 
   Future<void> _playNarration() async {
-    if (_busy) return;
-    setState(() => _busy = true);
+    if (_busy || _preparingNarration || !_narrationObtainable) return;
+    setState(() => _preparingNarration = true);
     try {
-      await ref.read(playReminderNarrationProvider)(
-        widget.occurrence,
-        explicit: true,
+      const fallbackPolicy = PrayerNarrationFallbackPolicy();
+      final decision = fallbackPolicy.decide(
+        hasCachedNarration: _narrationReady,
       );
-      final occurrence = widget.occurrence;
       final player = ref.read(prayerNarrationPlayerProvider);
-      final perform = ref.read(prayerReminderActionProvider);
-      await ref
-          .read(spiritualSessionControllerProvider)
-          .begin(
-            SpiritualSession(
-              id: 'prayer-reminder:${occurrence.occurrenceKey}',
-              kind: SpiritualSessionKind.prayer,
-              title: occurrence.prayerTitle,
-              route: '/prayers/saved/${occurrence.reminder.personalPrayerId}',
-              canPause: true,
-              completionLabel: 'I prayed',
-              onPause: player.pause,
-              onResume: player.resume,
-              onComplete: () async {
-                await player.stop();
-                await perform(occurrence, PrayerReminderAction.prayed);
-              },
-              onClose: player.stop,
-            ),
-          );
+      if (decision == PrayerNarrationFallbackDecision.deviceVoice) {
+        // Speak without leaving the device. A failed or slow cloud cache can
+        // never stop a person from praying.
+        await player.playText(widget.occurrence.prayerBody);
+        if (widget.occurrence.device.narrationConsentAccepted &&
+            canObtainPrayerNarration(
+              personalPrayerId: widget.occurrence.reminder.personalPrayerId,
+              prayerRevisionId: widget.occurrence.prayerRevisionId,
+              prayerBody: widget.occurrence.prayerBody,
+            )) {
+          unawaited(_refreshNaturalVoiceCache());
+        }
+      } else {
+        await ref.read(prepareAndPlayReminderNarrationProvider)(
+          widget.occurrence,
+          consentAccepted: true,
+        );
+      }
+      await _beginPrayerSession(
+        player,
+        canPause: decision == PrayerNarrationFallbackDecision.cachedNarration,
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -354,8 +416,48 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _preparingNarration = false);
     }
+  }
+
+  Future<void> _refreshNaturalVoiceCache() async {
+    try {
+      await ref.read(prepareReminderNarrationProvider)(
+        reminderId: widget.occurrence.reminder.id,
+        personalPrayerId: widget.occurrence.reminder.personalPrayerId,
+        revisionId: widget.occurrence.prayerRevisionId,
+        autoplay: widget.occurrence.device.autoplayWhenOpened,
+      );
+    } catch (_) {
+      // The on-device reading is already underway. A later play can retry.
+    }
+  }
+
+  Future<void> _beginPrayerSession(
+    PrayerNarrationPlayer player, {
+    required bool canPause,
+  }) async {
+    final occurrence = widget.occurrence;
+    final perform = ref.read(prayerReminderActionProvider);
+    await ref
+        .read(spiritualSessionControllerProvider)
+        .begin(
+          SpiritualSession(
+            id: 'prayer-reminder:${occurrence.occurrenceKey}',
+            kind: SpiritualSessionKind.prayer,
+            title: occurrence.prayerTitle,
+            route: '/prayers/saved/${occurrence.reminder.personalPrayerId}',
+            canPause: canPause,
+            completionLabel: 'I prayed',
+            onPause: player.pause,
+            onResume: player.resume,
+            onComplete: () async {
+              await player.stop();
+              await perform(occurrence, PrayerReminderAction.prayed);
+            },
+            onClose: player.stop,
+          ),
+        );
   }
 
   Future<void> _emitActionFeedback(
@@ -392,4 +494,57 @@ class _PrayerReminderCardState extends ConsumerState<PrayerReminderCard> {
       );
     }
   }
+}
+
+/// The prayer body, revealed in place.
+///
+/// The text is bounded and laid out in a shrink-wrapped scroll view rather
+/// than an unbounded column, so a long prayer at a large text scale scrolls
+/// inside the card instead of overflowing it.
+class _PrayerTextBody extends StatelessWidget {
+  const _PrayerTextBody({
+    required this.body,
+    required this.expanded,
+    required this.duration,
+  });
+
+  final String body;
+  final bool expanded;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    final revealed = expanded
+        ? ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: _bodyViewportHeight(context),
+            ),
+            child: ListView(
+              key: const Key('prayer-reminder-body'),
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              children: [
+                Text(
+                  body,
+                  key: const Key('prayer-reminder-body-text'),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          )
+        : const SizedBox(width: double.infinity, height: 0);
+    // With reduced motion the body simply changes; no animation widget runs.
+    if (duration == Duration.zero) return revealed;
+    return AnimatedSize(
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: revealed,
+    );
+  }
+}
+
+double _bodyViewportHeight(BuildContext context) {
+  final height = MediaQuery.maybeOf(context)?.size.height ?? 640;
+  return (height * 0.34).clamp(120.0, 420.0);
 }

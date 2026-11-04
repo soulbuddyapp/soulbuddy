@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
+import 'package:soulbuddy/core/speech/speech_capture_providers.dart';
 import 'package:soulbuddy/features/goals/domain/goal.dart';
 import 'package:soulbuddy/features/goals/presentation/goal_detail_screen.dart';
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 import 'package:soulbuddy/features/guards/application/return_plan.dart';
 import 'package:soulbuddy/features/guards/providers/return_providers.dart';
+import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
+
+import '../../helpers/no_speech_recognizer.dart';
 
 void main() {
   testWidgets('Goal detail remains usable at 320px and 200 percent text', (
@@ -25,10 +29,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          voiceNotesProvider.overrideWith((ref, context) => Stream.value([])),
           goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
           goalReturnPlanProvider(
             goal.id,
           ).overrideWith((ref) => AsyncData(plan)),
+          // The Edit dialog now offers the microphone on its two sentence
+          // fields, which resolves availability when it opens.
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -46,8 +54,13 @@ void main() {
 
     expect(find.byType(Scrollable), findsWidgets);
     expect(find.text(goal.title), findsOneWidget);
-    expect(find.text('What is happening now'), findsOneWidget);
-    expect(find.text('Why this matters'), findsOneWidget);
+    expect(find.text('Reflections'), findsOneWidget);
+    await tester.ensureVisible(find.text('Earlier written notes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Earlier written notes'));
+    await tester.pumpAndSettle();
+    expect(find.text(goal.currentSituation!), findsOneWidget);
+    expect(find.text(goal.whyItMatters!), findsOneWidget);
     expect(find.byKey(const Key('goal-return')), findsNothing);
     expect(tester.takeException(), isNull);
 
@@ -94,10 +107,14 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          voiceNotesProvider.overrideWith((ref, context) => Stream.value([])),
           goalProvider(goal.id).overrideWith((ref) => Stream.value(goal)),
           goalReturnPlanProvider(
             goal.id,
           ).overrideWith((ref) => AsyncData(plan)),
+          // The Edit dialog now offers the microphone on its two sentence
+          // fields, which resolves availability when it opens.
+          speechRecognizerProvider.overrideWithValue(NoSpeech()),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),

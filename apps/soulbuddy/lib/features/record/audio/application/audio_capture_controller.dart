@@ -56,11 +56,17 @@ class AudioCaptureController extends ChangeNotifier {
   AudioCaptureController({
     required AudioRecorderGateway recorder,
     required Future<TemporaryAudio> Function() allocateTemporary,
+    Future<void> Function()? beforeCapture,
+    Future<void> Function()? afterCapture,
+    Future<void> Function()? onSilencePaused,
     this.maximumDuration = maximumMemoryAudioDuration,
     AudioElapsedClock? elapsedClock,
     AudioCaptureTickerFactory? tickerFactory,
   }) : _recorder = recorder,
        _allocateTemporary = allocateTemporary,
+       _beforeCapture = beforeCapture,
+       _afterCapture = afterCapture,
+       _onSilencePaused = onSilencePaused,
        _elapsedClock = elapsedClock ?? StopwatchAudioElapsedClock(),
        _tickerFactory = tickerFactory ?? _createTimerTicker {
     if (maximumDuration <= Duration.zero ||
@@ -73,9 +79,16 @@ class AudioCaptureController extends ChangeNotifier {
   static const _tickerInterval = Duration(milliseconds: 200);
   static const _maximumLiveSamples = 180;
   static const _maximumReviewSamples = 64;
+  static const _silenceThreshold = 0.01;
+  static const _silenceDuration = Duration(seconds: 12);
+  static const _maximumSampleGap = Duration(seconds: 2);
 
   final AudioRecorderGateway _recorder;
   final Future<TemporaryAudio> Function() _allocateTemporary;
+  final Future<void> Function()? _beforeCapture;
+  final Future<void> Function()? _afterCapture;
+  final Future<void> Function()? _onSilencePaused;
+  bool _audioLeaseAcquired = false;
   final Duration maximumDuration;
   final AudioElapsedClock _elapsedClock;
   final AudioCaptureTickerFactory _tickerFactory;
@@ -84,18 +97,31 @@ class AudioCaptureController extends ChangeNotifier {
   AudioCaptureState _state = const AudioCaptureState.explaining();
   AudioCaptureState get state => _state;
 
+  /// Includes failed starts and failed review deletion until cleanup succeeds.
+  /// A draft handed off with [takeReview] is owned by its caller instead.
+  bool get hasPendingRecording =>
+      _recordingSessionActive || _reviewResult != null;
+
   final List<double> _allSamples = [];
   AudioCaptureTicker? _ticker;
   AudioRecorderResult? _reviewResult;
   Future<void>? _activeCommand;
   bool _closed = false;
   bool _recordingSessionActive = false;
+  bool _heardVoice = false;
+  bool _silencePausePending = false;
+  Duration? _quietSince;
+  Duration? _lastSampleAt;
+  bool _recorderDisposed = false;
+  bool _closeComplete = false;
+  Future<void>? _closeFuture;
 
   Future<void> start() => _runCommand(_beginRecording);
 
   Future<void> _beginRecording() async {
     if (_closed ||
         _recordingSessionActive ||
+        _reviewResult != null ||
         (_state.phase != AudioCapturePhase.explaining &&
             _state.phase != AudioCapturePhase.failure &&
             _state.phase != AudioCapturePhase.idle)) {
@@ -118,13 +144,22 @@ class AudioCaptureController extends ChangeNotifier {
         );
         return;
       }
+      if (_closed) return;
+      _audioLeaseAcquired = _beforeCapture != null;
+      await _beforeCapture?.call();
+      if (_closed) return;
       final temporary = await _allocateTemporary();
-      await _recorder.start(temporary);
+      if (_closed) return;
+      // A native start may activate the microphone before its Future fails.
+      // Retain ownership until cancellation or disposal confirms it is closed.
       _recordingSessionActive = true;
+      await _recorder.start(temporary);
+      if (_closed) return;
       _elapsedClock
         ..reset()
         ..start();
       _allSamples.clear();
+      _resetSilenceDetection();
       _reviewResult = null;
       _ticker?.cancel();
       _ticker = _tickerFactory(_tickerInterval, _onTick);
@@ -135,11 +170,15 @@ class AudioCaptureController extends ChangeNotifier {
       if (_recordingSessionActive) {
         try {
           await _recorder.cancel();
+          _recordingSessionActive = false;
         } catch (_) {
-          // Preserve the original unavailable state.
+          // The microphone may still be active. Keep the playback reservation
+          // and allow the person to retry cleanup instead of starting again.
+          _emit(_failureState());
+          return;
         }
-        _recordingSessionActive = false;
       }
+      await _releaseAudioLease();
       _emit(
         const AudioCaptureState(
           phase: AudioCapturePhase.failure,
@@ -161,10 +200,14 @@ class AudioCaptureController extends ChangeNotifier {
   });
 
   Future<void> resume() => _runCommand(() async {
-    if (_state.phase != AudioCapturePhase.paused) return;
+    if (_closed || _state.phase != AudioCapturePhase.paused) return;
     try {
+      _audioLeaseAcquired = _beforeCapture != null;
+      await _beforeCapture?.call();
+      if (_closed) return;
       await _recorder.resume();
       _elapsedClock.start();
+      _resetSilenceDetection();
       _emit(_captureState(AudioCapturePhase.recording));
     } catch (_) {
       _emit(_failureState());
@@ -187,17 +230,19 @@ class AudioCaptureController extends ChangeNotifier {
         liveWaveform: _liveSamples(),
       ),
     );
+    RecordedAudioDraft? review;
     try {
       final result = await _recorder.stop();
       _recordingSessionActive = false;
       _ticker?.cancel();
       _reviewResult = result;
-      final review = RecordedAudioDraft(
+      review = RecordedAudioDraft(
         temporaryKey: result.locator,
         mimeType: result.mimeType,
         duration: elapsed,
         waveform: _reviewWaveform(),
       );
+      await _releaseAudioLease();
       _emit(
         AudioCaptureState(
           phase: AudioCapturePhase.review,
@@ -207,11 +252,15 @@ class AudioCaptureController extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      _emit(_failureState(elapsed: elapsed));
+      _emit(_failureState(elapsed: elapsed, review: review));
     }
   }
 
   Future<void> cancel() => _runCommand(() async {
+    if (!_recordingSessionActive && _reviewResult != null) {
+      await _discardWithinCommand();
+      return;
+    }
     if (!_recordingSessionActive ||
         (_state.phase != AudioCapturePhase.recording &&
             _state.phase != AudioCapturePhase.paused &&
@@ -222,15 +271,22 @@ class AudioCaptureController extends ChangeNotifier {
     try {
       await _recorder.cancel();
       _recordingSessionActive = false;
+      await _releaseAudioLease();
       _resetToExplaining();
     } catch (_) {
       _emit(_failureState());
     }
   });
 
-  Future<void> discard() => _runCommand(() async {
+  Future<void> discard() => _runCommand(_discardWithinCommand);
+
+  Future<void> _discardWithinCommand() async {
     final result = _reviewResult;
-    if (_state.phase != AudioCapturePhase.review || result == null) return;
+    if (result == null ||
+        (_state.phase != AudioCapturePhase.review &&
+            _state.phase != AudioCapturePhase.failure)) {
+      return;
+    }
     _emit(
       AudioCaptureState(
         phase: AudioCapturePhase.cancelling,
@@ -241,11 +297,12 @@ class AudioCaptureController extends ChangeNotifier {
     );
     try {
       await _recorder.discard(result);
+      await _releaseAudioLease();
       _resetToExplaining();
     } catch (_) {
       _emit(_failureState(elapsed: _state.elapsed));
     }
-  });
+  }
 
   /// Hands the reviewed temporary recording to the caller without deleting it.
   ///
@@ -261,14 +318,10 @@ class AudioCaptureController extends ChangeNotifier {
   }
 
   Future<void> recordAgain() => _runCommand(() async {
-    final result = _reviewResult;
-    if (_state.phase != AudioCapturePhase.review || result == null) return;
-    try {
-      await _recorder.discard(result);
-      _resetToExplaining();
+    if (_reviewResult == null) return;
+    await _discardWithinCommand();
+    if (_reviewResult == null && _state.phase == AudioCapturePhase.explaining) {
       await _beginRecording();
-    } catch (_) {
-      _emit(_failureState(elapsed: _state.elapsed));
     }
   });
 
@@ -294,9 +347,21 @@ class AudioCaptureController extends ChangeNotifier {
     }
   });
 
-  Future<void> close() async {
-    if (_closed) return;
+  Future<void> close() {
+    final pending = _closeFuture;
+    if (pending != null) return pending;
     _closed = true;
+    late final Future<void> closing;
+    closing = _closeResources().whenComplete(() {
+      if (!_closeComplete && identical(_closeFuture, closing)) {
+        _closeFuture = null;
+      }
+    });
+    _closeFuture = closing;
+    return closing;
+  }
+
+  Future<void> _closeResources() async {
     try {
       await _activeCommand;
     } catch (_) {
@@ -308,23 +373,49 @@ class AudioCaptureController extends ChangeNotifier {
     if (_recordingSessionActive) {
       try {
         await _recorder.cancel();
+        _recordingSessionActive = false;
       } catch (_) {
         // Disposal must continue so the microphone is released.
       }
-      _recordingSessionActive = false;
     }
+    Object? reviewCleanupError;
+    StackTrace? reviewCleanupStack;
     if (_reviewResult case final result?) {
       try {
         await _recorder.discard(result);
-      } catch (_) {
-        // Startup orphan cleanup handles any private take left behind.
+        _reviewResult = null;
+      } catch (error, stackTrace) {
+        // Release the microphone even if deleting its private take fails,
+        // while retaining the take so a subsequent close can retry deletion.
+        reviewCleanupError = error;
+        reviewCleanupStack = stackTrace;
       }
-      _reviewResult = null;
     }
-    await _recorder.dispose();
+    try {
+      if (!_recorderDisposed) {
+        await _recorder.dispose();
+        _recorderDisposed = true;
+        _recordingSessionActive = false;
+      }
+    } finally {
+      // If both native cancellation and disposal fail, playback stays locked.
+      // A later close() retries teardown without permitting another capture.
+      if (!_recordingSessionActive) await _releaseAudioLease();
+    }
+    if (reviewCleanupError != null) {
+      Error.throwWithStackTrace(reviewCleanupError, reviewCleanupStack!);
+    }
+    _closeComplete = true;
+  }
+
+  Future<void> _releaseAudioLease() async {
+    if (!_audioLeaseAcquired) return;
+    await _afterCapture?.call();
+    _audioLeaseAcquired = false;
   }
 
   Future<void> _runCommand(Future<void> Function() command) {
+    if (_closed) return Future.value();
     final active = _activeCommand;
     if (active != null) return active;
     late final Future<void> future;
@@ -340,6 +431,52 @@ class AudioCaptureController extends ChangeNotifier {
     final normalized = value.isFinite ? value.clamp(0.0, 1.0).toDouble() : 0.0;
     _allSamples.add(normalized);
     _emit(_captureState(AudioCapturePhase.recording));
+    if (!_recorder.canPause || _silencePausePending) return;
+    final elapsed = _elapsedClock.elapsed;
+    final lastSample = _lastSampleAt;
+    _lastSampleAt = elapsed;
+    if (lastSample != null && elapsed - lastSample > _maximumSampleGap) {
+      _quietSince = null;
+    }
+    if (normalized >= _silenceThreshold) {
+      _heardVoice = true;
+      _quietSince = null;
+      return;
+    }
+    if (!_heardVoice) return;
+    _quietSince ??= elapsed;
+    if (elapsed - _quietSince! >= _silenceDuration) {
+      _silencePausePending = true;
+      unawaited(() async {
+        try {
+          await pause();
+          if (!_closed && _state.phase == AudioCapturePhase.paused) {
+            _emit(
+              AudioCaptureState(
+                phase: AudioCapturePhase.paused,
+                elapsed: _state.elapsed,
+                liveWaveform: _state.liveWaveform,
+                notice: 'Paused after silence',
+              ),
+            );
+            try {
+              await _onSilencePaused?.call();
+            } catch (_) {
+              // Feedback must not change the recorded take or capture state.
+            }
+          }
+        } finally {
+          _silencePausePending = false;
+        }
+      }());
+    }
+  }
+
+  void _resetSilenceDetection() {
+    _heardVoice = false;
+    _quietSince = null;
+    _lastSampleAt = null;
+    _silencePausePending = false;
   }
 
   void _onTick() {
@@ -355,13 +492,17 @@ class AudioCaptureController extends ChangeNotifier {
     phase: phase,
     elapsed: _boundedElapsed(),
     liveWaveform: _liveSamples(),
-    notice: _state.notice,
+    notice: phase == AudioCapturePhase.recording ? null : _state.notice,
   );
 
-  AudioCaptureState _failureState({Duration? elapsed}) => AudioCaptureState(
+  AudioCaptureState _failureState({
+    Duration? elapsed,
+    RecordedAudioDraft? review,
+  }) => AudioCaptureState(
     phase: AudioCapturePhase.failure,
     elapsed: elapsed ?? _boundedElapsed(),
     liveWaveform: _liveSamples(),
+    review: review ?? _state.review,
     failure: AudioCaptureFailure.unexpected,
   );
 

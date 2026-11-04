@@ -87,6 +87,7 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
               TextField(
                 key: const Key('person-name'),
                 controller: _name,
+                maxLength: 120,
                 autofocus: widget.existing == null,
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(labelText: 'Name'),
@@ -95,6 +96,7 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
               TextField(
                 key: const Key('person-relationship'),
                 controller: _relationship,
+                maxLength: 80,
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Relationship (optional)',

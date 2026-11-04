@@ -4,10 +4,12 @@ import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as timezone;
 
 import '../../../core/design/app_spacing.dart';
+import '../application/prayer_narration_eligibility.dart';
 import '../application/prayer_reminder_scheduler.dart';
 import '../domain/personal_prayer.dart';
 import '../domain/prayer_reminder.dart';
 import '../providers/prayer_practice_providers.dart';
+import 'prayer_narration_disclosure.dart';
 
 enum _ReminderChoice { once, daily, weekdays }
 
@@ -151,7 +153,11 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
     final autoplay =
         _autoplayOverride ??
         ((device?.autoplayWhenOpened ?? false) && readyForDisplayedRevision);
-    final narrationEligible = widget.prayer.body.runes.length <= 2000;
+    final narrationEligible = canObtainPrayerNarration(
+      personalPrayerId: widget.prayer.id,
+      prayerRevisionId: widget.prayer.currentRevisionId,
+      prayerBody: widget.prayer.body,
+    );
     return PopScope(
       canPop: !_saving,
       child: Padding(
@@ -370,25 +376,7 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
   }
 
   Future<void> _acceptNarration(PrayerReminder reminder) async {
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Prepare prayer narration?'),
-        content: const Text(
-          'Prayer narration uses Deepgram to create a private cached reading of this saved prayer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Not now'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Accept and prepare'),
-          ),
-        ],
-      ),
-    );
+    final accepted = await showPrayerNarrationDisclosure(context);
     if (accepted != true || !mounted) return;
     setState(() {
       _saving = true;

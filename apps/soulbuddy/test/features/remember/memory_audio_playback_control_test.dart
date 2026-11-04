@@ -143,6 +143,75 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('resume after navigation uses the latest sound selection', (
+    tester,
+  ) async {
+    final values = <String, String>{};
+    final preferences = MemorySoundscapePreferences(
+      read: (key) async => values[key],
+      write: (key, value) async => values[key] = value,
+    );
+    await preferences.save(
+      'audio-1',
+      const MemorySoundscapeSettings(
+        soundscape: MemorySoundscape.flowingWater,
+        volume: .15,
+      ),
+    );
+    final driver = _ControlDriver();
+    final coordinator = MemoryAudioPlaybackCoordinator(
+      assetStore: _ControlAssetStore(),
+      driver: driver,
+    );
+    final sessionController = SpiritualSessionController();
+    final soundscapePlayer = _SilentSoundscapePlayer();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          memoryAudioPlaybackCoordinatorProvider.overrideWith(
+            (ref) async => coordinator,
+          ),
+          spiritualSessionControllerProvider.overrideWithValue(
+            sessionController,
+          ),
+          memorySoundscapePreferencesProvider.overrideWithValue(preferences),
+          memorySoundscapePlaybackProvider.overrideWith(
+            (ref) =>
+                MemorySoundscapePlaybackCoordinator(player: soundscapePlayer),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: AudioPlaybackControl(audio: _audio(), compact: true),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text('Play'));
+    await _settle(tester);
+    await sessionController.pause();
+    await preferences.save(
+      'audio-1',
+      const MemorySoundscapeSettings(
+        soundscape: MemorySoundscape.stillness,
+        volume: .1,
+      ),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    await sessionController.resume();
+
+    expect(driver.events, ['play', 'pause', 'resume']);
+    expect(soundscapePlayer.events, [
+      'start:flowingWater',
+      'stop',
+      'start:stillness',
+    ]);
+    await sessionController.close();
+    expect(soundscapePlayer.events.last, 'stop');
+  });
+
   testWidgets('full playback offers a gentle optional soundscape', (
     tester,
   ) async {
@@ -175,14 +244,10 @@ void main() {
     );
     await _settle(tester);
 
-    expect(find.text('Add a light background'), findsOneWidget);
+    expect(find.text('Background sound'), findsOneWidget);
     expect(find.text('Quiet'), findsOneWidget);
     expect(find.text('Stillness'), findsOneWidget);
     expect(find.text('Flowing water'), findsOneWidget);
-    expect(
-      find.text('Your original voice recording stays unchanged.'),
-      findsOneWidget,
-    );
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

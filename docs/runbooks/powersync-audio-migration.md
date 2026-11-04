@@ -1,0 +1,167 @@
+# PowerSync audio migration rehearsal
+
+## Production cutover, 2026-11-04
+
+Production now uses MySQL 8.4.13 and PowerSync 1.27.2 at
+`https://sbuddy.elbiblio.com/powersync/`. The API release is
+`20261104-audio-a1025eb-prepared`. The previous MariaDB database is stale and
+must not be reconnected without preserving and transferring subsequent MySQL
+writes. MySQL and MongoDB have private networks and persistent volumes; never
+remove those volumes as part of routine cleanup.
+
+A write-frozen source dump was restored, both migrations ran, and PowerSync's
+initial replication completed. Two synthetic accounts used the live API to
+upload recorded-prayer metadata and received isolated complete checkpoints;
+the accounts and their tokens were removed afterward. A verified encrypted
+copy of the cutover backup is stored independently on the operator's computer.
+The `soulbuddy-mysql84-backup.timer` runs a verified server-side backup daily.
+The independent copy is a point-in-time backup, not an automatic off-server
+backup of later changes.
+
+The sections below record the state and findings before the cutover. References
+to the old production database, stopped standbys, and unresolved deployment
+gates are historical rather than the current service state.
+
+## Rehearsal, 2026-11-03
+
+- A private, network-isolated MySQL 8 instance was populated from a production
+  snapshot. Existing triggers were restored under a valid rehearsal definer.
+- The audio metadata and ownership projection migrations ran against a second
+  fresh snapshot. Aggregate fingerprints for the original columns of all 66
+  application tables matched before and after migration, including automatic
+  timestamps. Migration bookkeeping was excluded from the comparison.
+- A separate synthetic 31-table test checked backfill, automatic timestamps,
+  forged-owner writes, immutable public account IDs and the rollback guard.
+- PowerSync 1.27.2 and temporary MongoDB used an isolated network. Two synthetic
+  accounts received their own audio and written prayer/reflection metadata, not
+  each other's records, private device audio or internal user IDs. A subsequent
+  database update also reached only its owner.
+- The temporary PowerSync, MongoDB and MySQL containers were stopped. Their
+  rehearsal database storage was temporary; this is not a production backup.
+
+## Additional rehearsal, 2026-11-04
+
+- A fresh, restricted production snapshot and its encrypted independent copy
+  were each restored into isolated MySQL instances with all 67 base tables
+  present. The independent copy was decrypted without writing plaintext on the
+  operator's computer. Neither copy is a final write-quiesced backup.
+- A separate MySQL database received only the production schema, followed by
+  the candidate audio and owner migrations and synthetic accounts. The full
+  candidate sync rules delivered complete, isolated prayer and reflection
+  checkpoints to two accounts, and a later reflection reached only its owner.
+  Invalid signatures and audiences were rejected. This did not exercise the
+  production token controller, real devices, uploads, or public TLS.
+- With binary logging enabled, a database-scoped migration account could not
+  create triggers. The disposable rehearsal temporarily enabled
+  `log_bin_trust_function_creators`, and disabled it again after migration.
+  Production needs a reviewed migration privilege and durable trigger-definer
+  plan; it must account for partially committed DDL on failure.
+- A separate MySQL 8.4 rehearsal kept global trigger trust disabled, granted a
+  migration account temporary elevated privileges, then reduced it to scoped
+  SELECT, UPDATE and TRIGGER privileges and locked its login. A DML-only app
+  account could still write; owner spoofing and public-ID changes were blocked.
+  The production standby has a matching locked definer prepared, but the
+  temporary grant and guaranteed revocation sequence must be rehearsed as part
+  of the complete cutover and its failure handling.
+- On an isolated restored snapshot, the temporarily elevated migration account
+  itself rewrote the 33 existing trigger definers and applied both migrations.
+  After its login was locked and privileges reduced, a restricted writer
+  exercised the legacy prayer-vote trigger and owner protections successfully.
+- MySQL 8.0 reached end of life in April 2026. The supported target is MySQL
+  8.4.13 LTS: the snapshot restored there, candidate migrations preserved
+  fingerprints of the original columns and rows in all 67 tables, and the full
+  candidate rules isolated both synthetic accounts and their live changes using
+  the default MySQL authentication. The restore rehearsal rewrote 33 trigger
+  definers in the isolated copy only.
+- A temporary public HTTPS proxy on a separate port delivered complete isolated
+  checkpoints through Cloudflare and a later update after 132 seconds. This did
+  not exercise the production port 443 route, production tokens, or devices.
+- A MySQL 8.4 snapshot with a synthetic later write was exported back to an
+  isolated MariaDB 10.3 instance. Row fingerprints matched in all 67 tables,
+  the synthetic write was present, and all 96 triggers retained their order.
+  A restricted writer exercised the legacy vote and owner protections. This
+  restore used `root@localhost` trigger definers in the isolated copy; a
+  restricted production failback definer still needs end-to-end verification.
+- An empty, persistent MySQL 8.4 standby was provisioned on an internal Docker
+  network with no published ports and verified with GTID, ROW and FULL settings.
+  Separate application and replication accounts have restricted grants. An
+  empty MongoDB 8.0.34 standby was also provisioned with a replica-set keyfile
+  and a storage user limited to its bucket database. Both remain stopped and
+  are not connected to the live application. Their initial memory limits are
+  not a production capacity assessment.
+- The candidate PowerSync configuration was tested with MySQL 8.4 and
+  authenticated MongoDB 8.0.34, including isolated checkpoints and live updates.
+  Two synthetic accounts also obtained installation sessions and sync tokens
+  through the authenticated candidate API, uploaded prayer and reflection
+  metadata, and received isolated checkpoints. An unauthenticated token request
+  and a cross-account mutation were rejected.
+  A stopped Compose cutover profile and an Nginx route candidate are prepared
+  on the server, but no live route or service has been activated.
+- The SoulBuddy origin certificate was renewed and a dedicated renewal timer was
+  enabled using the working Certbot installation. The server's unrelated global
+  Certbot timer still has a version conflict and was not changed.
+- An inactive candidate API release was prepared beside the live release and
+  booted in a network-isolated container with all 32 current routes present.
+  Changing a release symlink alone did not update a running bind mount in an
+  isolated test; restarting the container picked up the new target. The live
+  release and database connection remain unchanged.
+- In isolated tests, maintenance mode skipped the current scheduled commands,
+  and read locks across all 67 snapshot tables blocked a writer while a dump
+  succeeded and an unrelated database remained writable. A SoulBuddy scheduler
+  runs every minute; all web, queue, scheduled and other writers must remain
+  fenced until the switch is verified. The production lock and recovery
+  orchestration has not yet been rehearsed end to end.
+
+## Before any production cutover
+
+1. Reconcile the application release with the deployed prayer-release branch;
+   the older audio branch alone would omit production features and migrations.
+2. Design and validate a production MySQL 8 deployment, capacity, backups,
+   restore, monitoring, transport security and DNS. Configure GTID, binary
+   logging, `ROW` format and `FULL` row images. Provision least-privileged
+   database and trigger-definer accounts and a secured PowerSync service.
+3. Rehearse a complete backup and restore, including routines and triggers,
+   using those accounts. Confirm all table definitions, row counts and content
+   against the source in a consistent time zone. Define and test rollback and
+   recovery for failures after implicit MySQL DDL commits.
+4. Quiesce **all** writers, including jobs and scheduled notifications; take and
+   verify the final consistent backup; migrate and compare it. A live snapshot
+   alone is insufficient because records can change while copying.
+5. Apply the ordinary audio metadata migration on the target, then explicitly
+   run `php artisan migrate --force --path=database/powersync` from `services/api`
+   for the MySQL-only ownership projection. It is outside the ordinary migration
+   directory so MariaDB upgrades do not run it. The owner migration deliberately
+   refuses rollback once clients may depend on it.
+   Confirm the exact deployed sync rules and the application's PowerSync URL,
+   then verify isolation and subsequent changes with two staging accounts.
+6. Release only after the combined candidate passes CI and physical Android
+   recording, speaker/headphone handoff and background playback checks. iOS
+   simulator CI does not replace a physical iPhone audio check.
+
+The candidate rules are in `infra/powersync/self-hosted.sync-rules.yaml`. They
+are not active production configuration. Audio files remain local to the device;
+the rules synchronize metadata only.
+
+The existing API token issuer uses HS256 and requires matching issuer, audience,
+key ID and signing key in PowerSync's client authentication configuration. A
+read-only check on 2026-11-04 found the production audience unset. Configure and
+test the issuer and service together; do not print or commit signing keys. The
+Play workflow requires the repository variable `SOULBUDDY_POWERSYNC_URL` to be
+set to the verified HTTPS service endpoint and embeds it in the release bundle.
+Endpoint syntax validation is not a service health or isolation check.
+An endpoint with a path must end in `/`: the Flutter SDK resolves sync paths
+relative to the endpoint URI, and a missing slash drops the last path segment.
+
+## Unresolved release blocker
+
+The Android speech-recognition handoff now waits for a native terminal callback.
+That callback does not prove physical microphone hardware release: verify the
+handoff on a device. A missing callback deliberately leaves capture locked.
+
+Sacred Hour recorded playback uses the shared playback session and system media
+controls. Its timer is held in the running app process and is not durable across
+process death. Verify playback, capture handoff and notification actions on a
+device.
+
+The combined candidate has passed CI but has not been published. The production
+PowerSync endpoint is not configured, and physical audio QA remains in progress.

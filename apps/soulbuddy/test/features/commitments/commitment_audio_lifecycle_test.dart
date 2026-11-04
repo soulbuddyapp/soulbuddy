@@ -39,7 +39,7 @@ void main() {
         'audio/sacred_hours/sacred_still_bell.wav',
       );
       await native.preparing.future;
-      final stopping = audio.stop();
+      final stopping = audio.stopForRecording();
       native.ready.complete();
       await Future.wait([starting, stopping]);
       await audio.resume();
@@ -48,18 +48,53 @@ void main() {
       audio.dispose();
     },
   );
+
+  test(
+    'recording handoff waits for native instruction audio to stop',
+    () async {
+      final native = _Native()..stopping = Completer<void>();
+      final audio = CommitmentAudio(player: native);
+      var canRecord = false;
+      final stopping = audio.stopForRecording().then((_) => canRecord = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(canRecord, isFalse);
+      native.stopping!.complete();
+      await stopping;
+      expect(canRecord, isTrue);
+      audio.dispose();
+    },
+  );
+
+  test(
+    'failed instruction stop blocks recording and remains retryable',
+    () async {
+      final native = _Native()..stopError = StateError('output unavailable');
+      final audio = CommitmentAudio(player: native);
+      await expectLater(audio.stopForRecording(), throwsStateError);
+      expect(audio.unavailable, isTrue);
+      native.stopError = null;
+      await audio.stopForRecording();
+      audio.dispose();
+    },
+  );
 }
 
 class _Native implements AudioPlayer {
   final preparing = Completer<void>();
   final ready = Completer<void>();
+  Completer<void>? stopping;
+  Object? stopError;
   int playCalls = 0, resumeCalls = 0;
   @override
   Stream<Duration> get onPositionChanged => const Stream.empty();
   @override
   Stream<void> get onPlayerComplete => const Stream.empty();
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    if (stopError case final error?) throw error;
+    await stopping?.future;
+  }
+
   @override
   Future<void> pause() async {}
   @override
