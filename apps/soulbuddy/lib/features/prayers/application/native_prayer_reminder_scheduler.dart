@@ -21,6 +21,12 @@ const _darwinSacredHourCategoryId = 'SACRED_HOUR_REMINDER';
 const _darwinCircleCategoryId = 'CIRCLE_REMINDER';
 const _darwinDailyFormationCategoryId = 'DAILY_FORMATION_REMINDER';
 
+String? darwinPrayerSound(String? soundKey) {
+  if (soundKey == null) return null;
+  if (soundKey == 'builtin_prayer_09') return 'prayer_reflection_v1.wav';
+  return '$soundKey.wav';
+}
+
 enum NativePrayerScheduleMode { inexactAllowWhileIdle, exactAllowWhileIdle }
 
 class NativeNotificationActionData {
@@ -159,6 +165,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
     final goalMeditation =
         notification.kind == ReminderNotificationKind.goalMeditation;
     final commitment = notification.kind == ReminderNotificationKind.commitment;
+    final builtIn = notification.kind == ReminderNotificationKind.builtInPrayer;
     final sound = _notificationSound(notification.soundKey);
     return _client.schedule(
       NativeNotificationRequest(
@@ -202,7 +209,9 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
         startsAudio: false,
         playSound: sound.playSound,
         soundKey: sound.soundKey,
-        actions: sacredHour
+        actions: builtIn
+            ? const []
+            : sacredHour
             ? const [
                 NativeNotificationActionData(
                   id: _beginActionId,
@@ -327,7 +336,10 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
       value is String && value.isNotEmpty && value.length <= 160;
 
   ({bool playSound, String? soundKey}) _notificationSound(String? value) {
-    if (value == null || value == 'device') {
+    if (value == null) {
+      return (playSound: true, soundKey: 'prayer_reflection_v1');
+    }
+    if (value == 'device') {
       return (playSound: true, soundKey: null);
     }
     if (value == 'silent') {
@@ -520,18 +532,21 @@ class FlutterLocalNotificationsPrayerClient
     final dailyFormation =
         request.kind == ReminderNotificationKind.dailyFormation.name;
     final commitment = request.kind == ReminderNotificationKind.commitment.name;
+    final builtIn = request.kind == ReminderNotificationKind.builtInPrayer.name;
     final channelSuffix = request.playSound
         ? request.soundKey ?? 'device'
         : 'silent';
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        commitment
+        builtIn
+            ? 'built_in_prayer_v1_$channelSuffix'
+            : commitment
             ? 'commitment_invitation_v1_$channelSuffix'
             : sacredHour
             ? 'sacred_hours_alarm_v2_$channelSuffix'
             : dailyFormation
-            ? 'daily_formation_v1'
-            : 'prayer_reminders_v2',
+            ? 'daily_formation_v2_$channelSuffix'
+            : 'prayer_reminders_v3_$channelSuffix',
         commitment
             ? 'Commitment reminders'
             : sacredHour
@@ -586,7 +601,7 @@ class FlutterLocalNotificationsPrayerClient
             ? _darwinAltarCategoryId
             : _darwinCategoryId,
         presentSound: request.playSound,
-        sound: request.soundKey == null ? null : '${request.soundKey}.wav',
+        sound: darwinPrayerSound(request.soundKey),
       ),
     );
     await _plugin.zonedSchedule(

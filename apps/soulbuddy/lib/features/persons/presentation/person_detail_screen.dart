@@ -6,11 +6,17 @@ import '../../../core/design/app_spacing.dart';
 import '../application/person_prayer_guide.dart';
 import '../domain/prayer_person.dart';
 import '../providers/person_providers.dart';
+import 'person_prayer_audio_section.dart';
 
 class PersonDetailScreen extends ConsumerWidget {
-  const PersonDetailScreen({super.key, required this.personId});
+  const PersonDetailScreen({
+    super.key,
+    required this.personId,
+    this.fromReminder = false,
+  });
 
   final String personId;
+  final bool fromReminder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => ref
@@ -23,14 +29,15 @@ class PersonDetailScreen extends ConsumerWidget {
         ),
         data: (person) => person == null
             ? const Scaffold(body: Center(child: Text('Person not found.')))
-            : _PersonDetail(person: person),
+            : _PersonDetail(person: person, fromReminder: fromReminder),
       );
 }
 
 class _PersonDetail extends ConsumerWidget {
-  const _PersonDetail({required this.person});
+  const _PersonDetail({required this.person, required this.fromReminder});
 
   final PrayerPerson person;
+  final bool fromReminder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,6 +100,10 @@ class _PersonDetail extends ConsumerWidget {
                   onPressed: () => _openPrayerGuide(context, ref),
                   icon: const Icon(Icons.volunteer_activism_outlined),
                   label: Text('Pray for ${person.name}'),
+                ),
+                PersonPrayerAudioSection(
+                  personId: person.id,
+                  autoplay: fromReminder,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 OutlinedButton.icon(

@@ -53,6 +53,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Record a prayer'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 

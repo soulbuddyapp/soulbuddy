@@ -33,23 +33,46 @@ void main() {
     expect(jsonDecode(stored!)['completions'], hasLength(1));
   });
 
-  test('does not add a duplicate completion when a completed day is retried', () async {
-    String? stored;
+  test(
+    'does not add a duplicate completion when a completed day is retried',
+    () async {
+      String? stored;
+      final repository = DailyFormationRepository(
+        read: (_) async => stored,
+        write: (_, value) async => stored = value,
+      );
+      final completion = FormationCompletion(
+        day: 1,
+        videoId: 'V001',
+        completedAt: DateTime.utc(2026, 9, 16),
+      );
+
+      await repository.complete(completion);
+      await repository.complete(completion);
+
+      final progress = await repository.load();
+      expect(progress.currentDay, 2);
+      expect(progress.completions, hasLength(1));
+    },
+  );
+  test('does not overwrite progress when reading it fails', () async {
+    var wrote = false;
     final repository = DailyFormationRepository(
-      read: (_) async => stored,
-      write: (_, value) async => stored = value,
+      read: (_) async => throw StateError('storage unavailable'),
+      write: (_, _) async {
+        wrote = true;
+      },
     );
-    final completion = FormationCompletion(
-      day: 1,
-      videoId: 'V001',
-      completedAt: DateTime.utc(2026, 9, 16),
+    await expectLater(
+      repository.complete(
+        FormationCompletion(
+          day: 1,
+          videoId: 'V1',
+          completedAt: DateTime.utc(2026),
+        ),
+      ),
+      throwsStateError,
     );
-
-    await repository.complete(completion);
-    await repository.complete(completion);
-
-    final progress = await repository.load();
-    expect(progress.currentDay, 2);
-    expect(progress.completions, hasLength(1));
+    expect(wrote, isFalse);
   });
 }

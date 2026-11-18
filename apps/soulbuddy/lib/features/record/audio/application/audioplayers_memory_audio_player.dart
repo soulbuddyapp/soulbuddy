@@ -6,10 +6,13 @@ import '../data/audio_asset_store.dart';
 import 'memory_audio_player.dart';
 
 class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
-  AudioplayersMemoryAudioPlayerDriver({AudioPlayer Function()? playerFactory})
-    : _playerFactory = playerFactory ?? AudioPlayer.new;
+  AudioplayersMemoryAudioPlayerDriver({
+    AudioPlayer Function()? playerFactory,
+    this.respectSilence = false,
+  }) : _playerFactory = playerFactory ?? AudioPlayer.new;
 
   final AudioPlayer Function() _playerFactory;
+  final bool respectSilence;
   final Map<String, AudioPlayer> _players = {};
   final Map<String, List<StreamSubscription<Object?>>> _subscriptions = {};
   final StreamController<Duration> _durations =
@@ -38,7 +41,7 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
     try {
       // Keep the prepared source attached after completion so the same memory
       // can be replayed without reopening its private bytes.
-      await prepareVoicePlaybackPlayer(player);
+      await prepareVoicePlaybackPlayer(player, respectSilence: respectSilence);
       await _setSource(player, source);
     } catch (_) {
       await player.dispose();
@@ -123,7 +126,10 @@ class AudioplayersMemoryAudioPlayerDriver implements MemoryAudioPlayerDriver {
   }
 }
 
-Future<void> prepareVoicePlaybackPlayer(AudioPlayer player) async {
+Future<void> prepareVoicePlaybackPlayer(
+  AudioPlayer player, {
+  bool respectSilence = false,
+}) async {
   await player.setPlayerMode(PlayerMode.mediaPlayer);
   await player.setAudioContext(
     AudioContext(
@@ -132,7 +138,11 @@ Future<void> prepareVoicePlaybackPlayer(AudioPlayer player) async {
         usageType: AndroidUsageType.media,
         audioFocus: AndroidAudioFocus.gain,
       ),
-      iOS: AudioContextIOS(category: AVAudioSessionCategory.playback),
+      iOS: AudioContextIOS(
+        category: respectSilence
+            ? AVAudioSessionCategory.ambient
+            : AVAudioSessionCategory.playback,
+      ),
     ),
   );
   await player.setReleaseMode(ReleaseMode.stop);

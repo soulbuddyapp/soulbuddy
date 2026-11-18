@@ -238,6 +238,7 @@ final GoRouter appRouter = GoRouter(
                   path: ':prayerId',
                   builder: (context, state) => PrayerDetailScreen(
                     prayerId: state.pathParameters['prayerId']!,
+                    fromReminder: state.uri.queryParameters['reminder'] == '1',
                   ),
                 ),
               ],
@@ -258,6 +259,7 @@ final GoRouter appRouter = GoRouter(
                   path: ':personId',
                   builder: (context, state) => PersonDetailScreen(
                     personId: state.pathParameters['personId']!,
+                    fromReminder: state.uri.queryParameters['reminder'] == '1',
                   ),
                   routes: [
                     GoRoute(

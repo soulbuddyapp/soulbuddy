@@ -7,6 +7,33 @@ import 'package:soulbuddy/features/prayers/application/native_prayer_reminder_sc
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
 
 void main() {
+  test('every reminder kind has a gentle spoken cue by default', () async {
+    final client = _FakeNativeNotificationClient();
+    final scheduler = NativePrayerReminderScheduler(client: client);
+    for (final kind in ReminderNotificationKind.values) {
+      await scheduler.schedule(
+        PrayerScheduledNotification(
+          platformNotificationId: 100 + kind.index,
+          reminderId: 'id-${kind.name}',
+          occurrenceKey: 'occurrence-${kind.name}',
+          scheduledAtUtc: DateTime.utc(2026, 11, 18),
+          kind: kind,
+        ),
+      );
+    }
+    expect(
+      client.requests.map((r) => r.soundKey),
+      everyElement('prayer_reflection_v1'),
+    );
+    expect(client.requests.every((r) => r.playSound), isTrue);
+  });
+
+  test('iOS uses a short cue for the long built-in prayer', () {
+    expect(darwinPrayerSound('builtin_prayer_01'), 'builtin_prayer_01.wav');
+    expect(darwinPrayerSound('builtin_prayer_09'), 'prayer_reflection_v1.wav');
+    expect(darwinPrayerSound(null), isNull);
+  });
+
   test('initialization retries after a transient native failure', () async {
     final client = _FakeNativeNotificationClient()..initializationFailures = 1;
     final scheduler = NativePrayerReminderScheduler(client: client);

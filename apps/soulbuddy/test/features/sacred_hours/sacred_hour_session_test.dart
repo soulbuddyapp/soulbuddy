@@ -14,6 +14,13 @@ void main() {
     expect(controller.state.phase, SacredHourSessionPhase.work);
   });
 
+  testWidgets('shows the selected prayer audio control', (tester) async {
+    await tester.pumpWidget(
+      _subject(prayerAudio: const Text('Selected prayer audio')),
+    );
+    expect(find.text('Selected prayer audio'), findsOneWidget);
+  });
+
   testWidgets('keeps the prayer moment quiet and focused', (tester) async {
     var prayerChoices = 0;
     var soundChoices = 0;
@@ -87,6 +94,7 @@ Widget _subject({
   ValueChanged<String>? onRemember,
   VoidCallback? onPrayer,
   VoidCallback? onSound,
+  Widget? prayerAudio,
 }) => MaterialApp(
   theme: AppTheme.light(),
   home: SacredHourSessionView(
@@ -101,6 +109,7 @@ Widget _subject({
     soundLabel: 'Silence',
     soundPlaying: false,
     prayerPlaying: false,
+    prayerAudio: prayerAudio,
   ),
 );
 

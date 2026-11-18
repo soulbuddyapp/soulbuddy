@@ -1,9 +1,14 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
-import '../../../core/speech/sayable_field.dart';
+import '../../guide/domain/guide_profile.dart';
+import '../../guide/presentation/guide_intro_sheet.dart';
+import '../../guide/providers/guide_providers.dart';
+import 'teaching_reflection_sheet.dart';
 import '../application/formation_video_launcher.dart';
 import '../domain/formation_catalog.dart';
 import '../domain/formation_profile.dart';
@@ -240,25 +245,68 @@ class DailyFormationCard extends ConsumerWidget {
     FormationDay day,
     FormationVideo video,
   ) async {
-    final result =
-        await showModalBottomSheet<({String reflection, String action})>(
+    String? name;
+    final repository = ref.read(guideRepositoryProvider);
+    while (true) {
+      try {
+        name = await repository.load();
+        break;
+      } catch (_) {
+        if (!context.mounted) return;
+        final retry = await showDialog<bool>(
           context: context,
-          isScrollControlled: true,
-          showDragHandle: true,
-          builder: (_) => _CompletionSheet(day: day),
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Guide name unavailable'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Continue without a name'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Try again'),
+              ),
+            ],
+          ),
         );
-    if (result == null) return;
-    await completeDailyFormation(
-      ref,
-      FormationCompletion(
-        day: day.day,
+        if (retry != true) {
+          name = '';
+          break;
+        }
+      }
+    }
+    if (!context.mounted) return;
+    if (name == null) {
+      final suggested = GuideProfile
+          .names[Random.secure().nextInt(GuideProfile.names.length)];
+      name = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => GuideIntroSheet(
+          initialName: suggested,
+          onSave: (value) async {
+            await repository.save(value);
+            ref.invalidate(guideNameProvider);
+          },
+        ),
+      );
+      if (name == null || !context.mounted) return;
+    }
+    final completed = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => TeachingReflectionSheet(
+        day: day,
         videoId: video.id,
-        completedAt: DateTime.now(),
-        reflection: result.reflection,
-        action: result.action,
+        guideName: name!.isEmpty ? null : name,
+        onSave: (completion) => completeDailyFormation(ref, completion),
       ),
     );
-    recordDailyFormationCompleted(ref, video.id);
+    if (completed == true) recordDailyFormationCompleted(ref, video.id);
   }
 
   static String _duration(int seconds) =>
@@ -454,75 +502,6 @@ class _SetupCardState extends ConsumerState<_SetupCard> {
             }
           },
           child: const Text('Begin daily formation'),
-        ),
-      ],
-    ),
-  );
-}
-
-class _CompletionSheet extends StatefulWidget {
-  const _CompletionSheet({required this.day});
-  final FormationDay day;
-
-  @override
-  State<_CompletionSheet> createState() => _CompletionSheetState();
-}
-
-class _CompletionSheetState extends State<_CompletionSheet> {
-  final _reflection = TextEditingController();
-  final _action = TextEditingController();
-
-  @override
-  void dispose() {
-    _reflection.dispose();
-    _action.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      20,
-      0,
-      20,
-      20 + MediaQuery.viewInsetsOf(context).bottom,
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Carry it into today',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 6),
-        Text(widget.day.reflection),
-        const SizedBox(height: 12),
-        // Neither field carries a limit, because neither had one: the sheet
-        // takes whatever a person says here whole rather than cutting it.
-        SayableField(
-          controller: _reflection,
-          maxLines: 2,
-          textInputAction: TextInputAction.next,
-          labelText: 'Reflection',
-        ),
-        const SizedBox(height: 8),
-        SayableField(
-          controller: _action,
-          maxLines: 2,
-          labelText: widget.day.action,
-          // The sheet's two fields are one screen, so the notice is said once
-          // — by the field above, which comes first. A second copy of the same
-          // sentence under the second field would be noise.
-          showUnavailableNotice: false,
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, (
-            reflection: _reflection.text,
-            action: _action.text,
-          )),
-          child: const Text('Complete today'),
         ),
       ],
     ),

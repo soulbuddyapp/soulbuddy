@@ -52,6 +52,10 @@ The Flutter build reads `SOULBUDDY_API_URL` and `SOULBUDDY_POWERSYNC_URL` at com
 
 Saved personal prayers can have once, daily, or selected-day reminders at a local wall time. Reminder schedules and quiet prayer-session records sync privately, while notification enablement remains device-specific. Android and iOS notifications use only the generic text `Prayer reminder` and `Time set aside for prayer`; no prayer title, body, Encounter, Scripture, or user identifier is placed in the notification payload.
 
+The nine bundled library prayers include synthesized offline narration and device-local daily reminders. Android reminders request the full bundled prayer as a notification sound; iOS uses the full sound when it is under 30 seconds and a short spoken cue for the longer prayer. Opening a reminder offers the full prayer, subject to the device’s sound settings. Each built-in reminder has an audio switch. Other native reminder kinds use a generic spoken cue by default when no specific sound has been selected; existing silent and device-sound selections are preserved. OS delivery and audio duration depend on device settings and require device verification.
+
+Person prayer recordings are optional and stored on the device. They can be recorded after saving a person, played, replaced or removed; opening a person reminder can start an existing recording when sound is allowed. Recordings are not sent to notification payloads.
+
 A saved personal prayer may also use opt-in Deepgram Aura narration. Narration is separate from prayer authorship: only the exact immutable saved-prayer revision is sent after explicit disclosure and consent, encrypted narration audio is cached privately, system notifications never play it, and playback itself never records a prayer session.
 
 ## Run Laravel

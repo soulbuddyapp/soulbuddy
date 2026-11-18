@@ -33,7 +33,9 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
+  characters: ^1.4.0
   cupertino_icons: ^1.0.8
+  crypto: ^3.0.6
   powersync: 1.17.0
   flutter_riverpod: ^3.3.2
   go_router: 17.2.3
@@ -72,7 +74,6 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   alchemist: ^0.14.0
   accessibility_tools: ^2.7.1
-  crypto: ^3.0.6
   xml: ^6.6.1
   integration_test:
     sdk: flutter
@@ -94,6 +95,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/images/guide/
     - assets/images/sanctuary/
     - assets/orientation/
     - assets/kingdom/
@@ -102,6 +104,7 @@ flutter:
     - assets/content/daily_formation_v1.json
     - assets/content/editorial_manifest.json
     - assets/scripture/rsvce.db
+    - assets/audio/prayers/
     - assets/audio/feedback/
     - assets/audio/meditation/
     - assets/audio/sacred_hours/

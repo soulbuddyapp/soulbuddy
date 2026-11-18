@@ -10,6 +10,7 @@ import '../../../core/feedback/app_feedback_providers.dart';
 import '../../../core/feedback/completion_feedback.dart';
 import '../../../core/identity/local_identity_providers.dart';
 import '../../persons/providers/person_providers.dart';
+import '../../guide/presentation/guide_name_setting.dart';
 import '../../prayers/domain/library_prayer.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
@@ -64,6 +65,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/orientation'),
               ),
+              const SizedBox(height: AppSpacing.lg),
+              const GuideNameSetting(),
               const SizedBox(height: AppSpacing.lg),
               const _AccountEmailSettingsHost(),
               const SizedBox(height: AppSpacing.lg),
@@ -464,7 +467,7 @@ class _SoundTouchSettings extends StatelessWidget {
         ],
         const SizedBox(height: AppSpacing.lg),
         Text(
-          'Prayer narration plays only with consent. System notifications stay silent.',
+          'Generated personal prayer narration requires consent.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),

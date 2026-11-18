@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import '../../../core/presentation/screen_awake.dart';
+import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,14 +14,24 @@ import '../domain/prayer_reference.dart';
 import '../providers/prayer_providers.dart';
 import '../providers/prayer_release_providers.dart';
 import 'prayer_library_tile.dart';
+import 'bundled_prayer_audio_button.dart';
+import 'bundled_prayer_reminder_control.dart';
+import '../application/bundled_prayer_audio.dart';
+import '../providers/prayer_practice_providers.dart';
+import '../providers/bundled_prayer_reminder_providers.dart';
 import 'use_today_confirmation_sheet.dart';
 import 'voice_tablet_player.dart';
 import '../domain/voice_tablet.dart';
 
 class PrayerDetailScreen extends ConsumerStatefulWidget {
-  const PrayerDetailScreen({required this.prayerId, super.key});
+  const PrayerDetailScreen({
+    required this.prayerId,
+    this.fromReminder = false,
+    super.key,
+  });
 
   final String prayerId;
+  final bool fromReminder;
 
   @override
   ConsumerState<PrayerDetailScreen> createState() => _PrayerDetailScreenState();
@@ -27,6 +39,48 @@ class PrayerDetailScreen extends ConsumerStatefulWidget {
 
 class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
   var _updatingHelpful = false;
+  var _allowAutoplay = false;
+  var _audioVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.fromReminder) _checkAudio();
+  }
+
+  @override
+  void didUpdateWidget(covariant PrayerDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.prayerId != widget.prayerId ||
+        oldWidget.fromReminder != widget.fromReminder) {
+      _allowAutoplay = false;
+      if (widget.fromReminder) _checkAudio();
+    }
+  }
+
+  Future<void> _checkAudio() async {
+    final requestedId = widget.prayerId;
+    try {
+      final reminder = await ref.read(bundledPrayerReminderProvider.future);
+      if (!await reminder.audioEnabledFor(requestedId)) return;
+      final environment = ref.read(prayerAudioEnvironmentProvider);
+      final route = await environment.currentRoute();
+      final allowed = await environment.interruptionsAllowed();
+      if (mounted &&
+          widget.fromReminder &&
+          _audioVisible &&
+          widget.prayerId == requestedId &&
+          allowBundledReminderAutoplay(
+            isIOS: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+            route: route,
+            interruptionsAllowed: allowed,
+          )) {
+        setState(() => _allowAutoplay = true);
+      }
+    } catch (_) {
+      // Keep playback manual when the audio environment is unknown.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +96,21 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
         if (value == null) {
           return _PrayerMissing(onBack: () => context.go('/prayers'));
         }
-        return ScreenAwake(child: _buildPrayer(context, value));
+        return ScreenAwake(
+          child: PracticeAudioScope(
+            onVisibilityChanged: (visible) {
+              if (_audioVisible == visible) return;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  _audioVisible = visible;
+                  if (!visible) _allowAutoplay = false;
+                });
+              });
+            },
+            child: _buildPrayer(context, value),
+          ),
+        );
       },
     );
   }
@@ -83,6 +151,17 @@ class _PrayerDetailScreenState extends ConsumerState<PrayerDetailScreen> {
                 style: Theme.of(
                   context,
                 ).textTheme.bodyLarge?.copyWith(height: 1.65),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (_audioVisible)
+                BundledPrayerAudioSection(
+                  prayerId: prayer.id,
+                  body: prayer.body,
+                  autoplay: _allowAutoplay,
+                ),
+              BundledPrayerReminderControl(
+                prayerId: prayer.id,
+                body: prayer.body,
               ),
               if (prayer.action case final action?) ...[
                 const SizedBox(height: AppSpacing.xl),

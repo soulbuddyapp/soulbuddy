@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000000000000000000018 /* builtin_prayer_08.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* builtin_prayer_08.wav */; };
+		A10000000000000000000017 /* builtin_prayer_07.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* builtin_prayer_07.wav */; };
+		A10000000000000000000016 /* builtin_prayer_06.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* builtin_prayer_06.wav */; };
+		A10000000000000000000015 /* builtin_prayer_05.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* builtin_prayer_05.wav */; };
+		A10000000000000000000014 /* builtin_prayer_04.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* builtin_prayer_04.wav */; };
+		A10000000000000000000013 /* builtin_prayer_03.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* builtin_prayer_03.wav */; };
+		A10000000000000000000012 /* builtin_prayer_02.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* builtin_prayer_02.wav */; };
+		A10000000000000000000011 /* builtin_prayer_01.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* builtin_prayer_01.wav */; };
+		A10000000000000000000006 /* prayer_reflection_v1.wav in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* prayer_reflection_v1.wav */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -45,6 +54,15 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A20000000000000000000018 /* builtin_prayer_08.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_08.wav; sourceTree = "<group>"; };
+		A20000000000000000000017 /* builtin_prayer_07.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_07.wav; sourceTree = "<group>"; };
+		A20000000000000000000016 /* builtin_prayer_06.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_06.wav; sourceTree = "<group>"; };
+		A20000000000000000000015 /* builtin_prayer_05.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_05.wav; sourceTree = "<group>"; };
+		A20000000000000000000014 /* builtin_prayer_04.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_04.wav; sourceTree = "<group>"; };
+		A20000000000000000000013 /* builtin_prayer_03.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_03.wav; sourceTree = "<group>"; };
+		A20000000000000000000012 /* builtin_prayer_02.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_02.wav; sourceTree = "<group>"; };
+		A20000000000000000000011 /* builtin_prayer_01.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/builtin_prayer_01.wav; sourceTree = "<group>"; };
+		A20000000000000000000006 /* prayer_reflection_v1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Sounds/prayer_reflection_v1.wav; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -132,6 +150,15 @@
 				A20000000000000000000003 /* sacred_still_bell.wav */,
 				A20000000000000000000004 /* sacred_evening_chime.wav */,
 				A20000000000000000000005 /* commitment_invitation_v1.wav */,
+				A20000000000000000000006 /* prayer_reflection_v1.wav */,
+				A20000000000000000000018 /* builtin_prayer_08.wav */,
+				A20000000000000000000017 /* builtin_prayer_07.wav */,
+				A20000000000000000000016 /* builtin_prayer_06.wav */,
+				A20000000000000000000015 /* builtin_prayer_05.wav */,
+				A20000000000000000000014 /* builtin_prayer_04.wav */,
+				A20000000000000000000013 /* builtin_prayer_03.wav */,
+				A20000000000000000000012 /* builtin_prayer_02.wav */,
+				A20000000000000000000011 /* builtin_prayer_01.wav */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -236,6 +263,15 @@
 				A10000000000000000000003 /* sacred_still_bell.wav in Resources */,
 				A10000000000000000000004 /* sacred_evening_chime.wav in Resources */,
 				A10000000000000000000005 /* commitment_invitation_v1.wav in Resources */,
+				A10000000000000000000006 /* prayer_reflection_v1.wav in Resources */,
+				A10000000000000000000018 /* builtin_prayer_08.wav in Resources */,
+				A10000000000000000000017 /* builtin_prayer_07.wav in Resources */,
+				A10000000000000000000016 /* builtin_prayer_06.wav in Resources */,
+				A10000000000000000000015 /* builtin_prayer_05.wav in Resources */,
+				A10000000000000000000014 /* builtin_prayer_04.wav in Resources */,
+				A10000000000000000000013 /* builtin_prayer_03.wav in Resources */,
+				A10000000000000000000012 /* builtin_prayer_02.wav in Resources */,
+				A10000000000000000000011 /* builtin_prayer_01.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

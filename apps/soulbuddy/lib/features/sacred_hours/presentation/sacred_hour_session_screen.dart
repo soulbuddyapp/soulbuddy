@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,6 +14,8 @@ import '../../prayers/domain/library_prayer.dart';
 import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/domain/prayer_reference.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
+import '../../prayers/presentation/bundled_prayer_audio_button.dart';
+import '../../prayers/application/bundled_prayer_audio.dart';
 import '../../prayers/providers/personal_prayer_providers.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../../prayers/providers/prayer_providers.dart';
@@ -56,12 +59,33 @@ class _SacredHourSessionScreenState
   MemoryAudioPlaybackCoordinator? _prayerPlayer;
   PrivateAudioTrack? _selectedPrayerTrack;
   String? _notificationHourId;
+  bool _reminderAutoplayAllowed = false;
+  bool _audioVisible = true;
 
   @override
   void initState() {
     super.initState();
     _backgroundPlayer = AudioplayersMeditationSoundBedPlayer();
     unawaited(_restoreBackgroundSound());
+    if (widget.occurrenceKey != null) unawaited(_checkReminderAudio());
+  }
+
+  Future<void> _checkReminderAudio() async {
+    try {
+      final environment = ref.read(prayerAudioEnvironmentProvider);
+      final route = await environment.currentRoute();
+      final allowed = await environment.interruptionsAllowed();
+      if (mounted &&
+          allowBundledReminderAutoplay(
+            isIOS: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+            route: route,
+            interruptionsAllowed: allowed,
+          )) {
+        setState(() => _reminderAutoplayAllowed = true);
+      }
+    } catch (_) {
+      // Audio stays manual if the device state cannot be established.
+    }
   }
 
   @override
@@ -92,14 +116,38 @@ class _SacredHourSessionScreenState
                 .watch(prayerLibraryProvider((grounding: null, purpose: null)))
                 .value ??
             const [];
+        final reference = value.prayer;
+        final builtIn = reference?.source == PrayerSource.library
+            ? ref.watch(prayerProvider(reference!.id)).value
+            : null;
         return PracticeAudioScope(
           onVisibilityChanged: (visible) {
             if (!visible) unawaited(_stopSanctuaryAudio());
+            if (_audioVisible == visible) return;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              setState(() {
+                _audioVisible = visible;
+                if (!visible) _reminderAutoplayAllowed = false;
+              });
+            });
           },
           child: SacredHourSessionView(
             hour: value,
             controller: _controller!,
             prayerTitle: _prayerTitle(ref, value.prayer),
+            prayerAudio:
+                !_audioVisible ||
+                    builtIn == null ||
+                    _selectedPrayerTrack != null
+                ? null
+                : BundledPrayerAudioSection(
+                    prayerId: builtIn.id,
+                    body: builtIn.body,
+                    autoplay:
+                        _reminderAutoplayAllowed &&
+                        value.sound != SacredHourSound.silent,
+                  ),
             soundLabel: _backgroundSound?.label ?? 'Silence',
             soundPlaying: _soundPlaying,
             prayerPlaying: _prayerPlaying,
@@ -391,6 +439,7 @@ class SacredHourSessionView extends StatefulWidget {
     required this.soundPlaying,
     required this.prayerPlaying,
     this.prayerTitle,
+    this.prayerAudio,
     this.onPrayerPlayback,
     this.onPauseChanged,
     super.key,
@@ -408,6 +457,7 @@ class SacredHourSessionView extends StatefulWidget {
   final bool soundPlaying;
   final bool prayerPlaying;
   final String? prayerTitle;
+  final Widget? prayerAudio;
   final VoidCallback? onPrayerPlayback;
   final ValueChanged<bool>? onPauseChanged;
 
@@ -475,6 +525,10 @@ class _SacredHourSessionViewState extends State<SacredHourSessionView> {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
+        if (widget.prayerAudio != null) ...[
+          widget.prayerAudio!,
+          const SizedBox(height: AppSpacing.sm),
+        ],
         SacredHourPrayerControls(
           prayerLabel: widget.prayerTitle ?? 'Choose prayer',
           soundLabel: widget.soundLabel,

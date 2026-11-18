@@ -224,7 +224,7 @@ class _PrayerReminderSheetState extends ConsumerState<PrayerReminderSheet> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Play prayer when opened'),
                     subtitle: const Text(
-                      'Uses a private cached narration. System notifications stay silent.',
+                      'Private cached narration.',
                     ),
                     value: autoplay,
                     onChanged: _saving || !narrationEligible

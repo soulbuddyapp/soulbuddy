@@ -12,6 +12,7 @@ import '../features/prayers/providers/prayer_practice_providers.dart';
 import '../features/prayers/application/prayer_reminder_scheduler.dart';
 import '../features/prayers/application/prayer_reminder_coordinator.dart';
 import '../features/prayers/domain/prayer_reminder.dart';
+import '../features/prayers/providers/bundled_prayer_reminder_providers.dart';
 import '../features/prayers/presentation/prayer_reminder_card.dart';
 import '../features/onboarding/presentation/onboarding_gate.dart';
 import '../features/persons/application/person_prayer_reminder_coordinator.dart';
@@ -68,6 +69,16 @@ class SoulBuddyApp extends ConsumerWidget {
         appRouter.go('/commitments/${event.commitmentId}/meditate');
       }
     });
+    ref.listen(bundledPrayerReminderEventsProvider, (previous, next) {
+      if (next case AsyncData(value: final id)) {
+        appRouter.go(
+          Uri(
+            pathSegments: ['prayers', id],
+            queryParameters: {'reminder': '1'},
+          ).toString(),
+        );
+      }
+    });
     ref.listen(prayerReminderEventsProvider, (previous, next) {
       if (next case AsyncData(value: PrayerReminderOpened(:final occurrence))) {
         final due = occurrence!;
@@ -86,7 +97,10 @@ class SoulBuddyApp extends ConsumerWidget {
       if (next case AsyncData(
         value: PersonPrayerReminderOpened(:final personId),
       )) {
-        final route = '/persons/$personId';
+        final route = Uri(
+          pathSegments: ['persons', personId],
+          queryParameters: {'reminder': '1'},
+        ).toString();
         unawaited(_beginPersonPrayerSession(ref, personId, route));
         appRouter.go(route);
       }

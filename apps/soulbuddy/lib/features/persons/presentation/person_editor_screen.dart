@@ -6,6 +6,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
 import '../domain/prayer_person.dart';
 import '../providers/person_providers.dart';
+import 'person_prayer_audio_section.dart';
 
 class PersonEditorScreen extends ConsumerWidget {
   const PersonEditorScreen({super.key, this.personId});
@@ -46,6 +47,7 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
   late int _weekdaysMask;
   TimeOfDay? _time;
   var _saving = false;
+  var _recordPrayer = false;
 
   @override
   void initState() {
@@ -165,6 +167,14 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
                       : 'Prayer time · ${_time!.format(context)}',
                 ),
               ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Record a prayer'),
+                value: _recordPrayer,
+                onChanged: _saving
+                    ? null
+                    : (value) => setState(() => _recordPrayer = value ?? false),
+              ),
               const SizedBox(height: AppSpacing.xl),
               FilledButton(
                 key: const Key('save-person'),
@@ -245,6 +255,9 @@ class _PersonEditorState extends ConsumerState<_PersonEditor> {
       }
     }
     ref.invalidate(prayerPeopleProvider);
+    if (mounted && _recordPrayer) {
+      await showPersonPrayerRecording(context, savedPerson.id);
+    }
     if (mounted) {
       final messenger = ScaffoldMessenger.of(context);
       context.go('/persons/${savedPerson.id}');
