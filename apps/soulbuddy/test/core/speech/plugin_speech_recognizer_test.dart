@@ -101,13 +101,19 @@ void main() {
     expect(unavailable, isTrue);
   });
 
-  test('a listen that cannot start does not throw', () async {
-    initializeResult = false;
-    final recognizer = buildRecognizer();
-    await recognizer.initialize();
+  test(
+    'a listen that cannot start reports failure to the controller',
+    () async {
+      initializeResult = false;
+      final recognizer = buildRecognizer();
+      await recognizer.initialize();
 
-    await expectLater(recognizer.listen(onWords: (_) {}), completes);
-  });
+      await expectLater(
+        recognizer.listen(onWords: (_) {}),
+        throwsA(isA<Exception>()),
+      );
+    },
+  );
 
   test('delivers recognised words and ignores empty results', () async {
     final recognizer = buildRecognizer();

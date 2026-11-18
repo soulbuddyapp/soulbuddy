@@ -48,7 +48,8 @@ class CircleReminderCoordinator {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    _responsesSubscription = _scheduler.responses
+    _responsesSubscription = _scheduler
+        .responsesFor(ReminderNotificationKind.circle)
         .where((response) => response.kind == ReminderNotificationKind.circle)
         .listen(_handleResponse);
     await _scheduler.initialize();

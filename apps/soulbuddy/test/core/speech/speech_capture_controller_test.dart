@@ -6,6 +6,142 @@ import 'package:soulbuddy/core/speech/speech_capture_controller.dart';
 import 'package:soulbuddy/core/speech/speech_recognizer.dart';
 
 void main() {
+  test('a confirmed pre-start rejection releases the capture lease', () async {
+    final recognizer = _FakeRecognizer(available: true)
+      ..listenFailure = const SpeechRecognitionStartRejectedException();
+    var releases = 0;
+    final controller = SpeechCaptureController(
+      recognizer: recognizer,
+      beforeListen: () async {},
+      afterListen: () => releases++,
+    );
+    addTearDown(controller.dispose);
+    expect(await controller.listen(onWords: (_) {}), isFalse);
+    expect(releases, 1);
+    expect(recognizer.stopCalls, 0);
+  });
+
+  test(
+    'uncertain start requests stop and retains the lease until confirmed',
+    () async {
+      final recognizer = _FakeRecognizer(available: true)
+        ..listenFailure = const _PlatformFailure()
+        ..stopGate = Completer<void>();
+      var releases = 0;
+      final controller = SpeechCaptureController(
+        recognizer: recognizer,
+        beforeListen: () async {},
+        afterListen: () => releases++,
+      );
+      addTearDown(controller.dispose);
+      expect(await controller.listen(onWords: (_) {}), isFalse);
+      await pumpEventQueue();
+      expect(recognizer.stopCalls, 1);
+      expect(releases, 0);
+      recognizer.stopGate!.complete();
+      await pumpEventQueue();
+      expect(releases, 1);
+    },
+  );
+  test(
+    'a field closing during native start keeps the lease until stop completes',
+    () async {
+      final recognizer = _FakeRecognizer(available: true)
+        ..listenGate = Completer<void>();
+      var releases = 0;
+      final controller = SpeechCaptureController(
+        recognizer: recognizer,
+        beforeListen: () async {},
+        afterListen: () => releases++,
+      );
+      addTearDown(controller.dispose);
+      final owner = Object();
+      final started = controller.listen(owner: owner, onWords: (_) {});
+      await pumpEventQueue();
+      controller.stopForOwner(owner);
+      await pumpEventQueue();
+      expect(releases, 0);
+      recognizer.listenGate!.complete();
+      expect(await started, isFalse);
+      expect(recognizer.stopCalls, 1);
+      expect(releases, 1);
+    },
+  );
+  test('a disappearing field cancels its pending microphone start', () async {
+    final gate = Completer<void>();
+    final recognizer = _FakeRecognizer(available: true);
+    var releases = 0;
+    final controller = SpeechCaptureController(
+      recognizer: recognizer,
+      beforeListen: () => gate.future,
+      afterListen: () => releases++,
+    );
+    addTearDown(controller.dispose);
+    final owner = Object();
+    final pending = controller.listen(owner: owner, onWords: (_) {});
+    await pumpEventQueue();
+    controller.stopForOwner(owner);
+    gate.complete();
+    expect(await pending, isFalse);
+    expect(recognizer.listenCalls, 0);
+    expect(releases, 1);
+  });
+  test(
+    'a failed native stop retains the capture lease until retry succeeds',
+    () async {
+      final recognizer = _FakeRecognizer(available: true, failsToStop: true);
+      var releases = 0;
+      final controller = SpeechCaptureController(
+        recognizer: recognizer,
+        beforeListen: () async {},
+        afterListen: () => releases++,
+      );
+      addTearDown(controller.dispose);
+      expect(await controller.listen(onWords: (_) {}), isTrue);
+      await expectLater(controller.stop(), throwsException);
+      expect(releases, 0);
+      recognizer.failsToStop = false;
+      await controller.stop();
+      expect(releases, 1);
+    },
+  );
+  test(
+    'dictation waits for playback handoff and releases capture on stop',
+    () async {
+      final events = <String>[];
+      final gate = Completer<void>();
+      final recognizer = _FakeRecognizer(available: true);
+      final controller = SpeechCaptureController(
+        recognizer: recognizer,
+        beforeListen: () async {
+          events.add('handoff');
+          await gate.future;
+        },
+        afterListen: () => events.add('released'),
+      );
+      addTearDown(controller.dispose);
+      final started = controller.listen(onWords: (_) {});
+      await pumpEventQueue();
+      expect(recognizer.listenCalls, 0);
+      gate.complete();
+      expect(await started, isTrue);
+      expect(recognizer.listenCalls, 1);
+      recognizer.reportListening(false);
+      await pumpEventQueue();
+      expect(events, ['handoff', 'released']);
+    },
+  );
+
+  test('failed handoff never starts dictation', () async {
+    final recognizer = _FakeRecognizer(available: true);
+    final controller = SpeechCaptureController(
+      recognizer: recognizer,
+      beforeListen: () async => throw StateError('Audio still playing'),
+    );
+    addTearDown(controller.dispose);
+    expect(await controller.listen(onWords: (_) {}), isFalse);
+    expect(recognizer.listenCalls, 0);
+  });
   test('reports unavailable once, not per tap', () async {
     final recognizer = _FakeRecognizer(available: false);
     final controller = SpeechCaptureController(recognizer: recognizer);
@@ -696,7 +832,7 @@ class _FakeRecognizer implements SpeechRecognizer {
   _FakeRecognizer({required this.available, this.failsToStop = false});
 
   final bool available;
-  final bool failsToStop;
+  bool failsToStop;
 
   /// Makes [listen] throw, the way an implementation that breaks its own
   /// contract would. Set before the call rather than passed to it, so the
@@ -705,6 +841,8 @@ class _FakeRecognizer implements SpeechRecognizer {
 
   /// Holds [listen] open until completed, the way a slow platform does.
   Completer<void>? listenGate;
+  Completer<void>? stopGate;
+  Object? listenFailure;
 
   /// Whether a [stop] arrived while the platform was actually listening, which
   /// is the only kind that closes a microphone.
@@ -762,6 +900,7 @@ class _FakeRecognizer implements SpeechRecognizer {
   @override
   Future<void> listen({required void Function(String words) onWords}) async {
     listenCalls++;
+    if (listenFailure case final failure?) throw failure;
     if (complains) throw const _PlatformFailure();
     _wordCallbacks.add(onWords);
     await listenGate?.future;
@@ -771,6 +910,7 @@ class _FakeRecognizer implements SpeechRecognizer {
   @override
   Future<void> stop() async {
     stopCalls++;
+    await stopGate?.future;
     if (_listening) stoppedWhileLive = true;
     _listening = false;
     if (failsToStop) throw const _PlatformFailure();

@@ -27,6 +27,44 @@ String? darwinPrayerSound(String? soundKey) {
   return '$soundKey.wav';
 }
 
+String prayerAndroidChannelId({
+  required String kind,
+  required String suffix,
+  required Set<String> legacyIds,
+}) {
+  if (kind == ReminderNotificationKind.commitment.name) {
+    return 'commitment_invitation_v1_$suffix';
+  }
+  if (kind == ReminderNotificationKind.sacredHour.name) {
+    return 'sacred_hours_alarm_v2_$suffix';
+  }
+  if (kind == ReminderNotificationKind.dailyFormation.name) {
+    return legacyIds.contains('daily_formation_v1')
+        ? 'daily_formation_v1'
+        : 'daily_formation_v2_$suffix';
+  }
+  if (legacyIds.contains('prayer_reminders_v2')) return 'prayer_reminders_v2';
+  if (kind == ReminderNotificationKind.builtInPrayer.name) {
+    return 'built_in_prayer_v1_$suffix';
+  }
+  return 'prayer_reminders_v3_$suffix';
+}
+
+bool preserveLegacyPrayerChannel(
+  String kind,
+  bool playSound,
+  AndroidNotificationChannel channel,
+) {
+  if (kind == ReminderNotificationKind.builtInPrayer.name &&
+      channel.playSound &&
+      channel.importance == Importance.high) {
+    return false;
+  }
+  return playSound ||
+      !channel.playSound ||
+      channel.importance == Importance.none;
+}
+
 enum NativePrayerScheduleMode { inexactAllowWhileIdle, exactAllowWhileIdle }
 
 class NativeNotificationActionData {
@@ -110,7 +148,8 @@ abstract interface class NativePrayerNotificationClient {
   Future<void> cancel(int platformNotificationId);
 }
 
-class NativePrayerReminderScheduler implements PrayerReminderScheduler {
+class NativePrayerReminderScheduler
+    implements PrayerReminderScheduler, KindAwareReminderResponses {
   NativePrayerReminderScheduler({
     required NativePrayerNotificationClient client,
   }) : _client = client;
@@ -118,6 +157,45 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
   final NativePrayerNotificationClient _client;
   Stream<PrayerReminderResponse>? _responses;
   Future<void>? _initialization;
+  StreamSubscription<NativeNotificationResponseData>? _routing;
+  final _kindControllers =
+      <ReminderNotificationKind, StreamController<PrayerReminderResponse>>{};
+  final _pendingByKind =
+      <ReminderNotificationKind, List<PrayerReminderResponse>>{};
+
+  void _ensureRouting() {
+    _routing ??= _client.responses.listen((raw) {
+      PrayerReminderResponse response;
+      try {
+        response = _decodeResponse(raw);
+      } catch (_) {
+        return;
+      }
+      final controller = _kindControllers[response.kind];
+      if (controller != null && controller.hasListener) {
+        controller.add(response);
+      } else {
+        (_pendingByKind[response.kind] ??= []).add(response);
+      }
+    });
+  }
+
+  @override
+  Stream<PrayerReminderResponse> responsesForKind(
+    ReminderNotificationKind kind,
+  ) {
+    _ensureRouting();
+    return (_kindControllers[kind] ??=
+            StreamController<PrayerReminderResponse>.broadcast(
+              onListen: () {
+                final pending = _pendingByKind.remove(kind) ?? [];
+                for (final response in pending) {
+                  _kindControllers[kind]!.add(response);
+                }
+              },
+            ))
+        .stream;
+  }
 
   @override
   bool get supportsSystemNotifications => true;
@@ -131,6 +209,7 @@ class NativePrayerReminderScheduler implements PrayerReminderScheduler {
 
   Future<void> _initialize() async {
     try {
+      _ensureRouting();
       await Future<void>.sync(_client.initialize);
     } catch (_) {
       // Keep concurrent callers coalesced, but do not cache a failed attempt.
@@ -532,21 +611,33 @@ class FlutterLocalNotificationsPrayerClient
     final dailyFormation =
         request.kind == ReminderNotificationKind.dailyFormation.name;
     final commitment = request.kind == ReminderNotificationKind.commitment.name;
-    final builtIn = request.kind == ReminderNotificationKind.builtInPrayer.name;
     final channelSuffix = request.playSound
         ? request.soundKey ?? 'device'
         : 'silent';
+    final channels = Platform.isAndroid
+        ? await _plugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >()
+              ?.getNotificationChannels()
+        : null;
+    final legacyIds = (channels ?? const <AndroidNotificationChannel>[])
+        .where(
+          (channel) => preserveLegacyPrayerChannel(
+            request.kind,
+            request.playSound,
+            channel,
+          ),
+        )
+        .map((channel) => channel.id)
+        .toSet();
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        builtIn
-            ? 'built_in_prayer_v1_$channelSuffix'
-            : commitment
-            ? 'commitment_invitation_v1_$channelSuffix'
-            : sacredHour
-            ? 'sacred_hours_alarm_v2_$channelSuffix'
-            : dailyFormation
-            ? 'daily_formation_v2_$channelSuffix'
-            : 'prayer_reminders_v3_$channelSuffix',
+        prayerAndroidChannelId(
+          kind: request.kind,
+          suffix: channelSuffix,
+          legacyIds: legacyIds,
+        ),
         commitment
             ? 'Commitment reminders'
             : sacredHour

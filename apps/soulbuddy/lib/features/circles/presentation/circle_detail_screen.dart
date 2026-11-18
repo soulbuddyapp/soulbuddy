@@ -371,7 +371,7 @@ class _LegacyCircleDetail extends ConsumerWidget {
       if (encounter == null) return;
       ref.invalidate(legacyCirclesProvider);
       ref.invalidate(encountersProvider);
-      if (context.mounted) context.go('/remember/capture');
+      if (context.mounted) context.go('/remember/${encounter.id}');
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

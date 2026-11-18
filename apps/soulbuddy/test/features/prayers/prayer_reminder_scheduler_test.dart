@@ -2,11 +2,85 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:soulbuddy/features/prayers/application/browser_prayer_reminder_scheduler.dart';
 import 'package:soulbuddy/features/prayers/application/native_prayer_reminder_scheduler.dart';
 import 'package:soulbuddy/features/prayers/application/prayer_reminder_scheduler.dart';
 
 void main() {
+  test(
+    'a cold-start response waits for its matching reminder coordinator',
+    () async {
+      final client = _FakeNativeNotificationClient();
+      final scheduler = NativePrayerReminderScheduler(client: client);
+      final early = <PrayerReminderResponse>[];
+      final earlySub = scheduler
+          .responsesFor(ReminderNotificationKind.builtInPrayer)
+          .listen(early.add);
+      await scheduler.initialize();
+      client.emit(
+        NativeNotificationResponseData(
+          payload: jsonEncode({
+            'reminder_id': 'person-1',
+            'occurrence_key': 'occurrence-1',
+            'kind': 'person',
+          }),
+        ),
+      );
+      await pumpEventQueue();
+      final received = <PrayerReminderResponse>[];
+      final sub = scheduler
+          .responsesFor(ReminderNotificationKind.person)
+          .listen(received.add);
+      await pumpEventQueue();
+      expect(early, isEmpty);
+      expect(received.map((e) => e.reminderId), ['person-1']);
+      await sub.cancel();
+      final again = <PrayerReminderResponse>[];
+      final next = scheduler
+          .responsesFor(ReminderNotificationKind.person)
+          .listen(again.add);
+      await pumpEventQueue();
+      expect(again, isEmpty);
+      await next.cancel();
+      await earlySub.cancel();
+    },
+  );
+
+  test('existing Android channels retain their settings', () {
+    expect(
+      prayerAndroidChannelId(
+        kind: ReminderNotificationKind.prayer.name,
+        suffix: 'prayer_reflection_v1',
+        legacyIds: {'prayer_reminders_v2'},
+      ),
+      'prayer_reminders_v2',
+    );
+    expect(
+      prayerAndroidChannelId(
+        kind: ReminderNotificationKind.dailyFormation.name,
+        suffix: 'prayer_reflection_v1',
+        legacyIds: {'daily_formation_v1'},
+      ),
+      'daily_formation_v1',
+    );
+    expect(
+      prayerAndroidChannelId(
+        kind: ReminderNotificationKind.builtInPrayer.name,
+        suffix: 'builtin_prayer_01',
+        legacyIds: {'prayer_reminders_v2'},
+      ),
+      'prayer_reminders_v2',
+    );
+    expect(
+      prayerAndroidChannelId(
+        kind: ReminderNotificationKind.prayer.name,
+        suffix: 'prayer_reflection_v1',
+        legacyIds: {},
+      ),
+      'prayer_reminders_v3_prayer_reflection_v1',
+    );
+  });
   test('every reminder kind has a gentle spoken cue by default', () async {
     final client = _FakeNativeNotificationClient();
     final scheduler = NativePrayerReminderScheduler(client: client);
@@ -27,6 +101,68 @@ void main() {
     );
     expect(client.requests.every((r) => r.playSound), isTrue);
   });
+
+  test(
+    'new voiced prayers respect muted and reduced-priority legacy channels',
+    () {
+      const audible = AndroidNotificationChannel(
+        'prayer_reminders_v2',
+        'Prayer',
+        importance: Importance.high,
+      );
+      const muted = AndroidNotificationChannel(
+        'prayer_reminders_v2',
+        'Prayer',
+        importance: Importance.none,
+        playSound: false,
+      );
+      const quiet = AndroidNotificationChannel(
+        'prayer_reminders_v2',
+        'Prayer',
+        importance: Importance.low,
+      );
+      expect(
+        preserveLegacyPrayerChannel(
+          ReminderNotificationKind.builtInPrayer.name,
+          true,
+          audible,
+        ),
+        isFalse,
+      );
+      expect(
+        preserveLegacyPrayerChannel(
+          ReminderNotificationKind.builtInPrayer.name,
+          true,
+          muted,
+        ),
+        isTrue,
+      );
+      expect(
+        preserveLegacyPrayerChannel(
+          ReminderNotificationKind.builtInPrayer.name,
+          true,
+          quiet,
+        ),
+        isTrue,
+      );
+      expect(
+        preserveLegacyPrayerChannel(
+          ReminderNotificationKind.prayer.name,
+          true,
+          audible,
+        ),
+        isTrue,
+      );
+      expect(
+        preserveLegacyPrayerChannel(
+          ReminderNotificationKind.prayer.name,
+          false,
+          audible,
+        ),
+        isFalse,
+      );
+    },
+  );
 
   test('iOS uses a short cue for the long built-in prayer', () {
     expect(darwinPrayerSound('builtin_prayer_01'), 'builtin_prayer_01.wav');

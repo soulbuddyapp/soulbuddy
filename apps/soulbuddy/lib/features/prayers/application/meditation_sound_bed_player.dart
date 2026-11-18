@@ -17,44 +17,77 @@ class AudioplayersMeditationSoundBedPlayer implements MeditationSoundBedPlayer {
   int _generation = 0;
   bool _disposed = false;
   Future<void> _pending = Future.value();
+  Future<void>? _disposing;
 
   @override
   Future<void> start(MeditationSoundBed bed, {required double volume}) {
     if (_disposed) return Future.value();
     final generation = ++_generation;
     bool current() => !_disposed && generation == _generation;
-    final starting = _pending.then((_) async {
+    return _enqueue(() async {
       if (!current()) return;
       await _player.stop();
       if (!current()) return;
+      await _player.setPlayerMode(PlayerMode.mediaPlayer);
+      if (!current()) return;
+      await _player.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.media,
+            audioFocus: AndroidAudioFocus.none,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {AVAudioSessionOptions.mixWithOthers},
+          ),
+        ),
+      );
+      if (!current()) return;
       await _player.setReleaseMode(ReleaseMode.loop);
       if (!current()) return;
-      await _player.setVolume(volume.clamp(0.0, 0.35));
+      await _player.setVolume(_safeVolume(volume));
       if (!current()) return;
       await _player.play(AssetSource(bed.assetPath));
       if (!current()) await _player.stop();
     });
-    _pending = starting.catchError((Object _) {});
-    return starting;
   }
 
   @override
-  Future<void> setVolume(double volume) =>
-      _disposed ? Future.value() : _player.setVolume(volume.clamp(0.0, 0.35));
+  Future<void> setVolume(double volume) {
+    if (_disposed) return Future.value();
+    final generation = _generation;
+    return _enqueue(() async {
+      if (!_disposed && generation == _generation) {
+        await _player.setVolume(_safeVolume(volume));
+      }
+    });
+  }
 
   @override
   Future<void> stop() {
+    if (_disposed) return _disposing ?? Future.value();
     ++_generation;
-    return _disposed ? Future.value() : _player.stop();
+    return _enqueue(_player.stop);
   }
 
   @override
-  Future<void> dispose() async {
-    if (_disposed) return;
+  Future<void> dispose() {
+    if (_disposed) return _disposing ?? Future.value();
     _disposed = true;
     ++_generation;
-    await _player.stop();
-    await _pending;
-    await _player.dispose();
+    return _disposing = _enqueue(() async {
+      await _player.stop();
+      await _player.dispose();
+    });
+  }
+
+  Future<void> _enqueue(Future<void> Function() operation) {
+    final pending = _pending.then((_) => operation());
+    _pending = pending.catchError((Object _) {});
+    return pending;
   }
 }
+
+double _safeVolume(double volume) =>
+    volume.isFinite ? volume.clamp(0.0, 0.35) : 0.15;

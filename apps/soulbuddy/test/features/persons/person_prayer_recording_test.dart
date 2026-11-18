@@ -104,8 +104,8 @@ void main() {
     await tester.ensureVisible(find.text('Stop'));
     await tester.tap(find.text('Stop'));
     await tester.pump(const Duration(seconds: 1));
-    await tester.ensureVisible(find.text('Continue'));
-    await tester.tap(find.text('Continue'));
+    await tester.ensureVisible(find.text('Use recording'));
+    await tester.tap(find.text('Use recording'));
     await tester.pump(const Duration(seconds: 1));
     expect(
       find.text('Could not save the recording. Try again.'),

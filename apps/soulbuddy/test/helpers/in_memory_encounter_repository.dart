@@ -43,6 +43,14 @@ class InMemoryEncounterRepository implements EncounterRepository {
       recallPaused: draft.recallPaused,
       recallIntervalDays: draft.recallIntervalDays,
     );
+    if (draft.reflectionParentId case final parentId?) {
+      await addReflection(
+        parentId,
+        body: '',
+        localDate: draft.occurredOn,
+        audioEncounterId: id,
+      );
+    }
     _items.insert(0, encounter);
     _emit();
     return encounter;
@@ -88,6 +96,7 @@ class InMemoryEncounterRepository implements EncounterRepository {
     String encounterId, {
     required String body,
     required String localDate,
+    String? audioEncounterId,
   }) async {
     final reflection = MemoryReflection(
       id: 'reflection-${_nextId++}',
@@ -97,6 +106,7 @@ class InMemoryEncounterRepository implements EncounterRepository {
       localDate: localDate,
       createdAt: _now().toUtc(),
       deviceId: 'test-device',
+      audioEncounterId: audioEncounterId,
     );
     _reflections.putIfAbsent(encounterId, () => []).insert(0, reflection);
     return reflection;

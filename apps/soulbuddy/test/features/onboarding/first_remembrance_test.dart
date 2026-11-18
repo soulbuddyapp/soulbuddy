@@ -88,5 +88,8 @@ void main() {
 /// field writable, speech unavailable, no microphone asked for.
 Widget _pumpable(Widget child) => ProviderScope(
   overrides: [speechRecognizerProvider.overrideWithValue(NoSpeech())],
-  child: MaterialApp(theme: AppTheme.light(), home: Scaffold(body: child)),
+  child: MaterialApp(
+    theme: AppTheme.light(),
+    home: Scaffold(body: child),
+  ),
 );

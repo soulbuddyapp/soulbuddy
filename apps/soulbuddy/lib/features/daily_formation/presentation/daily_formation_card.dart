@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/presentation/sacred_surface.dart';
+import '../../../core/playback/spiritual_session_providers.dart';
 import '../../guide/domain/guide_profile.dart';
 import '../../guide/presentation/guide_intro_sheet.dart';
 import '../../guide/providers/guide_providers.dart';
@@ -131,6 +132,7 @@ class DailyFormationCard extends ConsumerWidget {
     WidgetRef ref,
     FormationVideo video,
   ) async {
+    await ref.read(spiritualSessionControllerProvider).pauseForCapture();
     final opened = await _videoLauncher.open(
       youtubeId: video.youtubeId,
       webUrl: Uri.parse(video.youtubeUrl),

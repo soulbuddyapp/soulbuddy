@@ -108,6 +108,19 @@ void main() {
         ),
         throwsArgumentError,
       );
+      for (final body in [
+        List.filled(121, 'a').join(),
+        'First line\nSecond line',
+      ]) {
+        await expectLater(
+          service.save(
+            precept: SpiritualPrecept.strengthForToday,
+            body: body,
+            localDate: day,
+          ),
+          throwsArgumentError,
+        );
+      }
       expect(await goals.watchActive().first, hasLength(1));
     },
   );

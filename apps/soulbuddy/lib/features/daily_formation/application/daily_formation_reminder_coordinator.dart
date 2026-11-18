@@ -28,7 +28,15 @@ class DailyFormationReminderCoordinator {
   final PrayerReminderScheduler _scheduler;
   bool _initialized = false;
   final DateTime Function() _clock;
-  final _events = StreamController<DailyFormationReminderOpened>.broadcast();
+  bool _pendingOpen = false;
+  late final StreamController<DailyFormationReminderOpened> _events = StreamController<DailyFormationReminderOpened>.broadcast(
+    onListen: () {
+      if (_pendingOpen) {
+        _pendingOpen = false;
+        _events.add(const DailyFormationReminderOpened());
+      }
+    },
+  );
   StreamSubscription<PrayerReminderResponse>? _responses;
   bool _started = false;
   bool _allowed = false;
@@ -38,12 +46,17 @@ class DailyFormationReminderCoordinator {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    _responses = _scheduler.responses
+    _responses = _scheduler
+        .responsesFor(ReminderNotificationKind.dailyFormation)
         .where((event) => event.kind == ReminderNotificationKind.dailyFormation)
         .listen((event) {
           if (event.action == PrayerReminderAction.open ||
               event.action == PrayerReminderAction.begin) {
-            _events.add(const DailyFormationReminderOpened());
+            if (_events.hasListener) {
+              _events.add(const DailyFormationReminderOpened());
+            } else {
+              _pendingOpen = true;
+            }
           }
         });
     await _scheduler.initialize();

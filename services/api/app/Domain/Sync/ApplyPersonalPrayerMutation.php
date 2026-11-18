@@ -7,6 +7,7 @@ use App\Models\PersonalPrayer;
 use App\Models\PersonalPrayerLink;
 use App\Models\PersonalPrayerRevision;
 use App\Models\User;
+use App\Models\VoiceTablet;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
@@ -25,7 +26,7 @@ final class ApplyPersonalPrayerMutation
     }
 
     /** @param Collection<int, array<string, mixed>> $operations */
-    public function validate(User $user, Collection $operations): ?string
+    public function validate(User $user, Collection $operations, ?Collection $voiceTabletOperations = null): ?string
     {
         foreach ($operations as $operation) {
             if ($operation['table'] === 'personal_prayer_revisions'
@@ -79,7 +80,8 @@ final class ApplyPersonalPrayerMutation
             }
         }
 
-        return $this->validateLinks($user, $operations);
+        return $this->validateAudioSources($user, $operations, $voiceTabletOperations ?? collect())
+            ?? $this->validateLinks($user, $operations);
     }
 
     /** @param Collection<int, array<string, mixed>> $operations */
@@ -181,7 +183,8 @@ final class ApplyPersonalPrayerMutation
                 'id' => $operation['id'],
                 'prayer_id' => $operation['data']['prayer_id'],
                 'user_id' => $user->id,
-                'body' => $operation['data']['body'],
+                'body' => $operation['data']['body'] ?? '',
+                'content_format' => $operation['data']['content_format'] ?? 'text',
                 'action' => $operation['data']['action'] ?? null,
                 'device_id' => $operation['data']['device_id'],
                 'created_at' => now(),
@@ -257,7 +260,10 @@ final class ApplyPersonalPrayerMutation
             ['personal_prayer_revisions', 'put'] => [
                 'owner_id' => [],
                 'prayer_id' => ['required', 'uuid'],
-                'body' => ['required', 'string', 'max:4000'],
+                'body' => ($operation['data']['content_format'] ?? 'text') === 'audio'
+                    ? ['present', 'nullable', 'string', 'max:0']
+                    : ['required', 'string', 'max:4000'],
+                'content_format' => ['sometimes', 'nullable', 'in:text,audio'],
                 'action' => ['nullable', 'string', 'max:1000'],
                 'device_id' => ['required', 'string', 'max:120'],
                 'created_at' => ['sometimes', 'date'],
@@ -289,7 +295,8 @@ final class ApplyPersonalPrayerMutation
     private function sameRevisionData(array $left, array $right): bool
     {
         return ($left['prayer_id'] ?? null) === ($right['prayer_id'] ?? null)
-            && ($left['body'] ?? null) === ($right['body'] ?? null)
+            && ($left['body'] ?? '') === ($right['body'] ?? '')
+            && ($left['content_format'] ?? 'text') === ($right['content_format'] ?? 'text')
             && ($left['action'] ?? null) === ($right['action'] ?? null)
             && ($left['device_id'] ?? null) === ($right['device_id'] ?? null);
     }
@@ -298,7 +305,8 @@ final class ApplyPersonalPrayerMutation
     private function sameStoredRevision(PersonalPrayerRevision $revision, array $data): bool
     {
         return $revision->prayer_id === ($data['prayer_id'] ?? null)
-            && $revision->body === ($data['body'] ?? null)
+            && $revision->body === ($data['body'] ?? '')
+            && ($revision->content_format ?? 'text') === ($data['content_format'] ?? 'text')
             && $revision->action === ($data['action'] ?? null)
             && $revision->device_id === ($data['device_id'] ?? null);
     }
@@ -336,6 +344,36 @@ final class ApplyPersonalPrayerMutation
                 ->exists();
             if (! $paired && ! $owned) {
                 return 'incomplete_revision_pair';
+            }
+        }
+
+        return null;
+    }
+
+    /** Audio bytes are device-local; synchronized metadata must still identify
+     * the owner's actual recording rather than an empty text placeholder.
+     */
+    private function validateAudioSources(User $user, Collection $operations, Collection $tablets): ?string
+    {
+        foreach ($operations->where('table', 'personal_prayer_revisions') as $revision) {
+            if (($revision['data']['content_format'] ?? 'text') !== 'audio') {
+                continue;
+            }
+            $sourceExists = VoiceTablet::query()
+                ->where('user_id', $user->id)
+                ->where('source_type', 'personal_prayer')
+                ->where('personal_prayer_id', $revision['data']['prayer_id'])
+                ->where('prayer_revision_id', $revision['id'])
+                ->exists();
+            $sourceInBatch = $tablets->contains(fn (array $tablet): bool => $tablet['table'] === 'voice_tablets'
+                && $tablet['type'] === 'put'
+                && ($tablet['data']['source_type'] ?? null) === 'personal_prayer'
+                && ($tablet['data']['personal_prayer_id'] ?? null) === $revision['data']['prayer_id']
+                && ($tablet['data']['prayer_revision_id'] ?? null) === $revision['id']
+                && ($tablet['data']['archived_at'] ?? null) === null
+            );
+            if (! $sourceExists && ! $sourceInBatch) {
+                return 'incomplete_audio_prayer';
             }
         }
 

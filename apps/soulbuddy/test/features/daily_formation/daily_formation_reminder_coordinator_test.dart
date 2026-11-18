@@ -14,6 +14,37 @@ void main() {
     timezone.setLocalLocation(timezone.getLocation('Africa/Lagos'));
   });
 
+  test(
+    'retains an opened reminder until its events listener attaches',
+    () async {
+      final repository = DailyFormationRepository(
+        read: (_) async => null,
+        write: (_, __) async {},
+      );
+      final scheduler = _Scheduler();
+      final coordinator = DailyFormationReminderCoordinator(
+        repository: repository,
+        scheduler: scheduler,
+      );
+      await coordinator.start();
+      scheduler._events.add(
+        const PrayerReminderResponse(
+          reminderId: 'daily-formation',
+          occurrenceKey: 'one',
+          kind: ReminderNotificationKind.dailyFormation,
+          action: PrayerReminderAction.open,
+        ),
+      );
+      await pumpEventQueue();
+      final events = <DailyFormationReminderOpened>[];
+      final subscription = coordinator.events.listen(events.add);
+      await pumpEventQueue();
+      expect(events, hasLength(1));
+      await subscription.cancel();
+      await coordinator.dispose();
+    },
+  );
+
   test('schedules the chosen daily formation time', () async {
     final values = <String, String>{};
     final repository = DailyFormationRepository(

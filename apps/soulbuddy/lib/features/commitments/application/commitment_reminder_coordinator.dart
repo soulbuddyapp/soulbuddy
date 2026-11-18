@@ -59,7 +59,8 @@ class CommitmentReminderCoordinator {
   Future<void> start() async {
     if (_started || _disposed) return;
     _started = true;
-    _responses = _scheduler.responses
+    _responses = _scheduler
+        .responsesFor(ReminderNotificationKind.commitment)
         .where((e) => e.kind == ReminderNotificationKind.commitment)
         .listen(
           (event) {

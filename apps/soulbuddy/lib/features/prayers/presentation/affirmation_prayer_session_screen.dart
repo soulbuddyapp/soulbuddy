@@ -657,9 +657,7 @@ class _CompletionView extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          state.saved
-              ? 'Prayer session saved.'
-              : 'Prayer session complete.',
+          state.saved ? 'Prayer session saved.' : 'Prayer session complete.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

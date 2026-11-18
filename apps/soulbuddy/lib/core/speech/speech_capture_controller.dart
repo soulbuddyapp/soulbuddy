@@ -10,8 +10,7 @@ import 'speech_recognizer.dart';
 /// The seam passes availability up as a bare signal, so dictation copy lives
 /// here rather than below it. [SpeechCaptureController] is the only consumer,
 /// and every screen reads this rather than repeating the words.
-const String speechUnavailableNotice =
-    'Speak is unavailable. You can write instead.';
+const String speechUnavailableNotice = 'Dictation unavailable. Write instead.';
 
 /// Shown when an attempt to speak did not take.
 ///
@@ -23,7 +22,7 @@ const String speechUnavailableNotice =
 /// knows that. The second sentence is the established one rather than a new
 /// promise, because writing is available either way.
 const String speechDidNotStartNotice =
-    'Nothing came through. You can write instead.';
+    'No speech detected. Try again or write.';
 
 /// Availability and listening state for dictation.
 ///
@@ -64,10 +63,20 @@ const String speechDidNotStartNotice =
 /// question, and a start that did not take is reported to the field that asked
 /// for it — one field, one microphone, and only that field's attempt failed.
 class SpeechCaptureController extends ChangeNotifier {
-  SpeechCaptureController({SpeechRecognizer? recognizer})
-    : _recognizer = recognizer ?? PluginSpeechRecognizer();
+  SpeechCaptureController({
+    SpeechRecognizer? recognizer,
+    this.beforeListen,
+    this.afterListen,
+  }) : _recognizer = recognizer ?? PluginSpeechRecognizer();
 
   final SpeechRecognizer _recognizer;
+  final Future<void> Function()? beforeListen;
+  final VoidCallback? afterListen;
+  bool _starting = false;
+  Completer<void>? _startDone;
+  bool _captureHeld = false;
+  Future<void>? _closingCapture;
+  Object? _owner;
 
   bool? _available;
   Future<bool>? _resolving;
@@ -111,6 +120,7 @@ class SpeechCaptureController extends ChangeNotifier {
 
   /// Whether a session is believed to be running.
   bool get isListening => _listening;
+  bool get isStarting => _starting;
 
   /// The notice to show, or null when speech is available.
   String? get notice => _notice;
@@ -161,71 +171,127 @@ class SpeechCaptureController extends ChangeNotifier {
   Future<bool> listen({
     required void Function(String words) onWords,
     VoidCallback? onDidNotStart,
+    Object? owner,
   }) async {
-    if (_disposed || _listening) return false;
-    if (!await ensureAvailable()) return false;
-    // The answer arrives across an await, so this caller may be gone by now,
-    // and another caller may have opened the session while it was in flight.
-    if (_disposed || _listening) return false;
-
-    final mine = ++_session;
-    // The platform has not reported listening yet, and may not report it at
-    // all before the first words, so the session is declared open here.
-    _setListening(true);
-    _sessionWords = null;
-    _heardAnything = false;
-    _pendingStart = onDidNotStart;
-    // The platform hands results to whichever session is listening now, so a
-    // stopped session's final result arrives stamped with this one, already
-    // past the token that fenced it out. Nothing can tell such a leftover from
-    // the new session speaking except that it carries the stopped session's
-    // words forward, which is what the first callback is checked for.
-    final leftover = _stoppedWords;
-    _stoppedWords = null;
-    _awaitingFirstWords = leftover != null && leftover.isNotEmpty;
+    if (_disposed ||
+        _listening ||
+        _starting ||
+        _captureHeld ||
+        _closingCapture != null) {
+      return false;
+    }
+    _starting = true;
+    final startDone = Completer<void>();
+    _startDone = startDone;
+    final sessionOwner = owner ?? Object();
+    var stopAfterStartFailure = false;
+    _owner = sessionOwner;
     try {
-      await _recognizer.listen(
-        // The platform can deliver a final result after a stop, and that
-        // result is worth keeping, so words are gated on which session asked
-        // for them rather than on whether listening is still set. A later
-        // session's words cannot reach this one, nor the reverse.
-        onWords: (words) {
-          if (_disposed || mine != _session) return;
-          // Before the checks below, because what is being asked here is
-          // whether the platform heard anything at all, and a dropped first
-          // callback is still something it said.
-          _heardAnything = true;
-          if (_awaitingFirstWords) {
-            _awaitingFirstWords = false;
-            // Dropped, and not passed on: the words are already in the field,
-            // so reaching the consumer would say the sentence twice. Only the
-            // first callback is checked, because a session's words then grow
-            // into something the leftover could not be.
-            if (leftover != null && words.startsWith(leftover)) return;
-          }
-          // Recorded only once the words are being passed on, so what a stop
-          // remembers is what the consumer was told rather than a result it
-          // never saw.
-          _sessionWords = words;
-          onWords(words);
-        },
-      );
-    } on Exception {
-      // The seam broke its contract, and the session is over before it began.
-      // Taken before the session is closed, because closing it is what
-      // disowns the callback.
-      final didNotStart = _pendingStart;
-      _setListening(false);
-      didNotStart?.call();
-      return false;
+      if (!await ensureAvailable()) return false;
+      // The answer arrives across an await, so this caller may be gone by now,
+      // and another caller may have opened the session while it was in flight.
+      if (_disposed || _listening || !identical(_owner, sessionOwner)) {
+        return false;
+      }
+
+      try {
+        await beforeListen?.call();
+        _captureHeld = beforeListen != null;
+      } catch (_) {
+        onDidNotStart?.call();
+        return false;
+      }
+      if (_disposed || !identical(_owner, sessionOwner)) {
+        _releaseCapture();
+        return false;
+      }
+
+      final mine = ++_session;
+      // The platform has not reported listening yet, and may not report it at
+      // all before the first words, so the session is declared open here.
+      _setListening(true);
+      _sessionWords = null;
+      _heardAnything = false;
+      _pendingStart = onDidNotStart;
+      // The platform hands results to whichever session is listening now, so a
+      // stopped session's final result arrives stamped with this one, already
+      // past the token that fenced it out. Nothing can tell such a leftover from
+      // the new session speaking except that it carries the stopped session's
+      // words forward, which is what the first callback is checked for.
+      final leftover = _stoppedWords;
+      _stoppedWords = null;
+      _awaitingFirstWords = leftover != null && leftover.isNotEmpty;
+      try {
+        await _recognizer.listen(
+          // The platform can deliver a final result after a stop, and that
+          // result is worth keeping, so words are gated on which session asked
+          // for them rather than on whether listening is still set. A later
+          // session's words cannot reach this one, nor the reverse.
+          onWords: (words) {
+            if (_disposed || mine != _session) return;
+            // Before the checks below, because what is being asked here is
+            // whether the platform heard anything at all, and a dropped first
+            // callback is still something it said.
+            _heardAnything = true;
+            if (_awaitingFirstWords) {
+              _awaitingFirstWords = false;
+              // Dropped, and not passed on: the words are already in the field,
+              // so reaching the consumer would say the sentence twice. Only the
+              // first callback is checked, because a session's words then grow
+              // into something the leftover could not be.
+              if (leftover != null && words.startsWith(leftover)) return;
+            }
+            // Recorded only once the words are being passed on, so what a stop
+            // remembers is what the consumer was told rather than a result it
+            // never saw.
+            _sessionWords = words;
+            onWords(words);
+          },
+        );
+      } on SpeechRecognitionUnavailableException {
+        // Native rejected the request before starting capture.
+        _available = false;
+        _setListening(false);
+        _releaseCapture();
+        _showUnavailableNotice();
+        return false;
+      } on SpeechRecognitionStartRejectedException {
+        final didNotStart = _pendingStart;
+        _setListening(false);
+        _releaseCapture();
+        didNotStart?.call();
+        return false;
+      } on Exception {
+        // A failed native start may still have opened capture. Close it after
+        // startup settles and hold the lease until that stop is confirmed.
+        stopAfterStartFailure = true;
+        // Take the callback before closing the session disowns it.
+        final didNotStart = _pendingStart;
+        _setListening(false);
+        didNotStart?.call();
+        return false;
+      }
+      if (_disposed || !identical(_owner, sessionOwner)) {
+        // Disposal landed while the session was starting, so the microphone has
+        // just been opened for a caller that no longer exists.
+        await _stopQuietly();
+        _setListening(false, confirmStop: false);
+        return false;
+      }
+      return true;
+    } finally {
+      _starting = false;
+      if (stopAfterStartFailure) unawaited(_stopQuietly());
+      if (identical(_startDone, startDone)) _startDone = null;
+      startDone.complete();
+      if (!_listening && identical(_owner, sessionOwner)) _owner = null;
     }
-    if (_disposed) {
-      // Disposal landed while the session was starting, so the microphone has
-      // just been opened for a caller that no longer exists.
-      await _stopQuietly();
-      return false;
-    }
-    return true;
+  }
+
+  void stopForOwner(Object owner) {
+    if (!identical(_owner, owner)) return;
+    _owner = null;
+    if (_listening && !_starting) unawaited(stop().catchError((Object _) {}));
   }
 
   /// Ends the session. Clears the flag directly because the platform tears
@@ -237,10 +303,15 @@ class SpeechCaptureController extends ChangeNotifier {
   /// A caller that is tearing down should dispose this instead: [dispose]
   /// cannot be awaited and never lets a platform failure escape.
   Future<void> stop() async {
+    if (_starting) {
+      _owner = null;
+      await _startDone?.future;
+      if (!_listening && !_captureHeld) return;
+    }
     try {
-      await _recognizer.stop();
+      await _confirmStop();
     } finally {
-      _setListening(false);
+      _setListening(false, confirmStop: false);
       _stoppedWords = _sessionWords;
     }
   }
@@ -248,7 +319,7 @@ class SpeechCaptureController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    if (_listening) {
+    if (!_starting && (_listening || _captureHeld)) {
       // A microphone opened here is closed here. A session starting right now
       // is caught by the check at the end of [listen] instead.
       unawaited(_stopQuietly());
@@ -295,23 +366,50 @@ class SpeechCaptureController extends ChangeNotifier {
 
   Future<void> _stopQuietly() async {
     try {
-      await _recognizer.stop();
+      await _confirmStop();
     } on Exception {
       // The session is already gone from this side, and a failure while
       // tearing down has nowhere left to be reported.
     }
   }
 
-  void _setListening(bool listening) {
+  Future<void> _confirmStop() {
+    final pending = _closingCapture;
+    if (pending != null) return pending;
+    final operation = Future<void>.microtask(() async {
+      await _recognizer.stop();
+      _releaseCapture();
+    });
+    _closingCapture = operation;
+    operation.then<void>(
+      (_) {
+        if (identical(_closingCapture, operation)) _closingCapture = null;
+      },
+      onError: (Object _, StackTrace __) {
+        if (identical(_closingCapture, operation)) _closingCapture = null;
+      },
+    );
+    return operation;
+  }
+
+  void _setListening(bool listening, {bool confirmStop = true}) {
     if (_listening == listening) return;
     _listening = listening;
     if (!listening) {
+      _owner = null;
+      if (confirmStop && _captureHeld && !_starting) unawaited(_stopQuietly());
       // The session this callback belonged to is over, so a failure arriving
       // afterwards belongs to no one: a second error, or a stop the person
       // asked for, must not be reported as an attempt that did not take.
       _pendingStart = null;
     }
     _notify();
+  }
+
+  void _releaseCapture() {
+    if (!_captureHeld) return;
+    _captureHeld = false;
+    afterListen?.call();
   }
 
   void _setNotice(String? notice) {

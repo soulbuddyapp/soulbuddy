@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
+import '../../helpers/fake_inline_recorder.dart';
 import 'package:soulbuddy/core/design/app_theme.dart';
 import 'package:soulbuddy/features/prayers/domain/prayer_reminder.dart';
 import 'package:soulbuddy/features/sacred_hours/application/sacred_hour_session_controller.dart';
@@ -51,12 +56,15 @@ void main() {
     tester,
   ) async {
     var prayed = 0;
-    String? prompt;
+    final recorder = FakeInlineRecorder();
+    final audio = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async =>
+          const TemporaryAudio(key: 'take', locator: '/take'),
+    );
+    addTearDown(audio.close);
     await tester.pumpWidget(
-      _subject(
-        onRecord: () async => prayed += 1,
-        onRemember: (value) => prompt = value,
-      ),
+      _subject(onRecord: () async => prayed += 1, audioController: audio),
     );
     await tester.tap(find.text("I've prayed"));
     await tester.pump();
@@ -72,7 +80,24 @@ void main() {
       findsOneWidget,
     );
     await tester.tap(find.byKey(const Key('sacred-hour-reflection-prompt')));
-    expect(prompt, isNotNull);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    expect(recorder.started, isFalse);
+    await tester.ensureVisible(find.text('Record reflection'));
+    await tester.tap(find.text('Record reflection'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(recorder.started, isTrue);
+    expect(find.byKey(const Key('audio-live-level')), findsOneWidget);
+    await tester.ensureVisible(find.text('Stop'));
+    await tester.tap(find.text('Stop'));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('recording-soundscape-flowingWater')),
+      findsNothing,
+    );
+    await audio.cancel();
   });
 
   testWidgets('stays usable at phone width and large text', (tester) async {
@@ -91,25 +116,32 @@ void main() {
 
 Widget _subject({
   Future<void> Function()? onRecord,
-  ValueChanged<String>? onRemember,
   VoidCallback? onPrayer,
   VoidCallback? onSound,
   Widget? prayerAudio,
-}) => MaterialApp(
-  theme: AppTheme.light(),
-  home: SacredHourSessionView(
-    hour: _hour(),
-    controller: SacredHourSessionController(prayerMinutes: 5),
-    onRecordPrayer: onRecord ?? () async {},
-    onRemember: onRemember ?? (_) {},
-    onExit: () {},
-    onPrayer: onPrayer ?? () {},
-    onSound: onSound ?? () {},
-    onSoundPlayback: () {},
-    soundLabel: 'Silence',
-    soundPlaying: false,
-    prayerPlaying: false,
-    prayerAudio: prayerAudio,
+  AudioCaptureController? audioController,
+}) => ProviderScope(
+  overrides: [
+    if (audioController != null)
+      inlineAudioCaptureControllerProvider.overrideWith(
+        (ref, key) async => audioController,
+      ),
+  ],
+  child: MaterialApp(
+    theme: AppTheme.light(),
+    home: SacredHourSessionView(
+      hour: _hour(),
+      controller: SacredHourSessionController(prayerMinutes: 5),
+      onRecordPrayer: onRecord ?? () async {},
+      onExit: () {},
+      onPrayer: onPrayer ?? () {},
+      onSound: onSound ?? () {},
+      onSoundPlayback: () {},
+      soundLabel: 'Silence',
+      soundPlaying: false,
+      prayerPlaying: false,
+      prayerAudio: prayerAudio,
+    ),
   ),
 );
 

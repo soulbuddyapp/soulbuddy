@@ -77,3 +77,20 @@ abstract interface class PrayerReminderScheduler {
 
   Future<void> cancel(int platformNotificationId);
 }
+
+/// A scheduler that retains a response until the matching coordinator starts.
+abstract interface class KindAwareReminderResponses {
+  Stream<PrayerReminderResponse> responsesForKind(
+    ReminderNotificationKind kind,
+  );
+}
+
+extension ReminderResponsesByKind on PrayerReminderScheduler {
+  Stream<PrayerReminderResponse> responsesFor(ReminderNotificationKind kind) {
+    final scheduler = this;
+    if (scheduler is KindAwareReminderResponses) {
+      return (scheduler as KindAwareReminderResponses).responsesForKind(kind);
+    }
+    return responses.where((response) => response.kind == kind);
+  }
+}

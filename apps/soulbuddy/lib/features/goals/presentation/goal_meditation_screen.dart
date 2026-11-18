@@ -10,12 +10,13 @@ import '../../../core/audio/narration_speed.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/practice_audio_scope.dart';
 import '../../../core/presentation/screen_awake.dart';
-import '../../../core/speech/sayable_field.dart';
 import '../../kingdom/providers/kingdom_course_providers.dart';
 import '../../prayers/application/meditation_sound_bed_player.dart';
 import '../../prayers/application/meditation_sound_preferences.dart';
 import '../../prayers/domain/meditation_session.dart';
 import '../../prayers/presentation/meditation_sound_picker.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../data/goal_meditation_repository.dart';
 import '../domain/goal_meditation_plan.dart';
 import '../domain/goal_scripture_response.dart';
@@ -52,6 +53,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
   bool _session = false;
   bool _running = false;
   bool _saving = false;
+  bool _recordingBusy = false;
   bool _guidePlaying = false;
   String? _error;
 
@@ -211,9 +213,7 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
       if (!resume) await _playGuide();
     } on Object {
       if (mounted) {
-        setState(
-          () => _error = 'Audio is unavailable. Keep listening and writing.',
-        );
+        setState(() => _error = 'Audio is unavailable. Continue quietly.');
       }
     }
   }
@@ -720,31 +720,31 @@ class _GoalMeditationScreenState extends ConsumerState<GoalMeditationScreen>
         ),
       ),
       const SizedBox(height: AppSpacing.md),
-      // The Notebook is the one thing here someone is expected to say in their
-      // own words. The Day and Minutes steppers above it are choices, not
-      // sentences, and stay as they are.
-      //
-      // No limit is passed because the field has never had one: the notebook
-      // takes what is said here whole rather than cutting it.
-      SayableField(
+      VoiceNotesField(
         key: const Key('goal-meditation-notebook'),
-        controller: _notes,
-        minLines: 5,
-        maxLines: 12,
-        labelText: 'Notebook',
-        hintText: 'Name the trigger, the passage, and one faithful response.',
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          alignLabelWithHint: true,
-        ),
-        // The draft is saved by a listener on the controller rather than by
-        // this field's own callback, so dictated words are saved like typed
-        // ones without anything else here having to hear about them.
+        noteContext: (type: 'goal', id: widget.goalId, field: 'notebook'),
+        title: 'Meditation reflection',
+        beforeRecord: _pause,
+        onBusyChanged: (busy) {
+          if (mounted) setState(() => _recordingBusy = busy);
+        },
+      ),
+      ExpansionTile(
+        title: const Text('Write reflection'),
+        children: [
+          SayableField(
+            controller: _notes,
+            enabled: !_recordingBusy && !_saving,
+            labelText: 'Reflection',
+            maxLines: 6,
+            maxLength: 4000,
+          ),
+        ],
       ),
       const SizedBox(height: AppSpacing.lg),
       FilledButton.icon(
         key: const Key('finish-goal-meditation'),
-        onPressed: _saving ? null : _finish,
+        onPressed: _saving || _recordingBusy ? null : _finish,
         icon: const Icon(Icons.check),
         label: const Text('Finish and save'),
       ),

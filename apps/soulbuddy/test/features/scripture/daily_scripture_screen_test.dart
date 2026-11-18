@@ -21,6 +21,26 @@ void main() {
               .first
           as Map<String, dynamic>;
   final scripture = DailyScripture.fromJson({...entry, 'date': '2026-09-11'});
+  testWidgets('personal prayer opens within daily scripture', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dailyScriptureProvider.overrideWith((_) async => scripture),
+        ],
+        child: MaterialApp(home: DailyScriptureScreen(soundPlayer: _Player())),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Personal prayer'));
+    await tester.tap(find.text('Personal prayer'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('scripture-prayer-editor')), findsOneWidget);
+    expect(find.byType(DailyScriptureScreen), findsOneWidget);
+  });
   testWidgets(
     'reading shows scripture before reflection sound and stops audio when hidden',
     (tester) async {

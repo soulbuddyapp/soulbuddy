@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/presentation/screen_awake.dart';
 import '../../../core/presentation/sanctuary_artwork.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
 import '../../altar/presentation/altar_ritual_sheet.dart';
@@ -9,20 +10,30 @@ import '../providers/personal_prayer_providers.dart';
 import 'prayer_reminder_sheet.dart';
 import 'prayer_session_actions.dart';
 import 'voice_tablet_player.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../domain/voice_tablet.dart';
 
-class PersonalPrayerDetailScreen extends ConsumerWidget {
+class PersonalPrayerDetailScreen extends ConsumerStatefulWidget {
   const PersonalPrayerDetailScreen({required this.prayerId, super.key});
 
   final String prayerId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PersonalPrayerDetailScreen> createState() =>
+      _PersonalPrayerDetailScreenState();
+}
+
+class _PersonalPrayerDetailScreenState
+    extends ConsumerState<PersonalPrayerDetailScreen> {
+  bool _recordingBusy = false;
+
+  @override
+  Widget build(BuildContext context) {
     return ScreenAwake(child: _buildPrayer(context, ref));
   }
 
   Widget _buildPrayer(BuildContext context, WidgetRef ref) {
-    final prayer = ref.watch(personalPrayerProvider(prayerId));
+    final prayer = ref.watch(personalPrayerProvider(widget.prayerId));
     return Material(
       color: Theme.of(context).colorScheme.surface,
       child: SafeArea(
@@ -44,6 +55,14 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                 return ListView(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _recordingBusy ? null : () => _back(context),
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Back'),
+                      ),
+                    ),
                     Text(
                       'Saved prayer',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -56,22 +75,6 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       art: SanctuaryArt.prayer,
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    SelectableText(
-                      value.body,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(height: 1.6),
-                    ),
-                    if (value.action != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Practice',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(value.action!),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
                     VoiceTabletSection(
                       source: VoiceTabletSource.personal(
                         prayerId: value.id,
@@ -81,13 +84,46 @@ class PersonalPrayerDetailScreen extends ConsumerWidget {
                       prayerBody: value.body,
                       compact: true,
                       showPrayerActions: false,
+                      enabled: !_recordingBusy,
+                      onBusyChanged: (busy) =>
+                          setState(() => _recordingBusy = busy),
                       onKeepOnAltar: (tablet) =>
                           showAltarRitualSheet(context, ref, tablet: tablet),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    PrayerSessionActions(prayer: value),
+                    IgnorePointer(
+                      ignoring: _recordingBusy,
+                      child: PrayerSessionActions(prayer: value),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    VoiceNotesField(
+                      noteContext: (
+                        type: 'prayer',
+                        id: value.id,
+                        field: 'reflection',
+                      ),
+                      title: 'After prayer',
+                      enabled: !_recordingBusy,
+                      onBusyChanged: (busy) =>
+                          setState(() => _recordingBusy = busy),
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     PrayerReminderControl(prayer: value, compact: true),
+                    if (!value.isAudio && value.body.trim().isNotEmpty)
+                      ExpansionTile(
+                        title: const Text('Earlier written prayer'),
+                        children: [
+                          SelectableText(value.body),
+                          if (value.action case final action?) ...[
+                            const SizedBox(height: AppSpacing.md),
+                            Text(
+                              'Practice',
+                              style: Theme.of(context).textTheme.labelLarge,
+                            ),
+                            SelectableText(action),
+                          ],
+                        ],
+                      ),
                   ],
                 );
               },
@@ -108,7 +144,24 @@ class _PersonalPrayerMessage extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: Padding(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Text(message, textAlign: TextAlign.center),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(message, textAlign: TextAlign.center),
+          TextButton(
+            onPressed: () => _back(context),
+            child: const Text('Back'),
+          ),
+        ],
+      ),
     ),
   );
+}
+
+void _back(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go('/prayers');
+  }
 }

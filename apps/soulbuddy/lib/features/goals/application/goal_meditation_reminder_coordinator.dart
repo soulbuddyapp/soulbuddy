@@ -58,7 +58,8 @@ class GoalMeditationReminderCoordinator {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    _responses = _scheduler.responses
+    _responses = _scheduler
+        .responsesFor(ReminderNotificationKind.goalMeditation)
         .where((event) => event.kind == ReminderNotificationKind.goalMeditation)
         .listen((event) {
           if (event.action == PrayerReminderAction.open ||

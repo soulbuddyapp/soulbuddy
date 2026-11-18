@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/app_spacing.dart';
-import '../../../core/speech/sayable_field.dart';
 import '../../goals/domain/goal.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../../core/speech/sayable_field.dart';
 import '../domain/guard_definition.dart';
 import '../providers/guard_providers.dart';
 
@@ -100,7 +101,10 @@ class GuardConfigurationSheet extends ConsumerWidget {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       builder: (context) => _GuardEditor(
+        goalId: goal.id,
         definition: definition,
         configured: selection != null,
         initialNote: selection?.privateNote,
@@ -281,11 +285,13 @@ class _GuardCard extends StatelessWidget {
 
 class _GuardEditor extends StatefulWidget {
   const _GuardEditor({
+    required this.goalId,
     required this.definition,
     required this.configured,
     this.initialNote,
   });
 
+  final String goalId;
   final GuardDefinition definition;
   final bool configured;
   final String? initialNote;
@@ -295,23 +301,17 @@ class _GuardEditor extends StatefulWidget {
 }
 
 class _GuardEditorState extends State<_GuardEditor> {
-  late final TextEditingController _noteController;
-
-  @override
-  void initState() {
-    super.initState();
-    _noteController = TextEditingController(text: widget.initialNote);
-  }
+  bool _recordingBusy = false;
+  late final _note = TextEditingController(text: widget.initialNote ?? '');
 
   @override
   void dispose() {
-    _noteController.dispose();
+    _note.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final definition = widget.definition;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -324,61 +324,60 @@ class _GuardEditorState extends State<_GuardEditor> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              definition.title,
+              widget.definition.title,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(definition.description),
+            Text(widget.definition.description),
             const SizedBox(height: AppSpacing.lg),
             Text(
               'Review the steps',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppSpacing.sm),
-            for (var index = 0; index < definition.steps.length; index++) ...[
+            for (
+              var index = 0;
+              index < widget.definition.steps.length;
+              index++
+            ) ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(width: 28, child: Text('${index + 1}.')),
-                  Expanded(child: Text(definition.steps[index])),
+                  Expanded(child: Text(widget.definition.steps[index])),
                 ],
               ),
-              if (index != definition.steps.length - 1)
+              if (index != widget.definition.steps.length - 1)
                 const SizedBox(height: AppSpacing.sm),
             ],
             const SizedBox(height: AppSpacing.lg),
-            // What someone actually configured is said in their own words, so
-            // it can be spoken. The steps above it are the reviewed ones.
-            SayableField(
-              key: const Key('guard-private-note'),
-              controller: _noteController,
-              maxLength: 1000,
-              minLines: 2,
-              maxLines: 4,
-              textCapitalization: TextCapitalization.sentences,
-              labelText: 'Private note (optional)',
-              hintText: 'What did you configure?',
-              // Saving reads the controller, so a dictated note is kept whole.
-              //
-              // A cut is said rather than left to look like a whole note. This
-              // editor has no message line of its own and the wording below the
-              // field is a disclosure rather than an error area, so it goes to
-              // the SnackBar this sheet already reports its own failures
-              // through.
-              //
-              // `useRootNavigator` is false on both of this file's sheets, so
-              // the messenger found here is the app's and survives the editor
-              // being dismissed before the notice shows.
-              onTruncated: () {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text(_limitReachedNotice)),
-                );
-              },
+            VoiceNotesField(
+              key: const Key('guard-private-recording'),
+              noteContext: (
+                type: 'goal',
+                id: widget.goalId,
+                field: 'guard:${widget.definition.id}',
+              ),
+              title: 'Private guard notes',
+              onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
+            ),
+            ExpansionTile(
+              title: Text(
+                _hasText(widget.initialNote) ? 'Earlier note' : 'Write note',
+              ),
+              children: [
+                SayableField(
+                  controller: _note,
+                  enabled: !_recordingBusy,
+                  labelText: 'Private note',
+                  maxLines: 4,
+                  maxLength: 4000,
+                ),
+              ],
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Marking this configured records your choice only. SoulBuddy does not verify enforcement.',
+              'SoulBuddy does not verify enforcement.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
@@ -386,9 +385,14 @@ class _GuardEditorState extends State<_GuardEditor> {
             const SizedBox(height: AppSpacing.lg),
             FilledButton(
               key: const Key('guard-mark-configured'),
-              onPressed: () =>
-                  Navigator.pop(context, _noteController.text.trim()),
+              onPressed: _recordingBusy
+                  ? null
+                  : () => Navigator.pop(context, _note.text.trim()),
               child: Text(widget.configured ? 'Save' : 'Mark configured'),
+            ),
+            TextButton(
+              onPressed: _recordingBusy ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
           ],
         ),
@@ -424,7 +428,6 @@ class _Unavailable extends StatelessWidget {
 /// `commitment_journey_screen` already tells someone their answer reached the
 /// limit when it does. A second phrasing of the same fact would be the small
 /// inconsistency the design asked to avoid.
-const String _limitReachedNotice = 'Your answer reached the limit.';
 
 GoalGuardSelection? _selectionFor(
   List<GoalGuardSelection> selections,

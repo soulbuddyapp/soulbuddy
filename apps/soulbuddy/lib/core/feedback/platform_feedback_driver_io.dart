@@ -1,9 +1,8 @@
-import 'dart:async';
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 
 import 'app_feedback.dart';
+import 'feedback_sound_output.dart';
 import 'platform_feedback_driver.dart';
 
 PlatformFeedbackDriver createPlatformFeedbackDriver() =>
@@ -22,33 +21,11 @@ class _IoPlatformFeedbackDriver implements PlatformFeedbackDriver {
   };
 
   @override
-  Future<void> playSound(AppFeedbackSound sound) async {
-    final player = AudioPlayer();
-    final completion = player.onPlayerComplete.first.whenComplete(
-      player.dispose,
-    );
-    try {
-      await player.play(
-        AssetSource(_assetPath(sound)),
-        volume: 0.18,
-        ctx: AudioContextConfig(
-          respectSilence: true,
-          focus: AudioContextConfigFocus.mixWithOthers,
-        ).build(),
-      );
-      unawaited(completion);
-    } catch (_) {
-      await player.dispose();
-      rethrow;
-    }
-  }
+  Future<void> playSound(AppFeedbackSound sound) => playFeedbackAsset(
+    sound,
+    context: AudioContextConfig(
+      respectSilence: true,
+      focus: AudioContextConfigFocus.mixWithOthers,
+    ).build(),
+  );
 }
-
-String _assetPath(AppFeedbackSound sound) => switch (sound) {
-  AppFeedbackSound.softTap => 'audio/feedback/soft_tap.wav',
-  AppFeedbackSound.gentleCompletion => 'audio/feedback/gentle_completion.wav',
-  AppFeedbackSound.publicationEligible =>
-    'audio/feedback/publication_eligible.wav',
-  AppFeedbackSound.sacredGentleChime =>
-    'audio/sacred_hours/sacred_gentle_chime.wav',
-};

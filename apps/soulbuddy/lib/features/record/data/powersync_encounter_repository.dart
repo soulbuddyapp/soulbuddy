@@ -60,6 +60,24 @@ class PowerSyncEncounterRepository implements EncounterRepository {
       throw ArgumentError.value(draft.personIds, 'personIds');
     }
 
+    final context = draft.voiceNoteContext;
+    final reflectionParentId = draft.reflectionParentId;
+    if ((context != null || reflectionParentId != null) &&
+        draft.audio == null) {
+      throw ArgumentError('A recording is required');
+    }
+    if (context != null &&
+        [
+          context.type,
+          context.id,
+          context.field,
+        ].any((value) => value.trim().isEmpty || value.length > 160)) {
+      throw ArgumentError('Invalid recording context');
+    }
+    if (reflectionParentId != null && reflectionParentId.trim().isEmpty) {
+      throw ArgumentError('Invalid reflection');
+    }
+
     CommittedAudio? committedAudio;
     if (draft.audio case final audio?) {
       final store = audioAssetStore;
@@ -75,6 +93,13 @@ class PowerSyncEncounterRepository implements EncounterRepository {
 
     try {
       await database.writeTransaction((transaction) async {
+        if (reflectionParentId != null) {
+          final parent = await transaction.getOptional(
+            'SELECT id FROM encounters WHERE id = ? AND owner_id = ? AND archived_at IS NULL',
+            [reflectionParentId, ownerId],
+          );
+          if (parent == null) throw StateError('Memory is not available');
+        }
         for (final personId in personIds) {
           final person = await transaction.getOptional(
             'SELECT id FROM prayer_people WHERE id = ? AND owner_id = ? '
@@ -167,6 +192,35 @@ class PowerSyncEncounterRepository implements EncounterRepository {
             ],
           );
         }
+        if (context != null) {
+          await transaction.execute(
+            'INSERT INTO voice_note_links (id, owner_id, context_type, context_id, field_key, encounter_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [
+              _uuid.v7(),
+              ownerId,
+              context.type,
+              context.id,
+              context.field,
+              encounterId,
+              timestamp,
+            ],
+          );
+        }
+        if (reflectionParentId != null) {
+          await transaction.execute(
+            'INSERT INTO memory_reflections (id, encounter_id, owner_id, body, local_date, created_at, device_id, audio_encounter_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+              _uuid.v7(),
+              reflectionParentId,
+              ownerId,
+              '',
+              draft.occurredOn,
+              timestamp,
+              deviceId,
+              encounterId,
+            ],
+          );
+        }
         for (final personId in personIds) {
           await transaction.execute(
             '''
@@ -253,7 +307,7 @@ class PowerSyncEncounterRepository implements EncounterRepository {
         .watch(
           '''
           SELECT id, encounter_id, owner_id, body, local_date, created_at,
-                 device_id
+                 device_id, audio_encounter_id
           FROM memory_reflections
           WHERE encounter_id = ? AND owner_id = ?
           ORDER BY local_date DESC, created_at DESC
@@ -271,6 +325,7 @@ class PowerSyncEncounterRepository implements EncounterRepository {
                   localDate: row['local_date'] as String,
                   createdAt: DateTime.parse(row['created_at'] as String),
                   deviceId: row['device_id'] as String,
+                  audioEncounterId: row['audio_encounter_id'] as String?,
                 ),
               )
               .toList(growable: false),
@@ -282,15 +337,34 @@ class PowerSyncEncounterRepository implements EncounterRepository {
     String encounterId, {
     required String body,
     required String localDate,
+    String? audioEncounterId,
   }) async {
     final value = body.trim();
-    if (value.isEmpty) throw ArgumentError.value(body, 'body');
+    final audioId = audioEncounterId?.trim();
+    if (audioId != null && audioId.isEmpty) {
+      throw ArgumentError.value(audioEncounterId, 'audioEncounterId');
+    }
+    if (value.isEmpty && audioId == null) {
+      throw ArgumentError.value(body, 'body');
+    }
     final owned = await database.getOptional(
       'SELECT id FROM encounters WHERE id = ? AND owner_id = ? '
       'AND archived_at IS NULL',
       [encounterId, ownerId],
     );
     if (owned == null) throw StateError('Memory is not available');
+    if (audioId != null) {
+      final recording = await database.getOptional(
+        'SELECT e.id FROM encounters e '
+        'JOIN memory_audio_assets a ON a.encounter_id = e.id '
+        'AND a.owner_id = e.owner_id '
+        'WHERE e.id = ? AND e.owner_id = ? AND e.archived_at IS NULL',
+        [audioId, ownerId],
+      );
+      if (recording == null) {
+        throw StateError('Reflection recording is not available');
+      }
+    }
     final reflection = MemoryReflection(
       id: _uuid.v7(),
       encounterId: encounterId,
@@ -299,12 +373,14 @@ class PowerSyncEncounterRepository implements EncounterRepository {
       localDate: localDate,
       createdAt: _now().toUtc(),
       deviceId: deviceId,
+      audioEncounterId: audioId,
     );
     await database.execute(
       '''
       INSERT INTO memory_reflections(
-        id, encounter_id, owner_id, body, local_date, created_at, device_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        id, encounter_id, owner_id, body, local_date, created_at, device_id,
+        audio_encounter_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ''',
       [
         reflection.id,
@@ -314,6 +390,7 @@ class PowerSyncEncounterRepository implements EncounterRepository {
         reflection.localDate,
         reflection.createdAt.toIso8601String(),
         reflection.deviceId,
+        reflection.audioEncounterId,
       ],
     );
     return reflection;

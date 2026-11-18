@@ -1,5 +1,13 @@
 import 'package:flutter/foundation.dart';
 
+/// Native recognition failed before capture was attempted.
+class SpeechRecognitionStartRejectedException implements Exception {
+  const SpeechRecognitionStartRejectedException();
+}
+
+/// On-device recognition is unavailable and no session was started.
+class SpeechRecognitionUnavailableException implements Exception {}
+
 /// Recognition of speech into words.
 ///
 /// An interface so the plugin can be faked. [initialize] must never accept a
@@ -31,12 +39,17 @@ abstract interface class SpeechRecognizer {
   });
 
   /// Starts recognising. [onWords] receives the whole session's words on every
-  /// callback, partials included, so it grows rather than accumulates. Does not
-  /// throw if recognition could not be started.
+  /// callback, partials included, so it grows rather than accumulates.
+  /// Throws if recognition could not be started.
   ///
   /// Completing says the platform accepted the request, not that recognition
   /// began: a locale with no offline pack is accepted and then fails, and that
   /// arrives through [initialize]'s [onError].
+  ///
+  /// Throws [SpeechRecognitionUnavailableException] when on-device recognition
+  /// is unavailable and capture was not started. Throws
+  /// [SpeechRecognitionStartRejectedException] when setup failed before a
+  /// native start was attempted. Other failures may leave capture active.
   ///
   /// May complete before the platform reports listening, and [onWords] may
   /// still be called after [stop], so a consumer keeps its own session state.

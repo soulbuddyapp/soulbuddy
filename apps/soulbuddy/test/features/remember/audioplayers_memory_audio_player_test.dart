@@ -6,6 +6,64 @@ import 'package:soulbuddy/features/record/audio/application/audioplayers_memory_
 import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
 
 void main() {
+  test('natural completion releases focus', () async {
+    final player = _FakeAudioPlayer();
+    final calls = <bool>[];
+    final driver = AudioplayersMemoryAudioPlayerDriver(
+      playerFactory: () => player,
+      setFocus: (active) async {
+        calls.add(active);
+        return true;
+      },
+    );
+    addTearDown(driver.dispose);
+    await driver.play('audio-1', const FileAudioPlaybackSource('memory.m4a'));
+    player.emit(PlayerState.completed);
+    await Future<void>.delayed(Duration.zero);
+    expect(calls, [true, false]);
+  });
+
+  test('failed playback releases acquired focus', () async {
+    final player = _FakeAudioPlayer()..failResume = true;
+    final calls = <bool>[];
+    final driver = AudioplayersMemoryAudioPlayerDriver(
+      playerFactory: () => player,
+      setFocus: (active) async {
+        calls.add(active);
+        return true;
+      },
+    );
+    addTearDown(driver.dispose);
+    await expectLater(
+      driver.play('audio-1', const FileAudioPlaybackSource('memory.m4a')),
+      throwsStateError,
+    );
+    expect(calls, [true, false]);
+  });
+  test(
+    'external focus is acquired before playback and released on pause',
+    () async {
+      final player = _FakeAudioPlayer();
+      final calls = <bool>[];
+      final driver = AudioplayersMemoryAudioPlayerDriver(
+        playerFactory: () => player,
+        setFocus: (active) async {
+          calls.add(active);
+          return true;
+        },
+      );
+      addTearDown(driver.dispose);
+      await driver.play('audio-1', const FileAudioPlaybackSource('memory.m4a'));
+      expect(
+        player.configuredContext?.android.audioFocus,
+        AndroidAudioFocus.none,
+      );
+      expect(calls, [true]);
+      await driver.pause();
+      expect(calls, [true, false]);
+    },
+  );
+
   test('prepares saved voice as foreground media speech', () async {
     final player = _FakeAudioPlayer();
     final driver = AudioplayersMemoryAudioPlayerDriver(
@@ -61,6 +119,8 @@ class _FakeAudioPlayer implements AudioPlayer {
   final _allowCancellation = Completer<void>();
   var blockCancellation = false;
   var resumeCalls = 0;
+  var failResume = false;
+  MultiStreamController<PlayerState>? stateSink;
   PlayerMode? configuredMode;
   AudioContext? configuredContext;
 
@@ -75,6 +135,7 @@ class _FakeAudioPlayer implements AudioPlayer {
   @override
   Stream<PlayerState> get onPlayerStateChanged =>
       Stream<PlayerState>.multi((controller) {
+        stateSink = controller;
         controller.onCancel = () async {
           if (!cancellationStarted.isCompleted) {
             cancellationStarted.complete();
@@ -84,7 +145,15 @@ class _FakeAudioPlayer implements AudioPlayer {
       });
 
   @override
-  Future<void> resume() async => resumeCalls++;
+  Future<void> resume() async {
+    if (failResume) throw StateError('Playback failed');
+    resumeCalls++;
+  }
+
+  void emit(PlayerState state) => stateSink?.add(state);
+
+  @override
+  Future<void> pause() async {}
 
   @override
   Future<void> setReleaseMode(ReleaseMode releaseMode) async {}

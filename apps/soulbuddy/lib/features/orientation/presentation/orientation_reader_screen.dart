@@ -2,7 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/presentation/screen_awake.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../../prayers/presentation/inline_spiritual_response_editor.dart';
 import '../application/orientation_controller.dart';
 import '../domain/orientation_course.dart';
 import '../providers/orientation_providers.dart';
@@ -154,63 +155,103 @@ class _ReaderState extends ConsumerState<OrientationReaderScreen>
 
   void _showResponse() {
     final response = _nuggetResponse(widget.course.id, widget.course.tenet);
+    var recording = false;
+    var editingPrayer = false;
+    var editingGoal = false;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Carry this Nugget with you',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            _ResponsePrompt(label: 'PRAY', text: response.prayer),
-            const SizedBox(height: 12),
-            _ResponsePrompt(label: 'REFLECT', text: response.reflection),
-            const SizedBox(height: 12),
-            _ResponsePrompt(label: 'PLANT', text: response.action),
-            const SizedBox(height: 16),
-            if (!_controller.completed)
-              OutlinedButton.icon(
-                key: const Key('orientation-finished-reading'),
-                onPressed: () {
-                  Navigator.pop(sheetContext);
-                  unawaited(_controller.markRead());
-                },
-                icon: const Icon(Icons.check),
-                label: const Text('Finished reading'),
+      isDismissible: false,
+      enableDrag: false,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, updateSheet) => SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            24 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Carry this Nugget with you',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(sheetContext);
-                context.push(
-                  '/remember/capture?mode=write&source=${widget.collectionName == 'orientation' ? 'orientation' : 'kingdom'}',
-                );
-              },
-              icon: const Icon(Icons.edit_note),
-              label: const Text('Save a private reflection'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(sheetContext);
-                context.push('/prayers/create');
-              },
-              icon: const Icon(Icons.volunteer_activism_outlined),
-              label: const Text('Save a prayer'),
-            ),
-            TextButton.icon(
-              onPressed: () {
-                Navigator.pop(sheetContext);
-                context.push('/welcome/goal');
-              },
-              icon: const Icon(Icons.spa_outlined),
-              label: const Text('Turn the seed into a Goal'),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _ResponsePrompt(label: 'PRAY', text: response.prayer),
+              const SizedBox(height: 12),
+              _ResponsePrompt(label: 'REFLECT', text: response.reflection),
+              const SizedBox(height: 12),
+              _ResponsePrompt(label: 'PLANT', text: response.action),
+              const SizedBox(height: 16),
+              if (!_controller.completed)
+                OutlinedButton.icon(
+                  key: const Key('orientation-finished-reading'),
+                  onPressed: recording
+                      ? null
+                      : () {
+                          Navigator.pop(sheetContext);
+                          unawaited(_controller.markRead());
+                        },
+                  icon: const Icon(Icons.check),
+                  label: const Text('Finished reading'),
+                ),
+              VoiceNotesField(
+                noteContext: (
+                  type: widget.collectionName,
+                  id: widget.course.id,
+                  field: 'reflection',
+                ),
+                title: 'Reflection · ${widget.course.title}',
+                recordLabel: 'Save a private reflection',
+                showTitle: false,
+                beforeRecord: _controller.pause,
+                onBusyChanged: (busy) {
+                  if (sheetContext.mounted) updateSheet(() => recording = busy);
+                },
+              ),
+              if (editingPrayer)
+                InlineSpiritualResponseEditor(
+                  editorKey: const Key('orientation-prayer-editor'),
+                  title: 'Prayer · ${widget.course.title}',
+                  initialText: response.prayer,
+                  prayer: true,
+                  enabled: !recording,
+                  onCancel: () => updateSheet(() => editingPrayer = false),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: recording
+                      ? null
+                      : () => updateSheet(() => editingPrayer = true),
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                  label: const Text('Save a prayer'),
+                ),
+              if (editingGoal)
+                InlineSpiritualResponseEditor(
+                  editorKey: const Key('orientation-goal-editor'),
+                  title: widget.course.title,
+                  initialText: response.action,
+                  prayer: false,
+                  enabled: !recording,
+                  onCancel: () => updateSheet(() => editingGoal = false),
+                )
+              else
+                TextButton.icon(
+                  onPressed: recording
+                      ? null
+                      : () => updateSheet(() => editingGoal = true),
+                  icon: const Icon(Icons.spa_outlined),
+                  label: const Text('Turn the seed into a Goal'),
+                ),
+              TextButton(
+                onPressed: recording ? null : () => Navigator.pop(sheetContext),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
         ),
       ),
     );

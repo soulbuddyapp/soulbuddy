@@ -51,7 +51,8 @@ class PersonPrayerReminderCoordinator {
   Stream<PersonPrayerReminderOpened> get events => _events.stream;
 
   Future<void> start() async {
-    _responseSubscription = _scheduler.responses
+    _responseSubscription = _scheduler
+        .responsesFor(ReminderNotificationKind.person)
         .where((response) => response.kind == ReminderNotificationKind.person)
         .listen((response) {
           _pendingResponses.add(response);

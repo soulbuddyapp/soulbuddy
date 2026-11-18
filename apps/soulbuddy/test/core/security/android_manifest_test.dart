@@ -24,32 +24,28 @@ void main() {
       ),
     );
     expect(infoPlist, contains('<key>NSMicrophoneUsageDescription</key>'));
+    expect(
+      infoPlist,
+      contains('<string>Record prayers and reflections.</string>'),
+    );
     expect(manifest, contains('android.speech.RecognitionService'));
     expect(
       infoPlist,
       contains('<key>NSSpeechRecognitionUsageDescription</key>'),
     );
 
-    // Apple shows these verbatim in the permission prompt, so each is asserted
-    // against its own key rather than merely present somewhere in the file. The
-    // copy states the guarantee that matters, not which screens speak: the old
-    // wording named prayer details alone, and speech is now offered at many
-    // surfaces.
-    const consent =
-        'SoulBuddy uses the microphone only when you choose to speak, and never '
-        'sends your voice anywhere.';
-    for (final key in const [
-      'NSMicrophoneUsageDescription',
-      'NSSpeechRecognitionUsageDescription',
-    ]) {
+    for (final entry in const {
+      'NSMicrophoneUsageDescription': 'Record prayers and reflections.',
+      'NSSpeechRecognitionUsageDescription': 'Dictate prayers and reflections.',
+    }.entries) {
       expect(
         // The plist is read as bytes, so its CRLF endings are part of the text
         // a match has to allow for.
         RegExp(
-          '<key>$key</key>\\s*<string>${RegExp.escape(consent)}</string>',
+          '<key>${entry.key}</key>\\s*<string>${RegExp.escape(entry.value)}</string>',
         ).hasMatch(infoPlist),
         isTrue,
-        reason: 'the prompt for $key must carry this exact sentence',
+        reason: 'the prompt for ${entry.key} must carry this exact sentence',
       );
     }
   });
@@ -67,8 +63,7 @@ void main() {
         .whereType<File>()
         .where((file) => file.path.endsWith('.dart'))
         .where(
-          (file) =>
-              file.readAsStringSync().contains('package:speech_to_text/'),
+          (file) => file.readAsStringSync().contains('package:speech_to_text/'),
         )
         // Windows separators, so the expectation is the same path everywhere.
         .map((file) => file.path.replaceAll('\\', '/'))

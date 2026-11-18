@@ -91,4 +91,42 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets('playback failure remains visible and can be closed', (
+    tester,
+  ) async {
+    final controller = SpiritualSessionController();
+    await controller.begin(
+      SpiritualSession(
+        id: 'failure',
+        kind: SpiritualSessionKind.memory,
+        title: 'My memory',
+        route: '/remember/one',
+        canPause: true,
+        onPause: () async => throw StateError('Audio unavailable'),
+        onResume: () async {},
+        onComplete: () async {},
+        onClose: () async {},
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          spiritualSessionControllerProvider.overrideWithValue(controller),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: SpiritualSessionMiniPlayer(onOpen: (_) {})),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('spiritual-session-pause')));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Playback could not continue.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('spiritual-session-close')));
+    await tester.pump();
+    expect(find.text('My memory'), findsNothing);
+  });
 }

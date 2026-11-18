@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../record/presentation/inline_memory_recorder.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design/app_spacing.dart';
@@ -33,14 +34,22 @@ class PersonDetailScreen extends ConsumerWidget {
       );
 }
 
-class _PersonDetail extends ConsumerWidget {
+class _PersonDetail extends ConsumerStatefulWidget {
   const _PersonDetail({required this.person, required this.fromReminder});
 
   final PrayerPerson person;
   final bool fromReminder;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PersonDetail> createState() => _PersonDetailState();
+}
+
+class _PersonDetailState extends ConsumerState<_PersonDetail> {
+  bool _recordingBusy = false;
+  PrayerPerson get person => widget.person;
+
+  @override
+  Widget build(BuildContext context) {
     final memories = ref.watch(personLinkedMemoriesProvider(person.id));
     return Scaffold(
       appBar: AppBar(
@@ -48,10 +57,13 @@ class _PersonDetail extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'Edit',
-            onPressed: () => context.push('/persons/${person.id}/edit'),
+            onPressed: _recordingBusy
+                ? null
+                : () => context.push('/persons/${person.id}/edit'),
             icon: const Icon(Icons.edit_outlined),
           ),
           PopupMenuButton<String>(
+            enabled: !_recordingBusy,
             onSelected: (value) {
               if (value == 'archive') _archive(context, ref);
             },
@@ -97,21 +109,24 @@ class _PersonDetail extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.xl),
                 FilledButton.icon(
                   key: const Key('prayed-for-person'),
-                  onPressed: () => _openPrayerGuide(context, ref),
+                  onPressed: _recordingBusy
+                      ? null
+                      : () => _openPrayerGuide(context, ref),
                   icon: const Icon(Icons.volunteer_activism_outlined),
                   label: Text('Pray for ${person.name}'),
                 ),
                 PersonPrayerAudioSection(
                   personId: person.id,
-                  autoplay: fromReminder,
+                  autoplay: widget.fromReminder,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                OutlinedButton.icon(
-                  key: const Key('remember-person'),
-                  onPressed: () =>
-                      context.push('/remember/capture?person=${person.id}'),
-                  icon: const Icon(Icons.mic_none),
-                  label: const Text('Remember something about them'),
+                InlineMemoryRecorder(
+                  buttonKey: const Key('remember-person'),
+                  label: 'Remember something about them',
+                  initialPersonIds: [person.id],
+                  onBusyChanged: (busy) {
+                    if (mounted) setState(() => _recordingBusy = busy);
+                  },
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 Text(
@@ -135,8 +150,11 @@ class _PersonDetail extends ConsumerWidget {
                             for (final memory in items)
                               Card(
                                 child: ListTile(
-                                  onTap: () =>
-                                      context.push('/remember/${memory.id}'),
+                                  onTap: _recordingBusy
+                                      ? null
+                                      : () => context.push(
+                                          '/remember/${memory.id}',
+                                        ),
                                   leading: const Icon(Icons.bookmark_outline),
                                   title: Text(
                                     memory.sensitive

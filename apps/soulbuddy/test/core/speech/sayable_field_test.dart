@@ -280,6 +280,16 @@ void main() {
     ], reason: 'typing was the reason onChanged existed');
   });
 
+  testWidgets('opening a field does not request microphone permission', (
+    tester,
+  ) async {
+    final seam = _FakeRecognizer();
+    await pumpField(tester, recognizer: seam);
+    expect(seam.initializeCalls, 0);
+    await tapMic(tester);
+    expect(seam.initializeCalls, 1);
+  });
+
   testWidgets(
     'an unavailable device says so, drops the mic, and still writes',
     (tester) async {
@@ -287,6 +297,8 @@ void main() {
         tester,
         recognizer: _FakeRecognizer(available: false),
       );
+
+      await tapMic(tester);
 
       expect(find.text(speechUnavailableNotice), findsOneWidget);
       expect(find.byKey(mic), findsNothing);
@@ -305,6 +317,8 @@ void main() {
       recognizer: _FakeRecognizer(available: false),
       emphasis: SayableEmphasis.prominent,
     );
+
+    await tapMic(tester);
 
     expect(find.text(speechUnavailableNotice), findsOneWidget);
     expect(find.byKey(action), findsNothing);
@@ -772,6 +786,9 @@ void main() {
     testWidgets('says the unavailable notice once', (tester) async {
       await pumpPair(tester, recognizer: _FakeRecognizer(available: false));
 
+      await tester.tap(find.byKey(mic).first);
+      await tester.pump();
+
       expect(find.text(speechUnavailableNotice), findsOneWidget);
       expect(
         find.byKey(mic),
@@ -928,7 +945,9 @@ void main() {
     // The plugin arms its own pause timer when a session opens, and it
     // outlives the widget. Cancelling is what clears it, so the test does not
     // end with a timer pending.
+    await subject.speech.stop();
     await speech.cancel();
+    await tester.pump(const Duration(seconds: 3));
   });
 }
 
@@ -977,6 +996,7 @@ class _FakeRecognizer implements SpeechRecognizer {
   Completer<void>? gate;
 
   int stopCalls = 0;
+  int initializeCalls = 0;
   void Function(String words)? _onWords;
   VoidCallback? _onUnavailable;
   VoidCallback? _onError;
@@ -987,6 +1007,7 @@ class _FakeRecognizer implements SpeechRecognizer {
     VoidCallback? onUnavailable,
     VoidCallback? onError,
   }) async {
+    initializeCalls++;
     _onUnavailable = onUnavailable;
     _onError = onError;
     await gate?.future;

@@ -31,9 +31,10 @@ int _bareFields(String path) =>
 /// Counts are measured, not assumed, so a file that legitimately gained or lost
 /// a field of its own is recorded here rather than left to fail.
 const _expected = <String, (int sayable, int bare)>{
+  'lib/core/speech/optional_writing.dart': (1, 0),
   'lib/features/commitments/presentation/commitment_journey_screen.dart': (
-    1,
-    1,
+    2,
+    0,
   ),
   'lib/features/onboarding/presentation/first_prayer_speech_page.dart': (1, 0),
   'lib/features/daily_formation/presentation/daily_formation_card.dart': (2, 0),
@@ -53,8 +54,7 @@ const _expected = <String, (int sayable, int bare)>{
   'lib/features/goals/presentation/first_goal_screen.dart': (1, 0),
   // The Goal field labels a row in the list and stays bare.
   'lib/features/goals/presentation/goal_detail_screen.dart': (2, 1),
-  'lib/features/remember/presentation/daily_remembrance_screen.dart': (1, 0),
-  'lib/features/remember/presentation/memory_detail_screen.dart': (1, 0),
+  'lib/features/remember/presentation/inline_memory_reflection.dart': (1, 0),
   'lib/features/guards/presentation/guard_configuration_sheet.dart': (1, 0),
   // Circle name and the provider group link stay bare; Category and Visibility
   // are dropdowns and were never sentence fields.
@@ -163,7 +163,13 @@ void main() {
     // and a screen with one field must not silence it at all. Nothing has to
     // remember to update this when the fields change, which is what makes the
     // opt-out safe to hand to a caller who has never heard of it.
-    final several = _expected.entries.where((entry) => entry.value.$1 > 1);
+    // The commitment fields are on different surfaces: the custom practice
+    // field is in its own dialog, not beside the commitment name.
+    const separateDialog =
+        'lib/features/commitments/presentation/commitment_journey_screen.dart';
+    final several = _expected.entries.where(
+      (entry) => entry.value.$1 > 1 && entry.key != separateDialog,
+    );
     expect(
       several.map((entry) => entry.key),
       [
@@ -176,7 +182,9 @@ void main() {
     for (final entry in _expected.entries) {
       expect(
         _calls(entry.key, 'showUnavailableNotice: false'),
-        entry.value.$1 > 1 ? entry.value.$1 - 1 : 0,
+        entry.value.$1 > 1 && entry.key != separateDialog
+            ? entry.value.$1 - 1
+            : 0,
         reason:
             '${entry.key} holds ${entry.value.$1} sayable field(s), so it '
             'silences exactly one notice or none',

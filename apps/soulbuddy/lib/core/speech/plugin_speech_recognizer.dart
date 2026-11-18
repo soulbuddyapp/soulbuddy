@@ -107,12 +107,10 @@ class PluginSpeechRecognizer implements SpeechRecognizer {
           partialResults: true,
         ),
       );
-    } on Object {
-      // The plugin throws when [initialize] did not succeed, and remembers
-      // that, so every later attempt throws too. A caller has already been
-      // told speech is unavailable; it gets no second, unanswerable signal.
-      // A refusal to start while speech is otherwise available is reported by
-      // the caller, which can see the throw and this layer cannot.
+    } on OnDeviceRecognitionUnavailableException {
+      throw SpeechRecognitionUnavailableException();
+    } on RecognitionStartRejectedException {
+      throw const SpeechRecognitionStartRejectedException();
     }
   }
 

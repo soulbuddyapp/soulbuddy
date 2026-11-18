@@ -1,0 +1,40 @@
+# Candidate for MySQL 8 after the owner projection migration.
+# Only authenticated owners receive private rows; recording bytes stay local.
+bucket_definitions:
+  private_account:
+    parameters: SELECT public_id AS owner_id FROM users WHERE public_id = request.user_id()
+    data:
+      - SELECT id, owner_id, title, body, occurred_on, is_altar, created_at, updated_at, archived_at, current_revision_id, memory_type, sensitive, recall_enabled, recall_paused, recall_interval_days FROM encounters WHERE owner_id = bucket.owner_id
+      - SELECT id, encounter_id, owner_id, title, body, created_at, device_id, memory_type, sensitive, recall_enabled, recall_paused, recall_interval_days FROM encounter_revisions WHERE owner_id = bucket.owner_id
+      - SELECT id, encounter_id, owner_id, body, audio_encounter_id, local_date, created_at, device_id FROM memory_reflections WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, source_type, personal_prayer_id, library_prayer_id, prayer_revision_id, title, full_audio_id, refrain_audio_id, recording_device_id, created_at, updated_at, archived_at FROM voice_tablets WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, target_type, encounter_id, personal_prayer_id, library_prayer_id, voice_tablet_id, created_at, updated_at, archived_at FROM altar_items WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, altar_item_id, schedule_type, local_time, timezone, weekdays_mask, playback_mode, enabled, created_at, updated_at, archived_at FROM altar_rituals WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, release_item_id, local_date, started_at, ended_at, outcome, step_one_count, step_two_count, sound_key, narration_speed, created_at, updated_at FROM affirmation_prayer_sessions WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, title, style, reach, grounding, purpose, current_revision_id, created_at, updated_at, archived_at FROM personal_prayers WHERE owner_id = bucket.owner_id
+      - SELECT id, prayer_id, owner_id, body, content_format, action, created_at, device_id FROM personal_prayer_revisions WHERE owner_id = bucket.owner_id
+      - SELECT id, prayer_id, owner_id, link_type, encounter_id, translation, book, chapter, first_verse, last_verse, created_at FROM personal_prayer_links WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, purpose_key, name, local_time, timezone, duration_minutes, prayer_minutes, enabled, sound_key, prayer_type, prayer_id, person_id, created_at, updated_at, archived_at FROM sacred_hours WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, sacred_hour_id, due_at, local_date, status, prayer_session_id, created_at, updated_at FROM sacred_hour_occurrences WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, personal_prayer_id, schedule_type, local_time, timezone, once_at, weekdays_mask, enabled, created_at, updated_at, archived_at FROM prayer_reminders WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, library_prayer_id, personal_prayer_id, prayer_revision_id, reminder_id, reminder_occurrence_key, source, occurred_at, local_date, timezone, device_id, retracted_at FROM prayer_sessions WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, prayer_id, created_at FROM prayer_votes WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, local_date, prayer_id, personal_prayer_id, include_action, action_completed, created_at FROM today_prayers WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, starter_key, mode, status, current_revision_id, position, created_at, updated_at, archived_at FROM goals WHERE owner_id = bucket.owner_id
+      - SELECT id, goal_id, owner_id, title, current_situation, why_it_matters, created_at, device_id FROM goal_revisions WHERE owner_id = bucket.owner_id
+      - SELECT id, goal_id, owner_id, link_type, personal_prayer_id, library_prayer_id, encounter_id, voice_tablet_id, circle_id, translation, book, chapter, first_verse, last_verse, role, created_at, archived_at FROM goal_links WHERE owner_id = bucket.owner_id
+      - SELECT id, goal_id, owner_id, body, action_kind, schedule_type, local_time, timezone, once_at, weekdays_mask, enabled, created_at, updated_at, archived_at FROM goal_actions WHERE owner_id = bucket.owner_id
+      - SELECT id, goal_action_id, goal_id, owner_id, event_type, occurrence_key, occurred_at, local_date, device_id FROM goal_action_events WHERE owner_id = bucket.owner_id
+      - SELECT id, goal_id, owner_id, guard_definition_id, guard_content_version, private_note, configured_at, archived_at FROM goal_guard_selections WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, journey_slot, goal_id, name, key_need_one, key_need_two, key_need_three, calling, guide_id, created_at, updated_at FROM commitments WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, goal_action_id, category, body, position, source, suggestion_id, created_at, updated_at FROM commitment_practices WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, body, reviewed_at, created_at, updated_at FROM commitment_declarations WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, frequency, weekdays_mask, local_time, timezone, duration_minutes, enabled, created_at, updated_at FROM commitment_meditation_plans WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, started_at_utc, started_local_date, start_timezone, review_local_date, state, created_at, updated_at FROM commitment_preparation_cycles WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, commitment_id, session_kind, started_at, ended_at, local_date, planned_duration_seconds, actual_duration_seconds, outcome, device_id FROM commitment_meditation_sessions WHERE owner_id = bucket.owner_id
+      - SELECT id, owner_id, name, relationship, cadence, local_time, timezone, weekdays_mask, created_at, updated_at, archived_at FROM prayer_people WHERE owner_id = bucket.owner_id
+      - SELECT id, person_id, owner_id, local_date, occurrence_key, prayed_at, device_id FROM person_prayer_occurrences WHERE owner_id = bucket.owner_id
+      - SELECT id, encounter_id, person_id, owner_id, created_at FROM encounter_person_links WHERE owner_id = bucket.owner_id
+  public_prayers:
+    data:
+      - SELECT id, title, body, grounding, language_style, purpose, action, helpful_count, published_at, archived_at FROM library_prayers WHERE published_at IS NOT NULL

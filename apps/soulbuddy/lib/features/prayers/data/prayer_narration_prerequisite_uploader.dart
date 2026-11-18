@@ -46,6 +46,9 @@ class PrayerNarrationPrerequisiteUploader {
     if (prayer == null || revision == null) {
       throw const PrayerNarrationException('narration_unavailable');
     }
+    if (revision['content_format'] == 'audio') {
+      throw const PrayerNarrationException('recorded_prayer_has_audio');
+    }
     final operations = [
       _operation(
         table: 'personal_prayers',

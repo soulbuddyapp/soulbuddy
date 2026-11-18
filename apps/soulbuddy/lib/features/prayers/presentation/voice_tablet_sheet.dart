@@ -22,6 +22,8 @@ class VoiceTabletSheet extends ConsumerStatefulWidget {
     required this.title,
     required this.prayerBody,
     this.initialFullDraft,
+    this.inline = false,
+    this.onFinish,
     super.key,
   });
 
@@ -29,6 +31,8 @@ class VoiceTabletSheet extends ConsumerStatefulWidget {
   final String title;
   final String prayerBody;
   final RecordedAudioDraft? initialFullDraft;
+  final bool inline;
+  final ValueChanged<VoiceTablet?>? onFinish;
 
   @override
   ConsumerState<VoiceTabletSheet> createState() => _VoiceTabletSheetState();
@@ -42,11 +46,13 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
   VoiceTabletAudioAttachment? _refrainAttachment;
   String? _error;
   bool _closing = false;
+  bool _startRequested = false;
 
   @override
   void initState() {
     super.initState();
     _fullDraft = widget.initialFullDraft;
+    _startRequested = widget.inline && widget.initialFullDraft == null;
     _step = widget.initialFullDraft == null
         ? VoiceTabletSheetStep.fullPrayer
         : VoiceTabletSheetStep.refrainChoice;
@@ -54,6 +60,28 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.inline) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) unawaited(_closeInline());
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                tooltip: 'Close',
+                onPressed: _closeInline,
+                icon: const Icon(Icons.close),
+              ),
+            ),
+            _content(),
+          ],
+        ),
+      );
+    }
     final height = MediaQuery.sizeOf(context).height * 0.94;
     return PopScope(
       canPop: false,
@@ -91,10 +119,12 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
       }),
     ),
     VoiceTabletSheetStep.refrainChoice => _RefrainChoice(
+      inline: widget.inline,
       prayerBody: widget.prayerBody,
       error: _error,
       onAdd: () => setState(() {
         _error = null;
+        _startRequested = widget.inline;
         _step = VoiceTabletSheetStep.refrain;
       }),
       onSave: _save,
@@ -142,19 +172,37 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
       error: (_, _) => _SheetMessage(
         message: 'The microphone could not be prepared just now.',
         actionLabel: 'Close',
-        onAction: _close,
+        onAction: widget.inline ? _closeInline : _close,
       ),
-      data: (value) => AudioCapturePanel(
-        controller: value,
-        introHeading: heading,
-        introDescription: description,
-        introContent: PrayerTextSlab(text: widget.prayerBody),
-        startLabel: startLabel,
-        alternativeLabel: 'Not now',
-        onWriteInstead: _close,
-        onContinue: onContinue,
-        onBack: onBack,
-      ),
+      data: (value) {
+        if (_startRequested) {
+          _startRequested = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(value.start());
+          });
+        }
+        return AudioCapturePanel(
+          controller: value,
+          inline: widget.inline,
+          introHeading: heading,
+          introDescription: description,
+          introContent: PrayerTextSlab(text: widget.prayerBody),
+          startLabel: startLabel,
+          alternativeLabel: 'Not now',
+          onWriteInstead: widget.inline ? _closeInline : _close,
+          onContinue: onContinue,
+          onBack: onBack,
+          onDiscarded: widget.inline
+              ? () {
+                  if (_step == VoiceTabletSheetStep.refrain) {
+                    setState(() => _step = VoiceTabletSheetStep.refrainChoice);
+                  } else {
+                    unawaited(_closeInline());
+                  }
+                }
+              : null,
+        );
+      },
     );
   }
 
@@ -192,7 +240,13 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
         ),
       );
       await _discardSavedTemporaryCopies(store);
-      if (mounted) Navigator.pop(context, tablet);
+      if (mounted) {
+        if (widget.inline) {
+          widget.onFinish?.call(tablet);
+        } else {
+          Navigator.pop(context, tablet);
+        }
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -247,7 +301,73 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
     if (mounted) Navigator.pop(context);
   }
 
+  Future<void> _closeInline() async {
+    if (_step == VoiceTabletSheetStep.saving || _closing) return;
+    _closing = true;
+    try {
+      final kind = _step == VoiceTabletSheetStep.refrain
+          ? VoiceTabletAudioKind.refrain
+          : VoiceTabletAudioKind.fullPrayer;
+      final controller = ref
+          .read(voiceTabletAudioCaptureControllerProvider(kind))
+          .value;
+      await controller?.handleInterruption();
+      if (!mounted) return;
+      if ((controller?.hasPendingRecording ?? false) ||
+          (controller?.state.commandInFlight ?? false)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Save or discard the recording.')),
+        );
+        return;
+      }
+      if (_fullDraft != null || _refrainDraft != null) {
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Discard recording?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Keep'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Discard'),
+              ),
+            ],
+          ),
+        );
+        if (discard != true || !mounted) return;
+      }
+      await controller?.cancel();
+      if (controller?.hasPendingRecording == true) return;
+      await _discardUncommittedDrafts();
+      if (mounted) widget.onFinish?.call(null);
+    } finally {
+      _closing = false;
+    }
+  }
+
   Future<void> _recordFullPrayerAgain() async {
+    if (widget.inline) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard recording?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true || !mounted) return;
+    }
     final draft = _fullDraft;
     final attachment = _fullAttachment;
     final store = await ref.read(audioAssetStoreProvider.future);
@@ -273,6 +393,7 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
       _fullAttachment = null;
       _error = null;
       _step = VoiceTabletSheetStep.fullPrayer;
+      _startRequested = widget.inline;
     });
   }
 
@@ -299,6 +420,12 @@ class _VoiceTabletSheetState extends ConsumerState<VoiceTabletSheet> {
   }
 
   Future<void> _discardUncommittedDrafts() async {
+    if (_fullAttachment == null &&
+        _refrainAttachment == null &&
+        _fullDraft == null &&
+        _refrainDraft == null) {
+      return;
+    }
     final store = await ref.read(audioAssetStoreProvider.future);
     for (final attachment in [_fullAttachment, _refrainAttachment]) {
       if (attachment == null) continue;
@@ -359,6 +486,7 @@ class _RefrainChoice extends StatelessWidget {
     required this.onAdd,
     required this.onSave,
     required this.onBack,
+    this.inline = false,
   });
 
   final String prayerBody;
@@ -366,63 +494,67 @@ class _RefrainChoice extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onSave;
   final VoidCallback onBack;
+  final bool inline;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.all(AppSpacing.lg),
-    child: Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextButton.icon(
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Record again'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Your prayer is recorded',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const Text('You may also keep one short line as a Prayer Refrain.'),
-            const SizedBox(height: AppSpacing.md),
-            PrayerTextSlab(text: prayerBody),
-            if (error case final message?) ...[
+  Widget build(BuildContext context) {
+    final content = Padding(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextButton.icon(
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Record again'),
+              ),
               const SizedBox(height: AppSpacing.md),
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  message,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+              Text(
+                'Prayer Refrain',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              PrayerTextSlab(text: prayerBody),
+              if (error case final message?) ...[
+                const SizedBox(height: AppSpacing.md),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
+                ),
+                onPressed: onAdd,
+                icon: const Icon(Icons.graphic_eq),
+                label: const Text('Add a short refrain'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
+                ),
+                onPressed: onSave,
+                child: const Text('Save without a refrain'),
               ),
             ],
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
-              ),
-              onPressed: onAdd,
-              icon: const Icon(Icons.graphic_eq),
-              label: const Text('Add a short refrain'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, AppSpacing.minimumTouchTarget),
-              ),
-              onPressed: onSave,
-              child: const Text('Save without a refrain'),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+    return inline ? content : SingleChildScrollView(child: content);
+  }
 }
 
 class PrayerTextSlab extends StatelessWidget {

@@ -130,7 +130,7 @@ class ApplySyncMutation
         }
 
         $personalPrayerError = app(ApplyPersonalPrayerMutation::class)
-            ->validate($user, $personalPrayerOperations);
+            ->validate($user, $personalPrayerOperations, $voiceTabletAltarOperations);
         if ($personalPrayerError !== null) {
             return $this->result($duplicates, $pending->count(), $duplicates, $personalPrayerError);
         }
@@ -142,7 +142,7 @@ class ApplySyncMutation
         }
 
         $voiceTabletAltarError = app(ApplyVoiceTabletAltarMutation::class)
-            ->validate($user, $voiceTabletAltarOperations);
+            ->validate($user, $voiceTabletAltarOperations, $personalPrayerOperations);
         if ($voiceTabletAltarError !== null) {
             return $this->result($duplicates, $pending->count(), $duplicates, $voiceTabletAltarError);
         }
@@ -183,7 +183,7 @@ class ApplySyncMutation
         }
 
         try {
-            $prayerError = DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations, $practiceOperations, $voiceTabletAltarOperations, $personPrayerOperations, $sacredHourOperations, $affirmationSessionOperations): ?string {
+            DB::transaction(function () use ($user, $pending, $prayerOperations, $personalPrayerOperations, $practiceOperations, $voiceTabletAltarOperations, $personPrayerOperations, $sacredHourOperations, $affirmationSessionOperations): void {
                 User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
                 $prayerContexts = [];
                 if ($prayerOperations !== []) {
@@ -206,26 +206,26 @@ class ApplySyncMutation
                             ->all(),
                     );
                     if ($prayerError !== null) {
-                        return $prayerError;
+                        throw new SyncMutationRejected($prayerError);
                     }
                 }
 
                 $personalPrayerError = app(ApplyPersonalPrayerMutation::class)
                     ->apply($user, $personalPrayerOperations);
                 if ($personalPrayerError !== null) {
-                    return $personalPrayerError;
+                    throw new SyncMutationRejected($personalPrayerError);
                 }
 
                 $practiceError = app(ApplyPrayerPracticeMutation::class)
                     ->apply($user, $practiceOperations);
                 if ($practiceError !== null) {
-                    return $practiceError;
+                    throw new SyncMutationRejected($practiceError);
                 }
 
                 $voiceTabletAltarError = app(ApplyVoiceTabletAltarMutation::class)
                     ->apply($user, $voiceTabletAltarOperations);
                 if ($voiceTabletAltarError !== null) {
-                    return $voiceTabletAltarError;
+                    throw new SyncMutationRejected($voiceTabletAltarError);
                 }
 
                 foreach ($pending->sortBy(fn (array $operation) => $operation['table'] === 'encounters' ? 0 : 1) as $operation) {
@@ -256,27 +256,27 @@ class ApplySyncMutation
                 $personPrayerError = app(ApplyPersonPrayerMutation::class)
                     ->apply($user, $personPrayerOperations);
                 if ($personPrayerError !== null) {
-                    return $personPrayerError;
+                    throw new SyncMutationRejected($personPrayerError);
                 }
 
                 $sacredHourError = app(ApplySacredHourMutation::class)
                     ->apply($user, $sacredHourOperations);
                 if ($sacredHourError !== null) {
-                    return $sacredHourError;
+                    throw new SyncMutationRejected($sacredHourError);
                 }
 
                 $affirmationSessionError = app(ApplyAffirmationPrayerSessionMutation::class)
                     ->apply($user, $affirmationSessionOperations);
                 if ($affirmationSessionError !== null) {
-                    return $affirmationSessionError;
+                    throw new SyncMutationRejected($affirmationSessionError);
                 }
 
                 foreach ($pending as $operation) {
                     $this->storeSyncOperation($user, $operation);
                 }
-
-                return null;
             });
+        } catch (SyncMutationRejected $rejection) {
+            return $this->result($duplicates, $pending->count(), $duplicates, $rejection->syncCode);
         } catch (AuthorizationException) {
             return $this->result($duplicates, $pending->count(), $duplicates, 'forbidden');
         } catch (QueryException $exception) {
@@ -295,10 +295,6 @@ class ApplySyncMutation
             }
 
             throw $exception;
-        }
-
-        if ($prayerError !== null) {
-            return $this->result($duplicates, $pending->count(), $duplicates, $prayerError);
         }
 
         return $this->result(count($operations), 0, $duplicates);
@@ -351,6 +347,20 @@ class ApplySyncMutation
                     ->contains('id', $encounterId);
                 if (! $encounterInBatch && ! Encounter::whereKey($encounterId)->exists()) {
                     return 'missing_record';
+                }
+                $audioEncounterId = $operation['data']['audio_encounter_id'] ?? null;
+                if ($audioEncounterId !== null) {
+                    $audioInBatch = collect($operations)
+                        ->where('table', 'encounters')
+                        ->where('type', 'put')
+                        ->contains('id', $audioEncounterId);
+                    $ownedAudio = Encounter::query()
+                        ->whereKey($audioEncounterId)
+                        ->where('user_id', $user->id)
+                        ->exists();
+                    if (! $audioInBatch && ! $ownedAudio) {
+                        return 'inaccessible_record';
+                    }
                 }
             }
         }
@@ -418,7 +428,7 @@ class ApplySyncMutation
                 ['encounters', 'put'] => ['title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'occurred_on' => ['required', 'date_format:Y-m-d'], 'is_altar' => ['required', 'boolean'], 'current_revision_id' => ['required', 'uuid'], 'archived_at' => ['nullable', 'date'], 'memory_type' => ['sometimes', 'in:encounter,promise,left_behind,revelation,scripture,person,family,lesson,testimony'], 'sensitive' => ['sometimes', 'boolean'], 'recall_enabled' => ['sometimes', 'boolean'], 'recall_paused' => ['sometimes', 'boolean'], 'recall_interval_days' => ['sometimes', 'integer', 'min:1', 'max:365']],
                 ['encounters', 'patch'] => ['title' => ['sometimes', 'string', 'max:120'], 'body' => ['sometimes', 'nullable', 'string', 'max:4000'], 'occurred_on' => ['sometimes', 'date_format:Y-m-d'], 'is_altar' => ['sometimes', 'boolean'], 'current_revision_id' => ['sometimes', 'uuid'], 'archived_at' => ['sometimes', 'nullable', 'date'], 'updated_at' => ['sometimes', 'date'], 'memory_type' => ['sometimes', 'in:encounter,promise,left_behind,revelation,scripture,person,family,lesson,testimony'], 'sensitive' => ['sometimes', 'boolean'], 'recall_enabled' => ['sometimes', 'boolean'], 'recall_paused' => ['sometimes', 'boolean'], 'recall_interval_days' => ['sometimes', 'integer', 'min:1', 'max:365']],
                 ['encounter_revisions', 'put'] => ['encounter_id' => ['required', 'uuid'], 'title' => ['required', 'string', 'max:120'], 'body' => ['nullable', 'string', 'max:4000'], 'device_id' => ['required', 'string', 'max:120'], 'memory_type' => ['sometimes', 'in:encounter,promise,left_behind,revelation,scripture,person,family,lesson,testimony'], 'sensitive' => ['sometimes', 'boolean'], 'recall_enabled' => ['sometimes', 'boolean'], 'recall_paused' => ['sometimes', 'boolean'], 'recall_interval_days' => ['sometimes', 'integer', 'min:1', 'max:365']],
-                ['memory_reflections', 'put'] => ['encounter_id' => ['required', 'uuid'], 'owner_id' => [], 'body' => ['required', 'string', 'max:4000'], 'local_date' => ['required', 'date_format:Y-m-d'], 'created_at' => ['required', 'date'], 'device_id' => ['required', 'string', 'max:120']],
+                ['memory_reflections', 'put'] => ['encounter_id' => ['required', 'uuid'], 'owner_id' => [], 'body' => ['required_without:audio_encounter_id', 'nullable', 'string', 'max:4000'], 'audio_encounter_id' => ['sometimes', 'nullable', 'uuid'], 'local_date' => ['required', 'date_format:Y-m-d'], 'created_at' => ['required', 'date'], 'device_id' => ['required', 'string', 'max:120']],
                 ['prayer_votes', 'put'] => ['owner_id' => [], 'prayer_id' => ['required', 'uuid'], 'created_at' => ['sometimes', 'date']],
                 ['today_prayers', 'put'] => ['owner_id' => [], 'local_date' => ['required', 'date_format:Y-m-d'], 'prayer_id' => ['sometimes', 'nullable', 'uuid'], 'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'], 'include_action' => ['required', 'boolean'], 'action_completed' => ['required', 'boolean'], 'created_at' => ['sometimes', 'date'], 'updated_at' => ['sometimes', 'date']],
                 ['today_prayers', 'patch'] => ['prayer_id' => ['sometimes', 'nullable', 'uuid'], 'personal_prayer_id' => ['sometimes', 'nullable', 'uuid'], 'include_action' => ['sometimes', 'boolean'], 'action_completed' => ['sometimes', 'boolean']],
@@ -551,11 +561,19 @@ class ApplySyncMutation
     {
         $encounter = Encounter::findOrFail($operation['data']['encounter_id']);
         Gate::forUser($user)->authorize('update', $encounter);
+        $audioEncounterId = $operation['data']['audio_encounter_id'] ?? null;
+        if ($audioEncounterId !== null) {
+            // Immutable reflection metadata remains valid if its owned source
+            // was archived after recording, including in this offline batch.
+            $audioEncounter = Encounter::findOrFail($audioEncounterId);
+            Gate::forUser($user)->authorize('update', $audioEncounter);
+        }
         MemoryReflection::create([
             'id' => $operation['id'],
             'encounter_id' => $encounter->id,
             'user_id' => $user->id,
-            'body' => $operation['data']['body'],
+            'body' => $operation['data']['body'] ?? '',
+            'audio_encounter_id' => $audioEncounterId,
             'local_date' => $operation['data']['local_date'],
             'created_at' => $operation['data']['created_at'],
             'device_id' => $operation['data']['device_id'],
@@ -1058,5 +1076,14 @@ class ApplySyncMutation
             fn (mixed $item) => is_array($item) ? $this->canonicalize($item) : $item,
             $value,
         );
+    }
+}
+
+/** A domain rejection must roll back all writes in the offline batch. */
+final class SyncMutationRejected extends \RuntimeException
+{
+    public function __construct(public readonly string $syncCode)
+    {
+        parent::__construct($syncCode);
     }
 }

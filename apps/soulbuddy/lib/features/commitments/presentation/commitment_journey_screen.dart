@@ -6,8 +6,10 @@ import 'package:uuid/uuid.dart';
 import '../../../core/presentation/sanctuary_backdrop.dart';
 import '../../../core/presentation/screen_awake.dart';
 import '../../../core/speech/sayable_field.dart';
-import '../../../core/speech/speech_capture_providers.dart';
+import '../../../core/speech/optional_writing.dart';
 import '../../prayers/providers/prayer_practice_providers.dart';
+import '../../record/presentation/voice_notes_field.dart';
+import '../application/commitment_audio.dart';
 import '../application/commitment_journey_flow.dart';
 import '../data/commitment_practice_catalog_repository.dart';
 import '../data/commitment_journey_progress_repository.dart';
@@ -36,9 +38,12 @@ class _CommitmentJourneyScreenState
   final _name = TextEditingController();
   final _declaration = TextEditingController();
   final _scroll = ScrollController();
+  final _instructionAudio = <String, CommitmentAudio>{};
   Timer? _debounce;
   Future<void> _writes = Future.value();
   bool _loading = true, _busy = false, _leaving = false;
+  bool _recordingBusy = false;
+  bool get _blocked => _busy || _recordingBusy;
   bool _loaded = false;
   bool _finalizing = false;
   String? _error;
@@ -162,13 +167,12 @@ class _CommitmentJourneyScreenState
   }
 
   Future<void> _leave() async {
-    if (_busy || _leaving) return;
+    if (_blocked || _leaving) return;
     if (!_loaded) {
       context.go('/goals');
       return;
     }
     _leaving = true;
-    await _stopDictation();
     _progress = _progress.copyWith(deferred: true);
     if (await _save() && mounted) {
       context.go('/goals');
@@ -178,7 +182,7 @@ class _CommitmentJourneyScreenState
   }
 
   Future<void> _advance({bool back = false}) async {
-    if (_busy || !_loaded) return;
+    if (_blocked || !_loaded) return;
     final value = _snapshot();
     if (!back && !commitmentStageValid(value.stage, value, _practices)) {
       setState(
@@ -192,7 +196,6 @@ class _CommitmentJourneyScreenState
       _busy = true;
       _error = null;
     });
-    await _stopDictation();
     if (await _save() && mounted) {
       final index = value.stage.index + (back ? -1 : 1);
       if (index >= 0 && index < CommitmentJourneyStage.summary.index + 1) {
@@ -201,15 +204,6 @@ class _CommitmentJourneyScreenState
           invitationCompleted: true,
           deferred: false,
         );
-        if (_progress.stage == CommitmentJourneyStage.declaration &&
-            _declaration.text.isEmpty) {
-          // The name is optional in the pledge; the commitment title comes later.
-          _declaration.text = buildCommitmentDeclarationDraft(
-            name: 'a child of God',
-            calling: _calling.text,
-            practices: _practices.map((p) => p.body).toList(),
-          );
-        }
         await _save();
         if (mounted && _scroll.hasClients) _scroll.jumpTo(0);
       }
@@ -218,7 +212,11 @@ class _CommitmentJourneyScreenState
   }
 
   Future<void> _finish() async {
-    if (_busy) return;
+    if (_blocked) return;
+    if (!_progress.declarationReviewed) {
+      setState(() => _error = 'Review your declaration before saving.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -244,20 +242,6 @@ class _CommitmentJourneyScreenState
     }
   }
 
-  /// Ends the session before this screen stops being the one dictating.
-  ///
-  /// The session belongs to the app-wide controller, which outlives the field
-  /// writing into it, so no other code can close it: left open it would hold
-  /// the microphone and refuse the next field's. Unmounting is deliberately not
-  /// that moment, because a session is not this screen's to end either.
-  Future<void> _stopDictation() async {
-    final speech = ref.read(speechCaptureControllerProvider);
-    // Asked of the session rather than of the plugin: a stage reached without
-    // ever dictating has nothing to stop, and the plugin refuses a stop it was
-    // never asked to start.
-    if (speech.isListening) await speech.stop();
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed &&
@@ -265,7 +249,6 @@ class _CommitmentJourneyScreenState
         !_busy &&
         !_leaving &&
         !_finalizing) {
-      unawaited(_stopDictation());
       unawaited(_save());
     }
   }
@@ -279,37 +262,95 @@ class _CommitmentJourneyScreenState
       c.dispose();
     }
     _scroll.dispose();
+    for (final audio in _instructionAudio.values) {
+      audio.dispose();
+    }
     super.dispose();
   }
 
-  Widget _field(
-    TextEditingController c,
-    String label,
-    int max, {
-    int lines = 3,
-    bool declaration = false,
-  }) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
-    child: SayableField(
-      controller: c,
-      minLines: lines,
-      maxLines: lines + 3,
-      maxLength: max,
-      textCapitalization: TextCapitalization.sentences,
-      labelText: label,
-      // A cut is reported rather than made to look like a whole answer. The
-      // limit is applied by the merge, on a character boundary, so a dictated
-      // word is never left half-spelled.
-      onTruncated: () =>
-          setState(() => _error = 'Your answer reached the limit.'),
-      onChanged: (_) {
-        if (declaration || c == _calling || _needs.contains(c)) {
-          _progress = _progress.copyWith(declarationReviewed: false);
-        }
-        _changed();
-      },
-    ),
+  CommitmentAudio _audioFor(String key) =>
+      _instructionAudio.putIfAbsent(key, CommitmentAudio.new);
+
+  Future<void> _stopInstructionAudio() async {
+    await Future.wait(
+      _instructionAudio.values.map((audio) => audio.stopForRecording()),
+    );
+  }
+
+  Widget _recordedField(
+    TextEditingController controller,
+    String field,
+    String title,
+  ) {
+    final noteContext = (
+      type: 'commitment',
+      id: 'journey:primary',
+      field: field,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          VoiceNotesField(
+            key: ValueKey('commitment-record-$field'),
+            noteContext: noteContext,
+            title: title,
+            enabled: !_blocked,
+            beforeRecord: _stopInstructionAudio,
+            onBusyChanged: _recordingChanged,
+            onRecorded: (memory) {
+              if (controller.text.trim().isEmpty) {
+                controller.text = memory.title;
+              }
+              _progress = _progress.copyWith(declarationReviewed: false);
+              _changed();
+            },
+          ),
+          OptionalWriting(
+            controller: controller,
+            label: title,
+            maxLength: field.startsWith('needs-')
+                ? 500
+                : (field == 'calling' ? 1500 : 4000),
+            enabled: !_blocked,
+            onChanged: (_) {
+              _progress = _progress.copyWith(declarationReviewed: false);
+              _changed();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _recordingChanged(bool busy) {
+    if (mounted) setState(() => _recordingBusy = busy);
+  }
+
+  Widget _declarationReview() => CheckboxListTile(
+    contentPadding: EdgeInsets.zero,
+    value: _progress.declarationReviewed,
+    title: const Text('This reflects my intention'),
+    onChanged: _blocked
+        ? null
+        : (value) {
+            _progress = _progress.copyWith(declarationReviewed: value ?? false);
+            _changed();
+          },
   );
+
+  Widget _titleField(TextEditingController controller, String title) =>
+      SayableField(
+        controller: controller,
+        enabled: !_blocked,
+        maxLines: 1,
+        maxLength: 120,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: InputDecoration(labelText: title),
+        onChanged: (_) => _changed(),
+      );
+
   Widget _heading(String title, [String? text]) => Padding(
     padding: const EdgeInsets.only(bottom: 24),
     child: Column(
@@ -328,9 +369,11 @@ class _CommitmentJourneyScreenState
   );
   Future<void> _ownPractice() async {
     final c = TextEditingController();
+    final practiceId = const Uuid().v7();
     var category = CommitmentPracticeCategory.joyPleasure;
     final result = await showDialog<CommitmentPracticeDraft>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, update) => AlertDialog(
           title: const Text('Daily practice'),
@@ -338,13 +381,32 @@ class _CommitmentJourneyScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
+                SayableField(
                   controller: c,
                   autofocus: true,
-                  maxLength: 1000,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Practice'),
+                  enabled: !_recordingBusy,
+                  maxLength: 120,
+                  maxLines: 1,
+                  onChanged: (_) => update(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Practice title',
+                  ),
+                ),
+                VoiceNotesField(
+                  noteContext: (
+                    type: 'commitment',
+                    id: 'journey:primary',
+                    field: 'practice:$practiceId',
+                  ),
+                  title: 'Daily practice',
+                  beforeRecord: _stopInstructionAudio,
+                  onBusyChanged: (busy) {
+                    _recordingChanged(busy);
+                    update(() {});
+                  },
+                  onRecorded: (memory) => update(() {
+                    if (c.text.trim().isEmpty) c.text = memory.title;
+                  }),
                 ),
                 DropdownButtonFormField<CommitmentPracticeCategory>(
                   initialValue: category,
@@ -357,29 +419,33 @@ class _CommitmentJourneyScreenState
                         ),
                       )
                       .toList(),
-                  onChanged: (v) => update(() => category = v!),
+                  onChanged: _recordingBusy
+                      ? null
+                      : (v) => update(() => category = v!),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: _recordingBusy ? null : () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () {
-                if (c.text.trim().isNotEmpty) {
-                  Navigator.pop(
-                    ctx,
-                    CommitmentPracticeDraft(
-                      id: const Uuid().v7(),
-                      category: category,
-                      body: c.text.trim(),
-                    ),
-                  );
-                }
-              },
+              onPressed: c.text.trim().isEmpty || _recordingBusy
+                  ? null
+                  : () {
+                      if (c.text.trim().isNotEmpty) {
+                        Navigator.pop(
+                          ctx,
+                          CommitmentPracticeDraft(
+                            id: practiceId,
+                            category: category,
+                            body: c.text.trim(),
+                          ),
+                        );
+                      }
+                    },
               child: const Text('Add'),
             ),
           ],
@@ -399,44 +465,35 @@ class _CommitmentJourneyScreenState
     switch (_progress.stage) {
       case CommitmentJourneyStage.invitation:
         return CommitmentInvitationView(
+          voice: _audioFor('invitation-voice'),
+          music: _audioFor('invitation-music'),
+          bell: _audioFor('invitation-bell'),
           onContinue: _advance,
           onReadiness: () => context.push('/welcome/commitment/readiness'),
         );
       case CommitmentJourneyStage.quietPlace:
-        return _heading(
-          'A moment with God',
-          'Find somewhere quiet, if you can. Stand or kneel if you are able. '
-              'Lift your heart to the heavens in prayer. Get your paper or notebook and a pen.',
-        );
+        return _heading('A moment with God', 'Find a quiet place');
       case CommitmentJourneyStage.needs:
         return Column(
           children: [
-            _heading(
-              'What do you need from God?',
-              'Name three needs for a closer, more faithful walk with Him.',
-            ),
-            for (var i = 0; i < 3; i++) _field(_needs[i], 'Need ${i + 1}', 500),
+            _heading('What do you need from God?', 'Record three needs'),
+            for (var i = 0; i < 3; i++)
+              _recordedField(_needs[i], 'needs-${i + 1}', 'Need ${i + 1}'),
           ],
         );
       case CommitmentJourneyStage.calling:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _heading(
-              'What is your calling?',
-              'What is one thing you believe God has called you to do or become in this world?',
-            ),
-            _field(_calling, 'Calling', CommitmentTextLimits.calling, lines: 5),
+            _heading('What is your calling?', 'Record your calling'),
+            _recordedField(_calling, 'calling', 'Calling'),
           ],
         );
       case CommitmentJourneyStage.practices:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _heading(
-              'Small, faithful choices',
-              'What healthy daily activities can help you pursue this calling in a way that glorifies God?',
-            ),
+            _heading('Small, faithful choices', 'Choose your daily practices'),
             Text('${_practices.length} of 12 practices'),
             for (final p in _practices)
               ListTile(
@@ -455,8 +512,8 @@ class _CommitmentJourneyScreenState
               ),
             OutlinedButton.icon(
               onPressed: _practices.length < 12 ? _ownPractice : null,
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Write my own'),
+              icon: const Icon(Icons.mic_none),
+              label: const Text('Add practice'),
             ),
             for (final category in CommitmentPracticeCategory.values)
               ExpansionTile(
@@ -500,22 +557,8 @@ class _CommitmentJourneyScreenState
         return Column(
           children: [
             _heading('My declaration'),
-            _field(
-              _declaration,
-              'Declaration',
-              4000,
-              lines: 10,
-              declaration: true,
-            ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _progress.declarationReviewed,
-              title: const Text('These words reflect my intention.'),
-              onChanged: (v) {
-                _progress = _progress.copyWith(declarationReviewed: v ?? false);
-                _changed();
-              },
-            ),
+            _recordedField(_declaration, 'declaration', 'Declaration'),
+            _declarationReview(),
           ],
         );
       case CommitmentJourneyStage.guide:
@@ -542,6 +585,7 @@ class _CommitmentJourneyScreenState
             const SizedBox(height: 20),
             CommitmentAudioReader(
               key: ValueKey(_progress.guideId),
+              audio: _audioFor('guide'),
               assetId: 'guide_${_progress.guideId!.wireValue}_v1',
             ),
             const SizedBox(height: 20),
@@ -576,7 +620,7 @@ class _CommitmentJourneyScreenState
         return Column(
           children: [
             _heading('Name your commitment'),
-            _field(_name, 'Commitment name', 120, lines: 1),
+            _titleField(_name, 'Commitment name'),
           ],
         );
       case CommitmentJourneyStage.summary:
@@ -584,29 +628,52 @@ class _CommitmentJourneyScreenState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _heading(_name.text, _calling.text),
-            ..._needs.map(
-              (v) => ListTile(
-                leading: const Icon(Icons.spa_outlined),
-                title: Text(v.text),
-              ),
-            ),
+            _heading(_name.text),
+            _recordedField(_calling, 'calling', 'Calling'),
+            for (var i = 0; i < _needs.length; i++)
+              _recordedField(_needs[i], 'needs-${i + 1}', 'Need ${i + 1}'),
             ExpansionTile(
+              enabled: !_recordingBusy,
+              maintainState: true,
               title: const Text('Daily practices'),
               initiallyExpanded: true,
-              children: _practices
-                  .map((p) => ListTile(title: Text(p.body)))
-                  .toList(),
+              children: [
+                for (final practice in _practices)
+                  VoiceNotesField(
+                    noteContext: (
+                      type: 'commitment',
+                      id: 'journey:primary',
+                      field: 'practice:${practice.id}',
+                    ),
+                    title: _shortLabel(practice.body),
+                    enabled: !_blocked,
+                    beforeRecord: _stopInstructionAudio,
+                    onBusyChanged: _recordingChanged,
+                    onRecorded: (_) {
+                      _progress = _progress.copyWith(
+                        declarationReviewed: false,
+                      );
+                      _changed();
+                    },
+                  ),
+              ],
             ),
             ExpansionTile(
+              enabled: !_recordingBusy,
+              maintainState: true,
               title: const Text('My declaration'),
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(_declaration.text),
+                  child: _recordedField(
+                    _declaration,
+                    'declaration',
+                    'Declaration',
+                  ),
                 ),
               ],
             ),
+            _declarationReview(),
             ListTile(
               leading: const Icon(Icons.schedule),
               title: Text(
@@ -647,7 +714,7 @@ class _CommitmentJourneyScreenState
                       children: [
                         IconButton(
                           tooltip: 'Back',
-                          onPressed: _busy
+                          onPressed: _blocked
                               ? null
                               : () => _progress.stage.index > 0
                                     ? _advance(back: true)
@@ -661,7 +728,7 @@ class _CommitmentJourneyScreenState
                           ),
                         ),
                         TextButton(
-                          onPressed: _busy ? null : _leave,
+                          onPressed: _blocked ? null : _leave,
                           child: const Text('Not now'),
                         ),
                       ],
@@ -712,7 +779,7 @@ class _CommitmentJourneyScreenState
                                               .invitation) ...[
                                     const SizedBox(height: 28),
                                     FilledButton(
-                                      onPressed: _busy
+                                      onPressed: _blocked
                                           ? null
                                           : _progress.stage ==
                                                 CommitmentJourneyStage.summary
@@ -876,3 +943,6 @@ class CommitmentScheduleFields extends StatelessWidget {
     ],
   );
 }
+
+String _shortLabel(String value) =>
+    String.fromCharCodes(value.trim().runes.take(120));

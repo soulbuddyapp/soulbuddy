@@ -73,7 +73,8 @@ class BundledPrayerReminder {
   }
 
   Future<void> start() async {
-    _subscription = scheduler.responses
+    _subscription = scheduler
+        .responsesFor(ReminderNotificationKind.builtInPrayer)
         .where(
           (r) =>
               r.kind == ReminderNotificationKind.builtInPrayer &&

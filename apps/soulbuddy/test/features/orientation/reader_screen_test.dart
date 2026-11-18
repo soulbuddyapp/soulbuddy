@@ -10,6 +10,37 @@ import 'package:soulbuddy/features/orientation/application/orientation_controlle
 import 'package:soulbuddy/features/orientation/presentation/orientation_reader_screen.dart';
 
 void main() {
+  testWidgets('prayer and goal responses remain in the reader', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final fixture = _Fixture();
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: OrientationReaderScreen(
+            course: fixture.course,
+            transcript: fixture.transcript,
+            controller: fixture.controller,
+            onBack: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('orientation-respond')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save a prayer'));
+    await tester.tap(find.text('Save a prayer'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('orientation-prayer-editor')), findsOneWidget);
+    expect(find.byType(OrientationReaderScreen), findsOneWidget);
+    await tester.ensureVisible(find.text('Turn the seed into a Goal'));
+    await tester.tap(find.text('Turn the seed into a Goal'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('orientation-goal-editor')), findsOneWidget);
+  });
   testWidgets('speed, playhead highlight and tap-to-seek stay connected', (
     tester,
   ) async {

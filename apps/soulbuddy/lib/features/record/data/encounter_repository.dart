@@ -16,5 +16,6 @@ abstract interface class EncounterRepository {
     String encounterId, {
     required String body,
     required String localDate,
+    String? audioEncounterId,
   });
 }

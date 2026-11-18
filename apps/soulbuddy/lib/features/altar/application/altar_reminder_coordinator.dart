@@ -48,7 +48,8 @@ class AltarReminderCoordinator {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    _responsesSubscription = _scheduler.responses
+    _responsesSubscription = _scheduler
+        .responsesFor(ReminderNotificationKind.altar)
         .where((response) => response.kind == ReminderNotificationKind.altar)
         .listen(_handleResponse);
     _deliveriesSubscription = _repository.watchReminderDeliveries().listen((

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/speech/sayable_field.dart';
 import '../../guide/presentation/guide_illustration.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../domain/formation_catalog.dart';
 import '../domain/formation_progress.dart';
 import '../domain/teaching_reflection_prompts.dart';
@@ -25,6 +26,8 @@ class TeachingReflectionSheet extends StatefulWidget {
 class _TeachingReflectionSheetState extends State<TeachingReflectionSheet> {
   final reflection = TextEditingController();
   final action = TextEditingController();
+  String? recordingId;
+  bool recordingBusy = false;
   bool saving = false;
   bool failed = false;
   @override
@@ -35,7 +38,7 @@ class _TeachingReflectionSheetState extends State<TeachingReflectionSheet> {
   }
 
   Future<void> save() async {
-    if (saving) return;
+    if (saving || recordingBusy) return;
     setState(() {
       saving = true;
       failed = false;
@@ -46,6 +49,7 @@ class _TeachingReflectionSheetState extends State<TeachingReflectionSheet> {
           day: widget.day.day,
           videoId: widget.videoId,
           completedAt: DateTime.now(),
+          reflectionEncounterId: recordingId,
           reflection: reflection.text,
           action: action.text,
         ),
@@ -69,7 +73,7 @@ class _TeachingReflectionSheetState extends State<TeachingReflectionSheet> {
   Widget build(BuildContext context) {
     final (question, practical) = teachingPrompts(widget.day);
     return PopScope(
-      canPop: !saving,
+      canPop: !saving && !recordingBusy,
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           20,
@@ -96,6 +100,21 @@ class _TeachingReflectionSheetState extends State<TeachingReflectionSheet> {
             ),
             const SizedBox(height: 12),
             Text(question, style: Theme.of(context).textTheme.titleMedium),
+            VoiceNotesField(
+              noteContext: (
+                type: 'formation',
+                id: '${widget.videoId}:day-${widget.day.day}',
+                field: 'reflection',
+              ),
+              title: question,
+              showTitle: false,
+              onRecorded: (memory) {
+                if (mounted) setState(() => recordingId = memory.id);
+              },
+              onBusyChanged: (busy) {
+                if (mounted) setState(() => recordingBusy = busy);
+              },
+            ),
             const SizedBox(height: 8),
             SayableField(
               controller: reflection,
@@ -119,11 +138,13 @@ class _TeachingReflectionSheetState extends State<TeachingReflectionSheet> {
               ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: saving ? null : save,
+              onPressed: saving || recordingBusy ? null : save,
               child: const Text('Complete today'),
             ),
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(context),
+              onPressed: saving || recordingBusy
+                  ? null
+                  : () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
           ],

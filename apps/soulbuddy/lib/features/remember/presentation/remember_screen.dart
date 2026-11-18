@@ -6,6 +6,7 @@ import '../../../core/design/app_spacing.dart';
 import '../../../core/presentation/covenant_marks.dart';
 import '../../../core/presentation/feature_page.dart';
 import '../../record/audio/providers/memory_audio_providers.dart';
+import '../../record/presentation/inline_memory_recorder.dart';
 import '../../record/providers/encounter_providers.dart';
 import '../presentation/daily_remembrance_card.dart';
 import '../providers/daily_memory_providers.dart';
@@ -202,22 +203,21 @@ class _EmptyRemember extends StatelessWidget {
                 'Remember',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Keep what you do not want to forget.',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
               const SizedBox(height: AppSpacing.md),
               const CovenantIncisedDivider(key: Key('remember-incised-mark')),
               const SizedBox(height: AppSpacing.md),
-              const Flexible(
+              const Expanded(
                 child: SingleChildScrollView(
-                  physics: NeverScrollableScrollPhysics(),
-                  child: ForgetQuicklyCard(expanded: true),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _CaptureButtons(),
+                      SizedBox(height: AppSpacing.md),
+                      ForgetQuicklyCard(expanded: true),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              const _CaptureButtons(),
             ],
           ),
         ),
@@ -226,29 +226,42 @@ class _EmptyRemember extends StatelessWidget {
   );
 }
 
-class _CaptureButtons extends StatelessWidget {
+class _CaptureButtons extends StatefulWidget {
   const _CaptureButtons();
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Expanded(
-        child: FilledButton.icon(
-          key: const Key('remember-speak'),
-          onPressed: () => context.push('/remember/capture?mode=speak'),
-          icon: const Icon(Icons.mic_none),
-          label: const Text('Speak'),
+  State<_CaptureButtons> createState() => _CaptureButtonsState();
+}
+
+class _CaptureButtonsState extends State<_CaptureButtons>
+    with AutomaticKeepAliveClientMixin<_CaptureButtons> {
+  bool _recordingBusy = false;
+
+  @override
+  bool get wantKeepAlive => _recordingBusy;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InlineMemoryRecorder(
+          buttonKey: const Key('remember-speak'),
+          onBusyChanged: (busy) {
+            if (mounted) {
+              setState(() => _recordingBusy = busy);
+              updateKeepAlive();
+            }
+          },
         ),
-      ),
-      const SizedBox(width: AppSpacing.sm),
-      Expanded(
-        child: OutlinedButton.icon(
-          key: const Key('remember-write'),
-          onPressed: () => context.push('/remember/capture?mode=write'),
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Write'),
+        TextButton(
+          onPressed: _recordingBusy
+              ? null
+              : () => context.push('/remember/capture?mode=write'),
+          child: const Text('Write memory'),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }

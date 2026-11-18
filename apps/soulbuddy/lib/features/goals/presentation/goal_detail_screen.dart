@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design/app_spacing.dart';
 import '../../../core/speech/sayable_field.dart';
 import '../../guards/presentation/return_sheet.dart';
+import '../../record/presentation/voice_notes_field.dart';
 import '../../guards/providers/return_providers.dart';
 import '../domain/goal.dart';
 import '../providers/goal_providers.dart';
@@ -24,6 +25,7 @@ class GoalDetailScreen extends ConsumerStatefulWidget {
 
 class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   var _working = false;
+  var _recordingBusy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +69,9 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 children: [
                   IconButton(
                     tooltip: 'Back to Goals',
-                    onPressed: _working ? null : () => context.go('/goals'),
+                    onPressed: _working || _recordingBusy
+                        ? null
+                        : () => context.go('/goals'),
                     icon: const Icon(Icons.arrow_back),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -109,15 +113,17 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         if (kingdomComplete)
                           FilledButton.icon(
                             key: const Key('meditate-on-goal'),
-                            onPressed: () =>
-                                context.go('/goals/${goal.id}/meditate'),
+                            onPressed: _recordingBusy
+                                ? null
+                                : () =>
+                                      context.go('/goals/${goal.id}/meditate'),
                             icon: const Icon(Icons.self_improvement),
                             label: const Text('Meditate on this Goal'),
                           ),
                         if (returnRelevant)
                           FilledButton.tonalIcon(
                             key: const Key('goal-return'),
-                            onPressed: _working
+                            onPressed: _working || _recordingBusy
                                 ? null
                                 : () =>
                                       showReturnSheet(context, goalId: goal.id),
@@ -127,14 +133,16 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         if (!kingdomComplete && !returnRelevant)
                           FilledButton.tonalIcon(
                             key: const Key('edit-goal'),
-                            onPressed: _working ? null : () => _edit(goal),
+                            onPressed: _working || _recordingBusy
+                                ? null
+                                : () => _edit(goal),
                             icon: const Icon(Icons.edit_outlined),
                             label: const Text('Edit'),
                           ),
                         PopupMenuButton<_GoalAction>(
                           key: const Key('goal-more-actions'),
                           tooltip: 'More Goal actions',
-                          enabled: !_working,
+                          enabled: !_working && !_recordingBusy,
                           onSelected: (action) => switch (action) {
                             _GoalAction.edit => _edit(goal),
                             _GoalAction.pause => _setStatus(
@@ -164,19 +172,25 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                         ),
                       ],
                     ),
-                    if (_hasText(goal.currentSituation) &&
-                        goal.currentSituation!.trim() != goal.displayTitle) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      const _SectionLabel('What is happening now'),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(goal.currentSituation!.trim()),
-                    ],
-                    if (_hasText(goal.whyItMatters)) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      const _SectionLabel('Why this matters'),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(goal.whyItMatters!.trim()),
-                    ],
+                    const SizedBox(height: AppSpacing.lg),
+                    VoiceNotesField(
+                      noteContext: (type: 'goal', id: goal.id, field: 'notes'),
+                      title: 'Reflections',
+                      includeAllFields: true,
+                      onBusyChanged: (busy) =>
+                          setState(() => _recordingBusy = busy),
+                    ),
+                    if (_hasText(goal.currentSituation) ||
+                        _hasText(goal.whyItMatters))
+                      ExpansionTile(
+                        title: const Text('Earlier written notes'),
+                        children: [
+                          if (_hasText(goal.currentSituation))
+                            SelectableText(goal.currentSituation!),
+                          if (_hasText(goal.whyItMatters))
+                            SelectableText(goal.whyItMatters!),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -244,6 +258,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   Future<void> _edit(Goal goal) async {
     final edit = await showDialog<_GoalEdit>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => _EditGoalDialog(goal: goal),
     );
     if (edit == null || !mounted) return;
@@ -335,16 +350,6 @@ class _StatusLabel extends StatelessWidget {
   );
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) =>
-      Text(text, style: Theme.of(context).textTheme.labelLarge);
-}
-
 class _GoalUnavailable extends StatelessWidget {
   const _GoalUnavailable({this.onRetry});
 
@@ -383,6 +388,7 @@ class _EditGoalDialog extends StatefulWidget {
 }
 
 class _EditGoalDialogState extends State<_EditGoalDialog> {
+  bool _recordingBusy = false;
   late final TextEditingController _titleController;
   late final TextEditingController _situationController;
   late final TextEditingController _whyController;
@@ -420,47 +426,53 @@ class _EditGoalDialogState extends State<_EditGoalDialog> {
           decoration: const InputDecoration(labelText: 'Goal'),
         ),
         const SizedBox(height: AppSpacing.sm),
-        // These two are a person's own account of the Goal, in sentences, so
-        // they can be spoken. The Goal field stays a bare field: there it names
-        // the row in the list rather than answering a question.
-        SayableField(
-          controller: _situationController,
-          maxLength: 4000,
-          maxLines: 4,
-          textCapitalization: TextCapitalization.sentences,
-          labelText: 'What is happening now',
-          // A cut is said rather than left to look like a whole account. The
-          // dialog has no message line of its own, so it goes to the SnackBar
-          // this screen already reports through: the messenger is an ancestor
-          // of the dialog's route, so the notice lands on this screen while
-          // the dialog is still up.
-          onTruncated: _reportTruncation,
+        VoiceNotesField(
+          noteContext: (type: 'goal', id: widget.goal.id, field: 'situation'),
+          title: 'What is happening now',
+          enabled: !_recordingBusy,
+          onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
         ),
         const SizedBox(height: AppSpacing.sm),
-        SayableField(
-          controller: _whyController,
-          maxLength: 4000,
-          maxLines: 3,
-          textCapitalization: TextCapitalization.sentences,
-          labelText: 'Why this matters',
-          // Said for the same reason, and to the same place.
-          onTruncated: _reportTruncation,
-          // The field above already said it. Both are one dialog, so the notice
-          // is said once rather than once per field.
-          showUnavailableNotice: false,
+        VoiceNotesField(
+          noteContext: (type: 'goal', id: widget.goal.id, field: 'why'),
+          title: 'Why this matters',
+          enabled: !_recordingBusy,
+          onBusyChanged: (busy) => setState(() => _recordingBusy = busy),
+        ),
+        ExpansionTile(
+          title: const Text('Write instead'),
+          children: [
+            SayableField(
+              controller: _situationController,
+              enabled: !_recordingBusy,
+              maxLength: 4000,
+              maxLines: 4,
+              labelText: 'What is happening now',
+              onTruncated: _reportTruncation,
+            ),
+            SayableField(
+              controller: _whyController,
+              enabled: !_recordingBusy,
+              maxLength: 4000,
+              maxLines: 3,
+              labelText: 'Why this matters',
+              showUnavailableNotice: false,
+              onTruncated: _reportTruncation,
+            ),
+          ],
         ),
       ],
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.pop(context),
+        onPressed: _recordingBusy ? null : () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
       ValueListenableBuilder<TextEditingValue>(
         valueListenable: _titleController,
         builder: (context, value, child) => FilledButton(
           key: const Key('edit-goal-save'),
-          onPressed: value.text.trim().isEmpty ? null : _save,
+          onPressed: value.text.trim().isEmpty || _recordingBusy ? null : _save,
           child: const Text('Save'),
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/record/audio/application/record_plugin_driver.dart';
 import '../../features/record/audio/data/audio_asset_store.dart';
 import '../../features/record/audio/providers/memory_audio_providers.dart';
+import '../playback/spiritual_session_providers.dart';
 import 'plugin_speech_recognizer.dart';
 import 'speech_capture_controller.dart';
 import 'speech_recognizer.dart';
@@ -45,8 +46,26 @@ final speechRecognizerProvider = Provider<SpeechRecognizer>((ref) {
 final speechCaptureControllerProvider = Provider<SpeechCaptureController>((
   ref,
 ) {
+  final owner = Object();
+  final lock = ref.read(microphoneCaptureLockProvider);
+  final session = ref.read(spiritualSessionControllerProvider);
   final controller = SpeechCaptureController(
     recognizer: ref.read(speechRecognizerProvider),
+    beforeListen: () async {
+      lock.acquire(owner);
+      try {
+        await session.acquireCapture(owner);
+        await pauseAudioForCapture(ref);
+      } catch (_) {
+        session.releaseCapture(owner);
+        lock.release(owner);
+        rethrow;
+      }
+    },
+    afterListen: () {
+      session.releaseCapture(owner);
+      lock.release(owner);
+    },
   );
   ref.onDispose(controller.dispose);
   return controller;

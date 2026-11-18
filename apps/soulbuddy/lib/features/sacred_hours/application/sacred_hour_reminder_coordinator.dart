@@ -51,7 +51,8 @@ class SacredHourReminderCoordinator {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    _responsesSubscription = _scheduler.responses
+    _responsesSubscription = _scheduler
+        .responsesFor(ReminderNotificationKind.sacredHour)
         .where(
           (response) => response.kind == ReminderNotificationKind.sacredHour,
         )

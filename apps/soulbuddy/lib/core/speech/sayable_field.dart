@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -143,6 +141,7 @@ class SayableField extends ConsumerStatefulWidget {
 }
 
 class _SayableFieldState extends ConsumerState<SayableField> {
+  final Object _sessionOwner = Object();
   SpeechCaptureController? _speech;
 
   /// The merge this field is in the middle of.
@@ -179,9 +178,6 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     final speech = ref.watch(speechCaptureControllerProvider)
       ..addListener(_speechChanged);
     _speech = speech;
-    // Availability is resolved once for the whole app; asking here is what
-    // puts the mic away on a device that cannot recognise.
-    unawaited(speech.ensureAvailable());
   }
 
   @override
@@ -193,6 +189,7 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // is not this field's to close.
     if (oldWidget.controller != widget.controller ||
         oldWidget.maxLength != widget.maxLength) {
+      _speech?.stopForOwner(_sessionOwner);
       _edit = null;
     }
   }
@@ -211,12 +208,14 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // microphone another field is dictating into, and `stop` cannot be awaited
     // from `dispose`.
     _speech?.removeListener(_speechChanged);
+    _speech?.stopForOwner(_sessionOwner);
     super.dispose();
   }
 
   Future<void> _toggle() async {
     final speech = _speech;
     if (speech == null || !widget.enabled) return;
+    if (speech.isStarting) return;
     if (speech.isListening) {
       // Leaves the merge alone: the words are already in the field and a final
       // result can still arrive for them.
@@ -242,6 +241,7 @@ class _SayableFieldState extends ConsumerState<SayableField> {
     // field is the only thing that knows the notice is now untrue.
     if (_didNotStart) setState(() => _didNotStart = false);
     final started = await speech.listen(
+      owner: _sessionOwner,
       onWords: _onWords,
       onDidNotStart: _startDidNotTake,
     );

@@ -125,12 +125,14 @@ class PrayerReminderCoordinator with WidgetsBindingObserver {
             await _reconcile();
           });
         }, onError: _reportError);
-    _responsesSubscription = _scheduler.responses.listen(
-      (response) => _enqueueReported(() async {
-        await _handleResponse(response);
-      }),
-      onError: _reportError,
-    );
+    _responsesSubscription = _scheduler
+        .responsesFor(ReminderNotificationKind.prayer)
+        .listen(
+          (response) => _enqueueReported(() async {
+            await _handleResponse(response);
+          }),
+          onError: _reportError,
+        );
     await _scheduler.initialize();
     _initialized = true;
     await reconcileNow();

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:soulbuddy/features/record/audio/application/audio_capture_controller.dart';
+import 'package:soulbuddy/features/record/audio/data/audio_asset_store.dart';
+import 'package:soulbuddy/features/record/audio/providers/memory_audio_providers.dart';
+import '../../helpers/fake_inline_recorder.dart';
 import 'package:soulbuddy/features/commitments/application/commitment_audio.dart';
 import 'package:soulbuddy/features/commitments/application/commitment_meditation_session_controller.dart';
 import 'package:soulbuddy/features/commitments/domain/commitment.dart';
@@ -12,8 +17,9 @@ void main() {
   late FakeSessionAudio guide, bell;
   late List<CommitmentMeditationSessionDraft> saved;
   var elapsed = Duration.zero;
-  var memoryOpened = false;
   var exited = false;
+  late FakeInlineRecorder recorder;
+  late AudioCaptureController capture;
   final at = DateTime(2026, 9, 26, 9);
   final details = CommitmentDetails(
     commitment: Commitment(
@@ -49,7 +55,6 @@ void main() {
   void create({bool listening = false}) {
     elapsed = Duration.zero;
     saved = [];
-    memoryOpened = false;
     exited = false;
     guide = FakeSessionAudio();
     bell = FakeSessionAudio();
@@ -80,20 +85,31 @@ void main() {
     double scale = 1,
   }) async {
     create(listening: listening);
+    recorder = FakeInlineRecorder();
+    capture = AudioCaptureController(
+      recorder: recorder,
+      allocateTemporary: () async =>
+          const TemporaryAudio(key: 'take', locator: '/take'),
+    );
+    addTearDown(capture.close);
     await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
-          data: MediaQueryData(textScaler: TextScaler.linear(scale)),
-          child: CommitmentSessionView(
-            details: details,
-            controller: controller,
-            guideAsset: asset,
-            onExit: () {
-              exited = true;
-            },
-            onRecordMemory: () {
-              memoryOpened = true;
-            },
+      ProviderScope(
+        overrides: [
+          inlineAudioCaptureControllerProvider.overrideWith(
+            (ref, key) async => capture,
+          ),
+        ],
+        child: MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: CommitmentSessionView(
+              details: details,
+              controller: controller,
+              guideAsset: asset,
+              onExit: () {
+                exited = true;
+              },
+            ),
           ),
         ),
       ),
@@ -130,10 +146,11 @@ void main() {
     await tester.tap(find.text('End'));
     await tester.pump();
     expect(saved, hasLength(1));
-    expect(memoryOpened, false);
     await tester.tap(find.text('Record a memory'));
     await tester.pump();
-    expect(memoryOpened, true);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(recorder.started, true);
+    await capture.cancel();
     await cleanup(tester);
   });
 

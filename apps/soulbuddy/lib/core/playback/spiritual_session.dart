@@ -23,6 +23,10 @@ class SpiritualSession {
     required this.onResume,
     required this.onComplete,
     required this.onClose,
+    this.onStart,
+    this.onSeek,
+    this.supportsSystemPlayback = false,
+    this.showCompletion = true,
     this.completionLabel = 'Complete',
   });
 
@@ -31,7 +35,16 @@ class SpiritualSession {
   final String title;
   final String route;
   final bool canPause;
+  final bool supportsSystemPlayback;
+  final bool showCompletion;
+  final Future<void> Function(Duration)? onSeek;
   final String completionLabel;
+
+  /// Starts both playback layers after the previous session has closed.
+  ///
+  /// Playback owners should use this callback instead of starting audio before
+  /// the session controller's `begin`, which may stop a shared player.
+  final Future<void> Function()? onStart;
   final Future<void> Function() onPause;
   final Future<void> Function() onResume;
   final Future<void> Function() onComplete;

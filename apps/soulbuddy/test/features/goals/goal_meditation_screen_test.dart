@@ -10,6 +10,7 @@ import 'package:soulbuddy/features/goals/providers/goal_meditation_providers.dar
 import 'package:soulbuddy/features/goals/providers/goal_providers.dart';
 import 'package:soulbuddy/features/kingdom/providers/kingdom_course_providers.dart';
 import 'package:soulbuddy/features/prayers/application/meditation_sound_preferences.dart';
+import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
 
 import '../../helpers/no_speech_recognizer.dart';
 
@@ -43,6 +44,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          voiceNotesProvider.overrideWith((ref, context) => Stream.value([])),
           kingdomMeditationReadyProvider.overrideWith((ref) async => true),
           goalProvider(goalId).overrideWith((ref) => Stream.value(goal)),
           goalMeditationPlanProvider(goalId).overrideWith((ref) async => plan),

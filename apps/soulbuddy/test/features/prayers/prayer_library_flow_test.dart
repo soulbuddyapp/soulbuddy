@@ -13,6 +13,7 @@ import 'package:soulbuddy/features/prayers/presentation/prayer_detail_screen.dar
 import 'package:soulbuddy/features/prayers/presentation/prayers_screen.dart';
 import 'package:soulbuddy/features/prayers/providers/prayer_providers.dart';
 import 'package:soulbuddy/features/prayers/providers/voice_tablet_providers.dart';
+import 'package:soulbuddy/features/record/providers/voice_note_providers.dart';
 
 import '../../helpers/in_memory_prayer_repository.dart';
 
@@ -82,6 +83,11 @@ void main() {
     await tester.tap(find.text('For my family'));
     await tester.pumpAndSettle();
 
+    expect(find.text(_familyPrayerBody), findsNothing);
+    expect(find.text('After prayer'), findsOneWidget);
+    await tester.ensureVisible(find.text('Prayer words'));
+    await tester.tap(find.text('Prayer words'));
+    await tester.pumpAndSettle();
     expect(find.text(_familyPrayerBody), findsOneWidget);
     expect(find.text('Ease someone’s burden today.'), findsOneWidget);
     await tester.scrollUntilVisible(
@@ -156,7 +162,12 @@ void main() {
     await tester.ensureVisible(find.text('For my family'));
     await tester.tap(find.text('For my family'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Prayer words'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Prayer words'));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text(_familyPrayerBody));
+    await tester.pumpAndSettle();
     expect(find.text(_familyPrayerBody), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -201,7 +212,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Use this prayer today?'), findsOneWidget);
-    expect(find.text(_familyPrayerBody), findsOneWidget);
+    expect(find.byType(PrayerDetailScreen), findsOneWidget);
 
     repository.completeSelection();
     await tester.pumpAndSettle();
@@ -418,6 +429,7 @@ Future<void> _pumpFlow(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        voiceNotesProvider.overrideWith((ref, context) => Stream.value([])),
         prayerRepositoryProvider.overrideWith((ref) async => repository),
         voiceTabletForSourceProvider.overrideWith(
           (ref, source) => Stream.value(null),

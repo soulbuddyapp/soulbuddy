@@ -24,7 +24,9 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
       builder: (context, _) {
         final state = controller.state;
         final session = state.session;
-        if (session == null) return const SizedBox.shrink();
+        if (session == null || controller.isCapturing) {
+          return const SizedBox.shrink();
+        }
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
         final piece = _piece(session.kind);
@@ -92,18 +94,27 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                                 ?.copyWith(color: scheme.onSurface),
                           ),
                           const SizedBox(height: 4),
-                          LinearProgressIndicator(
-                            key: const Key('spiritual-session-progress'),
-                            value: state.progress ?? 0,
-                            minHeight: 3,
-                            color: colors.covenantGold,
-                            backgroundColor: scheme.outlineVariant,
-                          ),
+                          if (state.error case final error?)
+                            Text(
+                              error,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall,
+                            )
+                          else
+                            LinearProgressIndicator(
+                              key: const Key('spiritual-session-progress'),
+                              value: state.progress ?? 0,
+                              minHeight: 3,
+                              color: colors.covenantGold,
+                              backgroundColor: scheme.outlineVariant,
+                            ),
                         ],
                       ),
                     ),
                   ),
-                  if (session.canPause)
+                  if (session.canPause &&
+                      state.status != SpiritualSessionStatus.error)
                     IconButton(
                       key: Key(
                         state.status == SpiritualSessionStatus.paused
@@ -114,9 +125,10 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                           ? 'Resume'
                           : 'Pause',
                       onPressed: () => unawaited(
-                        state.status == SpiritualSessionStatus.paused
-                            ? controller.resume()
-                            : controller.pause(),
+                        (state.status == SpiritualSessionStatus.paused
+                                ? controller.resume()
+                                : controller.pause())
+                            .catchError((Object _) {}),
                       ),
                       color: scheme.onSurface,
                       icon: Icon(
@@ -125,17 +137,21 @@ class SpiritualSessionMiniPlayer extends ConsumerWidget {
                             : Icons.pause,
                       ),
                     ),
-                  IconButton(
-                    key: const Key('spiritual-session-complete'),
-                    tooltip: session.completionLabel,
-                    onPressed: () => unawaited(controller.complete()),
-                    color: scheme.onSurface,
-                    icon: const Icon(Icons.check_circle_outline),
-                  ),
+                  if (session.showCompletion)
+                    IconButton(
+                      key: const Key('spiritual-session-complete'),
+                      tooltip: session.completionLabel,
+                      onPressed: () => unawaited(
+                        controller.complete().catchError((Object _) {}),
+                      ),
+                      color: scheme.onSurface,
+                      icon: const Icon(Icons.check_circle_outline),
+                    ),
                   IconButton(
                     key: const Key('spiritual-session-close'),
                     tooltip: 'Close player',
-                    onPressed: () => unawaited(controller.close()),
+                    onPressed: () =>
+                        unawaited(controller.close().catchError((Object _) {})),
                     color: scheme.onSurface,
                     icon: const Icon(Icons.close),
                   ),

@@ -25,6 +25,7 @@ void main() {
     final firstDatabase = await openTestDatabase(path);
     final repository = PowerSyncGoalOnboardingProgressRepository(
       database: firstDatabase.powersync,
+      ownerId: 'owner-1',
       now: () => DateTime.utc(2026, 8, 28, 3),
     );
 
@@ -55,6 +56,7 @@ void main() {
     addTearDown(reopenedDatabase.close);
     final reopened = PowerSyncGoalOnboardingProgressRepository(
       database: reopenedDatabase.powersync,
+      ownerId: 'owner-1',
     );
     final saved = await reopened.load();
 
@@ -77,6 +79,7 @@ void main() {
     final firstDatabase = await openTestDatabase(path);
     final repository = PowerSyncGoalOnboardingProgressRepository(
       database: firstDatabase.powersync,
+      ownerId: 'owner-1',
     );
     await repository.save(
       const GoalOnboardingProgress(
@@ -95,6 +98,7 @@ void main() {
     addTearDown(reopenedDatabase.close);
     final reopened = PowerSyncGoalOnboardingProgressRepository(
       database: reopenedDatabase.powersync,
+      ownerId: 'owner-1',
     );
     final saved = await reopened.load();
 
@@ -119,6 +123,7 @@ void main() {
     );
     final repository = PowerSyncGoalOnboardingProgressRepository(
       database: database.powersync,
+      ownerId: 'owner-1',
     );
 
     expect(await repository.load(), isNull);
@@ -131,6 +136,7 @@ void main() {
     addTearDown(database.close);
     final repository = PowerSyncGoalOnboardingProgressRepository(
       database: database.powersync,
+      ownerId: 'owner-1',
     );
     await repository.save(
       const GoalOnboardingProgress(
@@ -144,6 +150,55 @@ void main() {
     await repository.clear();
 
     expect(await repository.load(), isNull);
+  });
+
+  test('restart clears only this owner’s draft recording links', () async {
+    final database = await openTestDatabase(
+      '${temporaryDirectory.path}/recording-reset.db',
+    );
+    addTearDown(database.close);
+    final repository = PowerSyncGoalOnboardingProgressRepository(
+      database: database.powersync,
+      ownerId: 'owner-1',
+    );
+    await repository.save(
+      const GoalOnboardingProgress(
+        stage: GoalOnboardingStage.situation,
+        starterKey: GoalStarterKey.direction,
+        title: 'Find direction',
+      ),
+    );
+    for (final (id, owner, context) in [
+      ('draft-note', 'owner-1', 'onboarding'),
+      ('saved-goal-note', 'owner-1', 'saved-goal'),
+      ('other-owner-note', 'owner-2', 'onboarding'),
+    ]) {
+      await database.powersync.execute(
+        'INSERT INTO voice_note_links '
+        '(id, owner_id, context_type, context_id, field_key, encounter_id, created_at) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [
+          id,
+          owner,
+          'goal',
+          context,
+          'situation',
+          'audio-$id',
+          '2026-11-03T00:00:00Z',
+        ],
+      );
+    }
+
+    await repository.save(const GoalOnboardingProgress());
+
+    final links = await database.powersync.getAll(
+      'SELECT id FROM voice_note_links ORDER BY id',
+    );
+    expect(links.map((row) => row['id']), [
+      'other-owner-note',
+      'saved-goal-note',
+    ]);
+    expect(await database.powersync.getCrudBatch(), isNull);
   });
 
   test('own words require non-empty user text before completion', () {
